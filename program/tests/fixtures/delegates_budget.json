@@ -1,11 +1,11 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 19,
+ "total": 27,
  "per": {
   "access_write_oracle": 0,
   "calc_oracle": 0,
   "cards_oracle": 0,
-  "conversions_oracle": 1,
+  "conversions_oracle": 9,
   "dashboards_oracle": 0,
   "equip_rows_oracle": 0,
   "equipgroups_oracle": 0,
@@ -15,10 +15,10 @@
   "presets_oracle": 0,
   "release_place_oracle": 7,
   "sets_oracle": 0,
-  "settings_oracle": 7,
+  "settings_oracle": 0,
   "settings_write_oracle": 0,
   "shifts_oracle": 0,
-  "sources_write_oracle": 0,
+  "sources_write_oracle": 7,
   "ui_defaults_oracle": 0,
   "worklog_write_oracle": 0
  },
@@ -35,6 +35,73 @@
   "release_place_oracle": "Windows では権限の場面（読めない置き場・root）が無く、手元の Linux（root）で数えた数より 2 少ない（版 3.105.0 は 11 と 9。PR #104 の Windows CI。版 3.106.0 は 8 と 6: 配布の置き場の名前が並びの 2 歩は本文の門が断る）。delegate-count.py --check はこの幅を同じとみなす"
  },
  "raisedWhy": {
-  "settings_oracle": "版 3.109.0（17 → 19）: 窓がまだ組めない束の節（変換表の判定の字の大きな整数〈式が引く形は数で比べる〉・データ元の結合の字の NaN）を、作った後の採点の指摘 2 で場面にして数えた（前から Python に尋ねていたが数に出ていなかった。印 bundle_window）"
- }
+  "settings_oracle": "版 3.109.0（17 → 19）: 窓がまだ組めない束の節を場面にして数えた。版 3.112.0（7 → 0）: 窓は束を Python に尋ねない（配った設定を J で読む・2 つの節も組む・Python も落ちた 3 形は事例の表 appsettings_cases.json で決める）",
+  "conversions_oracle": "版 3.112.0（1 → 9。採点の指摘 8）: 予算外で見つけた任せ（置き場の行の「入力」が表）を場面「置き場の行の入力が表（予算外の任せ）」にして数えた。前から Python に任せていたが数に出ていなかった。閉じるのは次の版",
+  "sources_write_oracle": "版 3.112.0（0 → 7。採点の指摘 8）: 予算外で見つけた任せ（置き場の行の「結合」が並び）を場面「置き場の行の結合が並び（予算外の任せ）」にして数えた。閉じるのは次の版"
+ },
+ "routerForward": [
+  {
+   "why": "engine=python の比べる口（GET /api/lotlist/settings は Python の道として残す。窓は呼ばない。段 ④ で消す）",
+   "scenes": ".",
+   "routes": [
+    "GET /api/lotlist/settings"
+   ]
+  },
+  {
+   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場の変換表の行の「入力」が表（settings_oracle の場面「変換表の行の入力が表（予算外の任せ）」だけ。版 3.112.0 の作った後の採点の割れ 2 で全部の場面から狭めた。conversions_oracle の「置き場の行の入力が表」で 8 歩に数える）。閉じるのは次の版",
+   "scenes": "^変換表の行の入力が表",
+   "routes": [
+    "GET /api/masters/conversions",
+    "GET /api/masters/conversions/export",
+    "POST /api/masters/conversions",
+    "PUT /api/masters/conversions/<int:item_id>",
+    "DELETE /api/masters/conversions/<int:item_id>",
+    "POST /api/masters/conversions/<int:item_id>/preset",
+    "POST /api/masters/conversions/defaults",
+    "POST /api/masters/conversions/import"
+   ]
+  },
+  {
+   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場のデータ元の行の「結合」が並び（settings_oracle の場面「データ元の行の結合が並び（予算外の任せ）」だけ。版 3.112.0 の作った後の採点の割れ 2 で全部の場面から狭めた。sources_write_oracle の「置き場の行の結合が並び」で 7 歩に数える）。閉じるのは次の版。同じ「窓の書く道が行の形を Python と同じに読めない」形: 行の結合の字に NaN・行の値が並び（読みは窓が組む）",
+   "scenes": "^(データ元の行の結合が並び|データ元の結合の字に NaN|置き場の data_sources.json の行の値が並び)",
+   "routes": [
+    "POST /api/sources",
+    "PUT /api/sources/<key>",
+    "PUT /api/sources/<key>/conn",
+    "POST /api/sources/<key>/quick",
+    "POST /api/sources/groups",
+    "POST /api/sources/order",
+    "DELETE /api/sources/<key>"
+   ]
+  },
+  {
+   "why": "/api/config の LotDsp の学び・待つ秒の形（bundle.rs の config の Py。採点の指摘 9: 束を尋ねる口とは別の転送の残り）",
+   "scenes": "^(LotDsp の(学び|待つ秒)|表: lotdsp_import が字)",
+   "routes": [
+    "GET /api/config"
+   ]
+  },
+  {
+   "why": "画面の控え（ui_state.json）を窓が Python と同じに読めない 4 形（入れ子・対の無い代用字・大きな rev）。画面の任せと同じく残す（採点の指摘 4。窓は空で書き戻さない）",
+   "scenes": "^画面の控え",
+   "routes": [
+    "GET /api/ui-state",
+    "POST /api/ui-state"
+   ]
+  },
+  {
+   "why": "作業実績の登録に表でない行・値が並びの行（読みでは隔てない形）のとき、作業実績の登録の 6 本は中身へ回す。閉じるのは次の版",
+   "scenes": "^(作業実績の登録に表でない行|置き場の work_log_files.json の行の値が並び)",
+   "routes": [
+    "GET /api/masters/worklog",
+    "PUT /api/masters/worklog/<int:item_id>",
+    "DELETE /api/masters/worklog/<int:item_id>",
+    "PUT /api/masters/worklog/order",
+    "POST /api/masters/worklog/scan",
+    "GET /api/worklog/files"
+   ]
+  }
+ ],
+ "routerForwardTotal": 183,
+ "routerForwardWhy": "routerForward の当たり（場面 × 型）の数（版 3.112.0 の作った後の採点の割れ 2）。desktop/tests/route_reach.rs が settings_oracle の全部の場面と appsettings_cases.json の全件で数え、この数と同じかを見る（増えても減っても落とす）。delegate-count.py の任せる歩（total）とは別に並べて報告する。版 3.112.0 の作った後の直しで 183（場面 129〈settings_oracle 73・事例の表 56〉: 比べる口 GET /api/lotlist/settings 129・変換表の行の入力が表 8・データ元の書く道 21〈3 場面 × 7〉・/api/config の LotDsp 5・画面の控え 8・作業実績の登録 12）"
 }

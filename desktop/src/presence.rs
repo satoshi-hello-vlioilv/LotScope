@@ -1219,6 +1219,9 @@ pub mod ui_state {
         if crate::access_write::needs_python(body) {
             return None;
         }
+        // 版 3.112.0（採点の指摘 4）: 控えを Python と同じに読めない形（入れ子・対の無い代用字・大きな rev）は書き戻さない（Python に任せる。
+        // 中身が止まっていれば 503）。前は中身が止まっている間に描いた画面（空の控え）の書き込みが、読めない控えを空で上書きして消した
+        load_exact(local_root)?;
         let b: Value = serde_json::from_slice(body).ok().filter(truthy).unwrap_or(json!({}));
         let b = b.as_object()?;
         let bad = |e: &str| Some((400, json!({"error": e})));

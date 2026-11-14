@@ -2,13 +2,15 @@
 """配る形と更新の通しを、本物の窓で確かめる（評価関数・設計書「更新（B+）」）。Windows の CI と、手元の Linux（xvfb-run の下）で流す。
 
     python verify.py update --exe <作った exe> [--work <作業フォルダ>] [--keep]
-    python verify.py local --exe <作った exe> [--work <作業フォルダ>] [--keep]   作業場所の窓だけ・Python の無い PC（版 3.111.0）
+    python verify.py local --exe <作った exe> [--work <作業フォルダ>] [--keep]   作業場所の窓だけ・Python の無い PC（版 3.111.0。版 3.112.0 から
+                                                                              配った設定に NaN の形も）
     python verify.py rename --old-exe <前の版の exe> --old-repo <前の版のリポジトリ> --exe <作った exe> [--work …] [--keep]
 
 利用者の PC を真似る: 作業場所（TRANSFER_LOCAL_ROOT）はまっさら、配る形は共有を真似たフォルダ、更新の置き場は BOX を真似たフォルダ。
 窓は自己診断（TPA_SELFTEST）で起こし、結果のファイル（selftest.js が更新の係の状態と、動いている exe・program を添える）を読む。
 
   1. 共有の exe を開く → この PC の app へ写り、版ごとの写しの窓で開く。使っている間に置き場の次の版（+1）を取り込む（ready）。置き場を控える
+  1b. 配った設定に NaN があり lot_list が字の PC（別の作業場所）でも、使っている間に +1 を取り込む・配布の画面の係が答える（版 3.112.0）
   2. app の exe（ショートカットの行き先）を開く → 起動の最初に +1 へ入れ替わり、その版で開く。直前の版は控えに
   3. 閉じている間に次の版（+2）を置く → ショートカットから 1 回開くだけで +2 になる（起動の最初に取り込んで入れ替える・版 3.38.0）
   4. 窓が描けない版（+3。templates/index.html を消した）を置く。取り込みは窓の準備で断る（版 3.111.0）。前の版の窓が取り込んだ形
@@ -65,6 +67,22 @@ WINDOW_ONLY = [
 ]
 # 窓だけの項目のうち、試す形によって出ない物（版を置けない人だけ・例外のときだけ）
 WINDOW_MAYBE = {"版を置けない人は理由つきで断られる", "例外", "更新の係が答える"}
+
+
+# 1b（配った設定の lot_list が字・作業実績の古さが NaN）で落ちてよい自己診断の項目と理由（版 3.112.0 の作った後の採点の割れ 6c）。
+# どれも品質（lot_list）の節を使う道で、窓は「設定を組めません: 配った設定（…）の「lot_list」が表でない…」の 503 で断る
+NAN_EXPECTED = {
+    "データの時刻は Rust が答える（共有を見に行かない）": "品質のデータの時刻は lot_list の節を使う",
+    "集計表・グラフは窓が答え、Python と同じ答え（6 通り・カラムの札・作業日×直・失敗の答え）": "品質の集計表は lot_list の節を使う",
+    "ダッシュボードのパネルは窓が答え、Python と同じ答え（11 通り・数字・グラフ・合わせた表・別のデータ・稼働・ABC 分析・失敗の答え）":
+        "品質の元のパネル（kpi/lot・bar/lot・品質を合わせた表）は lot_list の節を使う。ほかの元のパネルは答える",
+    "組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）": "品質の元の札・当てる列は lot_list の節を使う",
+    "設備グループの一覧は、スケジュールの元（CM3）がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）":
+        "選べる設備は品質の元の設備の列も数える（lot_list の節）",
+    "設備グループを書く道も窓が受ける（無いグループを直すを Python と同じ言葉で断る。書けない人は門番が断る）": "同上（書く前に選べる設備を数える）",
+    "一覧は Rust が答える": "品質の一覧は lot_list の節を使う",
+    "日本語の問い合わせ文字（Python が JSON で答える）": "品質の一覧の検索は lot_list の節を使う",
+}
 
 
 def window_only_ok(r: dict, label: str) -> tuple[bool, str]:
@@ -338,6 +356,29 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(info.get("installed") is True and info.get("version") == v0, f"1. 版 {v0}", json.dumps(info, ensure_ascii=False))
     ok &= check(upd.get("state") == "ready" and upd.get("ready") == v1, f"1. 使っている間に {v1} を取り込んだ", json.dumps(upd, ensure_ascii=False)[:300])
     ok &= check(bundle.app_version(app / "program") == v0, "1. 取り込んでも動いている app はそのまま")
+    # 1b. 配った設定に NaN があり lot_list が表でない PC（版 3.112.0。採点の指摘 1・10）: 窓は束を Python に尋ねず、更新の置き場は
+    # update.source の段だけで決まるので、別の作業場所で同じ共有の exe を開いても、使っている間に次の版を取り込む（品質の一覧の項目は
+    # 理由つきの 503 で通らないので、自己診断の全部は見ない）
+    nan_conf = work / "appsettings-nan.json"
+    bad = json.loads(conf.read_text(encoding="utf-8"))
+    bad["lot_list"] = "設定ファイルを手で壊した字"
+    bad.setdefault("work_log", {})["stale_hours"] = float("nan")
+    nan_conf.write_text(json.dumps(bad, ensure_ascii=False, allow_nan=True), encoding="utf-8")
+    local_nan = work / "local-nan"
+    r = Run(work, {**env, "TRANSFER_APP_CONFIG": str(nan_conf), "TRANSFER_LOCAL_ROOT": str(local_nan),
+                   "TPA_LINK_DIRS": os.pathsep.join(str(work / "links-nan" / n) for n in ("Desktop", "Programs"))}).open(share_exe, "nan-config")
+    upd_nan = r.get("update") or {}
+    ok &= check(upd_nan.get("state") == "ready" and upd_nan.get("ready") == v1,
+                f"1b. 配った設定に NaN・lot_list が字でも、使っている間に {v1} を取り込んだ（更新の置き場を見失わない）", json.dumps(upd_nan, ensure_ascii=False)[:300])
+    rel = next((x for x in r.get("results", []) if x["name"] == "配布の画面の係が答える（置き場に届くか・権限）"), {})
+    ok &= check(rel.get("ok") is True, "1b. 配布の画面の係が答える（窓が置き場を読む）", rel.get("info"))
+    # 版 3.112.0 の作った後の採点の割れ 6c: lot_list の節を使う項目だけが落ちてよい（窓が理由つきの 503 で断る。NAN_EXPECTED に理由）。
+    # ほかの項目が落ちたら割れ（前は 1b の 2 項目しか見ず、断り過ぎ・Python の HTML の 500 を見逃した）
+    failed = [x for x in r.get("results", []) if not x["ok"]]
+    unexpected = [f"{x['name']} -- {x['info'][:120]}" for x in failed if x["name"] not in NAN_EXPECTED]
+    ok &= check(not unexpected, "1b. lot_list が字の PC で落ちるのは品質の節を使う項目だけ（理由つきの 503）", unexpected)
+    ok &= check(all("503" in x["info"] or "設定を組めません" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503",
+                [x["info"][:80] for x in failed])
     sc = ((info.get("install") or {}).get("shortcut") or {})
     ok &= check(sc.get("ask") is True and not sc.get("links"), "1. ショートカットが無いので画面が尋ねる", sc)
     # 人が作った、共有の exe を指し作業フォルダも共有のショートカット（次の起動で直る）
@@ -499,6 +540,15 @@ def local(exe: Path, work: Path) -> bool:
     ok &= check(boot_log_has(work / "local", "BACKEND 起こせません") and boot_log_has(work / "local", "OPEN 画面を開きます"),
                 "local. 窓の記録: 画面を開き、中身は理由つきで起こせない", "")
     ok &= check((r.get("info") or {}).get("version") == bundle.app_version(), "local. 中身の版は窓が読んだ program_version", r.get("info"))
+    # 版 3.112.0（採点の指摘 10）: 配った設定に NaN（Python の json.loads は読む・窓の serde は読めない）があっても、Python の無い PC で
+    # 窓だけの項目が全部通る（前は窓が束を Python に尋ね、心拍・一覧・配布の画面など 8 項目が落ちた）
+    s = json.loads(conf.read_text(encoding="utf-8"))
+    s["lot_list"]["page_size"] = float("nan")
+    s.setdefault("presence", {})["heartbeat_interval_seconds"] = float("inf")
+    conf.write_text(json.dumps(s, ensure_ascii=False, allow_nan=True), encoding="utf-8")
+    r = Run(work, {**env, "TRANSFER_LOCAL_ROOT": str(work / "local-nan")}).open(exe, "no-python-nan")
+    good, why = window_only_ok(r, "no-python-nan")
+    ok &= check(r.get("ok") is True and good, "local. 配った設定に NaN・Infinity があっても、窓だけの項目が全部通る（窓は束を Python に尋ねない）", why)
     left = leftover_python(work)
     ok &= check(not left, "終わったあと Python が残らない", left)
     return ok

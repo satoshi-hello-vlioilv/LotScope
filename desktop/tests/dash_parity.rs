@@ -59,7 +59,7 @@ fn dashboard_answers_like_python() {
         total += 1;
         let name = c["name"].as_str().unwrap();
         let body = sent(c);
-        let Some((status, mut got)) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask) else {
+        let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask) else {
             bad.push(format!("{name}: 窓が答えません（Python に回した）"));
             continue;
         };
@@ -88,10 +88,10 @@ fn dashboard_answers_like_python() {
             let body = sent(c);
             if ph["warm"] == true {
                 lot.invalidate();
-                let _ = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask);
+                let _ = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask);
             }
             lot.invalidate();
-            let Some((status, mut got)) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask_ph) else {
+            let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask_ph) else {
                 bad.push(format!("{name}: 窓が答えません"));
                 continue;
             };
@@ -123,33 +123,33 @@ fn dashboard_answers_like_python() {
     // 窓が係になって答える: tests/schedule_parity.rs のパネル・合わせた表・設備の木）
     for c in o["python"].as_array().unwrap() {
         let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
-        if lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_some() {
+        if lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_some() {
             bad.push(format!("{}: 窓が答えた（Python へ回すはず）", c["name"]));
         }
     }
     // engine=python はその 1 回だけ Python
     let body = serde_json::to_vec(&json!({"panel": o["cases"][0]["panel"]})).unwrap();
-    assert!(lot.handle_body("POST", "/api/dashboard/query", "engine=python", &body, &ask).is_none());
-    assert!(lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_some(), "ふつうは窓が答える");
+    assert!(lot.handle_body_with("POST", "/api/dashboard/query", "engine=python", &body, &ask).is_none());
+    assert!(lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_some(), "ふつうは窓が答える");
     // 材料（lists.dash）を答えない中身（前の版の Python）とは、ダッシュボードを Python に任せる
     let mut old = settings.clone();
     old["lists"].as_object_mut().unwrap().remove("dash");
     lot.invalidate();
     let ask_old = || Ok(old.clone());
-    assert!(lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask_old).is_none(), "材料の無い中身は Python へ回す");
+    assert!(lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask_old).is_none(), "材料の無い中身は Python へ回す");
     lot.invalidate();
     // 中身の係が python なら（食い違いに気づいて Python に戻した設定）、ダッシュボードも Python
     let mut py = settings.clone();
     py["engine"] = json!("python");
     let ask_py = || Ok(py.clone());
-    assert!(lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask_py).is_none(), "engine が python なら Python へ回す");
+    assert!(lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask_py).is_none(), "engine が python なら Python へ回す");
     lot.invalidate();
     // 答えの控え: 同じ組でも、写しが新しくなれば数え直す（控えの鍵に写しのファイルの印）
     let kpi =
         serde_json::to_vec(&json!({"panel": {"id": "c1", "visual": "kpi", "source": "lot", "body": {"measures": [{"agg": "count"}]}}}))
             .unwrap();
     let count =
-        |lot: &Lot| lot.handle_body("POST", "/api/dashboard/query", "", &kpi, &ask).and_then(|(_, v)| v["cells"][0]["v"][0].as_i64());
+        |lot: &Lot| lot.handle_body_with("POST", "/api/dashboard/query", "", &kpi, &ask).and_then(|(_, v)| v["cells"][0]["v"][0].as_i64());
     let before = count(&lot);
     assert_eq!(before, count(&lot), "同じ写しなら同じ答え（控え）");
     let q = &o["quality"];
@@ -157,7 +157,7 @@ fn dashboard_answers_like_python() {
     let t = q["table"].as_str().unwrap();
     db.execute(&format!("DELETE FROM [{t}] WHERE rowid = (SELECT MIN(rowid) FROM [{t}])"), []).unwrap();
     drop(db);
-    let r = lot.handle("POST", "/api/lotlist/refresh", "", &ask).expect("再読込は窓が答える");
+    let r = lot.handle_with("POST", "/api/lotlist/refresh", "", &ask).expect("再読込は窓が答える");
     assert_eq!(r.1["result"]["updated"], true, "写し直した: {}", r.1);
     let after = count(&lot);
     assert_eq!(after, before.map(|n| n - 1), "写しが新しくなったら数え直す（控えのまま {before:?} を返さない）");

@@ -53,7 +53,8 @@ def params(settings):
     古さの警告の時間（stale_hours）・確かめる間隔（refresh_seconds）が数として読めなければ（配った設定を手で直した「abc」など）、既定で続け、settingsWarn で知らせる
     （版 3.106.0。前は float() の ValueError で登録の画面が 400・作業実績のタブが 500。窓の worklog_write・lists.rs も同じ）"""
     wl = dict(DEFAULTS)
-    wl.update({k: v for k, v in ((settings or {}).get("work_log") or {}).items() if v not in (None, "")})
+    from .path_settings import stage
+    wl.update({k: v for k, v in stage(settings, "work_log").items() if v not in (None, "")})
     wl["folder"] = unquote_path(wl["folder"])
     # 数の設定は 1 つの部品で読む（services/num_setting。品質・データ元も同じ。窓は bundle.rs の num_setting）。
     # 知らせ（settingsWarn）は読めなかった設定ごとの {field, label, text} の並び（古さの警告 → 確かめる間隔の順）

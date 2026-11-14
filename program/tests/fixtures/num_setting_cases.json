@@ -1,5 +1,5 @@
 {
- "about": "数の設定の読み方の事例（版 3.106.0。作った後の採点の割れ 1・2）。services/num_setting.read・warn の決まり（null・空は既定、Python の float() で読める値はそのまま、読めない字は既定と知らせ）から人が書いた答え。Python は tests/test_num_setting.py、窓は cargo test --lib bundle::tests::num_setting_like_the_table（bundle::num_setting・num_warn と、一覧の lists::num が num の値）",
+ "about": "数の設定の読み方の事例（版 3.106.0。作った後の採点の割れ 1・2）。services/num_setting.read・warn の決まり（null・空は既定、Python の float() で読める値はそのまま、読めない字は既定と知らせ）から人が書いた答え。Python は tests/test_num_setting.py、窓は cargo test --lib bundle::tests::num_setting_like_the_table（bundle::num_setting・num_warn と、一覧の lists::num が num の値）。版 3.112.0（採点の指摘 6）: 配った設定を Python の json.loads と同じく読む（窓は src/held.rs の印の字）ので、JSON の字 j で書いた値（NaN・Infinity・1e400・桁の大きな整数・-0・並び・表）の事例 jcases と、/api/config の数（max_rows は int()・心拍の秒は float()）の事例 config を足した。jcases の wantRepr は Python の repr（答えでは NaN・Infinity は null）",
  "cases": [
   {
    "name": "数はそのまま",
@@ -128,6 +128,222 @@
    "ok": false,
    "warn": "全員の設定ファイルの確かめる間隔（秒）の値「x」が数ではないので、60 秒で見ています。",
    "num": 60.0
+  }
+ ],
+ "jcases": [
+  {
+   "name": "NaN（float() は読む。答えでは null）",
+   "key": "stale_hours",
+   "j": "NaN",
+   "default": 36,
+   "wantRepr": "nan",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "Infinity",
+   "key": "refresh_seconds",
+   "j": "Infinity",
+   "default": 60,
+   "wantRepr": "inf",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "-Infinity",
+   "key": "stale_hours",
+   "j": "-Infinity",
+   "default": 36,
+   "wantRepr": "-inf",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "1e400（inf と読む）",
+   "key": "stale_hours",
+   "j": "1e400",
+   "default": 36,
+   "wantRepr": "inf",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "10^20（桁のまま）",
+   "key": "refresh_seconds",
+   "j": "100000000000000000000",
+   "default": 60,
+   "wantRepr": "100000000000000000000",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "整数の -0 は 0",
+   "key": "stale_hours",
+   "j": "-0",
+   "default": 36,
+   "wantRepr": "0",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "並び（float() は TypeError: 既定と知らせ）",
+   "key": "stale_hours",
+   "j": "[1]",
+   "default": 36,
+   "wantRepr": "36",
+   "ok": false,
+   "warn": "全員の設定ファイルの古さの警告（時間）の値「[1]」が数ではないので、36 時間で見ています。"
+  },
+  {
+   "name": "表",
+   "key": "refresh_seconds",
+   "j": "{\"a\": 1}",
+   "default": 60,
+   "wantRepr": "60",
+   "ok": false,
+   "warn": "全員の設定ファイルの確かめる間隔（秒）の値「{'a': 1}」が数ではないので、60 秒で見ています。"
+  }
+ ],
+ "config": [
+  {
+   "name": "max_rows が数",
+   "key": "max_rows",
+   "j": "40",
+   "want": 40,
+   "python": true
+  },
+  {
+   "name": "max_rows が小数（int() は切る）",
+   "key": "max_rows",
+   "j": "12.7",
+   "want": 12,
+   "python": true
+  },
+  {
+   "name": "max_rows が数の字",
+   "key": "max_rows",
+   "j": "\" 12 \"",
+   "want": 12,
+   "python": true
+  },
+  {
+   "name": "max_rows が真",
+   "key": "max_rows",
+   "j": "true",
+   "want": 1,
+   "python": true
+  },
+  {
+   "name": "max_rows が 10^20（桁のまま）",
+   "key": "max_rows",
+   "j": "100000000000000000000",
+   "want": "@big:100000000000000000000",
+   "python": true
+  },
+  {
+   "name": "max_rows が -0",
+   "key": "max_rows",
+   "j": "-0",
+   "want": 0,
+   "python": true
+  },
+  {
+   "name": "max_rows が字（Python の int() は落ちる: 既定 25）",
+   "key": "max_rows",
+   "j": "\"abc\"",
+   "want": 25,
+   "python": false
+  },
+  {
+   "name": "max_rows が NaN（int(nan) は落ちる: 既定 25）",
+   "key": "max_rows",
+   "j": "NaN",
+   "want": 25,
+   "python": false
+  },
+  {
+   "name": "max_rows が Infinity（int(inf) は落ちる: 既定 25）",
+   "key": "max_rows",
+   "j": "Infinity",
+   "want": 25,
+   "python": false
+  },
+  {
+   "name": "max_rows が null（int(None) は落ちる: 既定 25）",
+   "key": "max_rows",
+   "j": "null",
+   "want": 25,
+   "python": false
+  },
+  {
+   "name": "max_rows が並び",
+   "key": "max_rows",
+   "j": "[1]",
+   "want": 25,
+   "python": false
+  },
+  {
+   "name": "心拍の秒が数",
+   "key": "heartbeat_interval_seconds",
+   "j": "5",
+   "want": 5.0,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が字の小数",
+   "key": "heartbeat_interval_seconds",
+   "j": "\"2.5\"",
+   "want": 2.5,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が NaN（答えは null。画面は既定の 3 秒）",
+   "key": "heartbeat_interval_seconds",
+   "j": "NaN",
+   "want": null,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が 1e400",
+   "key": "heartbeat_interval_seconds",
+   "j": "1e400",
+   "want": null,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が inf の字",
+   "key": "heartbeat_interval_seconds",
+   "j": "\"inf\"",
+   "want": null,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が 10^20",
+   "key": "heartbeat_interval_seconds",
+   "j": "100000000000000000000",
+   "want": 1e+20,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が -0",
+   "key": "heartbeat_interval_seconds",
+   "j": "-0",
+   "want": 0.0,
+   "python": true
+  },
+  {
+   "name": "心拍の秒が字（float() は落ちる: 既定 3）",
+   "key": "heartbeat_interval_seconds",
+   "j": "\"abc\"",
+   "want": 3.0,
+   "python": false
+  },
+  {
+   "name": "心拍の秒が null（float(None) は落ちる: 既定 3）",
+   "key": "heartbeat_interval_seconds",
+   "j": "null",
+   "want": 3.0,
+   "python": false
   }
  ]
 }

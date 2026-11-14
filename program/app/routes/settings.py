@@ -67,6 +67,7 @@ def update_settings():
     だれが（版を置く・配る版を決めてよいか。決めるのは services/access.py。置く・配るのは desktop/src/distribute.rs）と、
     この PC が使うマスタの置き場（配る版と一緒に全員へ配る。版 3.34.0）。"""
     up = effective_settings(current_app).get("update") or {}
+    up = up if isinstance(up, dict) else {}        # update の段が表でない（版 3.112.0: 更新を確かめない。appsettings_cases.json）
     try:
         m = me()
         who = {"login": m["login"], "pc": m["pc"], "role": m["flags"]["role"],
@@ -222,10 +223,11 @@ def fs_places():
         return denied
     s = effective_settings(current_app)
     st = current_app.config["MASTER_STORE"]
-    src = str((s.get("lot_list") or {}).get("source") or "")
+    from ..services.path_settings import _get       # 段が表でない形は空（版 3.112.0 の作った後の採点の割れ 3。窓の fs_route と同じ）
+    src = str(_get(s, "lot_list.source") or "")
     app_paths = [("master", "マスタの置き場", str(st.share_dir or "")),
                  ("quality", "品質データのフォルダ", folder_browse.parent_of(src)),
-                 ("worklog", "作業実績のフォルダ", str((s.get("work_log") or {}).get("folder") or "")),
-                 ("release", "配布の置き場", str((s.get("update") or {}).get("source") or ""))]
+                 ("worklog", "作業実績のフォルダ", str(_get(s, "work_log.folder") or "")),
+                 ("release", "配布の置き場", str(_get(s, "update.source") or ""))]
     app_paths += [("oldmaster", "前のマスタの置き場", h.get("dir") or "") for h in st.history()]
     return jsonify(items=folder_browse.places(app_paths))

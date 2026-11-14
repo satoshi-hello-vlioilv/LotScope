@@ -75,7 +75,7 @@ fn work_log_registration_matches_python() {
         lot.set_clock(Arc::new(move || now));
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         let call = |st: &Value| {
-            lot.handle_body(
+            lot.handle_body_with(
                 st["method"].as_str().unwrap(),
                 st["path"].as_str().unwrap(),
                 st["query"].as_str().unwrap_or(""),

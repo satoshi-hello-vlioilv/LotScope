@@ -1,6 +1,7 @@
 """数の設定の読み方（services/num_setting。版 3.106.0）が事例の表 tests/fixtures/num_setting_cases.json と同じか。
 窓は cargo test --lib bundle::tests::num_setting_like_the_table で同じ表を読む。読む所（作業実績・品質の写し・データ元）が同じ部品を使うことも見る。"""
 import json
+import math
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,28 @@ class NumSetting(unittest.TestCase):
             w = "" if ok else num_setting.warn(c["key"], c["value"], c["default"])
             if (v, ok, w) != (c["want"], c["ok"], c["warn"]):
                 bad.append(f"{c['name']}: 表 {(c['want'], c['ok'], c['warn'])} / Python {(v, ok, w)}")
+        self.assertEqual(bad, [])
+
+    def test_json_text_cases(self):
+        """版 3.112.0（採点の指摘 6）: 配った設定を json.loads で読んだ値（NaN・Infinity・1e400・大きな整数・-0・並び・表）"""
+        table = json.loads(TABLE.read_text(encoding="utf-8"))
+        bad = []
+        for c in table["jcases"]:
+            value = json.loads(c["j"])
+            v, ok = num_setting.read(value, c["default"])
+            w = "" if ok else num_setting.warn(c["key"], value, c["default"])
+            if (repr(v), ok, w) != (c["wantRepr"], c["ok"], c["warn"]):
+                bad.append(f"{c['name']}: 表 {(c['wantRepr'], c['ok'], c['warn'])} / Python {(repr(v), ok, w)}")
+        # /api/config の数（Python の routes/system.config の int()・float()）。Python が落ちる形（python: false）は窓だけが既定で答える
+        for c in table["config"]:
+            if not c["python"]:
+                continue
+            value = json.loads(c["j"])
+            got = int(value) if c["key"] == "max_rows" else float(value)
+            got = None if isinstance(got, float) and not math.isfinite(got) else got
+            want = int(c["want"][len("@big:"):]) if isinstance(c["want"], str) else c["want"]
+            if got != want or type(got) is not type(want):
+                bad.append(f"{c['name']}: 表 {want!r} / Python {got!r}")
         self.assertEqual(bad, [])
 
     def test_every_reader_defaults_the_same(self):

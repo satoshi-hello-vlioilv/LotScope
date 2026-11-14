@@ -361,4 +361,45 @@ mod tests {
         assert_eq!((v["reachable"].as_bool(), v["cached"].as_bool()), (Some(false), Some(false)), "置き場が変われば覚えは使わない: {v}");
         let _ = std::fs::remove_dir_all(&d);
     }
+
+    #[test]
+    fn a_broken_update_stage_keeps_the_remembered_place() {
+        // 版 3.112.0 の作った後の採点の割れ 5・check2 の 4e: 配った設定の update の段が壊れた（null で参照先に置き場の行・字・配った設定が
+        // JSON でない）PC で、更新の係が控えた置き場（update/source.json）を空で上書きしない。窓の Lot::update_settings が None を返し、
+        // 係は確かめずに控えを残す（次の起動の最初の取り込みも控えた置き場で確かめる）
+        let d = std::env::temp_dir().join(format!("da-updater-keep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let (share, local) = (d.join("share"), d.join("local"));
+        for x in [&share, &local, &d.join("base")] {
+            std::fs::create_dir_all(x).unwrap();
+        }
+        let rows =
+            serde_json::json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "項目": "update.source", "値": "C:\\置き場", "rev": 1}]});
+        std::fs::write(share.join("path_settings.json"), rows.to_string()).unwrap();
+        let paths = Paths::new(&d.join("app-local"));
+        let program = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = d.join("config.json");
+        for (name, text) in [
+            ("update が null で参照先に置き場", serde_json::json!({"master_share": {"dir": share}, "update": null}).to_string()),
+            ("update が字", serde_json::json!({"master_share": {"dir": share}, "update": "x"}).to_string()),
+            ("JSON でない", "{".to_string()),
+        ] {
+            update::remember_source(&paths, "D:\\控えた置き場");
+            std::fs::write(&cfg, text).unwrap();
+            let lot = da_core::lot::Lot::new(local.join("db_cache"));
+            lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env {
+                base: d.join("base"),
+                program: program.clone(),
+                local: local.clone(),
+                config: cfg.clone(),
+                now: None,
+            }));
+            assert!(lot.update_settings().is_none(), "{name}: 決まらない");
+            let upd = Updater::new(paths.clone(), true, "3.1.0".into(), vec![]);
+            upd.check(&|| lot.update_settings().ok_or_else(|| "決まりません".to_string()), |_| {});
+            assert_eq!(update::remembered_source(&paths).as_deref(), Some("D:\\控えた置き場"), "{name}: 控えを残す");
+            assert_eq!(upd.status()["state"], "error", "{name}: 確かめない（理由つき）");
+        }
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

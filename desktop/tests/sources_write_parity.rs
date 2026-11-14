@@ -66,7 +66,7 @@ fn data_source_writes_match_python() {
         lot.set_new_key(Arc::new(move || format!("k{:03}", n2.fetch_add(1, Ordering::SeqCst) + 1)));
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         let call = |st: &Value| {
-            lot.handle_body(
+            lot.handle_body_with(
                 st["method"].as_str().unwrap(),
                 st["path"].as_str().unwrap(),
                 st["query"].as_str().unwrap_or(""),

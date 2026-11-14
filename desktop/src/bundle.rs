@@ -16,9 +16,12 @@
 //!   （follow_moved。Python は窓が名乗ると印をたどらず、この PC の覚え master_share.json を読み直すだけ）
 //! - calculation・uiProfileKeys
 //!
-//! 窓が Python と同じに組めない形は None（Python に尋ねる。前と同じ）: 配った設定・マスタのファイルが窓の読めない字（NaN・大きな数・深い入れ子）・
-//! 共有のフォルダにまだ無いマスタ（Python は読むだけで写しから最初の版を作る）・Python が束を作れずに落ちる形（データ元の行の間隔が inf・nan、
-//! 設定の段が表でない など）・設備グループの正規表現の決まり（Python の re で確かめる）。
+//! 版 3.112.0（段 ③ の最初）から、窓は束を Python に尋ねない（尋ねる口〈lot.rs の AskSettings・main.rs の lot_settings〉を消した）。
+//! 配った設定は Python の json.loads と同じく 1 か所（read_settings。src/held.rs の印の字で NaN・Infinity・大きな整数・代用字）で読み、
+//! 段が表でない形（Python も落ちた形を含む）は、その段だけ組まず理由（settingsBroken・節の broken の stage）を付ける。置き場・名乗り・権限・
+//! 更新の置き場は、どの段が壊れても組む。決めは仕様から人が書いた事例の表 program/tests/fixtures/appsettings_cases.json
+//! （cargo test --test appsettings_cases。Python は tests/test_appsettings_cases.py）。束を組まないのは、配った設定が読めず、この PC の
+//! 覚えた置き場も無い（置き場が決まらない）ときだけ。
 
 use crate::access::Place;
 use crate::pyfmt::{self, PyInt};
@@ -43,7 +46,7 @@ fn t(path: &[&str]) -> &'static Value {
     v
 }
 
-/// 束を組めない（Python に尋ねる）。版 3.109.0 の作った後の採点の割れ 1: 組めない理由を作った所で、原因のマスタの行（file・row）と、
+/// 束・節を組めない理由（版 3.112.0 から Python に尋ねない: 節の broken か置き場が決まらない Err）。版 3.109.0 の作った後の採点の割れ 1: 組めない理由を作った所で、原因のマスタの行（file・row）と、
 /// Python も同じ形で組めないか（python_too）を持つ（前は理由の字だけで、window_why が節のファイルの隔てた行を当て推量で原因と言った）
 #[derive(Debug, Clone, PartialEq)]
 pub struct Py {
@@ -53,12 +56,14 @@ pub struct Py {
     pub row: Option<Value>,
     /// Python も同じ所で落ちて節を組めない（窓が Python に尋ねても同じ。window にしない）
     pub python_too: bool,
+    /// 字を組み立てた理由（版 3.112.0。置き場が決まらない理由など。あれば why より先に言う）
+    pub text: Option<String>,
 }
 
 /// Py の作り（理由の字だけ。原因の行は at で添える）
 #[allow(non_snake_case)]
 pub fn Py(why: &'static str) -> Py {
-    Py { why, file: None, row: None, python_too: false }
+    Py { why, file: None, row: None, python_too: false, text: None }
 }
 
 impl Py {
@@ -75,6 +80,17 @@ impl Py {
     pub fn python_too(mut self) -> Py {
         self.python_too = true;
         self
+    }
+
+    /// 組み立てた理由の字を添える
+    pub fn why_text(mut self, t: String) -> Py {
+        self.text = Some(t);
+        self
+    }
+
+    /// 利用者に言う理由（組み立てた字があればそれ）
+    pub fn say(&self) -> String {
+        self.text.clone().unwrap_or_else(|| self.why.to_string())
     }
 }
 type R<T> = Result<T, Py>;
@@ -111,7 +127,8 @@ fn dict_or_empty(v: Option<&Value>) -> R<Map<String, Value>> {
     match v {
         Some(Value::Object(o)) => Ok(o.clone()),
         x if !truthy(x) => Ok(Map::new()),
-        _ => Err(Py("表でない段")),
+        // Python の `(v or {}).get` も落ちる（版 3.112.0: Python も組めない形。窓が Python に尋ねても同じなので window にしない）
+        _ => Err(Py("表でない段").python_too()),
     }
 }
 
@@ -127,6 +144,38 @@ fn dotted<'a>(d: &'a Value, key: &str) -> Option<&'a Value> {
 /// Python の `v not in (None, "")`
 fn present(v: Option<&Value>) -> bool {
     !matches!(v, None | Some(Value::Null)) && v != Some(&Value::String(String::new()))
+}
+
+/// 一覧の係（desktop.lotlist_engine。版 3.112.0 の作った後の採点の割れ 1: 束とデータ元の並び・見出しのタブで同じ 1 か所の決め）。
+/// 段が表でない・無いときは既定の rust
+pub fn engine_of(settings: &Value) -> Value {
+    match settings.get("desktop") {
+        Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
+        _ => json!("rust"),
+    }
+}
+
+/// 値の形の名前（理由の言葉。版 3.112.0）
+fn kind_name(v: &Value) -> String {
+    match v {
+        Value::Null => "null".into(),
+        Value::Bool(_) => "真偽".into(),
+        Value::Number(_) => "数".into(),
+        _ if crate::held::is_held(v) => format!("数 {}", py_str(v)),
+        Value::String(x) => format!("字「{}」", x.chars().take(20).collect::<String>()),
+        Value::Array(_) => "並び".into(),
+        Value::Object(_) => "表".into(),
+    }
+}
+
+/// 数でない値（NaN・Infinity の印の字）を null にした写し（Python の答え〈web.py の _finite〉と同じ。版 3.112.0）
+fn finite(v: Value) -> Value {
+    match v {
+        x if crate::held::is_nonfinite(&x) => Value::Null,
+        Value::Array(a) => Value::Array(a.into_iter().map(finite).collect()),
+        Value::Object(m) => Value::Object(m.into_iter().map(|(k, x)| (k, finite(x))).collect()),
+        x => x,
+    }
 }
 
 /// fsio.unquote_path（写しは lists::unquote_path の 1 つ。版 3.101.0）
@@ -572,6 +621,10 @@ fn read_json(p: &Path) -> Option<Value> {
 }
 
 fn py_float(v: Option<&Value>) -> R<f64> {
+    // 持っている大きな整数（src/held.rs の印の字）は float(int)。NaN・Infinity の印は有限でない数
+    if let Some(d) = v.and_then(crate::held::big_digits) {
+        return d.parse::<f64>().ok().filter(|f| f.is_finite()).ok_or(Py("有限でない数"));
+    }
     let f = match v {
         Some(Value::Number(n)) => n.as_f64().ok_or(Py("数"))?,
         Some(Value::Bool(b)) => *b as i64 as f64,
@@ -610,49 +663,107 @@ impl Builder {
         self.env.local.join(name)
     }
 
-    fn store(&self, settings: &Value) -> R<Store> {
-        let cfg = dict_or_empty(settings.get("master_share"))?;
+    /// 置き場の段（master_share）を読む（版 3.112.0: どの値が壊れていても置き場は組む。読めない値は焼いた既定にし、理由を problems に足す。
+    /// 前は段が表でない・共有の名前が字でない・秒が数でないと束全部を組まず、Python に尋ねた）
+    fn store(&self, settings: &Value, problems: &mut Vec<Value>) -> Store {
+        let cfg = match dict_or_empty(settings.get("master_share")) {
+            Ok(c) => c,
+            Err(_) => {
+                problems.push(self.problem(
+                    "master_share",
+                    format!("表でない（{}）ので、置き場の段を空として読みました", kind_name(&settings["master_share"])),
+                ));
+                Map::new()
+            }
+        };
         let raw = match cfg.get("dir") {
-            Some(v) if truthy(Some(v)) => s(Some(v))?,
+            Some(v) if truthy(Some(v)) => s(Some(v)).unwrap_or_default(),
             _ => String::new(),
         };
         let mut share = (!raw.is_empty()).then(|| py_path(&expandvars(&raw)));
-        let masters = cfg.get("masters").filter(|m| truthy(Some(m))).cloned().unwrap_or_else(|| t(&["store", "sharedDefault"]).clone());
-        let mut shared: Vec<String> = match masters {
-            Value::Array(a) => a.iter().map(|x| x.as_str().map(String::from).ok_or(Py("共有の名前が字でない"))).collect::<R<_>>()?,
-            Value::String(x) => x.chars().map(String::from).collect(), // set("abc") は字ごと
-            _ => return Err(Py("共有の名前の並びが読めない")),
+        let dflt = t(&["store", "sharedDefault"]).clone();
+        let masters = cfg.get("masters").filter(|m| truthy(Some(m))).cloned().unwrap_or_else(|| dflt.clone());
+        let mut shared: Vec<String> = match &masters {
+            Value::Array(a) if a.iter().all(Value::is_string) => a.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
+            Value::String(x) if !crate::held::is_held(&masters) => x.chars().map(String::from).collect(), // set("abc") は字ごと
+            m => {
+                problems.push(self.problem(
+                    "master_share.masters",
+                    format!("共有に置くマスタの名前の並びが読めない（{}）ので、既定の名前で置きました", kind_name(m)),
+                ));
+                dflt.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect()
+            }
         };
         for n in t(&["store", "sharedAlways"]).as_array().into_iter().flatten() {
             shared.push(n.as_str().unwrap_or("").into());
         }
         shared.sort();
         shared.dedup();
-        let lock_ttl = match cfg.get("lock_ttl_seconds") {
-            None => t(&["store", "lockTtl"]).as_f64().unwrap_or(20.0),
-            v => py_float(v)?,
+        let mut secs = |k: &str, dflt: f64| -> f64 {
+            match cfg.get(k) {
+                None => dflt,
+                v => py_float(v).unwrap_or_else(|_| {
+                    problems.push(self.problem(
+                        &format!("master_share.{k}"),
+                        format!("数でない（{}）ので、既定の {} 秒で見ています", py_str(v.unwrap_or(&Value::Null)), pyfmt::float_repr(dflt)),
+                    ));
+                    dflt
+                }),
+            }
         };
-        let refresh = match cfg.get("refresh_seconds") {
-            None => t(&["store", "refresh"]).as_f64().unwrap_or(5.0),
-            v => py_float(v)?,
-        };
+        let lock_ttl = secs("lock_ttl_seconds", t(&["store", "lockTtl"]).as_f64().unwrap_or(20.0));
+        let refresh = secs("refresh_seconds", t(&["store", "refresh"]).as_f64().unwrap_or(5.0));
         // この PC が覚えた置き場（画面で変えた・引っ越し先をたどった）があれば、設定ファイルの値より先に使う
         if let Some(Value::Object(o)) = read_json(&self.local(t(&["store", "override"]).as_str().unwrap_or("master_share.json"))) {
             if let Some(v) = o.get("dir").filter(|v| truthy(Some(v))) {
-                let ov = s(Some(v))?;
+                let ov = s(Some(v)).unwrap_or_default();
                 if !ov.is_empty() {
                     share = Some(py_path(&ov));
                 }
             }
         }
-        Ok(Store { share, shared, lock_ttl, refresh })
+        Store { share, shared, lock_ttl, refresh }
+    }
+
+    /// この PC が覚えた置き場があるか（master_share.json の dir。配った設定が読めないとき、置き場はこれだけで決まる）
+    fn remembered(&self) -> bool {
+        matches!(read_json(&self.local(t(&["store", "override"]).as_str().unwrap_or("master_share.json"))),
+                 Some(Value::Object(o)) if o.get("dir").is_some_and(|v| truthy(Some(v)) && s(Some(v)).is_ok_and(|x| !x.is_empty())))
+    }
+
+    /// 配った設定のファイルの名前（理由の言葉）
+    pub fn config_name(&self) -> String {
+        self.env.config.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "appsettings.json".into())
+    }
+
+    /// 配った設定の段の壊れ（版 3.112.0。束の settingsBroken・事例の表 appsettings_cases.json の stages）
+    fn problem(&self, stage: &str, why: String) -> Value {
+        let file = self.config_name();
+        json!({"stage": stage, "file": file, "why": format!("配った設定（{file}）の「{stage}」が{why}。")})
+    }
+
+    /// 配った設定を Python の json.loads と同じに読む（版 3.112.0。読むのはこの 1 か所: src/held.rs の印の字で NaN・Infinity・
+    /// 大きな整数・対の無い代用字を持つ。前は serde で読めないと束全部を Python に尋ねた）。→ (設定, 読めない理由)。読めなければ空の表
+    pub fn read_settings(&self) -> (Value, Option<String>) {
+        let Some(text) = read_config(&self.env.config) else {
+            return (json!({}), Some("読めません（ファイルが開けない・UTF-8 でない）".into()));
+        };
+        match crate::held::parse(&text) {
+            Ok(v) if v.is_object() => (v, None),
+            Ok(v) => (json!({}), Some(format!("表（{{ … }}）でありません（{}）", kind_name(&v)))),
+            Err(crate::held::Bad::Broken(e)) => (json!({}), Some(format!("JSON として読めません（{e}）"))),
+        }
     }
 
     /// 設定ファイルの master_share.dir（Python の MasterStore.configured_dir: Path(os.path.expandvars(dir))。無ければ ""）。版 3.101.0
+    /// 版 3.112.0（作った後の採点の割れ 1）: 配った設定が読めない・置き場の段が表でないときは ""（配った設定の値は読めない。置き場の画面は
+    /// この PC の覚えた置き場で答える。前は Err で「マスタの置き場」の 4 本を中身へ回し、中身が起きない PC で置き場を直す画面が開かなかった）
     pub fn configured_dir(&self) -> R<String> {
-        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
-        let v = lenient_json(&text).filter(Value::is_object).ok_or(Py("配った設定が表でない"))?;
-        let cfg = dict_or_empty(v.get("master_share"))?;
+        let (v, bad) = self.read_settings();
+        if bad.is_some() {
+            return Ok(String::new());
+        }
+        let Ok(cfg) = dict_or_empty(v.get("master_share")) else { return Ok(String::new()) };
         let raw = match cfg.get("dir") {
             Some(x) if truthy(Some(x)) => s(Some(x))?,
             _ => String::new(),
@@ -750,12 +861,16 @@ impl Builder {
 // ------------------------------------------------------------------ 参照先の重ね（services/path_settings.py の effective・parse）
 /// 画面から来た字 → その項目の値（Ok(None) は空・合わない値で、既定のまま。Python の parse の ValueError と同じ）。
 /// 読み方は書く道と同じ 1 つの関数（settings_write::parse_value。版 3.89.0）。ブラウザの欄・並びの値は Python に任せる
-fn parse_item(item: &Value, raw: Option<&Value>) -> R<Option<Value>> {
+fn parse_item(item: &Value, raw: Option<&Value>) -> Option<Value> {
     use crate::settings_write::{parse_value, Bad};
-    match parse_value(item, raw) {
-        Ok(v) => Ok(v),
-        Err(Bad::Invalid(_)) => Ok(None),
-        Err(Bad::Python) => Err(Py("参照先の値は Python が読む（ブラウザの欄・表・並び）")),
+    // 並び・表の値は Python の str()（repr）の字として読む（版 3.112.0。前は Python に読ませた）
+    let raw = match raw {
+        Some(x @ (Value::Array(_) | Value::Object(_))) => Some(Value::String(py_str(x))),
+        x => x.cloned(),
+    };
+    match parse_value(item, raw.as_ref()) {
+        Ok(v) => v,
+        Err(Bad::Invalid(_)) | Err(Bad::Python) => None,
     }
 }
 
@@ -770,50 +885,74 @@ fn set_dotted(d: &mut Value, key: &str, v: Value) -> R<()> {
     Ok(())
 }
 
-/// 配った設定に、参照先マスタで変えた値を重ねた設定（束に出る項目だけ。path_settings.effective）
-/// 参照先マスタを配った設定に重ねる（path_settings.effective）。重ねる項目は焼いた表の items（束は pathItems、/api/config は configItems も）
-fn effective(settings: &Value, rows: &[Value], items: &[&str]) -> R<Value> {
+/// 参照先マスタを配った設定に重ねる（path_settings.effective）。重ねる項目は焼いた表の items（束は pathItems、/api/config は configItems も）。
+/// 版 3.112.0: 値を重ねる段が表でない（字・null・並び・数）項目は重ねずに飛ばし（Python の path_settings._set も同じに直した。前は
+/// Python が落ちて起動できず、窓も束を組まなかった）、理由を返す（束の settingsBroken）。→ (重ねた設定, 段の壊れ)
+fn effective(settings: &Value, rows: &[Value], items: &[&str], file: &str) -> (Value, Vec<Value>) {
     let mut by: Vec<(String, &Value)> = vec![];
     for r in rows {
-        let o = r.as_object().ok_or(Py("参照先の行が表でない"))?;
-        let k = if truthy(o.get("項目")) { s(o.get("項目")).map_err(|e| e.at("path_settings", r))? } else { String::new() };
+        let Some(o) = r.as_object() else { continue };
         // str(r.get("項目") or "")。strip しない（Python の by_key と同じ）
-        let k = if truthy(o.get("項目")) { o.get("項目").map(py_str).unwrap_or(k) } else { k };
+        let k = if truthy(o.get("項目")) { o.get("項目").map(py_str).unwrap_or_default() } else { String::new() };
         match by.iter_mut().find(|(n, _)| *n == k) {
             Some(slot) => slot.1 = r,
             None => by.push((k, r)),
         }
     }
-    // 束に出ない項目も Python は重ねる。その段が表でない設定に重ねると Python は落ちる（_set の setdefault）ので、窓も組まない
+    // 段ごとに 1 つ（重ねなかった項目を並べる）
+    let mut skipped: Vec<(String, Vec<String>)> = vec![];
+    let mut skip = |key: &str| {
+        let stage = key.rsplit_once('.').map(|(a, _)| a).unwrap_or(key).to_string();
+        match skipped.iter_mut().find(|(s, _)| *s == stage) {
+            Some((_, keys)) => keys.push(key.to_string()),
+            None => skipped.push((stage, vec![key.to_string()])),
+        }
+    };
+    // 束に出ない項目も Python は重ねる。その段が表でなければ重ねない（理由だけ）
     for key in t(&["otherItems"]).as_array().into_iter().flatten().filter_map(Value::as_str) {
         let Some((_, row)) = by.iter().find(|(n, _)| n == key) else { continue };
-        let raw = match row.get("値") {
-            None | Some(Value::Null) => String::new(),
-            Some(x) => pyfmt::strip(&py_str(x)).to_string(),
-        };
-        if raw.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = key.split('.').collect();
-        let mut cur = settings;
-        for p in &parts[..parts.len() - 1] {
-            match cur.as_object().and_then(|o| o.get(*p)) {
-                None => break,
-                Some(x) if x.is_object() => cur = x,
-                Some(_) => return Err(Py("束に出ない項目の段が表でない（Python は重ねるときに落ちる）")),
-            }
+        let def = t(&["settingsItems"]).as_array().into_iter().flatten().find(|i| i["key"] == key);
+        let mine = items.iter().any(|k| t(&[k]).as_array().into_iter().flatten().any(|i| i["key"] == key));
+        if !mine && !sections_ok(settings, key) && def.is_some_and(|d| parse_item(d, row.get("値")).is_some()) {
+            skip(key);
         }
     }
     let mut eff = settings.clone();
     for item in items.iter().flat_map(|k| t(&[k]).as_array().into_iter().flatten()) {
         let key = item["key"].as_str().unwrap_or("");
         if let Some((_, row)) = by.iter().find(|(n, _)| n == key) {
-            if let Some(v) = parse_item(item, row.get("値"))? {
-                set_dotted(&mut eff, key, v)?;
+            if let Some(v) = parse_item(item, row.get("値")) {
+                if sections_ok(settings, key) {
+                    let _ = set_dotted(&mut eff, key, v);
+                } else {
+                    skip(key);
+                }
             }
         }
     }
-    Ok(eff)
+    let problems = skipped
+        .into_iter()
+        .map(|(stage, keys)| {
+            let at = settings_stage_kind(settings, &keys[0]);
+            json!({"stage": stage, "file": file,
+                   "why": format!("配った設定（{file}）の「{stage}」が表でない（{at}）ので、参照先の {} を重ねていません。", keys.join("・"))})
+        })
+        .collect();
+    (eff, problems)
+}
+
+/// 値を重ねる段のうち表でない段の形の名前（理由の言葉）
+fn settings_stage_kind(settings: &Value, key: &str) -> String {
+    let parts: Vec<&str> = key.split('.').collect();
+    let mut cur = settings;
+    for p in &parts[..parts.len() - 1] {
+        match cur.get(p) {
+            Some(v) if v.is_object() => cur = v,
+            Some(v) => return kind_name(v),
+            None => break,
+        }
+    }
+    String::new()
 }
 
 // ------------------------------------------------------------------ データ元の並び（services/data_sources.py の sources）
@@ -844,8 +983,11 @@ pub(crate) fn num_setting(v: &Value, dflt: &Value) -> R<(Value, bool)> {
         Value::String(x) if x.is_empty() => Ok((dflt.clone(), true)),
         // 持っている大きな整数（src/held.rs の印の字。版 3.109.0）は数（float() で読める）
         Value::String(_) if crate::held::big_digits(v).is_some() => Ok((v.clone(), true)),
+        // NaN・Infinity（印の字。版 3.112.0）は float() で読める（答えでは null）
+        Value::String(_) if crate::held::is_nonfinite(v) => Ok((v.clone(), true)),
         Value::String(x) => Ok(if pyfmt::py_float(x).is_ok() { (v.clone(), true) } else { (dflt.clone(), false) }),
-        Value::Array(_) | Value::Object(_) => Err(Py("数の設定が並び・表")),
+        // 並び・表は float() が TypeError（既定と知らせ。知らせの字は Python の str()〈repr〉。版 3.112.0: 前は束を組まなかった）
+        Value::Array(_) | Value::Object(_) => Ok((dflt.clone(), false)),
         _ => Ok((v.clone(), true)),
     }
 }
@@ -864,6 +1006,27 @@ pub(crate) fn num_warn(key: &str, v: &Value, dflt: &Value) -> String {
     let (_, label, unit) = num_label(key);
     // 出どころを言う（版 3.107.0。num_setting.SOURCE と同じ。前は「既定の値」と言い、欄の空の字「既定: 36」と同じ言葉だった）
     format!("全員の設定ファイルの{label}の値「{}」が数ではないので、{} {unit}で見ています。", py_str(v), py_str(dflt))
+}
+
+/// /api/config の数の設定（版 3.112.0。事例の表 num_setting_cases.json の config）: max_rows は Python の int()、心拍の秒は float()。
+/// 読めない値（字・null・並び・NaN を int()）は Python が落ちる形で、窓は既定（25・3.0）。NaN・Infinity の秒は Python と同じく答えの null
+/// （画面は既定の 3 秒）。大きな整数は桁のまま
+pub(crate) fn config_num(key: &str, v: Option<&Value>) -> Value {
+    let Some(v) = v else { return if key == "max_rows" { json!(25) } else { json!(3.0) } };
+    if key == "max_rows" {
+        return match wide_int(v) {
+            Some(n) => crate::held::int_value(&n),
+            None => json!(25),
+        };
+    }
+    if crate::held::is_nonfinite(v) {
+        return Value::Null;
+    }
+    match py_float(Some(v)) {
+        Ok(f) => json!(f),
+        Err(_) if matches!(v, Value::String(x) if pyfmt::py_float(x).is_ok_and(|f| !f.is_finite())) => Value::Null,
+        Err(_) => json!(3.0),
+    }
 }
 
 /// 写し直す間隔・古いとみなす時間・1 頁の件数（data_sources.read_params）
@@ -914,12 +1077,10 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
         Some(Value::Array(a)) => a.clone(),
         Some(Value::String(x)) if !pyfmt::strip(x).is_empty() => {
             // 整数の -0 は Python と同じ 0 と読む（版 3.107.0。読み手は master_rows::inner_text の 1 つ）
-            // 大きな整数も印の字で読む（版 3.109.0。src/held.rs。前は text_split_py で節を window にした）。NaN・深い入れ子は今どおり window
-            if crate::master_rows::text_split_held(x) {
-                return Err(Py("結合の字が窓の読めない JSON（NaN・深い入れ子）"));
-            }
-            match crate::held::text_value(x) {
-                Some(Value::Array(a)) => a,
+            // 大きな整数・NaN・Infinity・深い入れ子も Python の json.loads と同じ J で読み、印の字で持つ（版 3.112.0。前は NaN・深い入れ子で
+            // 節を window にし、束を Python に尋ねた）。読めない字は Python の except と同じく結合なし
+            match crate::held::parse(&crate::master_rows::inner_text(x)) {
+                Ok(Value::Array(a)) => a,
                 _ => vec![],
             }
         }
@@ -1359,8 +1520,8 @@ fn conv_j(v: Option<&Value>, list: bool, keep_big: bool) -> R<Value> {
     let x = match v {
         Some(x @ (Value::Array(_) | Value::Object(_))) => return Ok(x.clone()),
         Some(Value::String(t)) if !pyfmt::strip(t).is_empty() && !crate::held::is_held(v.unwrap()) => {
-            // i64・u64 に入らない整数は、画面の形（conv_views）では桁のまま持つ（版 3.108.0。src/held.rs）。式が引く形（conv_tables）は
-            // 数として比べるので今どおり Python に尋ねる
+            // i64・u64 に入らない整数は桁のまま持つ（版 3.108.0。src/held.rs）。式が引く形（conv_tables）も版 3.112.0 から同じ
+            // （式の conv は印の字を画面の JavaScript と同じ数の字で比べる: formula::json_text。前は Python に尋ねた）
             if keep_big && crate::master_rows::split_wide(t.as_bytes()) {
                 let x = (crate::master_rows::json_depth(t.as_bytes()) < crate::master_rows::SERDE_DEPTH)
                     .then(|| crate::held::parse(&crate::master_rows::inner_text(t)).ok())
@@ -1448,7 +1609,7 @@ pub fn conv_views(rows: &[Value]) -> R<Vec<Value>> {
 /// 式の conv が引く形（conversions.tables: 名前ごとに最初の表）
 fn conv_tables(rows: &[Value]) -> R<Value> {
     let mut out = Map::new();
-    for (_, v) in conv_rows(rows, false)? {
+    for (_, v) in conv_rows(rows, true)? {
         let name = v["name"].as_str().unwrap_or("").to_string();
         if name.is_empty() || out.contains_key(&name) {
             continue;
@@ -1615,6 +1776,12 @@ pub struct Inputs {
     /// マスタの置き場（束の access.place）
     pub place: Value,
     p: Place,
+    /// 配った設定の段の壊れ（版 3.112.0。{stage, file, why}。束の settingsBroken）
+    problems: Vec<Value>,
+    /// 配った設定が読めない理由（版 3.112.0。読めなければ設定は空の表で、配った設定を使う節を組まない）
+    config_bad: Option<String>,
+    /// 配った設定のファイルの名前（理由の言葉）
+    config_name: String,
 }
 
 impl Inputs {
@@ -1653,59 +1820,53 @@ impl Inputs {
     }
 
     /// 更新の置き場（GET /api/update/settings の source。版 3.95.0）: `str((effective_settings(app).get("update") or {}).get("source") or "")`。
-    /// 参照先が読めない（行が表でない・ファイルが読めない）ときは配った設定で動く（effective_settings と同じ）。Python が落ちる形
-    /// （値を重ねる段・update の段が表でない）・窓が同じ字にできない値（並び・表・大きな整数）・窓の読めない参照先は Err（Python に任せる）
+    /// 版 3.112.0: 決めるのは update.source の段だけ（ほかの段〈lot_list など〉が壊れていても、配った設定が NaN でも決まる。更新の係が
+    /// 置き場を見失って直した版を配れなくならないように）。参照先が読めない・共有にまだ無いときは配った設定で動く（effective_settings と同じ）。
+    /// update の段が表でない（字・並び・数・null）ときは参照先の値を重ねず（Python の _set も飛ばす）、配った設定の値も読めないので ""（更新を確かめない）
+    /// Err は置き場が決まらない形（窓の通しの 4d で見つけた: 前は空の字を答え、更新の係が控えた置き場を空で上書きして、次の起動で
+    /// 新しい版を見つけられなかった）: 配った設定が読めず参照先にも更新の置き場が無い・update の段が表でない字・並び・数（null は「置かない」の空）
     pub fn update_source(&self) -> R<String> {
-        self.check("path_settings")?;
+        let _ = self.check("path_settings");
         let rows = self.rows("path_settings").unwrap_or_default();
-        let v = update_source_of(&self.settings, &rows)?;
-        match &v {
-            x if !truthy(Some(x)) => Ok(String::new()),
-            Value::String(x) => Ok(x.clone()),
-            Value::Number(n) if n.as_i64().is_some() || n.is_f64() => Ok(py_str(&v)),
-            Value::Bool(_) => Ok(py_str(&v)),
-            _ => Err(Py("更新の置き場が字・数でない（Python は repr の字）")),
+        let v = update_source_of(&self.settings, &rows);
+        let up = self.settings.get("update");
+        // 参照先に置き場の行がある（画面で決めた）のに段が null（版 3.112.0 の作った後の採点の割れ 5: 前は空と答え、控えを空で上書きした）
+        let item =
+            t(&["settingsItems"]).as_array().into_iter().flatten().find(|i| i["key"] == "update.source").cloned().unwrap_or(Value::Null);
+        let row_value = rows
+            .iter()
+            .rev()
+            .find(|r| r.get("項目").filter(|v| truthy(Some(v))).map(py_str).as_deref() == Some("update.source"))
+            .and_then(|r| parse_item(&item, r.get("値")));
+        let unknown_stage = up.is_some_and(|u| (truthy(Some(u)) && !u.is_object()) || (u.is_null() && row_value.is_some()));
+        if (self.config_bad.is_some() && !truthy(Some(&v))) || unknown_stage {
+            return Err(Py("更新の置き場が決まらない（配った設定が読めない・update の段が表でない）"));
         }
+        Ok(if truthy(Some(&v)) { py_str(&v) } else { String::new() })
+    }
+
+    /// 配った設定の段の壊れ（版 3.112.0。束の settingsBroken・事例の表の stages）
+    pub fn problems(&self) -> &[Value] {
+        &self.problems
     }
 }
 
-/// effective_settings の update.source（path_settings.effective を全部の項目で通した後の値）。Python の effective は、どの項目も
-/// 読めた値を配った設定の段へ重ねる（_set）ので、値のある項目の段が表でなければ落ちる。ブラウザの欄（Python が trusted_browser で
-/// 確かめる）は値になるか分からないが、段が表なら落ちず update.source にも効かない
-fn update_source_of(settings: &Value, rows: &[Value]) -> R<Value> {
-    use crate::settings_write::{parse_value, Bad};
-    let mut by: Vec<(String, &Value)> = vec![];
-    for r in rows {
-        let k = pstr(r.get("項目"))?;
-        match by.iter_mut().find(|(n, _)| *n == k) {
-            Some(slot) => slot.1 = r, // dict の内包表記と同じく後ろの行が勝つ
-            None => by.push((k, r)),
-        }
+/// effective_settings の update.source（版 3.112.0: update.source の段だけを見る）
+fn update_source_of(settings: &Value, rows: &[Value]) -> Value {
+    let item = t(&["settingsItems"]).as_array().into_iter().flatten().find(|i| i["key"] == "update.source").cloned().unwrap_or(Value::Null);
+    // dict の内包表記と同じく後ろの行が勝つ
+    let row = rows.iter().rev().find(|r| r.get("項目").filter(|v| truthy(Some(v))).map(py_str).as_deref() == Some("update.source"));
+    let up = settings.get("update");
+    let table = match up {
+        None => true,
+        Some(v) => v.is_object(),
+    };
+    if let (Some(v), true) = (row.and_then(|r| parse_item(&item, r.get("値"))), table) {
+        return v;
     }
-    let mut master = None;
-    for it in t(&["settingsItems"]).as_array().into_iter().flatten() {
-        let key = it["key"].as_str().unwrap_or("");
-        let Some((_, row)) = by.iter().find(|(n, _)| n == key) else { continue };
-        let value = match parse_value(it, row.get("値")) {
-            Ok(v) => v,
-            Err(Bad::Invalid(_)) => None,
-            Err(Bad::Python) if key != "update.source" && sections_ok(settings, key) => None,
-            Err(Bad::Python) => return Err(Py("値を重ねる段が表でない項目の値を Python が読む")),
-        };
-        if value.is_some() && !sections_ok(settings, key) {
-            return Err(Py("値を重ねる配った設定の段が表でない（Python の _set が落ちる）"));
-        }
-        if key == "update.source" {
-            master = value;
-        }
-    }
-    if let Some(v) = master {
-        return Ok(v);
-    }
-    match settings.get("update") {
-        x if !truthy(x) => Ok(Value::Null),
-        Some(Value::Object(o)) => Ok(o.get("source").cloned().unwrap_or(Value::Null)),
-        _ => Err(Py("update の段が表でない（Python は .get で落ちる）")),
+    match up {
+        Some(Value::Object(o)) => o.get("source").cloned().unwrap_or(Value::Null),
+        _ => Value::Null,
     }
 }
 
@@ -1748,15 +1909,10 @@ fn effective_items(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         let key = it["key"].as_str().unwrap_or("");
         let default = dotted(settings, key).cloned().unwrap_or(Value::Null);
         let row = by.iter().find(|(n, _)| n == key).map(|(_, r)| *r);
-        let value = match row {
-            Some(r) => parse_item(it, r.get("値"))?,
-            None => None,
-        };
+        // 値を重ねる段が表でなくても、項目の答えは値を言う（Python の path_settings.effective も _set を飛ばして項目は返す。版 3.112.0）
+        let value = row.and_then(|r| parse_item(it, r.get("値")));
         let mut o = it.as_object().cloned().unwrap_or_default();
         let has = value.is_some();
-        if has && !sections_ok(settings, key) {
-            return Err(Py("値を重ねる配った設定の段が表でない（Python の _set が落ちる）"));
-        }
         o.insert("default".into(), default.clone());
         o.insert("value".into(), value.clone().unwrap_or(Value::Null));
         o.insert("effective".into(), value.unwrap_or(default));
@@ -1857,7 +2013,8 @@ fn conn_of(item: &Map<String, Value>, row: Option<&Map<String, Value>>, items: &
 
 /// schedule.config の設備の数（「、」「,」「，」・空白で区切り、「:」の前が設備。同じ設備は 1 つ）
 fn schedule_equips(eff: &Value) -> R<usize> {
-    let raw = dict_or_empty(eff.get("schedule"))?;
+    // 段が表でない（版 3.112.0 の作った後の採点の割れ 1）: 設備の数は 0（データ元の並びは答える。段の壊れは束の settingsBroken）
+    let Ok(raw) = dict_or_empty(eff.get("schedule")) else { return Ok(0) };
     if truthy(raw.get("hot")) && !raw.get("hot").is_some_and(Value::is_object) {
         return Err(Py("schedule.hot が表でない（Python は落ちる）"));
     }
@@ -1913,11 +2070,7 @@ impl Inputs {
             }
         }
         let items_ps = effective_items(&self.settings, &ps_rows)?;
-        let engine_rust = match self.settings.get("desktop") {
-            Some(Value::Object(o)) => o.get("lotlist_engine").map(|v| v == "rust").unwrap_or(true),
-            x if !truthy(x) => true,
-            _ => return Err(Py("desktop が表でない")),
-        };
+        let engine_rust = engine_of(&self.settings) == "rust";
         let mut items = sources_full(&self.eff, &ds_rows)?;
         for x in items.iter_mut() {
             let key = x["key"].as_str().unwrap_or("").to_string();
@@ -1955,20 +2108,25 @@ impl Inputs {
 }
 
 impl Builder {
-    /// 名乗り（identity.current と terminal_key）。PC 名は設定の「この端末の名前」があればそれ
+    /// 名乗り（identity.current と terminal_key）。PC 名は設定の「この端末の名前」があればそれ。版 3.112.0: identity の段が表でなくても
+    /// 名乗りは組む（端末の名前を使わず OS の名前。理由は problems。前は束全部を組まなかった）
     pub fn who(settings: &Value) -> R<Value> {
-        let over = match settings.get("identity") {
+        Ok(Self::who_of(settings).0)
+    }
+
+    fn who_of(settings: &Value) -> (Value, bool) {
+        let (over, bad) = match settings.get("identity") {
             Some(Value::Object(o)) => match o.get("pc_name") {
-                x if !truthy(x) => String::new(),
-                Some(x) => s(Some(x))?,
-                None => String::new(),
+                x if !truthy(x) => (String::new(), false),
+                Some(x) => (s(Some(x)).unwrap_or_default(), false),
+                None => (String::new(), false),
             },
-            x if !truthy(x) => String::new(),
-            _ => return Err(Py("identity が表でない")),
+            x if !truthy(x) => (String::new(), false),
+            _ => (String::new(), true),
         };
         let login = login_id();
         let (pc, source) = pc_name(&over);
-        Ok(json!({"login": login, "pc": pc, "pcSource": source, "key": terminal_key(&login, &pc)}))
+        (json!({"login": login, "pc": pc, "pcSource": source, "key": terminal_key(&login, &pc)}), bad)
     }
 
     /// 作業場所（この PC の ui_state.json・lotdsp_api_map.json の置き場）とプログラムの置き場
@@ -1979,8 +2137,9 @@ impl Builder {
     /// GET /api/config（routes/system.py の config）。Python が落ちる形・窓が同じに読めない形は Err（Python に任せる）
     pub fn config(&self) -> R<Value> {
         let inp = self.inputs()?;
-        inp.check("path_settings")?;
-        let eff = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems", "configItems"])?;
+        let _ = inp.check("path_settings");
+        let (eff, _) =
+            effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems", "configItems"], &inp.config_name);
         let li = match eff.get("lotdsp_import") {
             x if !truthy(x) => Map::new(),
             Some(Value::Object(o)) => o.clone(),
@@ -2022,32 +2181,23 @@ impl Builder {
         }
         let api_on = flag(&a, "enabled") && (!url.is_empty() || truthy(a.get("search_url")));
         let direct_on = flag(&d, "enabled") && !url.is_empty();
-        let section = |k: &str| -> R<Map<String, Value>> {
-            match eff.get(k) {
-                None => Ok(Map::new()),
-                Some(Value::Object(o)) => Ok(o.clone()),
-                _ => Err(Py("設定の段が表でない")),
-            }
-        };
-        let (beat, ui) = (section("presence")?, section("ui_defaults")?);
-        let max_rows = match ui.get("max_rows") {
-            None => 25,
-            Some(v) => wide_int(v).ok_or(Py("max_rows が int() で読めない"))?.small().ok_or(Py("max_rows が大きすぎる"))?,
-        };
-        let interval = match beat.get("heartbeat_interval_seconds") {
-            None => 3.0,
-            Some(v) => py_float(Some(v))?,
-        };
+        // 心拍・表示の初期設定の段（版 3.112.0）: 表でない（null・字）なら空の段として読む（Python の s.get(k, {}).get は落ちる。
+        // 事例の表 appsettings_cases.json の「心拍の段が null」）
+        let section = |k: &str| -> Map<String, Value> { eff.get(k).and_then(Value::as_object).cloned().unwrap_or_default() };
+        let (beat, ui) = (section("presence"), section("ui_defaults"));
+        let max_rows = config_num("max_rows", ui.get("max_rows"));
+        let interval = config_num("heartbeat_interval_seconds", beat.get("heartbeat_interval_seconds"));
         let km = crate::bundle::lotdsp_status(&self.env.local.join("lotdsp_api_map.json"), api_on)?;
         let brand = read_json(&self.env.program.join("app").join("brand.json")).ok_or(Py("brand.json が読めない"))?;
         Ok(json!({"lotdsp_url": li.get("url").cloned().unwrap_or(json!("")), "lotdsp_direct": direct_on,
                   "lotdsp_login_window": direct_on && flag(&d, "login_window"), "lotdsp_api": km,
-                  "default_unwind": t(&["defaultUnwind"]), "defaults": eff.get("ui_defaults").cloned().unwrap_or(json!({})),
+                  "default_unwind": t(&["defaultUnwind"]), "defaults": eff.get("ui_defaults").filter(|v| v.is_object()).cloned().unwrap_or(json!({})),
                   "max_rows": max_rows, "heartbeat_interval_seconds": interval,
                   "app": {"name": brand["name"], "subtitle": brand["subtitle"]}}))
     }
 
-    /// 束（Python の GET /api/lotlist/settings と同じ形）。組めなければ Err（窓は Python に尋ねる）
+    /// 束（Python の GET /api/lotlist/settings と同じ形。版 3.112.0 から答えに settingsBroken〈配った設定の段の壊れ〉も）。
+    /// Err は置き場が決まらない形だけ（窓は Python に尋ねない）
     pub fn build(&self) -> R<Value> {
         let r = self.build_inner();
         *self.last_skip.lock().unwrap() = r.as_ref().err().map(|e| e.why);
@@ -2078,7 +2228,7 @@ impl Builder {
         // 版 3.109.0（H3）: 大きな整数のファイルも読む（前は split_file で 503「参照先」「設備マスタ」。Python は答えた）
         let rows = inp.rows("path_settings").map_err(|_| "参照先")?;
         let equipment = inp.rows("equipment_master").map_err(|_| "設備マスタ")?;
-        let eff = effective(&inp.settings, &rows, &["pathItems", "configItems"]).map_err(|_| "参照先")?;
+        let (eff, _) = effective(&inp.settings, &rows, &["pathItems", "configItems"], &inp.config_name);
         let app = inp.settings.get("lotdsp_import").cloned().unwrap_or(Value::Null);
         let eff_li = eff.get("lotdsp_import").cloned().unwrap_or(Value::Null);
         Ok((app, eff_li, equipment))
@@ -2089,18 +2239,23 @@ impl Builder {
     /// この PC の覚え（master_share.json）を読む所から、印をたどって覚えを書き終えるまでを moved_checked の錠の中の 1 本にする。
     /// 前は覚えを読んでから錠を取り、錠は印をたどる前に外したので、同じ瞬間に束を組んだほかの糸（更新の係・warm・最初の画面）が
     /// たどり終える前の古い覚えを読み、「見たばかり」でたどらずに前の置き場を使った（起動の初期値・種まきが古い共有へ書いた。300 回中 122 回）
-    fn place_of(&self, text: &str) -> Option<(Value, Store)> {
-        let loose = lenient_json(text).filter(Value::is_object)?;
-        let who = Self::who(&loose).ok()?;
+    fn place_of(&self, settings: &Value, problems: &mut Vec<Value>) -> (Value, Store) {
+        let (who, bad) = Self::who_of(settings);
+        if bad {
+            problems.push(self.problem(
+                "identity",
+                format!("表でない（{}）ので、この端末の名前を使わずに名乗りました", kind_name(&settings["identity"])),
+            ));
+        }
         let mut last = self.moved_checked.lock().unwrap_or_else(|e| e.into_inner());
-        let mut store = self.store(&loose).ok()?;
+        let mut store = self.store(settings, problems);
         if !last.is_some_and(|l| l.elapsed().as_secs_f64() < store.refresh) {
             *last = Some(Instant::now());
             if let Some(moved) = self.follow_moved(&store, &who) {
                 store.share = Some(moved);
             }
         }
-        Some((who, store))
+        (who, store)
     }
 
     /// 置き場の材料の place（Lot::store_for・access::Place が読む形）
@@ -2119,28 +2274,37 @@ impl Builder {
                "lockTtl": st.lock_ttl, "refreshSeconds": st.refresh})
     }
 
+    /// 置き場が決まらない理由（版 3.112.0）: 配った設定が読めず、この PC の覚え（master_share.json）も無いときだけ。置き場の段が壊れていても、
+    /// 読めれば置き場は決まる（焼いた既定と problems）
+    fn place_unknown(&self, bad: &Option<String>) -> Option<String> {
+        let why = bad.as_ref()?;
+        (!self.remembered())
+            .then(|| format!("配った設定（{}）が{why}。この PC の覚えた置き場も無いので、マスタの置き場が決まりません", self.config_name()))
+    }
+
     /// 起動の初期値の材料（版 3.110.0。Lot::run_seeds）: (名乗り, 置き場)。束を組めない配った設定でも、置き場の段と名乗りが読めれば返す
     pub fn place_inputs(&self) -> R<(Value, Value)> {
-        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
-        let (who, st) = self.place_of(&text).ok_or(Py("置き場の段が読めない"))?;
+        let (settings, bad) = self.read_settings();
+        // 配った設定が読めないときは当てない（この PC の覚えだけで決めた置き場に、全員の最初の版を置かない）
+        if bad.is_some() {
+            return Err(Py("置き場の段が読めない"));
+        }
+        let (who, st) = self.place_of(&settings, &mut vec![]);
         Ok((who, self.place_json(&st)))
     }
 
-    /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
+    /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。版 3.112.0: 配った設定が窓の読めない字
+    /// （NaN・Infinity・大きな整数）でも、段が表でなくても組む（理由は problems。事例の表 tests/fixtures/appsettings_cases.json）。
+    /// Err は置き場が決まらない形（配った設定が読めず、この PC の覚えも無い）だけ。窓は束を Python に尋ねない
     pub fn inputs(&self) -> R<Inputs> {
-        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
-        // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
-        // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる（place_of。起動の初期値も同じ材料: place_inputs）
-        let st = self.place_of(&text).map(|(_, st)| st);
-        if crate::master_rows::text_split(&text) {
-            return Err(Py("配った設定が窓の読めない JSON"));
+        let (settings, bad) = self.read_settings();
+        let mut problems = vec![];
+        // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）。置き場の段と名乗りから先にたどる（起動の初期値も同じ材料）
+        let (who, st) = self.place_of(&settings, &mut problems);
+        if let Some(why) = self.place_unknown(&bad) {
+            *self.last_skip.lock().unwrap() = Some("置き場が決まらない");
+            return Err(Py("置き場が決まらない（配った設定が読めず、この PC の覚えも無い）").why_text(why));
         }
-        let settings: Value = serde_json::from_str(&text).map_err(|_| Py("配った設定が JSON でない"))?;
-        if !settings.is_object() {
-            return Err(Py("配った設定が表でない"));
-        }
-        let who = Self::who(&settings)?;
-        let st = st.ok_or(Py("置き場の段が読めない"))?;
         let place = self.place_json(&st);
         let p = Place::from_json(&place);
         // 置き場の書く係（種をまく係）を作って覚えさせ（版 3.105.0）、どの問い合わせでも読むマスタ（参照先・門番の権限 2 つ）の種をまく
@@ -2149,23 +2313,52 @@ impl Builder {
         for n in EVERY_READ {
             p.seed(n);
         }
-        let mut inp = Inputs { settings, eff: Value::Null, who, place, p };
+        let mut inp = Inputs { settings, eff: Value::Null, who, place, p, problems, config_bad: bad, config_name: self.config_name() };
         // 参照先が読めなくても配った設定で動く（effective_settings と同じ）
-        inp.eff = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems"])?;
+        let (eff, more) = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems"], &inp.config_name);
+        inp.eff = eff;
+        inp.problems.extend(more);
         Ok(inp)
     }
 
     fn build_inner(&self) -> R<Value> {
         let inp = self.inputs()?;
         let (settings, eff, who, place) = (&inp.settings, &inp.eff, inp.who.clone(), inp.place.clone());
-        let engine = match settings.get("desktop") {
-            Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
-            x if !truthy(x) => json!("rust"),
-            _ => return Err(Py("desktop が表でない")),
-        };
+        let mut problems = inp.problems.clone();
+        let engine = engine_of(settings);
+        // 版 3.112.0: 表でなければ既定の rust（前は束全部を組まなかった。Python の lot_engine は落ちて起動できない）
+        if let Some(x) = settings.get("desktop").filter(|x| truthy(Some(x)) && !x.is_object()) {
+            problems.push(self.problem("desktop", format!("表でない（{}）ので、一覧の係は既定の rust", kind_name(x))));
+        }
         // 節ごとに組む（版 3.102.0）。組めない節は値を null にし、理由（どのファイル・どの行）を broken に書く。黙って空や既定に替えない
         let mut broken = Map::new();
+        // 配った設定が読めない（版 3.112.0）: 配った設定を使う節（品質・データ元・作業実績）は組まない（空の設定で組むと「元が無い」と
+        // 誤って答える）。マスタだけで組む節（設備・勤務体系・変換表）は組む
+        // 配った設定の段が表でない（字・並び・数）節も組まない（Python の `.get` も落ちる形。理由は段の名前）
+        let config_stage = |name: &str| -> Option<Value> {
+            let file = &inp.config_name;
+            let stage = match name {
+                "lot_list" => "lot_list",
+                "work" => "work_log",
+                "sources" => "sources",
+                _ => return None,
+            };
+            if let Some(why) = &inp.config_bad {
+                return Some(
+                    json!({"why": format!("配った設定（{file}）が{why}。設定ファイルを直すと読めます"), "file": file, "stage": ""}),
+                );
+            }
+            let v = eff.get(stage).filter(|v| truthy(Some(v)) && !v.is_object())?;
+            Some(
+                json!({"why": format!("配った設定（{file}）の「{stage}」が表でない（{}）ので組めません。「{stage}」を {{ … }} の形に直してください",
+                                       kind_name(v)), "file": file, "stage": stage}),
+            )
+        };
         let mut section = |name: &str, f: &dyn Fn() -> R<Value>| -> Value {
+            if let Some(w) = config_stage(name) {
+                broken.insert(name.into(), w);
+                return Value::Null;
+            }
             let why = section_broken(&inp, name);
             let warn = why.as_ref().is_some_and(|w| w["warn"] == true);
             if let Some(w) = why {
@@ -2251,12 +2444,18 @@ impl Builder {
             }
         };
         let (refresh, stale) = (num_get("refresh_seconds", json!(60))?, num_get("stale_hours", json!(36))?);
-        Ok(json!({"source": get("source", json!("")), "refresh_seconds": refresh,
+        let mut out = json!({"source": get("source", json!("")), "refresh_seconds": refresh,
                   "stale_hours": stale, "table": get("table", json!("")), "page_size": get("page_size", json!(500)),
                   "engine": engine, "conversions": conversions, "lists": lists,
                   "access": {"who": who, "place": place},
                   "calculation": settings.get("calculation").cloned().unwrap_or(json!({})),
-                  "uiProfileKeys": t(&["uiProfileKeys"]), "broken": broken}))
+                  "uiProfileKeys": t(&["uiProfileKeys"]), "broken": broken});
+        // 配った設定の段の壊れ（版 3.112.0）。答えにだけ載せる（共有には書かない。前の版の窓・Python は知らない鍵を読まない）
+        if !problems.is_empty() {
+            out["settingsBroken"] = json!(problems);
+        }
+        // 答えは Flask の jsonify と同じ形（NaN・Infinity は null。大きな整数は印の字のまま＝答えでは桁）
+        Ok(finite(out))
     }
 }
 
@@ -2290,8 +2489,8 @@ fn norm_row(name: &str, r: &Value) -> Option<Value> {
 
 /// 窓が節を組めなかった理由（版 3.109.0）。原因は組めない理由を作った所が Py に添えたマスタの行（file・row）で、何行目かは
 /// Inputs::row_no が探す（作った後の採点の割れ 1: 前は節のファイルの隔てた行を当て推量で原因と言い、無ければ節の全部のファイルを並べた）。
-/// Python も同じ所で落ちる形（python_too）は window にしない（Python に尋ねても組めない）。ほかは window: true（Lot::settings は束を
-/// Python に尋ね、Python も答えないときだけ道を断る）
+/// Python も同じ所で落ちる形（python_too）は window にしない（Python に尋ねても組めない）。ほかは window: true（窓だけが組めない形の印。
+/// 版 3.112.0 から Lot::settings は Python に尋ねず、その節の道を理由つきで断る。settings_oracle の場面では任せる歩に数える）
 fn window_why(inp: &Inputs, name: &str, e: &Py) -> Value {
     let mut out = match (e.file, e.row.as_ref()) {
         (Some(f), Some(row)) => {
@@ -2299,10 +2498,11 @@ fn window_why(inp: &Inputs, name: &str, e: &Py) -> Value {
             json!({"why": format!("{f}.json{at}を{}組めません（{}）", if e.python_too { "" } else { "窓が Python と同じに" }, e.why),
                    "file": format!("{f}.json")})
         }
-        // 行に結べない理由（配った設定・参照先を重ねた設定）。節の材料のファイルの名前で言う（行は言わない）
+        // 行に結べない理由（配った設定・参照先を重ねた設定）。Python も落ちる形は配った設定の段の形（版 3.112.0: 配った設定のファイルの名前で言う）、
+        // ほかは節の材料のファイルの名前で言う（行は言わない）
         _ => {
             let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
-            let f = files.first().map(|f| format!("{f}.json")).unwrap_or_default();
+            let f = if e.python_too { inp.config_name.clone() } else { files.first().map(|f| format!("{f}.json")).unwrap_or_default() };
             json!({"why": format!("{name} の節を{}組めません（{}）", if e.python_too { "" } else { "窓が Python と同じに" }, e.why), "file": f})
         }
     };
@@ -2320,7 +2520,7 @@ pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
 
 /// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}・表でない行だけなら {why, file, warn: true}（Python の section_broken と同じ順で見る）。
 /// seed: 共有にまだ無く、窓が置けなかったマスタ（版 3.105.0 から窓も読むときに Place::seed で置く。置けなかった〈錠・書けない〉ときだけ
-/// Lot::settings が束を Python に尋ねる）・
+/// 版 3.112.0 から写しがあれば写しで組み、写しも無いときだけ seed。Lot::settings はその束を覚えない）・
 /// window: 窓が Python と同じに読めない字（Python は組めることがある）
 fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
@@ -2328,10 +2528,13 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let mut warn: Option<Value> = None;
     for f in files {
         let file = format!("{f}.json");
-        // 共有にまだ無ければ最初の版を置いてから読む（版 3.105.0。置けなければ種まきの要る節）
-        if !inp.p.seed(f) {
+        // 共有にまだ無ければ最初の版を置いてから読む（版 3.105.0）。置けなかった（ほかの PC が錠を持っている・書けない）ときは、
+        // この PC の写し（master_cache）があれば写しで組む（Python の _maybe_refresh と同じ。版 3.112.0: 前は束を Python に尋ねた）。
+        // 写しも無い（入れたばかりの PC）ときだけ、その節を組まない（seed。覚えずに次の問い合わせでまき直す: Lot::settings）
+        if !inp.p.seed(f) && !inp.p.cache.join(&file).is_file() {
             return Some(
-                json!({"why": format!("共有にまだ {file} がありません（最初の版を置くまで待っています）"), "file": file, "seed": true}),
+                json!({"why": format!("共有の {file} の最初の版をほかの PC が置いている途中か、共有に書けません（共有の錠）。少し待つと読めます"),
+                               "file": file, "seed": true}),
             );
         }
         if let Some(why) = inp.p.unreadable(f) {
@@ -2376,7 +2579,36 @@ mod tests {
             }
         }
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        assert!(num_setting(&json!([1]), &json!(36)).is_err(), "並びは束を組まない（Python の知らせの字が repr）");
+        // 版 3.112.0: 並び・表は既定と知らせ（字は Python の str()〈repr〉。前は束を組まなかった）
+        assert_eq!(num_setting(&json!([1]), &json!(36)).unwrap(), (json!(36), false));
+        assert_eq!(
+            num_warn("stale_hours", &json!([1]), &json!(36)),
+            "全員の設定ファイルの古さの警告（時間）の値「[1]」が数ではないので、36 時間で見ています。"
+        );
+        // 版 3.112.0（採点の指摘 6）: 配った設定を J で読んだ値（NaN・Infinity・1e400・大きな整数・-0・並び・表）と /api/config の数
+        for c in table["jcases"].as_array().unwrap() {
+            let v = crate::held::parse(c["j"].as_str().unwrap()).unwrap();
+            let d = &c["default"];
+            let (got, ok) = num_setting(&v, d).unwrap();
+            let w = if ok { String::new() } else { num_warn(c["key"].as_str().unwrap(), &v, d) };
+            let want = (c["wantRepr"].as_str().unwrap(), c["ok"].as_bool().unwrap(), c["warn"].as_str().unwrap());
+            if (crate::held::repr(&got).as_str(), ok, w.as_str()) != want {
+                bad.push(format!("{}: 窓 {} {ok} {w}", c["name"], crate::held::repr(&got)));
+            }
+        }
+        for c in table["config"].as_array().unwrap() {
+            let v = crate::held::parse(c["j"].as_str().unwrap()).unwrap();
+            let got = config_num(c["key"].as_str().unwrap(), Some(&v));
+            let ok = match c["want"].as_str() {
+                Some(b) => b.strip_prefix("@big:") == crate::held::big_digits(&got),
+                None => got == c["want"] && got.is_f64() == c["want"].is_f64(),
+            };
+            if !ok {
+                bad.push(format!("{}: 窓 {got}（表 {}）", c["name"], c["want"]));
+            }
+        }
+        assert!(config_num("max_rows", None) == json!(25) && config_num("heartbeat_interval_seconds", None) == json!(3.0), "無ければ既定");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
         // 言葉は 1 か所の決まり: 接続の段の欄の名前（Python から焼いた connSpecs）と同じ
         for k in ["stale", "refresh"] {
             assert_eq!(t(&["sourcesList", "connSpecs", k, "label"]).as_str(), Some(num_label(k).1), "{k}");

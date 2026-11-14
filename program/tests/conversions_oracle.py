@@ -356,6 +356,12 @@ SCENARIOS = [
     {"name": "置き場の行の版が読めない（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 16, "名前": "版が字", "rev": "abc"}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("POST", C, T("x")), S("DELETE", f"{C}/16"), S("POST", f"{C}/16/preset"),
                                   S("POST", f"{C}/import", {"items": [T("版が字")]}), S("GET", f"{C}/export")]]},
+    # 版 3.112.0（採点の指摘 8）: 予算外で見つけた任せ。置き場の行の「入力」が JSON の字でなく表（手で直した共有の行）。窓の 8 本はまだ
+    # 行の形を Python と同じに読めない（conversions_write::read の plain）ので任せる。数えて予算に足す（閉じるのは次の版）
+    {"name": "置き場の行の入力が表（予算外の任せ）", "mode": "shared", "extra_rows": [{"id": 18, "名前": "入力が表", "入力": {"a": 1}, "判定": "[]", "rev": 1}],
+     "steps": [], "delegates": [S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("足す")), S("PUT", f"{C}/1", {"name": "直す"}),
+                                S("DELETE", f"{C}/1"), S("POST", f"{C}/1/preset"), S("POST", f"{C}/defaults", {"from": "current"}),
+                                S("POST", f"{C}/import", {"items": [T("取り込む")]})]},
     {"name": "置き場の判定の字が NaN（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 17, "名前": "NaN の判定", "判定": '[{"when": {}, "out": NaN}]',
                                                                        "rev": 1}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("PUT", f"{C}/1", {"name": "x"}), S("PUT", f"{C}/17", {"name": "y"}),

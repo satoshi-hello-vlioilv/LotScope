@@ -185,6 +185,19 @@ SCENARIOS = [
         S("POST", P, {"表示名": "錠", "場所": "/l.sqlite3"}),
         S("POST", f"{P}/order", {"keys": ["wip"]}),
     ]},
+    # 版 3.112.0（採点の指摘 8）: 予算外で見つけた任せ。置き場の行の「結合」が JSON の字でなく並び（画面は字で書くが、手で直した共有の行）。
+    # 窓の書く道はまだ行の形を Python と同じに読めない（sources_write の行の形）ので任せる。数えて予算に足す（閉じるのは次の版）
+    {"name": "置き場の行の結合が並び（予算外の任せ）", "mode": "shared",
+     "rows": ROWS + [{"id": 9, "キー": "jl", "表示名": "結合が並び", "場所": "/jl.sqlite3", "結合": [{"with": "wip", "on": [["a", "b"]]}], "rev": 1}],
+     "steps": [], "delegates": [
+         S("POST", P, {"表示名": "x", "場所": "y"}),
+         S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),
+         S("PUT", f"{P}/s3/conn", {"field": "refresh", "value": "60"}),
+         S("POST", f"{P}/s3/quick", {"画面": "無", "base_rev": 5}),
+         S("POST", f"{P}/groups", {"from": "工程", "to": "工程 2"}),
+         S("POST", f"{P}/order", {"keys": ["s4", "s3"]}),
+         S("DELETE", f"{P}/s4"),
+     ]},
 ]
 
 

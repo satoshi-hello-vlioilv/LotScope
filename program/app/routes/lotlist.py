@@ -6,7 +6,7 @@ from ..web import current_app, jsonify, request
 
 from .. import effective_settings, lot_engine, lot_list_params, shell_serves
 from ..repositories.master_repository import MasterRepository
-from ..services import conversions, lot_list, pivot
+from ..services import conversions, lot_list, path_settings, pivot
 from .common import bp, error, tab_denied
 
 log = logging.getLogger(__name__)
@@ -23,7 +23,8 @@ def lot_mirror():
         m.reconfigure(remote=want[0], interval_sec=want[1], stale_hours=want[2])
         current_app.config["LOT_APPLIED"] = want
     m.start()   # サーバー起動時に始まっていなければ、ここで始める（何度呼んでもよい）
-    return m, settings.get("lot_list") or {}
+    from ..services.path_settings import stage
+    return m, stage(settings, "lot_list")
 
 
 def lotlist_plan(joined=True):
@@ -133,6 +134,8 @@ def section_broken(name, e=None):
             if bad and warn is None:
                 warn = {"why": f"{bad_rows_text(m, bad)}。その行を飛ばして読みました", "file": f"{m}.json", "warn": True}
         return warn
+    if isinstance(e, path_settings.StageBroken):     # 配った設定の段が表でない（版 3.112.0。窓の束と同じ言葉の形）
+        return {"why": str(e), "file": "", "stage": e.stage}
     return {"why": str(e) if isinstance(e, MasterUnreadable) else f"{type(e).__name__}: {e}", "file": ""}
 
 
@@ -159,7 +162,7 @@ def lotlist_settings():
             return None
 
     settings = effective_settings(current_app)
-    ll = section("lot_list", lambda: (lot_list_params(settings), settings.get("lot_list") or {}))
+    ll = section("lot_list", lambda: (lot_list_params(settings), path_settings.stage(settings, "lot_list")))
     (source, refresh_seconds, stale_hours), ll = ll if ll else ((None, None, None), None)
     engine = lot_engine(current_app.config["APP_SETTINGS"])
     if "lists" not in shell_serves() and (tab_denied("lot") or _lot_col()):

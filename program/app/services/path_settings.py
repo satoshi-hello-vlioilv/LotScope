@@ -84,12 +84,44 @@ def default_of(settings, key):
     return _get(settings, key)
 
 
+class StageBroken(Exception):
+    """配った設定の段が表でない（版 3.112.0 の作った後の採点の割れ 3）。道は 503 kind settings の JSON で答える（web.App.handle が payload を読む。
+    前は AttributeError で Flask の HTML の 500 だった）。理由の言葉は窓の束（desktop/src/bundle.rs の build_inner）と同じ形"""
+    status = 503
+    SECTION = {"lot_list": "lot_list", "work_log": "work", "sources": "sources", "schedule": "schedule"}
+
+    def __init__(self, stage, value):
+        kind = "字" if isinstance(value, str) else "並び" if isinstance(value, list) else "数" if isinstance(value, (int, float)) else type(value).__name__
+        self.stage = stage
+        super().__init__(f"配った設定の「{stage}」が表でない（{kind}）ので組めません。「{stage}」を {{ … }} の形に直してください")
+
+    def payload(self):
+        return {"error": f"設定を組めません: {self}。ファイルを直すと、この画面も読めるようになります。", "kind": "settings",
+                "broken": [self.SECTION.get(self.stage, self.stage)]}
+
+
+def stage(settings, key):
+    """配った設定の段（無い・空は空の表。表でなければ StageBroken）"""
+    v = (settings or {}).get(key) or {}
+    if not isinstance(v, dict):
+        raise StageBroken(key, v)
+    return v
+
+
 def _set(d, dotted, value):
+    """値を重ねる。途中の段が表でない（字・null・並び・数）なら重ねずに飛ばす（版 3.112.0。前は TypeError・AttributeError で
+    create_app ごと落ち、Python が起きなかった。窓の desktop/src/bundle.rs の effective も同じに飛ばし、理由を束の settingsBroken に言う。
+    決めは事例の表 tests/fixtures/appsettings_cases.json）"""
     parts = dotted.split(".")
     cur = d
     for part in parts[:-1]:
         cur = cur.setdefault(part, {})
+        if not isinstance(cur, dict):
+            return False
+    if not isinstance(cur, dict):
+        return False
     cur[parts[-1]] = value
+    return True
 
 
 def parse(item, raw):

@@ -595,7 +595,10 @@ class App:
                     raise
                 else:
                     log.exception("Exception on %s [%s]", req.path, req.method)
-                    resp = HTTPError().response()
+                    # 問い合わせの道（/api/）は JSON で答える（版 3.112.0 の作った後の採点の割れ 3: 前は HTML の 500 で、画面と自己診断が読めなかった）
+                    resp = (Response(dumps({"error": f"アプリの中身で誤りが起きました（{type(e).__name__}: {e}）", "kind": "error"},
+                                           separators=(",", ":")) + "\n", 500, mimetype="application/json")
+                            if req.path.startswith("/api/") else HTTPError().response())
         finally:
             _request_var.reset(t_req)
             _app_var.reset(t_app)

@@ -1,0 +1,216 @@
+{
+ "title": "Rust 化の版 3.112.0 で何をするか（段 ③ の最初: 束を Python に尋ねる口〈S6〜S8〉・残る任せる歩 14・答え合わせ役 35 本の置き換えのどこから始めるか）の案出し（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（窓が Python に尋ねる口を閉じる・任せる歩を窓へ・答え合わせ役を事例の表と独立の答えへ）なので決まり 2026-11-06（案の採点は 1 回だけ。届かなくても 1 位に指摘を直して入れた形で作る。作った後の採点も 1 回だけ）。画面に知らせを足す案（F）を採るときだけ、その知らせの見せ方を決まり 2026-10-17 の手順 1〜7 で別の採点のファイル（2026-11-stage3a-ui.json）にする。ほかの案は、今ある断る言葉の道（503 kind settings の理由・skiprows の札）に乗るので画面の案を作らない。main.rs の更新の係の口（ask_update_settings）を消す案（A・B・D・E・F・G の 2 段目）は、CLAUDE.md の決まりで desktop/bundle/verify.py の通し（local・update・distribute）を本物の窓で確かめる。cfg(windows) の道（folder_browse の ~ユーザー・装置の道、release_place の 255 バイト）を変える案（B・D）は cargo clippy --target x86_64-pc-windows-msvc も通す。採点はまだ（別の係がする）",
+ "measured": {
+  "where": "作業場所 /home/user/LotScope/.claude/worktrees/stage3a（ブランチ stage3a・版 3.111.0 の d692733）。Linux の開発コンテナ・Python 3.13.18・窓は作業場所で組み直した debug（CARGO_TARGET_DIR=/home/user/LotScope/desktop/target）。測りの台本は commit していない: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3a/zz_stage3a_probe.rs（測るあいだだけ desktop/tests に置いた結合の試験。lot.rs の Lot に main.rs の native と同じ順で Flask の全部の道を当て、Python への問い合わせは『中身が答えません』の Err にした。測り終えて作業場所から消した）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3a/win/probe_win.py（本物の窓を xvfb で、verify.py local と同じ『Python の無い PC』〈TPA_PYTHON を無い道・PATH から Python を外す〉で開いて自己診断）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3a/py/bundle_py.py（settings_oracle の場面で Python の束の答えの形を見る）",
+  "delegates": "python program/tools/delegate-count.py 作業フォルダ --json → 計 19（予算と同じ・終了コード 0）。層: 束 7・OS 6・口（engine=python）5・本文 1。元: settings 7（配った設定 4〈NaN・段が字・表でない・更新の段が null〉・窓がまだ組めない節 2〈bundle_window: 変換表の判定の字の 10^20・データ元の結合の字の NaN〉・引っ越しの印 1）・release_place 7（OS 4〈255 バイトを超える名前・上のフォルダに NUL・元に NUL・move の NUL〉＋口 3）・fs 3（OS 2〈~nobody・file://[::1]〉＋口 1）・place 1（口）・conversions 1（長さの決まらない後読みの正規表現）。engine=python の 5 を除く 14 が段 ③ の範囲",
+  "routes_normal": "Flask の道の型 138（方法×道。109 の道）。共有が空の作業場所で窓が初期値と種をまいた『ふつうの形』（clean）で Python が答えないと: 窓が答える 137・Python に回す 1（GET /api/lotlist/settings。画面は呼ばず、窓が束を尋ねる口だけ）。5xx は品質データが無い形の 503 copying 4 だけ",
+  "routes_bundle_forms": "settings_oracle の束を窓が組まない 5 場面（配った設定に NaN・NaN の設定で引っ越しの印・束に出ない項目の段が字・更新の段が null・lot_list が表でない）では、Python が答えないと窓が答えるのは 138 のうち 21〜22 だけ（116〜117 の型を Python へ回して 503）。窓がまだ組めない節（bundle_window）の『データ元の結合の字に NaN』は 28 の型、『変換表の判定の字に 10^20』は下の 15 の型と同じ",
+  "routes_settings_scenes": "settings_oracle の 70 場面すべてで同じ当て方をすると 68 場面で Python に回す道がある。どの場面にも出る 15 の型（変換表の 8 本・データ元の書く 7 本）は、答えの元の共通のマスタ（masters()）の 2 つの行の形が原因: 変換表の『入力』が表（字でない）の行で変換表の 8 本、データ元の『結合』が並び（字でない）の行でデータ元の書く 7 本が Python へ（行を 1 つずつ外した 7 通りで確かめた）。どちらも delegate-count の予算に数えていない任せ（conversions・sources_write の答えの元にこの形の場面が無い）。ほかに: 節が組めない場面で組む所の読み・設備グループ・タブの権限など 10〜14 の型、GET /api/config を 11 場面（束の 5 ＋ LotDsp の学びの形 4・max_rows・心拍の段が null）、GET /api/ui-state を 4 場面（画面の控えの入れ子・代用字・大きな rev）、作業実績の登録 6 本を 2 場面",
+  "real_window": "本物の窓（xvfb 1728x1152・Python の無い PC・自己診断）: ふつうの配った設定は 11 秒で結果、窓だけの項目 24 がすべて通り、Python を通す項目 39 は包みに数えた（delegations.json は engine_python と試しの 2 道だけ）。配った設定の lot_list.page_size を NaN にしただけで、窓だけの項目のうち 8 が落ちる（心拍 503・一覧 503・データの時刻・配布の画面 2・権限が undefined・出さないタブの札が『権限 ?』で入口なし・利用状況の印 503）。1 回の自己診断で Python へ回した道 47 種 79 回・bundle_inputs 261 回。配った設定の update を字 \"x\" にしただけ（参照先に update の行なし）なら落ちるのは配布の画面の 2 項目だけ（更新の置き場を窓が組めず Python に尋ねる。update_settings 2 回）",
+  "python_also_fails": "Python も落ちる形（settings_oracle の場面で Python の道を当てた）: lot_list が表でない → Python の create_app が落ちる（AttributeError。製品では Python が起きない＝今は窓も Python も答えない）・束に出ない項目の段が字／更新の段が null で参照先に update の行 → Python の GET /api/lotlist/settings が TypeError（500）。心拍の段が null は /api/config で落ちる。Python が組む形: 配った設定に NaN（答えに NaN は残らない）・NaN の設定で引っ越しの印・bundle_window の 2 つ（Python の答えに broken なし）。計画の表の『Python が落ちる 4 形』は、束で 3 ＋ /api/config で 1",
+  "ask_sites": "窓が Python に尋ねる所（コードを読んで数えた）: lot_settings（GET /api/lotlist/settings）を呼ぶ所 5（main.rs の heartbeat・access_read・handle_body・guard・warm。lot.rs の settings() は、束の材料を組めない〈bundle_inputs〉・種まきが錠に当たった〈bundle_seed〉・窓がまだ組めない節〈bundle_window〉で尋ねる）・ask_update_settings（GET /api/update/settings）2（配布の画面の 6 本と更新の係の upd.run。Lot::update_settings が None のとき）・画面 GET / を Python に描かせる 1（Lot::page が None。束の材料を組めない形で中身を起こしている最中は 130 秒まで待つ）・router.rs の転送 1（native が None の道）・Python から窓への知らせ 1（sup.on_notice）。スケジュールの係を降りる所 Fail::Python 23（schedule.rs 13・cm3_http.rs 5・lists.rs 3・cm3.rs 2。S9）",
+  "oracles": "答え合わせ役 program/tests/*_oracle.py は 35 本・11,340 行（利用者に伝えた『34』は name_key_oracle〈37 行〉を数えるかの違いと見る）。どれも app を import する（Python の道そのものが答えの元）。呼ぶ Rust の試験は 39 本（python_json 36・起こしたままの Live 3〈builder・equipgroups・lotdsp〉。schedule は python_json）。版 3.107.0 の check-all で cargo test 572 秒のうち突き合わせの試験がおよそ 500 秒（lotdsp 68・presets 48・dashboards 37・ops 36・place 33・lotlist 28・calc 23・cards 21・masters 20 秒 ほか）",
+  "oracle_sizes": "予算に数える 19 本の答えを流して測った大きさ: 答えの JSON 計 55.8 MB（gzip 4.2 MB。calc 23.3 MB・ui_defaults 17.0 MB・settings 7.3 MB・conversions 3.0 MB が大半）・場面のフォルダ計 129 MB。答えをそのまま焼いて置くと重い（今の tests/fixtures は 2.2 MB）。場面の作り（setup）も Python なので、焼くなら場面の中身も宣言の形にする要がある",
+  "not_measured": "Windows（OS の道 6 の答え・装置の道）・installed の形の verify.py update・distribute（A などで main.rs を変えるときに流す）・現場の PC の delegations.json（どの形が実際に起きているか。外へは送らない記録なので、配る人に見てもらう要）・答え合わせ役 16 本（計算と起こしたままの係）の答えの大きさ"
+ },
+ "inventory": [
+  "Q1 束の材料（bundle_inputs）: Builder::inputs が配った設定を serde で読めない（NaN・Infinity・大きな整数＝master_rows::text_split）・JSON でない・表でない・置き場の段が読めない・参照先を重ねる段が表でない（Python も落ちる）とき、束全部を Python に尋ねる。測った: Python が答えないと 138 のうち 116〜117 の型が 503。任せる歩 5（束 4・引っ越しの印 1）",
+  "Q2 窓がまだ組めない節（bundle_window）: 変換表の判定の字の 10^20（式が引く形は印の字を数で比べる所が要る）・データ元の結合の字の NaN。Python は組めるので Python に尋ね、答えなければその節の道を 503（理由つき）。任せる歩 2",
+  "Q3 種まきが錠に当たった（bundle_seed）: 窓の種まき（Store::seed）が錠を取れない・書けないとき束を Python に尋ねる（Python は写しで答える）。予算に数える場面は無い（seed の場面は窓が置ける形）",
+  "Q4 更新の置き場（S7）: Lot::update_settings が None（束の材料が組めない・update_source が Python と同じ字にできない）だと配布の画面の 6 本と更新の係が Python に尋ねる。測った: update を字にしただけで配布の画面の自己診断 2 項目が落ちる",
+  "Q5 画面の任せ（S8）: Lot::page が None（束を組む係が無い・束の材料・画面の型と指紋・Python が起きているときの控え／初期設定／変換表）だと Python が描く。束の材料を組めない形で中身を起こしている最中は 130 秒まで待つ。GET /api/config は 11 場面で Python（束の 5・LotDsp の学びの形 4・max_rows・心拍の段が null）",
+  "Q6 OS の道（S12b と一緒）: fs の ~ユーザー（expanduser）・file://[::1]（IPv6 の [ ]）、release_place の 255 バイトを超える名前（ENAMETOOLONG）・NUL を含む上のフォルダ／元（ValueError）。窓は tidy・expanduser が None を返して Python に任せる。任せる歩 6（Python の答えは 2xx 5・4xx 1）",
+  "Q7 本文の正規表現: 変換表を足す本文の長さの決まらない後読み。Python の re は読めず 4xx、窓の fancy-regex は読める。formula_regex_cases に決まりを足せば窓が同じ言葉で断れる。任せる歩 1",
+  "Q8 数えていない任せ（今回の測りで見つけた）: 変換表の『入力』が表の行 → 変換表の 8 本、データ元の『結合』が並びの行 → データ元の書く 7 本（conversions_write::read の plain・sources_write の行の形）。画面の控え（ui-state）の 4 形・作業実績の登録の 2 形・/api/config の 6 形も page_parity・presence_parity では Python に任せてよい形として通っており、予算に入っていない",
+  "Q9 スケジュールの係を降りる形（S9）: https・システムのプロキシ・数でない timeout・窓の持たない charset・Python が落ちる形。Fail::Python 23 か所。降りると Python が係（受け身でない形で取る）",
+  "Q10 答え合わせ役 35 本の答えの元: 道の答えとできたファイル（書く道 15 本: access_write・cards・conversions・dashboards・equip_rows・equipgroups・formats・presets・sets・settings_write・shifts・sources_write・ui_defaults・worklog_write・masters）、読む・計算の答え（lotlist・mirror・lists・routes・pivot・dashboard・ops・calc・builder・lotdsp・schedule）、束と画面（settings）、置き場と OS（place・fs・release_place）、権限・利用状況（access・presence）、種（seeds・seed_reads）、字の決まり（name_key）。既に事例の表か独立の答えがある所: place（place_cases.json・place-truth.py）・builder（builder_cases.json・builder-truth.py）・lotdsp（lotdsp_rules_cases・lotdsp_html_cases）・seeds（seeds_cases.json）・bundle の節（bundle_cases.json）・calc の一部（pynum・pyfloat）・ダッシュボードの実力（capacity-truth.py）・name_key（key_split_table.rs を焼いてある）・schedule（schedule_golden.json）。置き換えの形は 3 つ: (i) 答えを焼く（簡単だが Python の誤りも焼く・大きい）・(ii) 人が仕様から書く事例の表（小さく強いが書く手間）・(iii) app を import しない独立の答え（Python で書く道具。④ の後も残せる）。Python と窓が同時に書く場面（masters・seeds・place の競い）は ④ で窓だけになるので、窓 2 つの競いへ書き直すか消す"
+ ],
+ "visible": [
+  "ふつうの配った設定: Python が居なくても窓が 137/138 の型に答え、自己診断の窓だけの項目 24 が通る（版 3.111.0 の形）。利用者からは中身停止の段だけ",
+  "配った設定に NaN が 1 つ（人が手で直した設定など）: Python が居れば Python が束を組んで普段どおり。Python が居ないと見出しが『権限 ?』・心拍 503・一覧 503・配布の画面 503・利用状況が書かれない（自己診断の窓だけの項目 8 が落ちる）",
+  "lot_list が表でない: Python も起きない（create_app が落ちる）ので、今は窓だけの 21 の型だけが動く",
+  "変換表の『入力』が表の行・データ元の『結合』が並びの行が共有にある PC: Python が居ないと変換表とデータ元を直す画面が 503（読む画面と一覧は窓が答える）"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像なし（測った数とコード）。本物の窓の自己診断の結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3a/win/{normal,nan,lotlist}/result.json",
+   "self_check": "案を作った者が自分で確かめたこと: (1) delegate-count.py を流し 19（予算と同じ）と、19 本の答えの元ごとの任せる歩の中身（fs・release_place・conversions・place の任せた歩を 1 つずつ）を見た。(2) Flask の url_map から道の型 138 を出し、測るだけの結合の試験（commit しない。測り終えて desktop/tests から消し、作業場所の git status が空なのを見た）で、main.rs の native と同じ順（画面・心拍・権限・データ元の並び・handle_body）に Python の答えない形で当て、ふつうの形（共有が空で窓が初期値と種をまいた）・settings_oracle の 70 場面・行を 1 つずつ外した 7 通りで数えた。最初の当て方は settings_oracle の『共有・ふつう』をふつうの形と取り違えていた（変換表 8・データ元 7 が Python に回る）ので、空の共有から窓が種をまく形を作り直し、取り違えの原因の 2 つの行の形を外して確かめた。(3) 本物の窓を xvfb で Python の無い PC として 3 回開き（ふつう・NaN・update が字）、自己診断の項目と delegations.json と desktop.log を見た。(4) settings_oracle の 7 場面に Python の道を当て、落ちるか・NaN を答えに残すかを見た（lot_list が表でないは create_app で落ちる、を traceback で確かめた）。(5) 19 本の答えの大きさと場面のフォルダの大きさを測った。(6) 前の版の 3.107.0 の check-all の記録から試験ごとの秒を読んだ（今回 check-all は流していない）。(7) Windows・installed の形・verify.py update/distribute は流していない（案の量と危うさはコードを読んで見積もった）",
+   "proposals": {
+    "A 束・更新の置き場・画面の口を閉じる（表の案 D。S6〜S8。任せる歩 19 → 12）": {
+     "text": "方向: 窓が組む＋事例の表（計画の表の S6〜S8 そのまま）。変える所: (1) 配った設定を serde ではなく J（pyjson::loads・src/held.rs で NaN・Infinity・大きな整数を持つ）で読み、Builder::inputs が束の材料を組む。NaN は Python と同じく各段の読み手（num_setting・page_size など）が読む（Python の答えに NaN が残らないことを測った）。(2) Python も落ちる 3 形（lot_list が表でない・束に出ない項目の段が字／null で参照先に update の行）と /api/config の心拍の段が null は、仕様から人が書く事例の表 tests/fixtures/appsettings_cases.json で答えを決める（案: その段だけ組まず broken に理由〈ファイルと段〉を書き、その段を使う道だけ 503 kind settings。ほかの段は組む。lot_list が表でないと Python は起きないので、窓が品質の一覧だけを断って残りを答えるのは今より良い）。Python 側も同じ表を tests/test_appsettings_cases.py で読み、落ちる 3 形は Python も表どおりにする（20〜40 行。④ まで engine=python の自己診断が同じ答えを比べるため）。(3) bundle_window の 2 節を窓が組む（変換表の判定の 10^20 は held の印の字を数で比べる比べ方を formula の比べ方に足す・結合の字の NaN は J で読んで Python と同じに捨てる）。(4) bundle_seed は錠に当たったら Python に尋ねず、写し（master_cache）で答える（Python と同じ）。(5) Lot::update_settings と Lot::page・Builder::config が同じ材料で組むので、ask_update_settings・lot_settings・AskSettings の口を消す（main.rs の 5 か所と upd.run・page の 130 秒の待ちも）。GET /api/lotlist/settings は Python の道として残す（engine=python の比べる口。④ で消す）。減る任せる歩: 束 7（19 → 12）。減る口: 窓 → Python の問い合わせの関数 2（lot_settings・ask_update_settings）と画面の任せ 1。測った効き目: NaN の配った設定で Python が居ないとき 116〜117 の型の 503 と自己診断の窓だけの 8 項目の落ちが無くなる・/api/config の 11 場面が窓。数えていない任せ（Q8）は、場面を conversions_oracle・sources_write_oracle に足して数えるだけ（閉じるのは次の版）。消える答え合わせ役: 0（settings_oracle の 7 場面が expect same か『両方が表の言葉で断る』になり、事例の表が束の材料の独立の答えになる）。残る危うさ: (a) G の逃げ道（窓が組めない形は Python が組む）が無くなるので、窓が組めない新しい形は止まる（503 と理由）。今は Python が組めば止まらない。(b) 落ちる 3 形の答えは今の Python の答えが無いので、表の決め（利用者か主のセッション）が要る。(c) NaN の値を受ける読み手が束のほかにもある（/api/config の LotDsp の数・心拍の秒）。(d) main.rs の更新の係の口を変えるので verify.py の update・distribute・local を本物の窓で流す。試験: appsettings_cases.json（40〜60 件: 字 → 組めるか・どの段が broken か・理由の字）を Rust（cargo test --test appsettings_cases）と Python が読む・bundle_parity と page_parity の 7＋11 場面・lot::tests に『Python に一度も尋ねない』（AskSettings を消すので、Python の答えない形で全部の道を当てる今回の測りを本物の試験にする: 138 の型のうち Python に回すのは GET /api/lotlist/settings だけ）・delegate-count の予算を 12 に・verify.py local に『配った設定に NaN でも窓だけの項目が通る』。作る量: Rust 500〜800 行（読み 150・inputs と節 250・口を消す 150・試験 250）・Python 30〜60 行・事例 50 件。1 版",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "lot.rs 449〜457 行（Lot::page）: 画面の任せを消すと、Python が起きていて画面の控え（ui-state）を窓が読めない形（案の係の Q8 の 4 形: 入れ子・代用字・大きな rev）でも、空の控え {rev:0} で描く。今は Python が本物の控えで描く。案の text の (5) はこの形を閉じる手を書いていない（Q8 は数えるだけ）"
+      }
+     ],
+     "seen": "計画の表（RUST_PORT_PLAN.md 2041 行の S6〜S8・案 D）をそのまま満たし、段 ④ の前提『窓は束を Python に尋ねない』を AskSettings ごと消してコンパイルで保てる、7 案でいちばん筋の良い 1 版。採点者の測りで効き目は本物: 配った設定の page_size を NaN にしただけで、Python が答えないと窓が答える型は 138 のうち 18（＋main.rs の native 3＝21。ふつうは 134＋3＝137）、心拍 503 backend_unavailable・update_settings None・delegations bundle_inputs 86 回。Python が居れば NaN の形は全部 200（py_fail）なので、窓が組めば止まる形がまるごと消える。落とし穴: (1) 更新の置き場 update_source_of（bundle.rs 1695 行）は、ほかの段（lot_list など）が表でないだけで全体を Err にする。ask_update_settings を消すと、窓が組めない新しい形で更新の係が置き場を見失い、直した版を配れない（今は Python が組めばしのぐ）。(2) inputs()・build_inner の頭・config() には案の 4 形のほかにも束全部を止める Py が並ぶ（identity が表でない・desktop が表でない・共有の名前・置き場の段・lotdsp_import の段 ほか）。逃げ道が無くなるので全部を表で決める要。(3) 画面の任せを消すと ui-state の 4 形で空の控えで描く（減点）。(4) /api/config の『11 場面が窓』は言い過ぎ: 束の 5 と心拍の段 null の 1 だけで、LotDsp の学び 4・max_rows は Lot::config の別の Py で router の転送のまま。(5) Python も落ちる 3 形は、採点者の測りでは 3 つとも create_app（path_settings._set 92 行の TypeError）で落ちる＝製品では Python が起きない（案の係の『GET が 500』『AttributeError』とは違う）。A なら窓が残りを答えるので今より良い。(6) main.rs の更新の係を変えるので verify.py の通しが要る（案は書いている）"
+    },
+    "B 任せる 14 を 1 版で全部窓へ（A ＋ OS の道 6 ＋ 正規表現 1 ＋ 数えていない任せ。19 → 5）": {
+     "text": "方向: 窓が組む＋事例の表を、段 ③ の任せる歩の全部に一度に当てる。A に足す所: (1) OS の道 6（S12b と一緒）: ~ユーザー（POSIX は pwd、Windows は ntpath の『ホームの最後の段を替える』決まり）・file://[::1]（IPv6 の [ ] を字のまま道にする・NFKC の確かめ）・255 バイトを超える名前（ENAMETOOLONG を『届かない』の答えに）・NUL（Python は ValueError を 200 の problem か 400 にする）を、OS によらない事例の表（place_cases.json に節 os を足す。独立の答えは place-truth.py を広げる）で決め、窓の folder_browse::tidy・expanduser・release_place::check_name が None を返さない。(2) 正規表現 1: formula_regex_cases に『長さの決まらない後読み』の決まりを足し（formula-regex-cases.py が Python の re の言葉で焼く）、窓が同じ言葉で 400。(3) 数えていない任せ（Q8）: 変換表の『入力』が表・データ元の『結合』が並びの行は、版 3.107.0 の決まり（型だけ違う値は str() で一覧に出す・書き戻すと壊れる形だけ隔てる）を変換表とデータ元の書く道にも当てる。画面の控え（ui-state）の 4 形・作業実績の登録の 2 形も同じ。減る任せる歩: 14（19 → 5。残るのは engine=python の 5 だけ＝④ で口ごと消える）。消える答え合わせ役: 0（fs・place・release_place の任せる場面が same に）。残る危うさ: A の (a)〜(d) に加え、(e) Windows の道（~ユーザー・装置の道・255 文字の決まり）は手元で流せず CI 頼み、(f) 1 版の差分が大きく（Rust 1,200〜1,800 行）、採点と作った後の割れの直しが長くなる、(g) Q8 は Python の今の答えを見ていない（Python も落ちるかもしれない）。試験: A の分＋place_cases の os 節（Rust・Python）・formula_regex_cases・conversions／sources_write／presence／worklog_write の parity に Q8 の場面・Windows の clippy と CI。作る量: Rust 1,200〜1,800 行・事例 120 件・Python 50〜100 行。1 版（重い）",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "A の全部に OS の道 6・正規表現 1・予算外の任せ（Q8）を足し、任せる歩を engine=python の 5 だけにする。予算外の任せは採点者の測りでも本物: 管理者の名乗りで『共有・ふつう』に当てると、変換表の 8 本とデータ元の書く 7 本が Python へ（変換表の『入力』が表の行を外すと 8 本、データ元の『結合』が並びの行を外すと 7 本が窓へ。両方外すと 134＋3）。これを閉じる点は A より先へ進むが、1 版に Windows だけで確かめられる道（~ユーザー・装置の道・255 バイト）と、版 3.107.0 の決まりを変換表・データ元・ui-state・作業実績の登録へ広げる 4 つの書く道が入り、差分が A の 2 倍を超える。Q8 は Python の今の答えを見ていない（案の (g)）。A の落とし穴 (1)(2) もそのまま持つ。割れの直しが 1 版に集まり、作った後の採点 1 回で拾い切れない見込み"
+    },
+    "C 答え合わせ役を先に焼く（試験の土台を Python 無しへ。製品は変えない）": {
+     "text": "方向: 順を変える（④ の試験の下ごしらえを先に）＋答えを焼く。変える所: 道具 tools/golden-bake.py を作り、答え合わせ役を 1 回流して、場面（置き場に置くファイル・名乗り・時計・本文の並び）を宣言の形の JSON に、答え（状態・本文・できたファイル）を同じ JSON に焼く。Rust の試験は common::python_json の代わりに common::golden（場面を作業フォルダへ書いて窓の道を当て、焼いた答えと比べる）を使う。置き場は zip（crate は既にある・deflate）で、同じ中身のファイルは 1 つにまとめる。最初の版は予算に数える 19 本（書く道・置き場・束）だけ。計算と起こしたままの係の 16 本（lotlist・mirror・lists・routes・pivot・dashboard・ops・calc・builder・lotdsp・schedule・access・presence・seeds・seed_reads・name_key）は次の版。焼く前に任せる歩は答えが無いので『窓が答えない』と焼き、窓が閉じた版で書き直す。減る任せる歩: 0。消える答え合わせ役: 19 本の呼び出し（ファイルは焼き直し用に残す）。速さ: 突き合わせの試験の秒のうち Python を起こす分が消える（測っていない。19 本で 200 秒前後と見る）。残る危うさ: (a) Python の誤りもそのまま焼く（版 3.100.0・3.108.0 で答えの元の Python の誤りを直した例がある）。独立の答えで確かめる所が無い。(b) 大きさ: 測った答え 55.8 MB（gzip 4.2 MB）・場面 129 MB。calc（23 MB）・ui_defaults（17 MB）は間引く要。(c) 場面の作り（setup）を宣言の形へ書き直すのが答え合わせ役ごとの手仕事（19 本で 5,000 行近い Python）。(d) 製品は何も変わらず、A〜B の任せる歩を後で閉じると焼いた答えを書き直す二度手間。試験: golden の読み手と比べ方（common.rs）・焼いた答えを今の Python と突き合わせる Python の試験（古くないか）。作る量: 道具 400〜600 行・Rust の試験の書き換え 19 本で 1,000〜1,500 行・焼いた物 5〜15 MB。1〜2 版",
+     "score": {
+      "order": 4,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "製品を変えず、答え合わせ役 19 本の答えを焼いて Python 無しの試験の土台を先に作る。向きは段 ④ の下ごしらえだが、順が逆: 焼いた後に A〜B で任せる歩を閉じると、焼いた答え（『窓が答えない』）を書き直す二度手間。Python の誤りもそのまま焼く（版 3.100.0・3.108.0 で答えの元の誤りを直した例がある）。採点者の測りでも Python の答えは 3 形で create_app ごと落ちるので、その形は焼く答えが無い。場面の作り（setup）を宣言の形へ書き直す手仕事が 19 本ぶんあり、利用者から見える違いは無い。大きさ（55.8 MB）は採点者は測っていない"
+    },
+    "D 1 版で段 ③ を全部（A ＋ B ＋ S9 ＋ 答え合わせ役 35 本の置き換え）": {
+     "text": "方向: まとめて閉じる（③ を 1 版で終え、次の版から ④）。変える所: B の全部（任せる 14・数えていない任せ）に、S9（スケジュールの係を降りる形: https とシステムのプロキシは TLS の crate を足すかを利用者と決め、足さないなら理由つきで断る・数でない timeout と窓の持たない charset は理由つきで断る。Fail::Python 23 か所を Fail::Refuse に）と、答え合わせ役 35 本を事例の表（書く道 15 本は焼いた答え＋人が書く境の事例）・独立の答え（計算の 11 本は sqlite3 だけの truth 道具: capacity-truth.py の形を一覧・集計・稼働・写しへ）・窓 2 つの競い（masters・seeds・place の Python との競いを書き直す）へ置き換える。減る任せる歩: 14（19 → 5）。消える答え合わせ役: 35（呼ぶ Rust の試験 39 本を書き換え）。消える口: lot_settings・ask_update_settings・スケジュールの係の降り先。残る危うさ: (a) 差分が数千行（Rust 3,000〜5,000・道具 2,000〜3,000・焼いた物 10 MB 以上）で、check-all（今 20〜30 分）と採点・作った後の割れの直しが 1 版に集まる。(b) 答え合わせ役を置き換えた試験と、閉じた窓の振る舞いを同じ版で変えるので、どちらが割れたか見分けにくい（今までの版は片方ずつ）。(c) S9 は利用者の決め（TLS の crate）が要り、決まるまで版が止まる。(d) 計算の独立の答えは誤り探しの段（3.100.0 の形）を挟まないと、独立の答えと窓が食い違ったときにどちらを直すかの決めが版の中で何度も要る。試験: 上の全部。作る量: 最大。1 版（現実には 3〜5 版分）",
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 3,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の text の危うさ (b): 答え合わせ役 35 本の置き換えと窓の振る舞いの変更を同じ版で行うので、突き合わせの試験が割れたとき、試験の答えと窓のどちらが割れたかが見えない（今までの版は片方ずつ。版 3.100.0 → 3.101.0 の形）"
+      }
+     ],
+     "seen": "③ を 1 版で閉じる。狙いは正しいが、差分が数千行・S9 は利用者の決め（TLS の crate）待ちで版が止まり得る・check-all と採点が 1 版に集まる。採点者の測りで A の範囲だけでも落とし穴が 3 つ（更新の置き場・束全部を止める Py の残り・画面の控え）見つかった。D はそれに OS・正規表現・Q8・S9・35 本を重ねる"
+    },
+    "E 縦に細かく切る（3.112.0 は配った設定の読みだけ。束の任せ 5 → 0、19 → 14）": {
+     "text": "方向: 小さく切る（1 版 1 形）。3.112.0 の変える所: A の (1)(2) だけ＝配った設定を J で読み、Python も落ちる 3 形と心拍の段が null を事例の表 appsettings_cases.json で決める（束の材料が組めない形を無くす）。bundle_window の 2 節・bundle_seed・lot_settings の口は残す（窓が組めない節があれば今までどおり Python に尋ねる）。更新の置き場（update_settings）は同じ材料なので閉じる（ask_update_settings を消す）。次の版の並び: 3.113.0 bundle_window・bundle_seed と lot_settings を消す → 3.114.0 OS の道 6 → 3.115.0 正規表現・数えていない任せ → 3.116.0〜 答え合わせ役を領域ごと（閉じた所の答えの元から事例の表へ）→ S9。減る任せる歩: 5（束の材料 4・引っ越しの印 1）。消える答え合わせ役: 0。測った効き目: A と同じく NaN の配った設定の 116〜117 の型と自己診断の 8 項目（bundle_inputs が原因の物）は全部消える。残る危うさ: (a) 口（lot_settings）が残るので、④ の前提の『窓は Python に尋ねない』はまだ言えない。(b) 版の数が増え（③ で 6〜8 版）、版ごとの決まりの手間（check-all 20〜30 分・採点 2 回・verify）が繰り返す。(c) A と同じく落ちる 3 形の決めが要る。試験: appsettings_cases.json（Rust・Python）・bundle_parity と page_parity の 5＋11 場面・delegate-count の予算 14・verify.py local に NaN の形。作る量: Rust 250〜400 行・Python 20〜40 行・事例 40 件。1 版（小さい）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "A の (1)(2)（配った設定を J で読む・Python も落ちる形を表で決める）と更新の置き場だけ。束の材料が組めない形（採点者の測りで 138 のうち 116〜120 の型が Python へ）はこの版で消え、危うさは A より小さい（lot_settings と画面の任せが残るので、窓が組めない新しい形でも Python が起きていれば止まらない）。ただし ask_update_settings を消す所は A と同じ落とし穴（update_source_of がほかの段の壊れで Err）を持つ。lot_settings が残るため『窓は束を Python に尋ねない』を ④ の前に言えず、同じ口が窓の束と Python の束の 2 通りのまま（言葉と置き場が 1 つにならない）。版の数が増え、check-all 20〜30 分・採点 2 回・verify の繰り返しが 2 版ぶん"
+    },
+    "F 窓が組めない形は理由つきで断る（Python に尋ねる口を今すぐ全部消す）": {
+     "text": "方向: 断る（まねしない）。変える所: 束の材料が組めない形（NaN・Infinity・大きな整数の配った設定・段が字／表でない）・bundle_window の 2 節・OS の道 6・正規表現 1 を、Python の答えをまねせず、窓が理由（どのファイル・どの段・何行目）を添えて断る（束の材料は 503 kind settings、OS の道は 400）。lot_settings・ask_update_settings・画面の任せの 3 つの口を消し、router の転送は ?engine=python だけ（自己診断の比べる口）。画面: 配った設定が読めないことを、見出しの下の 1 段（中身停止の段と同じ置き場・同じ形）で知らせる（見せ方は決まり 2026-10-17 で 2026-11-stage3a-ui.json に別に案を出す）。減る任せる歩: 14（19 → 5）。消える答え合わせ役: 0（任せる場面は『窓は断る』で答え合わせ役と比べない）。残る危うさ: (a) 今 Python が普段どおり答える形（配った設定に NaN・bundle_window の 2 つ・~ユーザー・file://[::1]）が、Python が居ても断られる＝利用者から見て後戻り。現場でどの形が起きているかは delegations.json（PC ごと・外へ送らない）を配る人に見てもらわないと分からない。(b) 『断る』の言葉と置き場を決める画面の案が要る（1 版に画面の採点 2 回）。(c) NaN の配った設定は Python が組めるので、④ までのあいだ engine=python と窓の答えが食い違う（自己診断の比べる項目の扱い）。試験: 断る形の事例の表（字 → 断るか・理由）・lot::tests に Python に尋ねない・verify.py local。作る量: Rust 300〜500 行・JS と CSS 50〜100 行（知らせの段）・事例 40 件。1 版",
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 6,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の測り /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3a-score/py_fail.py: 配った設定に NaN・データ元の結合の字に NaN・変換表の判定に 10^20 の 3 場面は、今は Python が GET /api/lotlist/settings・/api/config・/api/update/settings・/api/access/me のどれも 200 で答える。F はこれらを Python が居ても断るので、今動く形が消える（案の text の (a)）"
+      }
+     ],
+     "seen": "口を全部すぐ消して形がいちばん単純になるが、Python が答えられる形まで断るので後戻り（減点）。現場でどの形が起きているかは delegations.json を見ないと分からず、断る知らせの画面の案（2026-10-17 の採点 2 回）も要る。④ までのあいだ engine=python と窓の答えが食い違い、自己診断の比べる項目の扱いが増える"
+    },
+    "G 独立の答えを先に作り Python の誤りを直す → 次の版で窓へ（3.100.0 → 3.101.0 の形。2 段）": {
+     "text": "方向: 独立の答えを先に（答え合わせ役の置き換えと口を閉じるのを 1 つの流れに）。3.112.0 の変える所: app を import しない独立の答え tools/settings-truth.py（json.loads と os だけで、配った設定・7 つのマスタ・この PC の覚え・引っ越しの印から束の材料〈置き場・名乗り・参照先を重ねた設定・節ごとの組める／組めない〉を出す）と、仕様から人が書く事例の表 appsettings_cases.json を作り、settings_oracle の 70 場面と事例の表を Python の道・独立の答えの両方に当てて食い違いを洗い出す。Python の誤り（落ちる 3 形・心拍の段が null の /api/config）は Python を直し（Python も表どおりに組むか理由つきで断る）、窓はまだ変えない。3.113.0 の変える所: A の全部（窓が同じ表と独立の答えで組み、lot_settings・ask_update_settings・画面の任せを消す）と、settings_oracle を独立の答え＋事例の表に置き換える（bundle_parity・page_parity が Python を呼ばない）。減る任せる歩: 3.112.0 は 0（Python が答えられる形が増えるだけ）・3.113.0 で 7（19 → 12）。消える答え合わせ役: 3.113.0 で 1（settings_oracle。いちばん大きい 673 行・答え 7.3 MB・70 場面）。残る危うさ: (a) 3.112.0 だけでは利用者から見える違いが無い（Python が居ない PC の NaN の形はまだ 503）。(b) ④ で消える Python を直す手間（30〜80 行）が一時の物になる。(c) 独立の答えは束の材料まで（束の全部の節を独立に組むのは大きい: 節ごとの決まりは bundle_cases.json と各 *_cases に任せる）。試験: test_appsettings_cases.py・settings-truth.py と Python の道と窓の三つ巴・bundle_parity と page_parity を独立の答えへ。作る量: 3.112.0 は道具 300〜450 行・Python 30〜80 行・事例 50 件、3.113.0 は A と同じ＋試験の書き換え 300 行。2 版",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "版 3.100.0 → 3.101.0 の型（独立の答えと表で Python の誤りを洗ってから窓へ）で、試験の土台としてはいちばん堅い。settings_oracle（673 行・答え 7.3 MB・70 場面）を ④ の前に外せる。しかし 3.112.0 は利用者から見える違いが無く、直す Python（採点者の測りで 3 形とも create_app の path_settings._set で落ちる）は ④ で消える一時の物。束の材料の独立の答えは、A の事例の表（appsettings_cases.json）を厚くすれば大半が取れ、2 版に分けるほどの差は無い"
+    }
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流して測った数と読んだコードで採点した。物差しの読み替え: 順序＝版の並びが段 ③→④ の流れに沿うか・チャンク＝版の切り方・階層化＝主の狙いが 1 つか・視覚化＝効き目と残りが数で見えるか・ステップ数＝作る量と版の数・考えさせない＝落とし穴の少なさ・直感的＝今までの版の型（事例の表・節ごとの broken・python_too）に沿うか・形と色／言葉と置き場＝決まりが 1 か所か・整列＝範囲の釣り合い・調子＝理由と断る言葉の明るさ。流した物（台本は自分で書いた。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3a-score/）: (1) settings_oracle を自分の作業フォルダで流し（so.json）、delegate-count.py --files で settings 7（束 4・bundle_window 2・引っ越しの印 1）を数え直した。(2) py_fail.py … 任せる 5 場面＋bundle_window 2 場面に Python の道（create_app → GET /api/lotlist/settings・/api/config・/api/update/settings・/api/access/me）を当てた。(3) 一時の結合の試験 desktop/tests/zz_score_probe.rs（案の係の台本とは別に書いた。測り終えて消し、git status が案のファイルだけなのを見た）で、settings_oracle の『共有・ふつう』のフォルダを写した 5 形〈normal・配った設定の lot_list.page_size を NaN（nan）・変換表の『入力』が表の行を外す（noconv）・データ元の『結合』が並びの行を外す（nosrc）・両方外す（clean）〉に、Flask の url_map から自分で出した道の型 138（109 の道）を Python の答えない形で当てた。最初は名乗りが管理者でなくデータ元の書く道が門番の 403 で止まったので、access_permissions に開発者の行を置いて測り直した（probe3.json）。(4) コードを読んだ: lot.rs settings（1171〜1210 行）・page（409〜475 行）・update_settings（1003 行）・sources_write_route（1079 行）、main.rs lot_settings・ask_update_settings・upd.run（387〜413・760〜776 行）、bundle.rs inputs（2130 行）・update_source_of（1675 行）・config（1980〜2096 行の Py）・python_too（47〜76・2293 行）。流していない物: Windows・verify.py の通し・check-all・答えの大きさ（C の 55.8 MB）",
+ "evaluation": {
+  "verified_claims": [
+   "任せる歩の settings 7（束 4・bundle_window 2・引っ越しの印 1）: 正しい。採点者が settings_oracle を自分の作業フォルダで流し、delegate-count.py --files で 7（Python の答え『なし』7）。予算の総計 19 は delegates_budget.json の per の和と同じ",
+   "道の型 138（109 の道）: 正しい。採点者が url_map から自分で出して 138・109",
+   "ふつうの形で Python が答えないと窓が 137/138: 正しい。採点者の試験（clean＝予算外の 2 行を外した形）で Lot が答えた 134・None 4（GET /api/lotlist/settings と、試験で Lot へ当てた main.rs の native 3〈/api/build・/api/changelog・/api/health〉）＝137。5xx は品質データが無い 503 copying 4（＋native の /lotdsp-link を Lot に当てた試験の作り物 1）",
+   "NaN 1 つで窓の答える道が減る: 正しい。配った設定の lot_list.page_size を NaN にしただけで、Lot が答えた型 18（native 3 を足して 21）・Python へ 120。POST /api/heartbeat 503 backend_unavailable・update_settings None・page_why『束の材料: 配った設定が窓の読めない JSON（既定の形で描いた）』・delegate の印 bundle_inputs 86 回",
+   "Python も落ちる形がある: 正しいが形が違う。採点者の py_fail で『lot_list が表でない』『束に出ない項目の段が字』『更新の段が null で参照先に更新の置き場』の 3 つとも create_app が path_settings.py 92 行（_set の cur[parts[-1]] = value）の TypeError で落ちる（製品では Python が起きない）。案の係の『AttributeError』『GET /api/lotlist/settings が 500』は採点者の場面では出なかった（起動後に参照先を直した形なら GET で落ちる見込み）。NaN の配った設定・NaN の引っ越しの印・bundle_window の 2 つは Python が 4 つの道とも 200",
+   "予算外の任せ（変換表の『入力』が表・データ元の『結合』が並び）: 正しい。管理者の名乗りで『共有・ふつう』に当てると Python へ 19 型（native 3・束 1・変換表 8・データ元の書く 7）。変換表の行だけ外すと 11（データ元 7 が残る）・データ元の行だけ外すと 12（変換表 8 が残る）・両方外すと 4。管理者でないとデータ元の書く 7 本は窓の門番が先に 403 で答える（予算外の任せは管理者の操作でだけ起きる）",
+   "/api/config の 11 場面が A で窓に、は言い過ぎ: Lot::config（bundle.rs 1980〜2096 行）には lotdsp_import・request_fields・extra_args・LotDsp の道の字の Py があり、束を尋ねる口とは別に router の転送で Python へ回る。A が閉じるのは束の 5 と心拍の段 null の 1",
+   "更新の置き場（コードで確かめた）: Lot::update_settings は inputs() が通らないと None、update_source_of はほかの段の『値を重ねる段が表でない』でも Err（bundle.rs 1695 行）。今は main.rs の upd.run が Python に尋ねてしのぐ",
+   "流していない: C の答えの大きさ 55.8 MB・答え合わせ役 35 本 11,340 行は行数だけ数え直した（35 本・11,340 行で同じ）。Windows と verify.py の通しは流していない"
+  ],
+  "rank": "1 位 A（72.4）。2 位 E（70.6）・3 位 G（66.3）・4 位 B（65.6）・5 位 C（51.9）・6 位 F（49.4）・7 位 D（45.4）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しをやり直さず、A に下の指摘を入れた形で作る。A を 1 位にした理由: 計画の S6〜S8 を 1 版で満たし、AskSettings ごと消すので段 ④ の前提『窓は束を Python に尋ねない』がコンパイルで保てる・採点者の測りで NaN 1 つで 138 のうち 117 の型が止まる形がまるごと消える・Python も落ちる 3 形（製品では Python が起きない）を窓が残りの道で答えるので今より後戻りが無い。E は危うさが小さいが口が 2 通りで残り、同じ落とし穴（更新の置き場）は持つ。足りない点は、逃げ道を消すのに束全部・更新の係を止める Err の道の洗い出しが案に無いこと・画面の控えの 4 形・/api/config の言い過ぎ",
+  "first_fixes": [
+   "更新の係を他の段の壊れから切り離す: update_source_of（bundle.rs 1675〜1700 行）は update.source の段だけを見て決め、ほかの段（lot_list など）が表でない・NaN でも置き場・だれが・マスタの置き場を組む（Lot::update_settings が None にならない）。事例の表に『lot_list が表でない＋参照先に lot_list の行』『配った設定に NaN』『JSON でない配った設定』で update_settings が Some（置き場の字まで）を入れる。直した版を配れなくなる形を作らないため",
+   "逃げ道を消す前に、束全部を止める Err の道を全部洗い出して事例の表 appsettings_cases.json に 1 件ずつ入れる: Builder::inputs（配った設定が読めない・窓の読めない JSON・JSON でない・表でない・identity が表でない・置き場の段・effective の段）、build_inner の頭（desktop が表でない）、Store（共有の名前が字でない・並びが読めない）。どれも『その段だけ broken（理由・ファイル・段）』か『表で決めた答え』にし、変異（1 つを束全部の Err に戻す）で cargo test --test appsettings_cases が落ちることを確かめる",
+   "段ごとに断る道は新しい依存表を作らず、既にある bundle_cases.json（道が使う節の表）と Py の python_too（bundle.rs 47〜76・2293 行）を使う。Python も落ちる形は python_too で『窓が Python と同じに』を言わない理由の字にする。置き場・名乗り・権限（access）・更新の置き場は、どの段の壊れでも止めない（門番と更新は直すための道）",
+   "画面の任せ（Lot::page で Python が ready のときの None。lot.rs 459〜470 行）を消すなら、同じ版で画面の控え（ui-state）の 4 形（入れ子・代用字・大きな rev）を窓が読む。読めないまま既定の空の控えで描く形を残すなら、その控えを画面が書き戻して消さないこと（PUT /api/ui-state の rev で断る）を lot::tests で確かめる。どちらもしないなら画面の任せは残す",
+   "bundle_seed を写しで答える: 写しが無い（入れたばかりの PC）で錠に当たったら、その節だけ broken（理由『共有の錠』）にし、SETTINGS_TTL（10 秒）の覚えに入れず次の問い合わせで撒き直す。place_parity の an_empty_share_is_seeded_once_by_whoever_comes_first と同じ形で、窓 2 つが空の共有で一斉に読み、どちらも 503 で止まらないこと",
+   "NaN・Infinity・1e400・大きな整数・-0 を受ける数の設定の読み手（page_size・refresh_seconds・stale_hours・max_rows・心拍の秒・LotDsp の数）を num_setting_cases.json に足し、Rust（bundle::num_setting）と Python（services/num_setting）が同じ既定に落ちることを同じ表で。J で読むのは配った設定の 1 か所（pyjson::loads）にする",
+   "Python も落ちる 3 形（採点者の測りでは 3 つとも create_app の path_settings._set 92 行の TypeError）: Python の _set を、表でない段・null の段へは重ねずに飛ばす最小の直し（10〜20 行）にし、Python も起きる形にする（窓が任せる OS 6 形などがその PC で動く・engine=python の自己診断が比べられる）。答えは事例の表と同じ（その段 broken）。tests/test_appsettings_cases.py で同じ表を読む",
+   "予算外の任せを数える: 採点者の試験（Lot に 138 の型を Python の答えない形で当て、None の型を出す）を本物の試験にし、settings_oracle の全場面と『管理者の名乗りのふつうの共有』で、router へ回す型を許す並び（delegates_budget.json）と比べる。採点者の測りで変換表 8・データ元の書く 7 が予算外。この版は数えて予算に足し、閉じるのは次の版（B の (3)）。AskSettings を消せば『尋ねない』はコンパイルで保たれるので、試験は転送の型を見る",
+   "/api/config の言い過ぎを直す: A が閉じるのは束の 5 と心拍の段 null の 1。LotDsp の学びの形 4・max_rows（Lot::config の Py）は router の転送のままなので、計画と予算に残りとして書く",
+   "verify.py の通しを本物の窓で: local に『配った設定に NaN でも窓だけの項目 24 が通る』（案の係の測りでは今 8 項目が落ちる）、update に『配った設定に NaN・lot_list が表でない PC でも新しい版を取り込む』、distribute（配布の画面の 6 本が窓）。main.rs の upd.run・配布の画面・心拍・権限・handle_body・guard・warm の 5＋2 か所を変えるため",
+   "2 台の PC: 3.111.0 と 3.112.0 の PC が同じ配った設定（NaN・lot_list が字）と同じ共有で動く場面を lot::tests か verify.py に。3.112.0 は答え、共有に書く物（broken の理由など）は増やさない（答えだけに載せる）。3.111.0 の Python の読み手が知らない鍵を書かないこと",
+   "試験の二度手間を避ける: appsettings_cases.json は ④ の後も残る独立の表として仕様から書き、settings_oracle の 7 場面は『expect: table』で表を引く形にする（④ で settings_oracle を外すときに書き直さない）。G の良い所（Python に頼らない答え）はこの表で取る"
+  ],
+  "estimates": "量の見込み: A の Rust 500〜800 行は、指摘（更新の置き場の切り離し・束全部を止める Err の洗い出し・bundle_seed の撒き直し・数の設定の表・転送の型の試験）で ＋300〜400 行、事例 50 件は 70〜90 件、Python は _set の直しで 10〜20 行＋表を読む試験、verify.py 40〜80 行と見る。画面の控えの 4 形を同じ版で閉じるなら ＋150 行。1 版に収まるが check-all と verify の 3 通しで 1.5〜2 時間。E は Rust 250〜400 行で妥当（更新の置き場の指摘で ＋80）。B の 1,200〜1,800 行は Q8 の 4 つの書く道と Windows の確かめで上限寄り。C・D・F・G の見込みは妥当（D は 1 版では収まらない）"
+ }
+}

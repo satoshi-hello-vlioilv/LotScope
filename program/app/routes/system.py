@@ -72,6 +72,8 @@ def health():
 @bp.get("/api/config")
 def config():
     s = effective_settings(current_app)          # 参照先マスタで変えた値（LotDsp の URL など）を重ねる
+    from ..services.path_settings import stage
+    stage(s, "lotdsp_import")                    # 段が表でなければ理由つきの 503（版 3.112.0 の作った後の採点の割れ 3）
     beat = s.get("presence", {})
     return jsonify(
         lotdsp_url=(s.get("lotdsp_import") or {}).get("url", ""),
