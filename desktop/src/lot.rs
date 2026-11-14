@@ -100,18 +100,23 @@ impl Settings {
     }
 }
 
-/// 道が使う束の節（版 3.102.0。tests/fixtures/bundle_cases.json の routes と同じ）。conv は計算列の式が変換表を引くか
+/// ダッシュボードの数える係が使う節の全部（設備の木・設備グループの選べる設備・元の決まらない問い合わせ）
+pub const DASH_ALL: [&str; 5] = ["lot_list", "dash", "sources", "work", "shifts"];
+
+/// 道が使う束の節（版 3.102.0。tests/fixtures/bundle_cases.json の routes と同じ）。conv は計算列の式が変換表を引くか。
+/// 版 3.112.0（作った後の採点の割れ 4）: その道が本当に使う節だけ（前は品質・作業実績・データ元の一覧がデータ元の節や品質の節も要り、
+/// 1 つの段の壊れでほかの一覧まで断った）。データ元の節が組めないときの品質・作業実績の一覧は、データ元の行の決め（ロット番号の列）を既定で読む
 pub fn sections_for(path: &str, conv: bool) -> Vec<&'static str> {
     let mut v: Vec<&'static str> = if path.starts_with("/api/lotlist") {
-        vec!["lot_list", "sources"]
+        vec!["lot_list"]
     } else if path.starts_with("/api/worklog") {
-        vec!["work", "shifts", "sources"]
+        vec!["work", "shifts"]
     } else if path.starts_with("/api/src/") {
-        vec!["sources", "lot_list"]
+        vec!["sources"]
     } else if path == "/api/dashboard/sources" {
-        vec!["dash", "sources", "work"]
+        vec!["sources"]
     } else if path.starts_with("/api/dashboard/") {
-        vec!["lot_list", "dash", "sources", "work", "shifts"]
+        DASH_ALL.to_vec()
     } else {
         vec![]
     };
@@ -119,6 +124,55 @@ pub fn sections_for(path: &str, conv: bool) -> Vec<&'static str> {
         v.push("conversions");
     }
     v
+}
+
+/// 元（"lot"・"work"・"src:キー"・データ元のキー）が使う節（版 3.112.0。割れ 4）。分からない元は全部
+pub fn sections_of_source(src: &str) -> Vec<&'static str> {
+    match src {
+        "lot" => vec!["dash", "lot_list"],
+        "work" => vec!["dash", "work", "shifts"],
+        "" => DASH_ALL.to_vec(),
+        _ => vec!["dash", "sources"],
+    }
+}
+
+/// ダッシュボードのパネルの問い合わせ（本文）が使う節（版 3.112.0。割れ 4）: パネルと合わせる別のデータの元（"source" の字）ごとの節の和。
+/// 元が書いていない・本文が読めないときは全部。計算列の式が変換表を引けば変換表も
+pub fn sections_for_body(body: &[u8]) -> Vec<&'static str> {
+    fn walk(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::Object(m) => {
+                for (k, x) in m {
+                    match (k.as_str(), x) {
+                        ("source", Value::String(s)) => out.push(s.clone()),
+                        _ => walk(x, out),
+                    }
+                }
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    let mut srcs = vec![];
+    if let Ok(v) = serde_json::from_slice::<Value>(body) {
+        walk(&v, &mut srcs);
+    }
+    if srcs.is_empty() {
+        srcs.push(String::new());
+    }
+    let mut need: Vec<&'static str> = vec![];
+    for s in &srcs {
+        for n in sections_of_source(s) {
+            if !need.contains(&n) {
+                need.push(n);
+            }
+        }
+    }
+    need.sort_by_key(|n| DASH_ALL.iter().position(|x| x == n).unwrap_or(9));
+    if uses_conv("", body) {
+        need.push("conversions");
+    }
+    need
 }
 
 /// 問い合わせ（引数・本文）が計算列の式で変換表（conv）を引くか
@@ -265,6 +319,10 @@ impl Lot {
         for name in [NAME, "path_settings"] {
             inp.check(name).ok()?;
         }
+        // 作業実績の節が組めなければ理由つきで断る（版 3.112.0 の作った後の採点の割れ 1）
+        if let Some(r) = self.refused(&["work"]) {
+            return Some(r);
+        }
         let s = self.settings().ok()?;
         let work = &s.lists["work"];
         if !s.access.is_object() || !work.is_object() {
@@ -352,6 +410,10 @@ impl Lot {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
+        // 選べる設備はデータ元の設備の列をダッシュボードの数え方で数える: その節が組めなければ理由つきで断る（版 3.112.0）
+        if let Some(r) = self.refused(&DASH_ALL) {
+            return Some(r);
+        }
         let builder = self.bundle.lock().unwrap().clone()?;
         let inp = builder.inputs().ok()?;
         let access = json!({"who": inp.who, "place": inp.place});
@@ -382,7 +444,7 @@ impl Lot {
         };
         let seen = || -> Option<Vec<Value>> {
             let known = known()?;
-            self.with_dash(|cx| dashboard::equipment_seen(cx, &known))
+            self.with_dash(&DASH_ALL, |cx| dashboard::equipment_seen(cx, &known))
         };
         let (status, v) = crate::equipgroups_write::handle(&store, &me, &place, route, query, body, &seen)?;
         if writes {
@@ -511,16 +573,13 @@ impl Lot {
     }
 
     /// ダッシュボードの数える係の持ち物を組んで f に渡す（POST /api/dashboard/query・GET /api/dashboard/equip-tree）
-    fn with_dash<T>(&self, f: impl FnOnce(&dashboard::Ctx) -> Option<T>) -> Option<T> {
+    fn with_dash<T>(&self, need: &[&str], f: impl FnOnce(&dashboard::Ctx) -> Option<T>) -> Option<T> {
         let s = self.settings().ok()?;
         if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
             return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
         }
         // 数える材料の節を組めない（版 3.102.0）: 欠けた材料で数えない（道は呼ぶ側が 503 で断る。設備グループの選べる設備は Python に任せる）
-        if s.broken
-            .as_object()
-            .is_some_and(|b| sections_for("/api/dashboard/query", false).iter().any(|n| b.get(*n).is_some_and(|w| w["warn"] != true)))
-        {
+        if s.broken.as_object().is_some_and(|b| need.iter().any(|n| b.get(*n).is_some_and(|w| w["warn"] != true))) {
             return None;
         }
         let m = self.mirror(&s);
@@ -536,6 +595,13 @@ impl Lot {
             cache: &self.dash,
         };
         f(&cx)
+    }
+
+    /// 道が使う節のどれかが組めなければ、その答え（503 kind settings・理由つき。版 3.112.0 の作った後の採点の割れ 1: 前はこの形を
+    /// 中身へ回し、中身が起きない PC では理由の無い 503 になった）
+    fn refused(&self, need: &[&str]) -> Option<(u16, Value)> {
+        let s = self.settings().ok()?;
+        (s.engine == "rust").then(|| s.refuse(need)).flatten()
     }
 
     /// 置き場の答え（一覧の設定の access）に合わせた書く係（置き場か名乗りが変われば作り直す）
@@ -779,14 +845,15 @@ impl Lot {
         }
         let builder = self.bundle.lock().unwrap().clone()?;
         let inp = builder.inputs().ok()?;
-        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は、ほかの道と同じく Python に任せる
-        let engine = match inp.settings.get("desktop") {
-            Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
-            None | Some(Value::Null) => json!("rust"),
-            Some(_) => return None,
-        };
-        if engine != "rust" {
+        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は、ほかの道と同じく Python に任せる。係の決めは束と同じ 1 か所
+        // （版 3.112.0 の作った後の採点の割れ 1: 前は desktop の段が表でないと中身へ回し、束は既定の rust で食い違った）
+        let s = self.settings().ok()?;
+        if s.engine != "rust" {
             return None;
+        }
+        // データ元の節が組めなければ理由つきで断る
+        if let Some(r) = s.refuse(&["sources"]) {
+            return Some(r);
         }
         let access = json!({"who": inp.who, "place": inp.place});
         let me = self.gate.me(&access).ok()?;
@@ -869,7 +936,12 @@ impl Lot {
             return None;
         }
         if route == Route::Settings {
-            return self.update_settings().map(|v| (200, v));
+            // 決まらない形（版 3.112.0 の作った後の採点の割れ 1）: 窓が理由つきで断る（中身へ回さない）
+            self.bundle.lock().unwrap().as_ref()?;
+            return Some(self.update_settings().map(|v| (200, v)).unwrap_or_else(|| {
+                (503, json!({"error": "更新の置き場が決まりません（全員の設定ファイルが読めない・update の段が表でない）。設定ファイルを直すと確かめます。",
+                             "kind": "settings"}))
+            }));
         }
         let builder = self.bundle.lock().unwrap().clone();
         // Python の今のフォルダ（中身のフォルダ。sidecar.rs の current_dir）から相対の道を見る
@@ -941,7 +1013,8 @@ impl Lot {
                 ("master".into(), "マスタの置き場".into(), store.share_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default()),
                 ("quality".into(), "品質データのフォルダ".into(), crate::folder_browse::parent_of(&src)?),
                 ("worklog".into(), "作業実績のフォルダ".into(), wl),
-                ("release".into(), "配布の置き場".into(), inp.update_source().ok()?),
+                // 更新の置き場が決まらない形（版 3.112.0）は候補に出さない（空）
+                ("release".into(), "配布の置き場".into(), inp.update_source().unwrap_or_default()),
             ];
             for h in local.history() {
                 out.push(("oldmaster".into(), "前のマスタの置き場".into(), text(h.get("dir"))?));
@@ -957,7 +1030,11 @@ impl Lot {
             return None;
         }
         let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
-        self.with_dash(|cx| {
+        let need = ["dash", "work"];
+        if let Some(r) = self.refused(&need) {
+            return Some(r);
+        }
+        self.with_dash(&need, |cx| {
             let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
             crate::builder::settings_check(body, &inp.settings, &inp.eff, &pattern)
         })
@@ -971,6 +1048,10 @@ impl Lot {
         let s = self.settings().ok()?;
         if !s.access.is_object() {
             return None;
+        }
+        // データ元のタブの並びはデータ元の節（組めなければ理由つきで断る。版 3.112.0）
+        if let Some(r) = self.refused(&["sources"]) {
+            return Some(r);
         }
         let me = self.gate.me(&s.access).ok()?;
         let store = self.store_for(&s.access)?;
@@ -1023,13 +1104,26 @@ impl Lot {
         if python && !matches!(route, B::Fields | B::DataColumns) {
             return None;
         }
+        // その道の元が使う節が組めなければ理由つきで断る（版 3.112.0 の作った後の採点の割れ 1・4）
+        let source = qs.iter().find(|(k, _)| k == "source").map(|(_, v)| v.clone()).unwrap_or_default();
+        let need: Vec<&'static str> = match &route {
+            B::Check => vec![],
+            B::SrcColumns(key) | B::ConnCheck(key) => sections_of_source(key),
+            B::JoinPreview => vec!["dash", "sources"],
+            B::Fields if method == "GET" => sections_of_source(&source),
+            B::Fields => sections_for_body(body),
+            B::DataColumns => DASH_ALL.to_vec(),
+        };
+        if let Some(r) = self.refused(&need) {
+            return Some(r);
+        }
         match route {
             B::Check => builder::check(body),
-            B::SrcColumns(key) => self.with_dash(|cx| builder::src_columns(cx, &key)),
+            B::SrcColumns(key) => self.with_dash(&need, |cx| builder::src_columns(cx, &key)),
             B::ConnCheck(key) => {
                 let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
                 let parts = inp.sources_parts().ok()?;
-                self.with_dash(|cx| {
+                self.with_dash(&need, |cx| {
                     let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
                     builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern }, &key, body)
                 })
@@ -1043,7 +1137,7 @@ impl Lot {
                 if let Some((status, kind, msg)) = crate::access::guard(method, "/api/sources/join/preview", &me) {
                     return Some((status, json!({"error": msg, "kind": kind})));
                 }
-                self.with_dash(|cx| builder::join_preview(cx, &parts.items, body))
+                self.with_dash(&need, |cx| builder::join_preview(cx, &parts.items, body))
             }
             B::Fields | B::DataColumns => {
                 // 待っている間の段（決め 7）: 写した・読んだ設備 n/m を GET /api/dashboard/progress で答える
@@ -1055,7 +1149,7 @@ impl Lot {
                     }
                     return None;
                 }
-                let r = self.with_dash(|cx| {
+                let r = self.with_dash(&need, |cx| {
                     if route == B::Fields {
                         builder::fields(cx, method == "POST", query, body)
                     } else {
@@ -1087,6 +1181,10 @@ impl Lot {
         let inp = builder.inputs().ok()?;
         for name in ["data_sources", "path_settings"] {
             inp.check(name).ok()?;
+        }
+        // データ元の節が組めなければ理由つきで断る（版 3.112.0 の作った後の採点の割れ 1）
+        if let Some(r) = self.refused(&["sources"]) {
+            return Some(r);
         }
         let parts = inp.sources_parts().ok()?;
         let access = json!({"who": inp.who, "place": inp.place});
@@ -1505,7 +1603,7 @@ impl Lot {
                 if let Some(r) = (s.engine == "rust").then(|| s.refuse(&sections_for(path, false))).flatten() {
                     return Some(r);
                 }
-                if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
+                if s.engine != "rust" {
                     return None;
                 }
                 let lists = self.lists_of(&s)?;
@@ -1515,7 +1613,7 @@ impl Lot {
                 if let Some(r) = self.settings().ok().filter(|s| s.engine == "rust").and_then(|s| s.refuse(&sections_for(path, false))) {
                     return Some(r);
                 }
-                return self.with_dash(dashboard::equip_tree_answer).map(|v| (200, v));
+                return self.with_dash(&DASH_ALL, dashboard::equip_tree_answer).map(|v| (200, v));
             }
             // スケジュールの設備のタブと設定・データ元の一覧の行の様子（版 3.96.0。Python の schedule_meta・schedule_card）
             ("GET", "/api/schedule" | "/api/schedule/card") => {
@@ -1547,12 +1645,12 @@ impl Lot {
             }
             return None;
         }
-        if let Some(r) =
-            self.settings().ok().filter(|s| s.engine == "rust").and_then(|s| s.refuse(&sections_for(path, uses_conv("", body))))
-        {
+        // パネルと合わせる別のデータの元が使う節だけ（版 3.112.0 の作った後の採点の割れ 4。前はどのパネルも全部の節を要った）
+        let need = sections_for_body(body);
+        if let Some(r) = self.refused(&need) {
             return Some(r);
         }
-        let r = self.with_dash(|cx| dashboard::query(cx, body));
+        let r = self.with_dash(&need, |cx| dashboard::query(cx, body));
         if r.is_none() {
             if let Some(g) = guard {
                 g.python(); // 窓が答えない形は Python が数える（段は分からない）

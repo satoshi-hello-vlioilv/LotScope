@@ -1,0 +1,112 @@
+{
+ "title": "Rust 化の段 ③ の最初: 窓は束・更新の置き場を Python に尋ねない（AskSettings・lot_settings・ask_update_settings を消す・配った設定を J で読む・段が表でない形は節だけ broken）。版 3.112.0 の作った後の採点（2026-11-14）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3a.json",
+ "applies_note": "版 3.112.0 は 2026-11-stage3a.json の回の 1 位 A（72.4 点・80 に届かず）に、採点の指摘 first_fixes の 12 を入れて作った物（commit a4d6f71 が本体、e3e494e は main を合わせただけ、36fa207 は route_reach の許す並び。git diff c60e403 36fa207）。新しい案出しは無いので rounds は空にし、判定は 2026-11-stage3a.json の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面に出ない改良なので画像は撮らず、加点の 11 項目は作りの分かりやすさ・直しやすさ・決めの揃い方として付けた",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-14。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff c60e403 36fa207 を読み、route_reach・delegate-count.py --check を自分で流し、一時の試験（desktop/tests/zz_g3112_tmp.rs。事例の表 56 件 × 138 の型。採点の後に消した）と Python の測り（scratchpad/g3112/py_probe.py。commit しない）で窓と Python の答えを比べ、変異 3 つを当てて戻し、check-all の 09-verify.log の [nan-config] の FAIL を 1 つずつ読んだ",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.112.0・commit 36fa207）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3112（画面に出ない改良なので画像は無い。測りの記録 route_reach.log・dc.log・routes.json・py_probe.py）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "route_reach": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test route_reach -- --nocapture → 1 passed（17 秒）。中身へ回した型と場面の数: 変換表 8 型と データ元の書く 7 型が各 69 場面・GET /api/lotlist/settings 71・組む所の読み 7 型と設備グループ 3 型が各 4・作業実績の登録 6 型が各 2・勤務体系 4 型が各 1・GET /api/config 4・ui-state 2 型が各 4・GET /api/update/settings 1・GET /api/fs/places 1・PUT /api/settings 1",
+   "delegates": "python program/tools/delegate-count.py scratchpad/g3112/dc --check → 計 27（置き場 15・OS 6・口 5・本文 1）・『予算と同じです』・終了コード 0",
+   "table_sweep": "採点者の一時の試験 desktop/tests/zz_g3112_tmp.rs（採点の後に消した）: appsettings_cases.json の 56 件 × 138 の型を route_reach と同じ当て方で。窓が答えない型（GET /api/lotlist/settings を除く）: JSON でない・覚えなし 116・空のファイル・覚えあり 20・表でない・覚えあり 20・JSON でない・覚えあり 18・sources が字 17・work_log が字 14・schedule が字 14・desktop が字 11・lot_list が字（ほか lot_list が数・数の並び・字で参照先の行も無い・字でも更新の置き場）各 9・置き場の段が字 4・update が字 2 件 各 2・lot_list が null で参照先の行 1・lot_list が空の並び 1・lotdsp_import が字 1。ほかの 30 件は 0",
+   "route_probe": "同じ試験の g_probe_routes_per_broken_stage: lot_list が字で /api/src/nai 503（ふつうは 404）・ダッシュボードの作業実績のパネル 503（ふつうは 400 の本文の誤り）・/api/dashboard/fields と /api/masters/equipgroups は中身へ。sources が字で /api/lotlist・/api/worklog・/api/dashboard/sources・query が 503、fields・equipgroups・tabaccess は中身へ。work_log が字で dashboard/sources と query が 503",
+   "python_probe": "scratchpad/g3112/py_probe.py（表の place で置き create_app の test_client で 13 本）: lot_list が字 → /api/lotlist・pivot・lotlist/source・data/columns・fs/places が 500 HTML（equipgroups 200・dashboard/fields 404）／sources が字 → dashboard/fields・data/columns・equipgroups・sources・tabaccess が 500 HTML（lotlist 503）／work_log が字 → worklog/files・fs/places が 500 HTML／JSON でない・覚えあり → create_app が JSONDecodeError で起きない",
+   "mutations": "採点者が当てて戻した変異 3 つ: (1) bundle.rs の store() の『共有の名前が読めないときの既定』を vec![] に → cargo test --test appsettings_cases は 3 passed のまま（見逃す。割れ 6 (a)）。(2) lot.rs の Lot::settings で seed の束も覚える → lot::tests::a_seed_that_meets_another_pcs_lock_uses_the_copy_and_is_not_remembered が落ちる。(3) bundle.rs の section_broken の写しへの逃げ（&& !cache.is_file()）を外す → 同じ試験が落ちる",
+   "verify_log": "作った者の check-all（scratchpad/b3112/check5）の 09-verify.log を読んだ: [nan-config]（lot_list が字・work_log.stale_hours が NaN）の自己診断の FAIL 10 項目のうち、lot_list の節の項目（データの時刻・集計表）は決めどおり、日本語の問い合わせ文字（Python の 500 HTML）・組む所の読み（窓が Python に回して 500）・置き場と設定の 8 本（参照先の確かめるを Python に回す）・設備グループ（Python に回す）・作業実績とデータ元（/api/src/無い元 503/404）・ダッシュボード（作業実績・board のパネルも 503）・スケジュール（/api/src/sch 503）は割れ 1・3・4 の形",
+   "grep": "desktop/src で backend.ask・lotlist/settings・update/settings・bundle_inputs・bundle_seed・bundle_window を探した: 中身へ尋ねる口は router.rs:140 の道ごとの転送だけ（delegate.rs の bundle_seed は数え方の試験の字）。main.rs の GET / は束の材料を組めず中身が起きている最中だけ 130 秒待って Python に描かせる（3.111.0 と同じ・画面の任せは first_fixes 4 で残す決め）"
+  },
+  "cracks": [
+   {
+    "name": "1. 事例の表の壊れた配った設定で、窓が答えずに中身（Python）へ回す道の型がまだ多く残り、そのうち Python が起きない 5 形では理由の無い 503（backend_unavailable）になる。見出しのデータ元のタブ（desktop が字）と「マスタの置き場」の画面（置き場の段が字・JSON でない・空・表でない）が使えない",
+    "where": "desktop/src/lot.rs:783-787（sources_list: desktop の段が表でないと `Some(_) => return None`。束〈bundle.rs の build_inner〉は同じ形を既定の rust と settingsBroken にするので食い違う）・lot.rs の place_route（`builder.configured_dir().ok()?`。bundle.rs の configured_dir は配った設定が読めない・master_share が表でないと Err）・with_dash（broken の節があると None）・worklog_route（`inp.check`・`s.lists[\"work\"]` が表でないと None）・release_route の Settings と fs_route の app_paths（update_source が Err で None）",
+    "path": "事例の表 appsettings_cases.json の形で窓（Builder を持つ Lot・中身は止まった形）に route_reach と同じ当て方で 138 の型を当てると、窓が答えない型: desktop が字 11（GET /api/sources・データ元の書く 7・タブの権限・列の確かめ・結合の試し）／置き場の段が字 4（GET /api/masters/status・place・POST place/check・move）／JSON でない・覚えあり 18・空のファイル・覚えあり 20・表でない・覚えあり 20（置き場の 4・作業実績の登録 6・組む所の読み 7・設備グループ・参照先の確かめる・更新の置き場・参照…のよく使う場所）／sources が字 17・work_log が字 14・schedule が字 14・lot_list が字 9（組む所・設備グループ・データ元の並び・書く道）。表の want.python で starts が false の形（desktop が字・置き場の段が字・JSON でない・空・表でない）は Python が起きないので、回した道は全部 503「アプリの中身（Python）が答えません」。app.js の loadSources は /api/sources の答えに items が無いと空の並びで描くので、desktop が字の PC は見出しのデータ元のタブ（仕掛など）が出ない。マスタの置き場が壊れた PC で、置き場を直す画面そのものが開けない。案 A の狙い『置き場・名乗り・権限・更新の置き場は、どの段の壊れでも止めない（門番と更新は直すための道）』（first_fixes 3）に反する",
+    "repro": "採点者の一時の試験（desktop/tests/zz_g3112_tmp.rs。採点の後に消した）で、appsettings_cases.json の 56 件ごとに Lot＋Builder を置き、route_reach.rs の ask（画面・心拍・権限・データ元の並び・handle_body の順）で program の 138 の型（create_app の url_map を scratchpad/g3112/routes.json に書いた）を当てた。結果は上の数（GET /api/lotlist/settings を除く。JSON でない・覚えなしの 116 は束を組めない fail-closed の形で割れでない）。同じ試験で desktop が字の lot.sources_list(\"\") が None、置き場の段が字の GET /api/masters/status が None。Python が起きないことは tests/test_appsettings_cases.py（check-all で通る）が starts:false で確かめている",
+    "fix": "(a) sources_list の係の決めを build_inner と同じ 1 か所にする（表でない desktop は既定の rust。Settings.engine を使う）。(b) configured_dir は Err でなく ''（配った設定の値が読めない）と理由を返し、master_place::Local の configured を空にして置き場の画面を窓が答える（引っ越しは覚えた置き場から）。(c) with_dash・worklog_route・builder_route・equipgroups_route・settings_check_route・tabaccess_route は、broken の節が原因なら None でなく s.refuse(節) の 503 kind settings（理由つき）にする。(d) update_source が決まらないとき、GET /api/update/settings と /api/fs/places は 503 と理由（『更新の置き場が決まりません』）を窓が答える。試験: route_reach に appsettings_cases.json の全件を足し（場面の名前は表の name）、want に routes（窓が中身へ回してよい型の並び。starts:false の形は GET /api/lotlist/settings だけ）を書く",
+    "reproduced": true
+   },
+   {
+    "name": "2. 任せる歩の数え方の穴: 窓が道ごとに中身へ回す型（route_reach の routerForward）は任せる歩 27 に入らず、route_reach は settings_oracle の 71 場面しか見ない。変換表の 8 本とデータ元の書く 7 本は場面 \".\"（全部の場面）で許すので、71 場面のうち 69 場面で回しても通り、ほかの理由で回すようになっても気づけない",
+    "where": "program/tests/fixtures/delegates_budget.json の routerForward（11 項目。合計の total・per には入らない）・desktop/tests/route_reach.rs（o[\"scenarios\"] だけを回す・許す並びの scenes を名前の正規表現で当てる）・program/tools/delegate-count.py（*_oracle.py の delegates・delegate・expect だけを数える）",
+    "path": "採点者が流した route_reach の出力『中身へ回した型と場面の数』: 変換表の 8 型と POST・PUT・DELETE /api/sources… の 7 型がどれも 69 場面、GET /api/lotlist/settings が 71、ほかに組む所の読み 7 型・設備グループ 3 型が各 4 場面・作業実績の登録 6 型が各 2 場面・勤務体系 4 型・GET /api/update/settings・GET /api/fs/places・GET /api/config 4・GET/POST /api/ui-state 各 4・PUT /api/settings 1。これらは delegate-count.py --check の『計 27・予算と同じです』に 1 つも出ない（settings_oracle 0）。報告の『任せる歩は 19 → 27。束の 7 を閉じ』は、束を Python に尋ねる歩が道ごとの転送へ姿を変えた分を数えていない（割れ 1 の形も含めて数えない）",
+    "repro": "CARGO_TARGET_DIR=… cargo test --locked --test route_reach -- --nocapture（通る・17 秒）の『中身へ回した型と場面の数』と、python program/tools/delegate-count.py 作業フォルダ --check（計 27・終了コード 0）を並べて見た",
+    "fix": "routerForward の当たり（場面 × 型）を delegate-count.py と common::check_budget が数える別の予算（例: routerForward.total と場面ごとの上限）にし、total と並べて報告する。settings_oracle の共有のふつうの形から『入力が表の変換表の行』『結合が並びのデータ元の行』を外し、それぞれ 1 つの場面にして scenes を \".\" から場面の名前に狭める。route_reach に appsettings_cases.json の全件を足す（割れ 1 と同じ直し）",
+    "reproduced": true
+   },
+   {
+    "name": "3. Python の道が、壊れた段で JSON でない 500（Flask の HTML の誤り）を返す。案 A の first_fixes 7『答えは事例の表と同じ（その段 broken）』は束（GET /api/lotlist/settings）と更新の置き場だけで、窓が回す道（割れ 1）と engine=python の比べる口で利用者・自己診断に HTML の 500 が出る（09-verify.log の [nan-config] の『日本語の問い合わせ文字 -- 500 <!doctype html>』はこれ）",
+    "where": "program/app/__init__.py:24-31 の lot_list_params（`settings.get(\"lot_list\") or {}` の後の `.get` が字で AttributeError）を呼ぶ routes/lotlist.py の一覧・集計・データの時刻、services/data_sources.py の sources（段が字）を呼ぶ dashboard/fields・data/columns・masters/equipgroups・sources・masters/tabaccess、work_log の段を読む worklog/files・fs/places。program/tests/test_appsettings_cases.py は create_app と 2 本の道しか見ない",
+    "path": "Python（版 3.112.0）の create_app は lot_list・sources・work_log が字でも起きるようになった（前は落ちて起きなかった）ので、起きたまま道ごとに落ちる。採点者の測り（scratchpad/g3112/py_probe.py。表の place で置き、test_client で 13 本）: lot_list が字 → GET /api/lotlist・/api/lotlist/pivot・/api/lotlist/source・/api/data/columns・/api/fs/places が 500 HTML／sources が字 → /api/dashboard/fields・/api/data/columns・/api/masters/equipgroups・/api/sources・/api/masters/tabaccess が 500 HTML／work_log が字 → /api/worklog/files・/api/fs/places が 500 HTML。窓は sources が字で dashboard/fields・data/columns・equipgroups・tabaccess を Python に回すので（割れ 1）、組む所・設備グループ・タブの権限の画面が 500 の HTML を読む。09-verify.log の [nan-config] でも組む所の読み 5 本が『窓 500 python / Python 500 python』",
+    "repro": "cd program && python3 -u scratchpad/g3112/py_probe.py 'lot_list が字' 'sources が字' 'work_log が字'（各 1〜2 分）。09-verify.log の 22・29 行",
+    "fix": "Python の道の入口で束と同じ決め（tests/fixtures/appsettings_cases.json の broken）を当て、段の壊れた節を使う道は 503 kind settings と同じ理由の JSON で断る（例: lot_list_params・data_sources.sources が段の壊れを SettingsBroken の例外にし、blueprint の errorhandler が JSON に替える。/api/ の 500 は全部 JSON にする errorhandler も）。test_appsettings_cases.py に、表の各件で create_app の全部の GET の道を当て、500 でない・Content-Type が JSON であることを見る試験を足す",
+    "reproduced": true
+   },
+   {
+    "name": "4. 窓だけが断る（断り過ぎ）: 1 つの段の壊れで、その段を使わない道まで 503。lot_list・work_log・sources のどれかが字だと、最初の画面のダッシュボードのパネルが全部 503（作業実績・データ元・合わせた表のパネルも）、/api/src/<無いキー> が 404 でなく 503、スケジュールのデータ元 /api/src/sch も 503。Python は同じ設定で答える",
+    "where": "desktop/src/lot.rs:104-122 の sections_for（/api/dashboard/ は lot_list・dash・sources・work・shifts を、/api/src/ は sources・lot_list を、パネルの元・データ元のキーによらず要る）と lot.rs:520-525 の with_dash（同じ並びのどれかが broken なら None）",
+    "path": "版 3.112.0 から段が字の形でも束を組み、節だけ broken にするので、前（束ごと組めず Python も起きない）より良いが、案 A の決め『その段を使う道だけ断る』（appsettings_cases.json の about）に届かない。09-verify.log の [nan-config]（lot_list が字）: ダッシュボード kpi/work 503/404・time/work 503/404・board 503/200・gantt/work 503/404・abc/work 503/404、/api/src/無い元 503/404、/api/src/sch 503/502。採点者の一時の試験: sources が字で /api/lotlist・/api/worklog・/api/dashboard/sources・/api/dashboard/query が 503、work_log が字で /api/dashboard/sources と作業実績でないパネルも 503",
+    "repro": "09-verify.log の 28・31・33 行と、採点者の一時の試験（g_probe_routes_per_broken_stage。採点の後に消した）",
+    "fix": "/api/dashboard/query はパネル（と合わせる別のデータ）の元から要る節を決め（lot → lot_list、work → work・shifts、src:<key> → sources とそのキーが lot なら lot_list）、/api/dashboard/sources・equip-tree はその元だけを外して答える。/api/src/<key> は先にキーを探して無ければ 404、lot_list を要るのはキーが品質の元のときだけ。試験: appsettings_cases.json に want.routes（道と状態の数）を書き、lot_list が字・work_log が字・sources が字で、ほかの元のパネルが 200 か Python と同じ失敗であることを見る",
+    "reproduced": true
+   },
+   {
+    "name": "5. update の段が null で参照先マスタに更新の置き場がある配った設定は、更新の置き場を ''（確かめない）と答え、更新の係が控えた置き場を空で上書きする（次の起動の最初の取り込みも置き場を見失う）。版 3.111.0 では同じ設定で Python が落ち、窓は控えを残した",
+    "where": "desktop/src/bundle.rs の Inputs::update_source（`unknown_stage` は truthy で表でない段だけ。null は Ok(\"\")）と update_source_of（`Some(Value::Null)` は table=false で参照先の値を捨てる）→ desktop/src/updater.rs:138 の check（`update::remember_source(&self.paths, &source)` は空の字でも控えを書き替え、state off）",
+    "path": "appsettings.json に \"update\": null（手で段を消したつもり・書き出しの道具が null を書いた）と、参照先マスタに update.source の行（画面で置き場を決めた）がある PC。窓の答えは事例の表どおり ''（表 want.update ''）。更新の係は remember_source('') で控え（launch_check が起動の最初に読む置き場）を空にし、state off。参照先に置き場が書いてあるのに、使っている間も次の起動の最初も新しい版を取り込まず、画面にも『確かめない』としか出ない。配った設定を直しても、直した版を取り込むまでの間に控えが戻らない PC が残る",
+    "repro": "コードを読んで確かめた（updater.rs 126-142 の順: ask の Ok → remember_source → source が空なら off）。事例の表『update が null で参照先に更新の置き場』の want は update '' で、appsettings_cases.rs はそのとおりの答えを確かめている",
+    "fix": "表の決めを変える: update の段が null で参照先に update.source の行がある形は、unknown_stage と同じく @unknown（Lot::update_settings が None＝控えを残す・配布の画面は理由つきで断る）にするか、null の段にも参照先の値を重ねる（Python の _set を null の段だけ {} にして重ねる）。どちらにしても、更新の係は『配った設定の段の壊れで空になった source』で控えを上書きしない（settingsBroken に update の段があるときは remember_source を飛ばす）。試験: update::tests か lot::tests に、控えを置いてから壊れた段で 1 回確かめ、控えが残ることを見る",
+    "reproduced": false
+   },
+   {
+    "name": "6. 試験の穴: (a) 事例の表の『共有に置く名前が数の並び』（why『既定の名前で置く』）が、既定の名前で置くことを見ていない。(b) 2 台の PC の試験 a_broken_config_writes_nothing_new_to_the_share は 3.111.0 の PC を動かさず、共有の一番上の .json なら何でも通す。(c) verify.py の 1b は自己診断の 2 項目だけを見て、[nan-config] の FAIL 10 項目（割れ 1・3・4 の形を含む）を『想定どおり』と『想定外』に分けていない",
+    "where": "program/tests/fixtures/appsettings_cases.json の『共有に置く名前が数の並び』（values は access.place.shareDir だけ）・desktop/tests/appsettings_cases.rs の a_broken_config_writes_nothing_new_to_the_share（known = presence_tpa… か top && .json）・desktop/bundle/verify.py の update の 1b",
+    "path": "(a) 変異: bundle.rs の store() で共有の名前の並びが読めないときの既定（sharedDefault）を vec![] に替えても cargo test --test appsettings_cases が 3 passed のまま（共有に置くマスタが sharedAlways だけになり、全員で共有するマスタを手元だけに書くようになる形を見逃す）。(b) 3.112.0 の窓だけを動かし、答えの鍵の字（settingsBroken・\"stage\"・config.json）が共有のファイルに無いことだけを見る。前の版と比べて共有のファイルの並び・中身が増えないことは見ていない。(c) 09-verify.log の [nan-config] の FAIL の中に、割れ 1（組む所の読み・参照先の確かめるを中身へ回す）・割れ 3（Python の 500 HTML）・割れ 4（ダッシュボード・/api/src の断り過ぎ）が混ざっていたが、check-all の summary は『すべて通りました』",
+    "repro": "(a) 採点者が bundle.rs に変異を当てて cargo test --locked --test appsettings_cases（3 passed）、元に戻した。(b)(c) 試験と記録を読んだ",
+    "fix": "(a) その件の values に access.place.shared（sharedDefault ＋ sharedAlways の並び）を足す。(b) 同じ共有でふつうの設定の窓を 1 回動かした後の共有のファイルの並びと中身（時刻を除く）を答えにし、壊れた設定の窓の後と同じであることを見る（前の版の Python の答えの元 settings_oracle の場面でもよい）。(c) verify.py に [nan-config] で落ちてよい項目の名前の並び（lot_list の節を使う項目）を持ち、それ以外の FAIL があれば 1b を落とす",
+    "reproduced": true
+   }
+  ],
+  "not_cracks": [
+   "束・更新の置き場を Python に尋ねる口は消えている: desktop/src の backend.ask は router.rs:140 の道ごとの転送だけ。main.rs の lot_settings・ask_update_settings・upd.run の中身へ尋ねる道・warm の slot は無く、Lot の AskSettings は消え、束を差し込む given は #[cfg(any(test, feature = \"testing\"))] の中（Cargo.toml の testing は dev-dependencies からだけ入る。edition 2021 の resolver 2 なので cargo build・tauri build の窓には入らない）。appsettings_cases の the_window_has_no_mouth_that_asks_python_for_the_bundle も通る",
+   "更新の係: update_settings が None（置き場が決まらない）のとき updater.rs の check は state error で return し、remember_source を呼ばない（控えを空で上書きしない。4d で見つけた形の直し）。配った設定が JSON でなくても、この PC の覚え（master_share.json）があれば置き場を決め、参照先の update.source で更新を続ける（表の『JSON でない・覚えあり』）。verify.py の 1b（NaN と lot_list が字の PC が使っている間に +1 を取り込む・配布の画面の係が答える）は 09-verify.log で通っている",
+   "09-verify.log の [nan-config] の FAIL のうち『データの時刻は Rust が答える』『集計表・グラフ』の lot_list の項目の 503（窓）は、lot_list が字の配った設定で lot_list の節を組まない決め（表の『lot_list が字』）どおりの理由つきの断り。窓の 503 と Python の 500 の食い違いは Python 側の割れ（割れ 3）で、窓の答えは正しい。/api/src/wip の 503/503 は両方が断る形で同じ",
+   "置き場の段の値（lock_ttl_seconds が NaN・refresh_seconds が字・masters が数の並び）を焼いた既定と settingsBroken にするのは、Python が落ちる・錠の長さが NaN になる形を 2 台で同じ既定に揃える決めで、共有に新しい鍵を書かない（settingsBroken は答えにだけ載る）",
+   "Lot::settings は seed の節がある束を覚えない（次の問い合わせでまき直す）。変異（覚える）と section_broken の写しへの逃げを外す変異は、どちらも lot::tests::a_seed_that_meets_another_pcs_lock_uses_the_copy_and_is_not_remembered が落とした（採点者が当てて戻した）",
+   "任せる歩の数: delegate-count.py --check は計 27・予算と同じ（settings_oracle 0・conversions 9・sources_write 7・fs 3・place 1・release_place 7）。予算の数え方そのもの（*_oracle の歩）は正しく、穴は道ごとの転送を数えない所（割れ 2）",
+   "Python の最小の直し（path_settings._set が表でない・null の段を飛ばす・create_app の LOT_APPLIED・GET /api/update/settings の update が表でない形）は、test_appsettings_cases.py の starts・broken・update で確かめられ、共有に書く物を変えない。refresh_seconds が Infinity など Python が起きない 7 形が残るのは表に書いた決め（窓は答える）"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 6,
+    "effortless": 5,
+    "intuitive": 6,
+    "form": 6,
+    "place": 6,
+    "layout": 7,
+    "tone": 6
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "割れ 1（measured.table_sweep）: desktop が字の PC で GET /api/sources を窓が答えず、Python も起きないので 503 → 見出しのデータ元のタブが出ない。置き場の段が字・JSON でない・空・表でない（覚えあり）の PC で「マスタの置き場」の 4 本が 503（置き場を直す画面が開かない）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 3（measured.python_probe・09-verify.log 22・29 行）: 窓が回した組む所の読み・設備グループ・タブの権限が Python の 500 の HTML になり、画面には段の壊れの理由が出ない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（measured.route_reach・delegates）: 道ごとに中身へ回す型（変換表 8・データ元の書く 7 が 69 場面ほか）が任せる歩 27 に出ず、報告の『束の 7 を閉じた』が残りの転送を隠す"
+    }
+   ],
+   "seen": "狙い（窓は束・更新の置き場を Python に尋ねない）の作りはコンパイルで保たれている: main.rs と lot.rs の本体から尋ねる口が消え、試験の口 given は cfg(test)・feature testing の中だけ。配った設定は read_settings の 1 か所で held::parse（NaN・Infinity・1e400・大きな整数・代用字）で読み、段が表でない形は settingsBroken・節の broken の stage に理由を付けて束は組む。更新の置き場は update.source の段だけで決まり、決まらないときは None で控えを残す（4d の直し）。事例の表 56 件・num_setting の jcases と config・verify の local と 1b・seed の写しへの逃げ・覚えない束は、関係の試験と採点者の変異で効いている。ただ『その段を使う道だけ断る』『置き場・権限・更新はどの段でも止めない』は道の側で届いていない: 事例の表の形のまま、窓は 9〜20 の道の型を中身へ回し（割れ 1）、そのうち Python が起きない形では見出しのデータ元のタブ（desktop が字）や置き場の画面が理由の無い 503 になる。Python は起きるようになった形で道ごとに 500 の HTML を返し（割れ 3）、窓の sections_for はダッシュボード全体と /api/src を 1 つの段の壊れで断る（割れ 4）。数え方は道ごとの転送を入れず（割れ 2）、route_reach は事例の表の形を回さないので、これらはどの試験にも出ない。update の段が null の形は控えを空で上書きする（割れ 5）"
+  }
+ }
+}

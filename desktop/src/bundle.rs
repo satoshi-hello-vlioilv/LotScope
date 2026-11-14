@@ -747,12 +747,14 @@ impl Builder {
     }
 
     /// 設定ファイルの master_share.dir（Python の MasterStore.configured_dir: Path(os.path.expandvars(dir))。無ければ ""）。版 3.101.0
+    /// 版 3.112.0（作った後の採点の割れ 1）: 配った設定が読めない・置き場の段が表でないときは ""（配った設定の値は読めない。置き場の画面は
+    /// この PC の覚えた置き場で答える。前は Err で「マスタの置き場」の 4 本を中身へ回し、中身が起きない PC で置き場を直す画面が開かなかった）
     pub fn configured_dir(&self) -> R<String> {
         let (v, bad) = self.read_settings();
         if bad.is_some() {
-            return Err(Py("配った設定が読めない"));
+            return Ok(String::new());
         }
-        let cfg = dict_or_empty(v.get("master_share"))?;
+        let Ok(cfg) = dict_or_empty(v.get("master_share")) else { return Ok(String::new()) };
         let raw = match cfg.get("dir") {
             Some(x) if truthy(Some(x)) => s(Some(x))?,
             _ => String::new(),
@@ -1819,7 +1821,15 @@ impl Inputs {
         let rows = self.rows("path_settings").unwrap_or_default();
         let v = update_source_of(&self.settings, &rows);
         let up = self.settings.get("update");
-        let unknown_stage = up.is_some_and(|u| truthy(Some(u)) && !u.is_object());
+        // 参照先に置き場の行がある（画面で決めた）のに段が null（版 3.112.0 の作った後の採点の割れ 5: 前は空と答え、控えを空で上書きした）
+        let item =
+            t(&["settingsItems"]).as_array().into_iter().flatten().find(|i| i["key"] == "update.source").cloned().unwrap_or(Value::Null);
+        let row_value = rows
+            .iter()
+            .rev()
+            .find(|r| r.get("項目").filter(|v| truthy(Some(v))).map(py_str).as_deref() == Some("update.source"))
+            .and_then(|r| parse_item(&item, r.get("値")));
+        let unknown_stage = up.is_some_and(|u| (truthy(Some(u)) && !u.is_object()) || (u.is_null() && row_value.is_some()));
         if (self.config_bad.is_some() && !truthy(Some(&v))) || unknown_stage {
             return Err(Py("更新の置き場が決まらない（配った設定が読めない・update の段が表でない）"));
         }
