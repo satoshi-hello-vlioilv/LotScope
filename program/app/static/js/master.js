@@ -748,11 +748,11 @@ function bindWorklogOrder(box, again) {
   });
 }
 /* 実績の設備の表（版 3.58.0 から、データ元の「実績」の欄の中に描く: box・embed。フォルダと決まりは接続の設定で直すので、embed では「探す」だけ） */
-async function renderWorklog({ fresh = false, notice = null, box = $("#masterSettings"), embed = false } = {}) {
+async function renderWorklog({ fresh = false, notice = null, box = $("#masterSettings"), embed = false, onRendered = null } = {}) {
   if (!mstate.data.worklog || !box.firstChild) box.innerHTML = '<p class="ps-loading">実績のフォルダを読んでいます…</p>';
   const r = await masterRequest("/api/masters/worklog" + (fresh ? "?fresh=1" : ""), { cache: "no-store" });
   if (!box.isConnected) return;
-  const again = (o = {}) => renderWorklog({ box, embed, ...o });
+  const again = (o = {}) => renderWorklog({ box, embed, onRendered, ...o });
   if (!r.ok) { box.innerHTML = `<p class="ps-loading">作業実績の登録を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
   const d = mstate.data.worklog = r.data;
   mstate.loadedRev.worklog = d.revision;
@@ -776,7 +776,12 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   const miss = d.items.filter((x) => x.state === "missing"), old = d.items.filter((x) => x.stale), moved = d.items.filter((x) => x.state === "renamed");
   /* 直すこと（次の手つき）。無ければ出さない */
   /* 配った設定の数の設定が数でない（版 3.106.0）: 既定で続けていることを、直すことの 1 行目で言い、直す欄（データ元の「接続」の段）へ案内する */
-  const todo = [...(d.settingsWarn || []).map((w) => `<div><span class="m-chip c-warn">${escapeHtml(TPA.numWarnTag(w.label))}</span><span>${escapeHtml(w.text)}</span>`
+  // 読めない行（版 3.113.0 の作った後の採点 B4）: 「直すこと」の囲みにも 1 行（札と同じ理由。押すと札の面を開く）
+  const skipped = d.skipped || [];
+  const skipLine = skipped.length ? [`<div><span class="m-chip c-off">読めない行</span><span>work_log_files.json の ${skipped.slice(0, 3).map((x) => `${x.row} 行目（${escapeHtml(x.why)}）`).join("・")}${skipped.length > 3 ? " ほか" : ""}。`
+    + `${skipped.some((x) => x.why === "表でない行") ? "表でない行がある間は、どの行も保存できません" : "その行の直す・並べ替え・探し直しを止めています"}</span>`
+    + '<button type="button" class="pz-btn" data-wl-skip>理由と消し方</button></div>'] : [];
+  const todo = [...skipLine, ...(d.settingsWarn || []).map((w) => `<div><span class="m-chip c-warn">${escapeHtml(TPA.numWarnTag(w.label))}</span><span>${escapeHtml(w.text)}</span>`
     + (embed ? `<button type="button" class="pz-btn" data-wl-conn="${escapeHtml(w.field)}">接続の欄で直す</button>` : "") + "</div>"), ...(d.error ? [] : [
     ...miss.map((x) => `<div><span class="m-chip c-off">見つからない</span><span><b>${escapeHtml(x.name)}</b>: ${escapeHtml(x.file)} がフォルダにありません</span>`
       + (can && loose.length ? `<button type="button" class="pz-btn" data-wl-go="${x.id}">結ぶファイルを選ぶ</button>` : "<small>名前が変わったか、消されました</small>") + "</div>"),
@@ -799,7 +804,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="wlNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
-    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}${TPA.skipNote(d, "work_log_files", { reload: () => again() })}
+    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}${TPA.skipNote(d, "work_log_files", { reload: async () => { await again(); if (typeof refreshPlace === "function") await refreshPlace(); } })}
       ${embed ? "" : "<small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>"}
       ${embed && can ? '<button type="button" class="pz-btn wl-rescan" data-wl-scan title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します">↻ フォルダを探し直す</button>' : ""}
       ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。実績のタブも同じ並びになります</small>' : ""}</div>
@@ -811,6 +816,8 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   const say = (cls, html) => { const n = $("#wlNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
   const changed = () => emit("tpa:worklog-changed");
   bindWorklogOrder(box, again);
+  box.querySelector("[data-wl-skip]")?.addEventListener("click", () => box.querySelector(".wl-sum .tpa-skip")?.click());
+  if (onRendered) onRendered(d);   // 段の見出しの要約を描き直す（データ元の欄の中。消した後も。版 3.113.0 の作った後の採点 B2）
   const scan = async () => {
     const w = TPA.waiting({ title: "作業実績のフォルダを探しています", from: $("#wlFolder").value, now: "決まりに合うファイルを探し、設備の登録に当てています…",
       note: "共有のフォルダを読むので、数秒かかることがあります。" });

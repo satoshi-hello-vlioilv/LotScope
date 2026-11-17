@@ -2199,13 +2199,25 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   （presence_parity・row_cases）・後読みを任せる（conversions_write_parity）・作業実績の登録で知らせない（worklog_write_parity）・結合が並びで任せる
   （sources_write_parity）・Python の SHAPES・split_lookbehind・backslashreplace・`_sec`・setting_seconds を戻す（test_row_cases・test_formula_regex_cases）。
 
-#### 版 3.113.0 の後に残る任せる歩（11）と転送（比べる口 129）
+- 作った後の採点（37.0 点。`2026-11-stage3b-built.json`。画面は `2026-11-stage3b-ui.json` の 76.0 点）の割れ 8 つを直した（built_fixed）:
+  1. 「標準にする」→「標準に戻す」で表が空になる → 中身の列の並び・表は画面が書くのと同じ JSON の字で置き・戻す（`conv_cell` の 1 か所ずつ。2 台の PC でも壊れない）。
+     前の版の repr の字の行・標準は「JSON として読めません」で隔て、その標準から戻すときは理由つきの 503。
+  2. 窓の repr が表の鍵を並べ替える → 置き場のファイルを読むときに書かれた鍵の順を覚え（`held::note_order`）、`to_j` がその順で組む（preserve_order は入れない）。
+  3. 画面が落ちる要素の形（入力の要素が表でない・columns が並びでない・当て方の column が字でない）も隔てる。
+  4. 後読みの決まりを計算列の画面の確かめにも（画面・Python・窓の regexRisk が同じ決まりと同じ日本語）。
+  5. /api/config の url の偽の値を空に戻した。
+  6. 変換表の小数の大きな整数も窓が答える（read の plain を外した）。route_reach の場面に足して数える。
+  7. 試験の穴: 代用字の大きさの境・答えの字の私用面の字・桁のまま読む・want を Python の答えから作らない。
+  8. 面の見出しを表でない行と使っている行に分けた。画面（B）は札を一覧と段の見出しにも・面の言葉・「直すこと」・消した後の描き直し・一言の置き場。
+- 中身へ回す当たりは 135（場面が 6 増えた分だけ。比べる口だけ）。任せる歩は 11 のまま。
+
+#### 版 3.113.0 の後に残る任せる歩（11）と転送（比べる口 135）
 
 | 形 | 数 | 元 | 消える段 | 理由 |
 |---|---|---|---|---|
 | engine=python（自己診断・突き合わせの口） | 5 | fs 1・place 1・release_place 3 | ④ | Python と比べるための口そのもの。Python を外すと口も外す |
 | OS の道（~ユーザー・file:// の [ ]・NUL・255 バイトを超える名前） | 6 | fs 2・release_place 4 | ③ | OS によらない事例の表と独立の答えにしてから窓が答える（案 B。Windows の答えは CI で） |
-| 転送: GET /api/lotlist/settings | 129 当たり | settings_oracle の全部の場面 | ④ | 比べる口（engine=python）。窓は呼ばない |
+| 転送: GET /api/lotlist/settings | 135 当たり | settings_oracle と事例の表の全部の場面 | ④ | 比べる口（engine=python）。窓は呼ばない |
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

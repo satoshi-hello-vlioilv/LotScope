@@ -1,0 +1,157 @@
+{
+ "title": "Rust 化の段 ③ の 2 つ目: 置き場の行の形・/api/config・画面の控え・後読みの式を窓が答える（任せる歩 27 → 11・中身へ回す当たり 183 → 129）。版 3.113.0 の作った後の採点（2026-11-17）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3b.json",
+ "applies_note": "版 3.113.0 は 2026-11-stage3b.json の回の 1 位 A（70.2 点・80 に届かず）に、採点の指摘 first_fixes の 11 を入れて作った物（git diff 37b2b0e 1f89ca5。a9e4bc2・f839b3a は WIP、f520240 は main を合わせただけ、1f89ca5 が本体）。新しい案出しは無いので rounds は空にし、判定は 2026-11-stage3b.json の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面に出る変化は作業実績の登録の札（.db-warnb）だけなので、画像は ui-eval-skiprows.mjs の ⑩ の 6 枚だけを撮って見た。加点の 11 項目は作りの分かりやすさ・直しやすさ・決めの揃い方として付けた",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-17。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff 37b2b0e 1f89ca5 を読み、変わった試験 10 本・lib の lot 等・boot_cases・bundle_parity・settings_write_parity・Python の 5 本・conv-plan-check.mjs・delegate-count.py --check・route_reach・ui-eval-skiprows.mjs（撮る）を自分で流し、一時の試験（desktop/tests/zz_g3113_tmp.rs。採点の後に消した）と Python の測り（scratchpad/g3113 の py_probe.py・twopc.py・conv_elems.mjs・conv_apply.mjs。commit しない）で窓・Python・画面の JS の答えを比べ、答え合わせ役 3 本に一時の場面を足して戻し（git checkout）、版 3.112.0 の program（git archive 37b2b0e）を同じ共有に当て、変異 6 つを当てて戻した",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.113.0・commit 1f89ca5）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3113/shots（ui-eval-skiprows.mjs の撮った画像。見たのは skip-worklog-1280x720.png・skip-worklog-open-1280x720.png ほか ⑩ の 6 枚）。測りの記録: tests1.log・tests2.log・tests3.log・dc.log・dc.json・mut1*.log・mut2*.log・tmp2〜6.log・cfg_py.json／cfg_rs.json・ui_py.json／ui_rs.json・lb_*.json・skiprows.log",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "tests": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked: row_cases 3・formula_regex_cases 1・conversions_write_parity・sources_write_parity・worklog_write_parity・presence_parity・page_parity・appsettings_cases 4・lotdsp_cases 2・route_reach がすべて ok（tests1.log）。--lib の lot:: ほか 62（a_3_113_pc_keeps_the_rows_a_3_112_pc_reads_in_the_same_share・the_ui_state_forms_python_reads_are_read_and_written_by_the_window を含む）・boot_cases 3・bundle_parity・settings_write_parity も ok（tests2.log・tests3.log）。Python: tests.test_row_cases・test_formula_regex_cases・test_appsettings_cases・test_delegates_budget・test_screen_parts で Ran 28・OK。node program/tools/conv-plan-check.mjs は OK（6 の 19 件も）",
+   "route_reach": "route_reach → 1 passed（55 秒）。『道ごとに中身へ回す当たり（場面 × 型）: 129（予算 129）・場面 129』＝比べる口 GET /api/lotlist/settings だけ。報告の 183 → 129 は本物",
+   "delegates": "python program/tools/delegate-count.py scratchpad/g3113/dc --check --json → 計 11（fs 3・place 1・release_place 7。層は OS 6・口 5）・『予算と同じです』・終了コード 0。conversions 0・sources_write 0・worklog_write 0・settings 0",
+   "ui": "node program/tools/ui-eval-skiprows.mjs scratchpad/g3113/shots → 『OK すべて』・NG 0。⑩ の 3 つの大きさの 9 項目も OK。画像で見た: 1280×720 の『設備 13 台』の段に『⚠ 実績の設備の読めない行 2』の札が 1 段で収まり、押すと面に『13 行目 7（表でない行）』『14 行目 id 991（版が読めない）』と × が出る。面の見出しは『この画面の行（一覧・読みでは使っています）』で、表でない行（一覧から飛ばす行）にもこの見出しが付く（割れ 8）",
+   "ui_state_probe": "控えの 21 形（rev が真偽・全角・前後の空白・負・下線・1e400・-1e400・NaN・1e19・2^64−1・並び、keys が並び、代用字の対と片割れ、表でない控え、知らない鍵、2.0、0x10、同じ鍵の 2 回）を Python の ui_state.load／merge と窓の ui_state::load／post に当てた（ui_py.json・ui_rs.json）: 読み・書いた版・残る名前・代用字の \\udXXX は 21 形とも同じ。違いはファイルの鍵の順（窓は keys が先・Python は rev が先）だけで、これは版 3.112.0 から同じ（serde の Map が並べ替える。この PC だけの控えで JSON として読むので割れでない）",
+   "config_probe": "/api/config を 21 の配った設定で Python（create_app）と窓（Builder::config）に当てた（cfg_py.json・cfg_rs.json）: 16 形は同じ。lotdsp_import.url が 0・false・[]・{} の 4 形と url 0＋api.search_url の 1 形で lotdsp_direct・lotdsp_login_window（と lotdsp_api.enabled）が食い違う（割れ 5）。lotdsp_import が字・真偽の 503 の言葉、max_rows が真偽・2.9・全角・'1e3'・null、心拍の間隔が字・真偽は同じ",
+   "regex_probe": "formula_regex_cases.json の後読みの want=true の 21 形を、regreplace・extract・regcount・match × 4 つの字の 336 件で、画面の JS（tools/formula-parity.mjs）・Python（formula.Formula）・窓（formula::Formula。一時の試験）に当てた: 336 件とも 3 つの答えが同じ（lb_js_out.json・lb_rs_out.json）。Python の split_lookbehind の書き替えは意味を変えていない。want=false の 3 形（(?<=L+)\\d ほか）は、画面の JS の式の確かめ（計算列）が ok で値を出し、Python・窓は『… の正規表現として読めません: look-behind requires fixed-width pattern』（割れ 4）",
+   "parity_extra": "答え合わせ役に一時の場面を足して流した（採点の後に git checkout で戻した）: (1) データ元の行の生の 10^20・1e19・小数・真偽・『場所』が並び・『結合』が表 → sources_write_parity は同じ。生の NaN の『確かめる間隔』は窓が 503 kind settings・Python は 400 の英語（版 3.112.0 の refused の形で前からの違い）。(2) 作業実績の登録の生の 10^20 の『並び』 → PUT の答えの比べ方だけが割れる（試験の穴 7 (c)）。(3) 変換表の入力が [null]・columns が数・当て方の column が数・表示順が生の 10^20・その他が生の NaN → 窓と Python は同じ（どちらも素通しで答える＝割れ 3）。(4) 表示順が小数の 1e19 → 窓は 8 本とも答えずに中身へ回す（割れ 6）。(5) 並びの値の表を標準にして標準に戻す → Python は repr の字を書いて表が空になり、窓は鍵を並べ替えた repr を書く（割れ 1）。(6) その他が鍵 2 つの表 → 窓の str() は鍵を並べ替える（割れ 2）",
+   "two_pc": "版 3.112.0 の program（git archive 37b2b0e）と 3.113.0 の program を、同じ共有（scratchpad/g3113/twopc/share）に順に当てた（twopc.py）: 3.113.0 の『標準にする』は入力が並びの表を並びのまま conversion_defaults.json に置く → 3.112.0 の『標準に戻す』（POST /api/masters/conversions/2/preset）は入力・判定・当て方を repr の字（\"[{'name': 'a', …}]\"）で conversions.json に書き、答えは inputs []・rows []・apply {}（表が空になる）。3.113.0 の Python で同じ『標準に戻す』をしても同じに空になる（割れ 1）",
+   "mutations": "採点者が当てて戻した変異 6 つ: (a) ui_state::post の代用字の大きさの数え方（text.len() + 2 × 片割れ）から 2 × 片割れを外す → presence_parity・row_cases・lib の ui_state が通る（見逃す。試験の穴 7 (a)）。(b) held::reply_bytes の lone_escaped を外す（片割れを私用面の字のまま答える）→ presence_parity・page_parity・lib が通る（見逃す。試験の穴 7 (b)）。(c) worklog_write の GET /api/worklog/files の notes を外す → worklog_write_parity が落ちる。(d) conversions_write::defaults_set の並び・表のそのまま置くを外す → conversions_write_parity が落ちる。(e) lotdsp::seen_of の大きな整数を 0 に → row_cases の rowshape が落ちる。(f) Python の split_lookbehind の否定の枝を (?:(?<!L)|(?<!CR)) に → test_formula_regex_cases の SplitLookbehind が落ちる",
+   "check_all": "作った者の check-all（scratchpad/b3113/check2/summary.txt）は 10 段とも終了コード 0（py-tests Ran 914・cargo-test 809 秒・verify 2165 秒・verify-local）。first_fixes 10 の verify.py update は 09-verify.log で通っている（nan-config の FAIL は版 3.112.0 と同じ形）"
+  },
+  "cracks": [
+   {
+    "name": "1. 『標準にする』→『標準に戻す』で変換表が空になる（並び・表の値の表）。版 3.113.0 の _conv_cell・defaults_set は標準（conversion_defaults.json）に並び・表のまま置くが、『標準に戻す』（POST /api/masters/conversions/<id>/preset）は Python も窓もその値を master_rows::clean・_clean の repr の字にして書き、入力・判定・当て方が JSON として読めず、黙って inputs []・rows []・apply {} の表になる。版 3.112.0 の PC が同じ共有で『標準に戻す』をしても同じに壊れる。窓の repr は鍵を並べ替えるので、書いたファイルの字も Python と違う",
+    "where": "program/app/routes/conversions.py 49〜63 行（conversions_reset: data = {k: preset[k] …} → repo.conversion_update → _clean）・desktop/src/conversions_write.rs 855〜865 行（Route::Preset: data.insert(k, v.clone()) → master_rows::update → clean）・program/app/repositories/master_repository.py の _conv_cell と conversion_defaults_set（版 3.113.0 で標準に並び・表のまま置くようにした所）・desktop/src/conversions_write.rs 693〜701 行（defaults_set）",
+    "path": "入力・判定・当て方が並び・表そのものの変換表（手で直した共有の行。版 3.113.0 から読める行として一覧に出る）を、マスタ管理の変換表で『今の表をすべて標準にする』（POST /api/masters/conversions/defaults {from: current}）→ その表で『標準に戻す』。前の版は『標準にする』の時点で repr の字にして壊していた（場所が 1 歩ずれただけ）。conversions_oracle の場面『標準の行の入力が表（隔てて答える）』の POST /2/preset・/1/preset は名前がプリセットに無く 400 で、並び・表の標準から戻す歩はどの場面にも無い",
+    "repro": "(1) Python: scratchpad/g3113/twopc.py で共有の conversions.json に {id 2, 入力: [{name: a, type: text, columns: [列A]}], 判定: [{when: {}, out: 有}], 当て方: {mode: add, column: '{列}_x'}} を置き、new で POST defaults {from: current} → conversion_defaults.json の行は並び・表のまま。old（版 3.112.0）と new のどちらで POST /api/masters/conversions/2/preset をしても、conversions.json の行 2 は \"入力\": \"[{'name': 'a', 'type': 'text', 'columns': ['列A']}]\"（repr）になり、答えの items は inputs []・rows []・apply {}。(2) 窓: conversions_oracle.py に一時の場面（extra_rows に上の行・steps: POST defaults {from: current}・POST /50/preset・GET）を足して conversions_write_parity を流すと『ファイル share/conversions.json.rows[10].入力: \"[{'name': 'a', 'type': 'text', 'columns': ['列A']}]\" / \"[{'columns': ['列A'], 'name': 'a', 'type': 'text'}]\"』の 1 件の食い違い（答えはどちらも空の表）",
+    "fix": "標準に置く値と標準から戻す値を、画面が書くのと同じ JSON の字にそろえる: Python の _conv_cell は並び・表を json.dumps(v, ensure_ascii=False)（窓は held::to_text か J::dumps で同じ字）にし、conversions_reset と窓の Route::Preset も、入力・判定・当て方が並び・表なら同じ JSON の字にして conversion_update に渡す（版 3.112.0 の PC は JSON の字の標準を今どおり戻せるので、混ざった共有でも壊れない）。試験: conversions_oracle に『並びの表を標準にして標準に戻す』の場面（3.113.0 の標準・3.112.0 の形の repr の標準の 2 つ）を W の歩で足し、戻した後の GET の inputs が元と同じこと・ファイルの字が Python と同じことを見る。rowshape_cases.json に『標準に戻す』の行を足す",
+    "reproduced": true
+   },
+   {
+    "name": "2. 窓の str()（repr）が表の鍵を並べ替える: 置き場の行の値が鍵 2 つ以上の表のとき、窓は Python と違う字で一覧に答え・書く（Python は書かれた順）",
+    "where": "desktop/src/bundle.rs の conv_rows（その他は py_str(x)）・worklog_write.rs の s_or（py_str）・sources_list の値の str()・master_rows::clean（repr）。serde_json の Map は BTreeMap（Cargo.toml に preserve_order が無い）なので held::parse した行の表は鍵の字の順になり、py_str・J::repr がその順で書く",
+    "path": "変換表の『その他』（ほか名前・表示順）、データ元の表示名・備考・場所、作業実績の登録の設備名・備考などが鍵 2 つ以上の表（手で直した共有の行）。版 3.113.0 で窓が中身へ回さずに答えるようにした形（前は value_plain で任せていた）。事例の表 rowshape_cases.json は『その他が鍵 1 つの表』だけで、鍵 2 つの形が無い",
+    "repro": "conversions_oracle.py に一時の場面『その他が鍵 2 つの表』（extra_rows {id 51, 名前: 二つの鍵, 入力: \"[]\", その他: {\"b\": 1, \"a\": 2}}・steps GET）を足して conversions_write_parity を流すと『.items[1].other: \"{'b': 1, 'a': 2}\" / \"{'a': 2, 'b': 1}\"』の食い違い（tmp6.log）。比べる口 GET /api/lotlist/settings の conversions の節も同じ字で組むので、自己診断の突き合わせが割れを言う形",
+    "fix": "repr を作るときは置き場のファイルの字を順を保って読んだ木（pyjson::J の Obj は並び）から作る: Place::rows の行に、値が表・並びの列だけ J の木を添えるか、row_check・bundle の str() の前に held::parse の代わりに J で読む。preserve_order を crate 全体に入れるのは答えの字が広く変わるので避ける。試験: rowshape_cases.json の rows・worklog・sources に『鍵 2 つ以上の表（b・a の順）』を足し、view の other・一覧の字を Python と比べる",
+    "reproduced": true
+   },
+   {
+    "name": "3. 画面が落ちる置き場の行の形が残っている: 入力の並びの中身が表でない（[null]）・入力の columns が並びでない（数）・当て方の column が字でない（数・表）の変換表は、隔てず素通しで一覧に出て、画面の conversions.js の plan・planAll と master-conv.js の見出し（x.inputs.map((inp) => inp.name)）が TypeError で落ちる",
+    "where": "program/app/services/row_check.py・desktop/src/row_check.rs の SHAPES（列そのものの型だけを見る）・program/app/services/conversions.py の view（_j は並び・表を素通し）・program/app/static/js/conversions.js 77〜80 行（x.inputs[0].columns・(a.column || \"\").includes）・master-conv.js 117 行",
+    "path": "手で直した共有の conversions.json の行: 入力 [null]・[{name: a, columns: 5}]・当て方 {mode: add, column: 5}。サーバー側の式の conv は _conv_prep が isinstance(x, dict) で表でない入力を飛ばすので落ちないが、画面は落ちる",
+    "repro": "scratchpad/g3113/conv_elems.mjs・conv_apply.mjs（conv-plan-check.mjs と同じ vm で list-formula.js・conversions.js を読み、Conversions.take に 1 つの表を渡す）: 入力 [null] → plan『Cannot read properties of null (reading 'columns')』・inputs.map『… (reading 'name')』。[{columns: 5}] → plan『(cands || []) is not iterable』。当て方 column 5・{a: 1} → plan・planAll『(a.column || \"\").includes is not a function』。窓と Python は同じ答え（conversions_oracle に一時の場面を足して conversions_write_parity が通った＝どちらも素通し）",
+    "fix": "rowshape_cases.json に入力の要素・columns・当て方の column の形の事例を足し、want を決める: 入力の要素が表でない・columns が並びでない・column が字でない行は『読めない行』として隔てる（理由『「入力」の 1 つ目が表ではありません』など）か、view で _conv_prep と同じく表でない入力を飛ばし columns を並びに・column を字にそろえる（どちらかを Python と窓の 1 か所で）。conv-plan-check.mjs の 6 に同じ形を足し、窓の答えを画面の部品に渡して落ちないこと",
+    "reproduced": true
+   },
+   {
+    "name": "4. 後読みの want（画面が読み、サーバーも計算できる）が変換表の道にしか効いていない: 一覧の計算列・ダッシュボードの計算列の式の確かめ（画面の list-formula.js の check・regexRisk）は (?<=L+)・(?<=a{1,2})・(?<=(L)\\1) を今も読み、一覧には値を出すが、窓・Python は読めずに空（一覧とダッシュボードの数が合わない）。Python の言葉は re の英語のまま",
+    "where": "program/app/static/js/list-formula.js の regexRisk（長さの決まらない後読みを断らない）・tests/fixtures/formula_cases.json（後読みの枝の形も長さの決まらない形も無い）・program/app/services/formula.py の js_regex（FormulaError(str(e)) の英語）",
+    "path": "表示列の設定で計算列 extract([C], '(?<=L+)\\d') を作る → 画面は 5 を出し、ダッシュボードの計算列・並べ替えはサーバーが計算できない",
+    "repro": "node program/tools/formula-parity.mjs に [{expr: \"extract([C], '(?<=L+)\\\\d')\", row: {C: LL5}}, {expr: \"regreplace([C], '(?<=a{1,2})b', 'x')\", row: {C: aab}}] → ok・5／ok・aax。Python の F.check は ok: false『extract の正規表現として読めません: look-behind requires fixed-width pattern』（scratchpad/g3113/js3.json）",
+    "fix": "list-formula.js の regexRisk に『長さの決まらない後読み』を足し、formula_regex_cases.json の js を再び焼いて want と js が後読みの 3 形でも同じになること（js_only が 0 になる）を確かめる。断る言葉は日本語の 1 つ（『この後読みはサーバーで計算できません』の形）にし、Python・窓・画面で同じ。formula-cases.py の WRITTEN に後読みの枝の形（(?<=L|CR)\\d・(?<!L|CR)\\d・(?<=(L)|(CR))\\d）と 3 形を足して formula_cases.json に焼く（採点者の 336 件で 3 つの答えが同じことは確かめた）",
+    "reproduced": true
+   },
+   {
+    "name": "5. /api/config の lotdsp_import.url が偽の値（0・false・[]・{}）のとき、窓は url を『0』『False』『[]』『{}』と読み、lotdsp_direct・lotdsp_login_window・lotdsp_api.enabled を true にする（Python は str(url or \"\") で空・false）。版 3.113.0 で truthy の確かめを外した後戻り",
+    "where": "desktop/src/bundle.rs 2061 行（let url = s(li.get(\"url\"))?; 前は if truthy(li.get(\"url\")) { s(…) } else { String::new() }）",
+    "path": "配った設定・参照先の lotdsp_import.url を手で 0 などにした PC で、画面の『LotDsp（直接）』の札が有効に見える（URL は無い）",
+    "repro": "scratchpad/g3113/cfg_cases.json の『url 0』『url false』『url []』『url {}』『url 0 api search_url』を py_probe.py（create_app の GET /api/config）と一時の試験 g_config（Builder::config）に当てた: Python lotdsp_direct false・lotdsp_login_window false・lotdsp_api.enabled false／窓 true・true・true（cfg_py.json・cfg_rs.json）",
+    "fix": "url は Python の str(li.get(\"url\") or \"\").strip() と同じに（truthy でなければ空）。lotdsp::py_text の読み方と 1 つにする。試験: appsettings_cases.json か rowshape_cases.json の config に url が 0・false・[] の事例を足す",
+    "reproduced": true
+   },
+   {
+    "name": "6. 任せる歩の数え方の穴（前の版の割れ 2 と同じ型）: 変換表の 8 本は置き場の行に小数の 1e19 など（value_plain が偽の値）があると今も道全部を中身へ回すが、場面が無いので予算（conversions 0）にも route_reach にも出ない。作業実績の登録・データ元は同じ確かめを外したのに、変換表だけ read() の plain が残る",
+    "where": "desktop/src/conversions_write.rs 581〜589 行（read の plain: value_plain_or_container が偽なら None）・同じ所の 543〜660 行の return None（置き場の行の形）・865 行の Route::Preset（value_plain_or_container）",
+    "path": "変換表の行の表示順・その他が小数で書かれた 2^63 以上の整数（1e19 など。手で直した共有の行・ほかの道具が書いた字）",
+    "repro": "conversions_oracle.py に一時の場面『表示順が小数の 1e19』（extra_rows {id 45, 表示順: 1e19, その他: 2.5e19}・steps GET・PUT /1・GET）を足して conversions_write_parity を流すと『窓が答えない: GET /api/masters/conversions』ほか 3 件（tmp4.log）。delegate-count.py --check は conversions 0 のまま",
+    "fix": "read の plain を外し、小数の大きな整数も Python の str()・int() と同じに読む（pyfmt の float の repr・py_int_of）。外せない形は settings_oracle か conversions_oracle に『予算外の任せ』の場面として足して数え、routerForward に理由を書く。conversions_write.rs の return None ごとに、どの場面が当たるかを delegate-count の形の表に並べる",
+    "reproduced": true
+   },
+   {
+    "name": "7. 試験の穴（採点者の変異が通る・事例の表が実装の答えを写す）",
+    "where": "(a) desktop/src/presence.rs 1250〜1255 行（片割れの代用字の大きさの数え方）に 4 MB の境の場面が無い。(b) held::reply_bytes の片割れの \\udXXX は、presence_parity・page_parity が答えを common::json_keep で読み戻して比べるので、字の違いが見えない。(c) desktop/tests/worklog_write_parity.rs 98〜100 行（reply_bytes の字を serde_json::from_str で読む: 2^64 以上の整数が 1e+20 の小数になり、Python 側〈json_keep〉と必ず割れる）。(d) formula_regex_cases.json の want は Python の ok と js の論理積で作り、test_python_reads_like_the_wanted_answer は ok かつ js でない形しか見ない（Python の誤りを want に焼く）。(e) rowshape_cases.json は『その他が鍵 1 つの表』だけで鍵 2 つの表が無い（割れ 2 を隠す）",
+    "path": "試験の作り",
+    "repro": "変異 (a)・(b)（measured.mutations）は関係の試験が全部通る。(c) は作業実績の登録の生の 10^20 の『並び』の場面を足すと PUT の答えが『\"並び\":1e+20』で割れる（窓の本当の字は 100000000000000000000。tmp3.log）",
+    "fix": "(a) presence_oracle の控えの場面に 4 MB の境（片割れ 1 つで越える・越えない）を足す。(b) presence_parity・page_parity の答えは reply_bytes の字そのもの（印を戻した字）を Python の字と比べる歩を 1 つ足す。(c) worklog_write_parity は common::json_keep で読む。(d) want を人が仕様から決める欄（後読みの形の決め: 枝ごとに長さが決まる・捕まえる組の無い形）にし、Python・窓・画面の 3 つをそれと比べる。(e) は割れ 2 の試験",
+    "reproduced": true
+   },
+   {
+    "name": "8. 作業実績の登録の面の見出しが、表でない行にも『この画面の行（一覧・読みでは使っています）』と言う（表でない行は一覧から飛ばしていて、使っていない）",
+    "where": "program/app/static/js/shared.js 386 行（TPA.skipNote の面: used〈READ_KEEP: データ元・実績の設備〉なら、その面の行を全部『この画面の行（一覧・読みでは使っています）』の 1 組にする。行ごとの why を見ない）・ui-eval-skiprows.mjs の ⑩ はこの見出しを当てにしている",
+    "path": "データ元の『実績』の『設備』の段の札『⚠ 実績の設備の読めない行 2』を押した面（skip-worklog-open-1280x720.png の 13 行目 7）",
+    "repro": "scratchpad/g3113/shots/skip-worklog-open-1280x720.png: 見出し『この画面の行（一覧・読みでは使っています）』の下に『13 行目 7・実績の設備・表でない行。押すと消します』",
+    "fix": "used のマスタでも、why が『表でない行』の行は『この画面の行（一覧では飛ばしています）』の組に分ける（shared.js 386 行で mine を why で 2 つに分ける）。データ元の面も同じ決め。ui-eval-skiprows.mjs の ⑩ に組の見出しを 2 つ見る確かめを足す",
+    "reproduced": true
+   }
+  ],
+  "not_cracks": [
+   "任せる歩 11・中身へ回す当たり 129 は本物: delegate-count.py --check（計 11・予算と同じ・終了コード 0）と route_reach（129・予算 129・場面 129）を採点者が流して同じ。残る 11 は OS 6・口 5 で、置き場・本文の任せは 0",
+   "画面の控え: 21 の崩した控えで、Python の ui_state.load／merge（版 3.113.0 の OverflowError・backslashreplace の直し）と窓の ui_state::load／post の読み・書いた版（桁のまま +1・1e19 の小数は 10000000000000000001）・残る名前・片割れの \\udXXX が全部同じ。ファイルの鍵の順（窓は keys が先）は版 3.112.0 から同じで、この PC だけの控えを JSON として読むので割れでない",
+   "後読みの式の答え: want=true の 21 形 × 4 つの関数 × 4 つの字の 336 件で、画面の JS・Python（split_lookbehind で書き替えた式）・窓（fancy-regex）の答えが 1 字まで同じ。否定の枝の書き替え（(?<!L)(?<!CR)）も正しい（変異 (f) は Python の試験が落とす）",
+   "/api/config と起動の確かめ: 窓は lotdsp_import が表でない形を Python と同じ言葉の 503（kind settings）で答え、app.js の boot は 503 の本文でも既定で進み心拍を始める（startHeartbeat は間隔が無くても 3 秒）。前は 5 形で Python の準備（最大 125 秒）を待ったので、合図は早くなる向きで、戻しが増える形は無い。boot_cases 3・lib の心拍の試験・check-all の verify（update を含む）が通る",
+   "LotDsp の学び: /api/config と /api/lots/lotdsp-api/status が lotdsp::KeyMap の 1 か所で同じ答え（lot::tests）。seen の大きな整数の変異 (e) は row_cases が落とす。秒の設定の 12 事例は Python・窓とも表どおり",
+   "作業実績の登録の読めない行: 一覧（/api/worklog/files・/api/masters/worklog）の skipped・unreadable が Python・窓とも同じ（変異 (c) を worklog_write_parity が落とす）。画面の札は 3 つの大きさで 1 段・はみ出さず、押すと消せる面（ROW_DELETE に work_log_files がある）",
+   "データ元の書く道: 置き場の行の 10^20・1e19・小数・真偽・場所が並び・結合が表でも、窓と Python の答えとファイルが同じ（一時の場面）。生の NaN の確かめる間隔は窓が節を組まず 503、Python は 400 の英語で、どちらも版 3.112.0 からの形（refused が handle より先）",
+   "変換表の隔てた行（入力が表など）は窓が値を変えずに書き戻し、版 3.112.0 の PC は前と同じに読む（lot::tests の 2 台の試験と、採点者の twopc.py の old の GET）。隔てた行は『標準にする』に入らないが、帯の札で読めない行として知らせているので割れとしない",
+   "変異 (d)（defaults_set の並び・表）・(e)・(f) は関係の試験が落とす。Python の 5 本の試験・conv-plan-check.mjs・ui-eval-skiprows.mjs・作った者の check-all（verify を含む 10 段）も通る"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 7,
+    "effortless": 6,
+    "intuitive": 6,
+    "form": 6,
+    "place": 6,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "割れ 1（measured.two_pc・parity_extra (5)）: 入力が並びの変換表を『標準にする』→『標準に戻す』すると、Python・窓・版 3.112.0 の PC のどれでも入力・判定・当て方が repr の字になり、表が黙って空（inputs []・rows []）になる"
+    },
+    {
+     "kind": "lost",
+     "where": "割れ 3（conv_elems.mjs・conv_apply.mjs）: 入力 [null]・columns が数・当て方の column が数の変換表があると、マスタ管理の変換表の見出しと一覧の『変換表を当てる』（plan・planAll）が TypeError で落ちる（窓・Python とも素通しで答える）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 4（js3.json）: 計算列の (?<=L+)\\d などは画面が値を出し、サーバー（窓・Python）は読めずに空。一覧とダッシュボードの数が黙って合わない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 5（cfg_py.json・cfg_rs.json）: lotdsp_import.url が 0・false・[]・{} の PC で、窓の /api/config が LotDsp（直接）と API を有効と答える"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 6（tmp4.log）: 変換表の行に小数の 1e19 があると窓は 8 本を中身へ回すが、予算 conversions 0 と route_reach 129 には出ない"
+    }
+   ],
+   "seen": "狙い（置き場の行の形・/api/config・画面の控え・後読みを窓が答え、比べる口のほかの転送を閉じる）は数で届いている: route_reach 129（比べる口だけ）・任せる歩 11（OS と口だけ）を採点者が流して同じ。first_fixes の多くは入っている: 変換表の『入力』『判定』『当て方』の形は row_check.SHAPES の 1 か所で窓と Python が同じに隔て、事例の表 rowshape_cases.json は py（前の答え）と want を並べ、Python の 4 つの誤り（_conv_cell・ui_state の代用字・作業実績の表でない行を黙って飛ばす・/api/config の 500）も直した。画面の控えは崩した 21 形で Python と 1 字まで同じ、後読みは 336 件で画面・Python・窓の答えが同じ、作業実績の札は 3 つの大きさで 1 段に収まる。足りないのは『正しい答え』を値の形の一段下と隣の道まで決め切っていない所: _conv_cell で標準に並び・表を置いたが『標準に戻す』は今も repr にして表を空にし（壊れる所が 1 歩ずれただけ。版 3.112.0 の PC も同じ共有で壊す。割れ 1）、窓の repr は表の鍵を並べ替え（割れ 2）、入力の要素・columns・column の形は素通しで画面が落ち（割れ 3）、後読みの want は変換表の道だけで計算列の画面の確かめに入っていない（割れ 4）。url の truthy を外した後戻り（割れ 5）と、変換表に残る道全部の任せが数に出ない所（割れ 6）、変異 2 つが通る試験の穴（割れ 7）もある。どれも場面を足せば 1 版の中で直せる大きさ"
+  }
+ },
+ "built_fixed": {
+  "note": "作った後の採点（37.0 点）の割れ 8 つをすべて根から直し、その形を事例の表・突き合わせの試験・route_reach に足した（決まり 2026-11-06: 採点し直さない）。画面の札（2026-11-stage3b-ui.json の B1〜B4）も同じ版で直した。check-all --verify は b3113/check3",
+  "fixes": [
+   "1. 標準の往復: 中身の列（入力・判定・当て方）の並び・表そのものは、「標準にする」でも「標準に戻す」でも画面が書くのと同じ JSON の字（json.dumps(ensure_ascii=False)・書かれた鍵の順）で置く（Python の master_repository.conv_cell を conversion_defaults_set と routes/conversions.conversions_reset の 2 か所、窓の conversions_write::conv_cell を defaults_set と Route::Preset の 2 か所）。前の版が書いた repr の字（[{'name': 'a'}]）と JSON として読めない字は、行も標準も「「入力」が JSON として読めません」で隔てて知らせる（row_check.shape_problem。前は黙って空の表に読んだ）。標準のその表が読めない行なら「標準に戻す」は conversion_defaults.json の何行目かを言う 503（前は「同梱のプリセットにありません」と誤った理由）。2 台の PC: 版 3.112.0 の program（g3113/old）と 3.113.0 を同じ共有に順に当て（b3113/twopc2）、3.113.0 の「標準にする」→ 3.112.0 の「標準に戻す」・3.113.0 の「標準に戻す」で入力が並びのまま残る（JSON の字を 3.112.0 の _clean は変えない）、3.112.0 の「標準にする」（repr の標準）→ 3.113.0 の「標準に戻す」は理由つきで断ることを確かめた",
+   "2. 表の鍵の順: 窓は置き場のファイルを読むとき（held::parse・master_store::parse_master の serde の道でも行の値に表・並びがあれば J でも読む）、鍵が並べ替えた順でない表の書かれた順を覚え（held::note_order。4096 件で忘れる）、held::to_j（repr・to_text・reply_bytes・to_pretty の元）がその順で組む。Cargo.toml の preserve_order は入れない。変換表のその他・名前、データ元の表示名・場所、作業実績の登録の備考の鍵 2 つ以上の表を事例の表と 3 本の突き合わせの場面に足し、Python と 1 字まで同じ",
+   "3. 画面が落ちる要素の形: 入力の要素が表でない（[null]・字）・要素の columns が並びでない（数・字）・当て方の column が字でない（数・表）の行も隔てる（Python の row_check.shape_problem・窓の row_check::shape_problem。理由「「入力」の 1 つ目が表ではありません（NoneType）」など）。conv-plan-check.mjs の 6 に要素の形を足した（前の素通しの答えは画面の部品で落ちる・読む形は落ちない）",
+   "4. 後読みの決まり: 画面の list-formula.js の regexRisk に lookbehindRisk（後読みの中身〈包むだけの (?: ) は外す〉の枝ごとに長さが決まる: * + ? {n,m} {n,}・\\\\1 などの引き直しが無い・かっこの中の | は同じ長さ）を足し、Python の formula.lookbehind_risk・窓の formula::lookbehind_risk も同じ決まりと同じ日本語（「後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\\\1 などの引き直しは使えません）」）。計算列の画面の確かめも断る（前は画面だけが値を出した）。formula_regex_cases.json の want は画面の答え js で作り、後読みは人が仕様から書いた SPEC_LOOKBEHIND（34 形）と同じでなければ焼かない。Python の ok・窓の答えはどちらも want と全部同じ。式の事例の表 formula_cases.json に後読みの式 112 件（枝の形 4・断る形 3 × 4 つの関数 × 4 つの字）を焼き、画面・Python・窓で同じ答え",
+   "5. /api/config の url: str(url or \"\") と同じく偽の値（0・false・[]・{}）は空（bundle.rs の config）。appsettings_cases.json に 5 件（url 0・false・[]・{}・url 0 で API の search_url だけ）",
+   "6. 変換表の小数の大きな整数: conversions_write::read の plain（value_plain_or_container）と Route::Preset の確かめを外した（表示順 1e19 は int() の 10000000000000000000・その他 2.5e19 は str() の 2.5e+19）。conversions_oracle の「表示順・その他が小数の 1e19」（8 本の道）と settings_oracle の「変換表の行に小数の 1e19 と鍵 2 つの表」（route_reach が数える）を足した。残る read の None は: 置き場のファイルが読めない（rows_peek の Err。Python も読めない形）・束の conv_views の Err（中身の字が窓の読めない JSON〈text_split_py〉）・同梱のプリセットが読めない（窓の同梱の物）。どれも settings_oracle・conversions_oracle の場面では当たらない",
+   "7. 試験の穴: (a) presence_oracle の控えの場面に 4 MB の境（代用字 1 つの控えに K = 4MB − 33 は断る・− 34 は通る）。(b) presence_parity は窓の答えの字（held::reply_bytes）に私用面の字が無いこと・Python の答えの \\\\udXXX が窓の字にもあることを見る（答え合わせ役のファイルの写しも backslashreplace の字にそろえた）。採点者の変異 (a)（2 × 片割れを外す）・(b)（reply_bytes の lone_escaped を外す）は presence_parity が落とすことを確かめた。(c) worklog_write_parity は答えを common::json_keep で桁のまま読み、並びが 10^20 の行の歩を足した。(d) want は Python の答えから作らない（上の 4）。(e) 鍵 2 つ以上の表（上の 2）",
+   "8. 面の見出し: 読みで使うマスタ（データ元・実績の設備）でも、表でない行は「この画面の行（一覧では飛ばしています）」、ほかの読めない行は「この画面の行（一覧・読みでは使っています）」に分ける（shared.js の skipOrder・isBadRow。確かめの窓をやめた後の焦点の行の数え方も同じ並び）",
+   "画面（B）: (1) 札を欄を開く前のデータ元の一覧の「実績」の状態と、閉じたままの「設備」の段の見出しの要約（「HOT 古い」などと並ぶ）にも同じ形（.db-warnb）で出す（数は置き場の状態か登録の一覧の skipped）。(2) 消した後・探し直した後も段の見出しの要約を描き直す（renderWorklog の onRendered）。(3) 面の下の言葉は表でない行がある間は「どの行の直す・並べ替え・探し直し・登録を消すも止めています」。(4) 「直すことが n つあります」に読めない行の 1 行（「理由と消し方」で札の面を開く）・一言は送る箱の見える下の縁と貼り付いた段（確かめる・保存）の上に置く。ui-eval-skiprows.mjs の ⑩ に全部の確かめを足した（3 つの大きさ。1280 で表でない行を消して一言と要約を見る）"
+  ],
+  "counts": "任せる歩 11（OS 6・口 5。delegate-count.py --check は予算と同じ）。中身へ回す当たり 135（比べる口 GET /api/lotlist/settings だけ。場面が 6 増えた: 事例の表の url 5 件・settings_oracle の 1 場面）",
+  "mutations": "落ちることを確かめた: reply_bytes の lone_escaped を外す・代用字の大きさの 2 × 片割れを外す（presence_parity）。前の回の変異（形で隔てない・学びの形で中身へ回す・控えを serde で読む・後読みを任せる・作業実績の登録で知らせない・結合が並びで任せる・Python の 5 つ）も関係の試験が落とす"
+ }
+}

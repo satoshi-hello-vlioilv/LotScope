@@ -43,9 +43,17 @@ const fullPath = (p) => {
 const when = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const hm = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${p(d.getHours())}:${p(d.getMinutes())}`; };
 /* 状態: 行の数（言葉で）と写した時刻（淡く。日付は題に）。点の色だけに頼らない */
+/* 作業実績の登録の読めない行の札（版 3.113.0 の作った後の採点 B1）: 欄を開く前の一覧の「実績」の状態と「設備」の段の見出しの要約に、表の要約の札と
+   同じ形（.db-warnb・「⚠ 実績の設備の読めない行 n」）で出す。数は登録の一覧の skipped（開いた後）か、置き場の状態（帯と同じ /api/masters/status） */
+function wlSkipChip() {
+  const sk = (mstate.data.worklog && mstate.data.worklog.skipped) || (mstate.place && mstate.place.masters && (mstate.place.masters.work_log_files || {}).skipped) || [];
+  if (!sk.length) return "";
+  const tip = `work_log_files.json の ${sk.slice(0, 3).map((x) => `${x.row} 行目（${x.why}）`).join("・")}${sk.length > 3 ? " ほか" : ""}が読めません。「設備」の段の札を押すと理由と消し方`;
+  return ` <span class="db-warnb sr-skip" title="${escapeHtml(tip)}">⚠ ${escapeHtml(TPA.skipWhat("work_log_files"))}の読めない行 ${sk.length}</span>`;
+}
 function stateOf(s) {
   const m = s.mirror;
-  if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>`;
+  if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>${wlSkipChip()}`;
   if (s.kind === "cm3") return m && m.mirrored ? `<span class="sr-state ${m.unreachable ? "ng" : "ok"}" title="CM3 から最後に取った ${when(m.checkedAt || m.copiedAt)}"><i></i>${s.equipCount != null ? `${s.equipCount} 設備` : "取った"} <small>${hm(m.checkedAt || m.copiedAt)}</small></span>`
     : '<span class="sr-state" title="開くと CM3 から取ります"><i></i>まだ取っていない</span>';
   if (s.kind === "view" && s.broken) return '<span class="sr-state ng"><i></i>元がありません</span>';
@@ -492,9 +500,9 @@ function lotSummary(s) {
 function equipSummary(s) {
   if (s.kind === "folder") {
     const wl = mstate.data.worklog, warn = warnTags(connOf(s));     // 配った設定の札も「古い」などと同じ形・同じ置き場（版 3.106.0）
-    if (!wl) return `${s.equipCount ?? "-"} 台を表示` + warn;
+    if (!wl) return `${s.equipCount ?? "-"} 台を表示` + warn + wlSkipChip();
     const bad = wl.items.filter((x) => x.state === "missing" || x.stale);
-    return `<b>${wl.items.length} 台</b>（表示 ${wl.items.filter((x) => x.visible).length}）` + warn + bad.map((x) => `<span class="sr-tag ${x.state === "missing" ? "is-bad" : "is-warn"}">${escapeHtml(x.name)} ${x.state === "missing" ? "見つからない" : "古い"}</span>`).join("");
+    return `<b>${wl.items.length} 台</b>（表示 ${wl.items.filter((x) => x.visible).length}）` + warn + wlSkipChip() + bad.map((x) => `<span class="sr-tag ${x.state === "missing" ? "is-bad" : "is-warn"}">${escapeHtml(x.name)} ${x.state === "missing" ? "見つからない" : "古い"}</span>`).join("");
   }
   return s.equipColumn ? `設備の列 <b>${escapeHtml(s.equipColumn)}</b>（${escapeHtml(s.equipMode)}）` : "設備は見分けない";
 }
@@ -575,7 +583,8 @@ function bindSourceForm(card, s, can, isView = false) {
   bindConn(card, s || { key: "+", conn: mstate.data.sources.newConn || [] }, can);
   // 実績の設備: 作業実績の頁と同じ部品を、この段の中に描く（読めたら段の要約も今の台数・直すことに）
   const wl = card.querySelector("[data-sr-wl]");
-  if (wl && renderWorklog) renderWorklog({ box: wl, embed: true }).then(() => { const sum = card.querySelector('.sr-sec[data-sec="equip"] .sr-sum'); if (sum && mstate.data.worklog) sum.innerHTML = equipSummary(s); });
+  // 段の見出しの要約は、描くたび（消した後・探し直した後も）に描き直す（版 3.113.0 の作った後の採点 B2: 前は最初の 1 回だけで、消した後も古い台数・札のままだった）
+  if (wl && renderWorklog) renderWorklog({ box: wl, embed: true, onRendered: () => { const sum = card.querySelector('.sr-sec[data-sec="equip"] .sr-sum'); if (sum && mstate.data.worklog) sum.innerHTML = equipSummary(s); } });
   let jbox = card.querySelector("[data-jn-box]");
   const mountJoin = () => {
     if (!jbox) return;

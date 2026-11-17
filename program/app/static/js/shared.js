@@ -273,6 +273,13 @@
     "data_sources", "work_log_files", "conversion_defaults"]);
   // 読みでは隔てず使うマスタ（版 3.108.0。サーバーの row_check の FILTERED に無く STATUS で知らせる物）。面の言葉を分ける（版 3.109.0）
   const READ_KEEP = new Set(["data_sources", "work_log_files"]);
+  // 表でない行（一覧から飛ばす行）か（版 3.113.0）
+  const isBadRow = (s) => s && s.why === "表でない行";
+  // 面の行の並び（版 3.113.0）: この画面の行のうち一覧から飛ばした行（読みで使うマスタでは表でない行だけ）→ 使っている行 → ほかの画面の行
+  const skipOrder = (it, sk) => {
+    const used = READ_KEEP.has(it.file), mine = sk.filter(it.hit);
+    return [...mine.filter((s) => !used || isBadRow(s)), ...mine.filter((s) => used && !isBadRow(s)), ...sk.filter((s) => !it.hit(s))];
+  };
   const SKIP_DEL = { equipment_master: "/api/masters/equipment", roll_master: "/api/masters/rolls", shift_patterns: "/api/masters/shifts",
     equipment_groups: "/api/masters/equipgroups", conversions: "/api/masters/conversions", display_formats: "/api/masters/formats",
     pivot_presets: "/api/pivot-presets" };
@@ -383,8 +390,13 @@
       // データ元・実績の設備の読めない行は、版 3.108.0 から一覧・読みでは隔てず使う（直す・並べ替え・探し直しだけを止める）。ほかのマスタは一覧で飛ばす。
       // 見出しは 1 段に短く、止めている事は面の下の小さな字で言う（版 3.109.0。前は「一覧では飛ばしています」と今の動きに合わなかった）
       const used = READ_KEEP.has(it.file);
-      if (mine.length) items.push({ group: used ? "この画面の行（一覧・読みでは使っています）" : "この画面の行（一覧では飛ばしています）" }, ...mine.map(row));   // 何の行かは面の頭で言う
-      if (others.length) items.push({ group: "ほかの画面の行" }, ...others.map(row));
+      // 読みで使うマスタ（データ元・実績の設備）でも、表でない行は一覧から飛ばしている（版 3.113.0 の作った後の採点の割れ 8: 前は表でない行も
+      // 「一覧・読みでは使っています」の下に出した）。並びは skipOrder の 1 か所（確かめの窓をやめた後の焦点の行の数え方と同じ）
+      const order = skipOrder(it, sk);
+      const skippedRows = order.filter((s) => it.hit(s) && (!used || isBadRow(s))), usedRows = order.filter((s) => it.hit(s) && used && !isBadRow(s));
+      if (skippedRows.length) items.push({ group: "この画面の行（一覧では飛ばしています）" }, ...skippedRows.map(row));   // 何の行かは面の頭で言う
+      if (usedRows.length) items.push({ group: "この画面の行（一覧・読みでは使っています）" }, ...usedRows.map(row));
+      if (others.length) items.push({ group: "ほかの画面の行" }, ...order.filter((s) => !it.hit(s)).map(row));
       items.push({ sep: true });
       // マスタ管理の中か（中では「マスタ管理で見る」「マスタ管理で直せます」と言わない。版 3.108.0: 一般ユーザーの言葉も）
       const inMaster = !!document.querySelector("#masterOverlay") && !document.querySelector("#masterOverlay.hidden");
@@ -395,7 +407,10 @@
       else if (tab && window.openMasterAt && !inMaster) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
       else if (tab) items.push({ icon: "ⓘ", lead: "×", label: " の行は押すと消せます", why: rest, disabled: true });   // マスタ管理の中では「見る」を出さない
       else items.push({ icon: "ⓘ", label: "消すか、ファイルを直してください", why: `× の行は押すと消せます。${rest}`, disabled: true });
-      if (used && mine.length) items.push({ foot: "この行に当たる直す・並べ替え・探し直しは、消すか直すまで止めています" });
+      // 止める範囲の言葉（版 3.113.0 の作った後の採点 B3）: 表でない行があると、そのファイルの保存は全部止まる（どの行の直す・並べ替え・探し直し・
+      // 登録を消すも。サーバーの _normalize_all・窓の master_rows::prepare）。表でない行が無ければ、その行に当たる書きだけ
+      if (used && mine.length) items.push({ foot: mine.some(isBadRow) ? "表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止めています（その行を消すか直すと戻ります）"
+        : "この行に当たる直す・並べ替え・探し直しは、消すか直すまで止めています" });
       const r = btn.getBoundingClientRect();
       // 面は字を切らずに折り返し、知らせ・直し方は本文の色で出す（.tpa-skipmenu。2 回目の採点の減点 1〜3）
       TPA.menu({ x: r.left, y: r.bottom + 4, head: `${it.what}の読めない行（${it.file}.json）`, items, cls: "tpa-skipmenu",
@@ -445,8 +460,8 @@
         // （もう一度 Esc で面を閉じて札へ、3 度目でマスタ管理を閉じる）。後ろ（窓の外）を押したときは全部やめて札へ
         const badge = skipBadge(skipOrigin);
         if (badge && how !== "back") {
-          const sk = it.d.skipped || [];   // 面の行の並び（この画面の行 → ほかの画面の行）のうち、消せる行の中の何番目か
-          const n = [...sk.filter(it.hit), ...sk.filter((x) => !it.hit(x))].filter((x) => TPA.skipRoute(it.file, x.source || "", x.id, x)).indexOf(s);
+          const sk = it.d.skipped || [];   // 面の行の並び（skipOrder: 飛ばした行 → 使っている行 → ほかの画面の行）のうち、消せる行の中の何番目か
+          const n = skipOrder(it, sk).filter((x) => TPA.skipRoute(it.file, x.source || "", x.id, x)).indexOf(s);
           TPA.openSkip(badge, { focusRow: n >= 0 ? n : 0, was: how === "cancel" });
         } else badge?.focus({ preventScroll: true });
         return;
@@ -509,13 +524,27 @@
       if (rest) el.insertAdjacentHTML("beforeend", ` <span class="tpa-toast-rest">${TPA.esc(rest)}</span>`);
       document.body.append(el);
       const inMaster = document.querySelector("#masterOverlay:not(.hidden)");
-      const frame = inMaster && [...inMaster.querySelectorAll(".master-table-wrap, #masterSettings")].find((x) => x.offsetParent && x.getBoundingClientRect().width > 0);
+      // 枠は画面に見えている表（いちばん広く見えている物。版 3.113.0: データ元の欄の中の実績の設備の表のように、上の一覧の表が送り出されて
+      // 見えていないときに、その表を枠にしなかった）
+      const seen = (x) => { const r = x.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) * (r.width > 0 ? 1 : 0); };
+      const frame = inMaster && [...inMaster.querySelectorAll(".master-table-wrap, #masterSettings")].filter((x) => x.offsetParent && seen(x) > 0)
+        .sort((a, b) => (b.matches(".master-table-wrap") - a.matches(".master-table-wrap")) || seen(b) - seen(a))[0];
       if (frame) {
         const r = frame.getBoundingClientRect();
+        // 枠が送る箱（データ元の欄の中の実績の設備の表など）の下へはみ出していれば、見えている下の縁に置く（版 3.113.0 の作った後の採点 B4:
+        // 1280 で一言が表の枠と下の段〈保存・閉じる〉の境にまたがった）
+        let bottom = r.bottom;
+        for (let a = frame.parentElement; a && a !== inMaster; a = a.parentElement) {
+          const oy = getComputedStyle(a).overflowY;
+          if (oy === "auto" || oy === "scroll") { bottom = Math.min(bottom, a.getBoundingClientRect().bottom); break; }
+        }
+        // 欄の下に貼り付いた段（確かめる・保存）の上
+        const acts = frame.closest(".sr-card")?.querySelector(".sr-acts");
+        if (acts && acts.offsetParent) bottom = Math.min(bottom, acts.getBoundingClientRect().top);
         el.classList.add("in-frame");
         el.style.maxWidth = `${Math.max(200, r.width - 32)}px`;
         el.style.left = `${r.left + r.width / 2}px`;
-        el.style.bottom = `${Math.max(8, innerHeight - r.bottom + 16)}px`;
+        el.style.bottom = `${Math.max(8, innerHeight - bottom + 16)}px`;
       }
       let timer = null;
       const start = () => { clearTimeout(timer); timer = setTimeout(() => el.remove(), ms); };
