@@ -14,9 +14,7 @@
 """
 from __future__ import annotations
 
-import ntpath
 import os
-import posixpath
 import re
 import stat
 import string
@@ -24,11 +22,11 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 from ..fsio import unquote_path
+from . import path_rules
 from .db_mirror import is_side_file
-from .master_place import drive_root, is_master_place
+from .master_place import is_master_place
 from .release_place import MARKER as RELEASE_MARKER
 from .work_log import equipment_of, split_pattern
 
@@ -101,32 +99,15 @@ def _bounded(fn, seconds=TIMEOUT):
 
 
 def clean(text) -> str:
-    """欄の字 → パス。前後の空白・"…"・file:///・%USERPROFILE% などを整え、末尾の区切りを外す（ドライブの根 C:\\ は残す）。"""
-    s = unquote_path(str(text or "")).strip().strip("'")
-    if s.lower().startswith("file:"):
-        u = urlparse(s)
-        body = unquote(u.path)
-        if u.netloc and u.netloc.lower() != "localhost":           # file://サーバー/共有/… → \\サーバー\共有\…
-            s = "\\\\" + u.netloc + body.replace("/", "\\")
-        elif len(body) > 2 and body[0] == "/" and body[2] == ":":  # file:///C:/… → C:\…
-            s = body[1:].replace("/", "\\")
-        else:
-            s = body
-    s = os.path.expandvars(os.path.expanduser(s)) if s else s
-    return tidy(s)
+    """欄の字 → パス。前後の空白・"…"・file:///・%USERPROFILE% などを整え、末尾の区切りを外す（ドライブの根 C:\\ は残す）。
+    版 3.114.0 から道の門（services/path_rules.py の browse。窓の path_gate.rs と同じ表）: 断る形は PathRefused（理由つき）"""
+    return path_rules.gate("browse", text, path_rules.Env(nt=os.name == "nt"))
 
 
 def tidy(s: str) -> str:
     r"""字の上で整えた道（版 3.100.0: 「..」「.」・重ねた区切りを除く。記号リンクは解かない。Windows の形〈ドライブ・\\〉は ntpath、
     ほかは posixpath の normpath）。ドライブだけ（C:）はその根（C:\）、末尾の区切りは外す（ドライブの根 C:\ と / は残す）"""
-    if not s:
-        return s
-    unc = s.startswith("\\\\") or (os.name == "nt" and s.startswith("//"))     # POSIX の //tmp は POSIX の道
-    if unc or (len(s) >= 2 and s[1] == ":" and s[0].isascii() and s[0].isalpha()):
-        out = ntpath.normpath(drive_root(s))
-        return out if len(out) == 3 and out[1] == ":" else (out.rstrip("\\") or out)
-    out = posixpath.normpath(s) if os.name != "nt" else ntpath.normpath(s)
-    return out.rstrip("\\/") or out[:1]
+    return path_rules.tidy(s, os.name == "nt")
 
 
 def crumbs(path: str) -> list:
@@ -160,8 +141,11 @@ def _parent(path: str) -> str:
 
 
 def parent_of(text) -> str:
-    """ファイルのパス → それを入れたフォルダ（字の上で。読みに行かない）。"""
-    return _parent(clean(text))
+    """ファイルのパス → それを入れたフォルダ（字の上で。読みに行かない）。道の門が断る字は空"""
+    try:
+        return _parent(clean(text))
+    except path_rules.PathRefused:
+        return ""
 
 
 def _mtime(st) -> str:
@@ -250,13 +234,33 @@ def _list(folder: Path, purpose: str, pattern: str) -> dict:
             "mark": _mark_dir(folder, purpose, pattern)}
 
 
+def _answer(asked, purpose):
+    return {"asked": asked, "path": "", "exists": False, "file": "", "crumbs": [], "parent": "", "entries": [], "more": 0,
+            "others": 0, "mark": None, "problem": "", "kind": PURPOSES[purpose]["kind"]}
+
+
+def refused(text, purpose, why) -> dict:
+    """道の門が断った欄の答え（asked は打った字を前後の空白と引用符を外した字・problem に理由。窓の folder_browse::refused と同じ）"""
+    purpose = purpose if purpose in PURPOSES else "folder"
+    out = _answer(unquote_path(str(text or "")).strip().strip("'"), purpose)
+    out["problem"] = why
+    return out
+
+
 def browse(text, purpose="folder", pattern="", timeout=TIMEOUT) -> dict:
     """→ {path, asked, exists, file, crumbs, parent, entries, more, others, mark, problem}
     path: 中を出したフォルダ。asked が無ければ、届いた所まで上がった所（problem に理由）。file: 欄の値がファイルならその名前。"""
+    try:
+        asked = clean(text)
+    except path_rules.PathRefused as e:
+        return refused(text, purpose, str(e))
+    return browse_asked(asked, purpose, pattern, timeout)
+
+
+def browse_asked(asked, purpose="folder", pattern="", timeout=TIMEOUT) -> dict:
+    """道の門を通った字（clean の答え）で browse"""
     purpose = purpose if purpose in PURPOSES else "folder"
-    asked = clean(text)
-    out = {"asked": asked, "path": "", "exists": False, "file": "", "crumbs": [], "parent": "", "entries": [], "more": 0,
-           "others": 0, "mark": None, "problem": "", "kind": PURPOSES[purpose]["kind"]}
+    out = _answer(asked, purpose)
     if not asked:
         return out
     if not (asked.startswith("\\\\") or Path(asked).is_absolute()):
@@ -314,7 +318,10 @@ def places(app_paths, timeout=PLACE_TIMEOUT) -> list:
     seen, rows = set(), []
     for key, label, raw in app_paths:
         for one in str(raw or "").split(";"):
-            p = clean(one)
+            try:
+                p = clean(one)
+            except path_rules.PathRefused:       # 道の門が断る字（版 3.114.0）は出さない
+                continue
             if not p:
                 continue
             k = os.path.normcase(p)

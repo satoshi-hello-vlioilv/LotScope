@@ -1,0 +1,2252 @@
+{
+ "about": "道の字の門（版 3.114.0。services/path_rules.py・desktop/src/path_gate.rs）の事例の表。種類（browse: 「参照…」の欄・dir: 上のフォルダといまの置き場・name: フォルダの名前）× OS（posix・nt）ごとに、人が仕様と OS の決まりから書いた答え want （ok: 門を通った字〈null は字のまま〉・no: 断る理由の名前）と、版 3.113.0 の Python の答え py（browse は前の clean の字、dir・name は前の道の部品の振る舞い）を並べる。窓（desktop/tests/ospath_cases.rs）と Python（tests/test_ospath_cases.py）が同じ表を読む",
+ "note": [
+  "env: 列ごとの PC の様子（POSIX は HOME・利用者の表 passwd・今の利用者の家 uid・cwd、Windows は環境変数と cwd）。事例の env は差し替える項目だけ",
+  "win32: Windows の GetFullPathNameW（Python の nt._getfullpathname と同じ関数）で整える事例。Windows でだけ流す（Windows の CI）",
+  "~名前 の Windows の答えは ntpath.expanduser（Python 3.13）の当て推量のまま: プロファイルを別の所へ移した PC では違う所を指しうる（前の Python と同じ）",
+  "POSIX の利用者の表: Python は pwd（NSS。LDAP なども）、窓は /etc/passwd だけを読む。NSS だけの利用者は窓では字のまま（開発用の差）",
+  "IPv6 の UNC（ipv6-literal.net）は書き直した字まで。Windows の CI に IPv6 の共有は無いので、届くかは見ない",
+  "Windows の MAX_PATH（260）を超える道全体の長さは、この版では決めない（窓の std は \\\\?\\ で開けるが、ほかの PC・エクスプローラーは LongPathsEnabled しだい）",
+  "予約名（CON など）の段は門では断らない（そういうフォルダは Win32 で作れないので、道の部品が「届きません」と答える）"
+ ],
+ "env": {
+  "posix": {
+   "env": {
+    "HOME": "/home/taro"
+   },
+   "passwd": {
+    "taro": "/home/taro",
+    "hanako": "/home/hanako",
+    "nobody": "/nonexistent",
+    "nohome": ""
+   },
+   "uid": "/home/taro",
+   "cwd": "/work"
+  },
+  "nt": {
+   "env": {
+    "USERPROFILE": "C:\\Users\\taro",
+    "USERNAME": "taro"
+   },
+   "cwd": "C:\\work"
+  }
+ },
+ "messages": {
+  "E_CTRL": "道に使えない字（制御文字）があります。",
+  "E_DEVICE": "装置の道（\\\\.\\… など）は使えません。C:\\… か \\\\サーバー\\共有\\… で書いてください。",
+  "E_DEVICE_TRIM": "装置の道（\\\\?\\…）の中に「.」「..」や、最後が空白か「.」の名前があります。C:\\… か \\\\サーバー\\共有\\… で書いてください。",
+  "E_DRIVE_REL": "ドライブの根（C:\\…）から書いてください。",
+  "E_LONG_POSIX": "フォルダの名前が長すぎます（この PC の上限 255 バイト）。",
+  "E_LONG_NT": "フォルダの名前が長すぎます（この PC の上限 255 字）。",
+  "E_PATH_POSIX": "道が長すぎます（この PC の上限 4096 バイト）。",
+  "E_URL_BRACKET": "file: の URL が読めません（サーバー名の [ ]）。",
+  "E_URL_HOST": "file: の URL のサーバー名に使えない字があります。",
+  "E_FULL": "道を整えられません（Windows が読めない形）。"
+ },
+ "cases": [
+  {
+   "kind": "browse",
+   "text": "",
+   "why": "空は空",
+   "posix": {
+    "want": {
+     "ok": ""
+    },
+    "py": {
+     "ok": ""
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": ""
+    },
+    "py": {
+     "ok": ""
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/tmp/x/../y",
+   "why": "ふつうの道（posixpath・ntpath の normpath）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/y"
+    },
+    "py": {
+     "ok": "/tmp/y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\y"
+    },
+    "py": {
+     "ok": "\\tmp\\y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\a\\..\\b",
+   "why": "ドライブの道",
+   "posix": {
+    "want": {
+     "ok": "C:\\b"
+    },
+    "py": {
+     "ok": "C:\\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\b"
+    },
+    "py": {
+     "ok": "C:\\b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:",
+   "why": "ドライブだけは根",
+   "posix": {
+    "want": {
+     "ok": "C:\\"
+    },
+    "py": {
+     "ok": "C:\\"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\"
+    },
+    "py": {
+     "ok": "C:\\"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~",
+   "why": "~ は家",
+   "posix": {
+    "want": {
+     "ok": "/home/taro"
+    },
+    "py": {
+     "ok": "/home/taro"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\taro"
+    },
+    "py": {
+     "ok": "C:\\Users\\taro"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~/x",
+   "why": "~/… は家の下",
+   "posix": {
+    "want": {
+     "ok": "/home/taro/x"
+    },
+    "py": {
+     "ok": "/home/taro/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\taro\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\taro\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~\\x",
+   "why": "POSIX では \\ は区切りでない（~\\x という名前の利用者は無い: 字のまま）",
+   "posix": {
+    "want": {
+     "ok": "~\\x"
+    },
+    "py": {
+     "ok": "~\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\taro\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\taro\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~hanako/y",
+   "why": "~名前: POSIX は利用者の表・Windows は ntpath（USERNAME と家のフォルダの名前が同じなので、その隣の名前）",
+   "posix": {
+    "want": {
+     "ok": "/home/hanako/y"
+    },
+    "py": {
+     "ok": "/home/hanako/y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\hanako\\y"
+    },
+    "py": {
+     "ok": "C:\\Users\\hanako\\y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~nobody/x",
+   "why": "版 3.113.0 で窓が任せた形（利用者の表に有る名前）",
+   "posix": {
+    "want": {
+     "ok": "/nonexistent/x"
+    },
+    "py": {
+     "ok": "/nonexistent/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\nobody\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\nobody\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~無い名前/x",
+   "why": "POSIX は表に無い名前を字のまま（相対の道:「ドライブ…から」）。Windows はプロファイルが在るかを見ない（ntpath の当て推量）",
+   "posix": {
+    "want": {
+     "ok": "~無い名前/x"
+    },
+    "py": {
+     "ok": "~無い名前/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\無い名前\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\無い名前\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~nohome/x",
+   "why": "POSIX: 家が空の利用者は根から（posixpath の or root）",
+   "posix": {
+    "want": {
+     "ok": "/x"
+    },
+    "py": {
+     "ok": "/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\nohome\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\nohome\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~hanako/x",
+   "why": "Windows: 家のフォルダの名前が USERNAME と違う（プロファイルを移した PC）ときは当て推量をやめて字のまま",
+   "posix": {
+    "want": {
+     "ok": "/home/hanako/x"
+    },
+    "py": {
+     "ok": "/home/hanako/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "~hanako\\x"
+    },
+    "env": {
+     "env": {
+      "USERPROFILE": "D:\\Profiles\\t.yamada",
+      "USERNAME": "taro"
+     }
+    },
+    "py": {
+     "ok": "~hanako\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~taro/x",
+   "why": "Windows: 自分の名前は家",
+   "posix": {
+    "want": {
+     "ok": "/home/taro/x"
+    },
+    "py": {
+     "ok": "/home/taro/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "D:\\Profiles\\t.yamada\\x"
+    },
+    "env": {
+     "env": {
+      "USERPROFILE": "D:\\Profiles\\t.yamada",
+      "USERNAME": "taro"
+     }
+    },
+    "py": {
+     "ok": "D:\\Profiles\\t.yamada\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~",
+   "why": "HOME・USERPROFILE が無い: POSIX は今の利用者の表、Windows は HOMEDRIVE＋HOMEPATH",
+   "posix": {
+    "want": {
+     "ok": "/home/taro"
+    },
+    "env": {
+     "env": {}
+    },
+    "py": {
+     "ok": "/home/taro"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\h"
+    },
+    "env": {
+     "env": {
+      "HOMEDRIVE": "C:",
+      "HOMEPATH": "\\Users\\h"
+     }
+    },
+    "py": {
+     "ok": "C:\\Users\\h"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "~/x",
+   "why": "家が分からない: 字のまま（相対の道）",
+   "posix": {
+    "want": {
+     "ok": "~/x"
+    },
+    "env": {
+     "env": {},
+     "uid": null
+    },
+    "py": {
+     "ok": "~/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "~\\x"
+    },
+    "env": {
+     "env": {}
+    },
+    "py": {
+     "ok": "~\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a%20b",
+   "why": "file: の URL（百分率符号）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a b"
+    },
+    "py": {
+     "ok": "/tmp/a b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a b"
+    },
+    "py": {
+     "ok": "\\tmp\\a b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///C:/x/y",
+   "why": "file:///C:/…",
+   "posix": {
+    "want": {
+     "ok": "C:\\x\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://srv/share/d",
+   "why": "file://サーバー/…",
+   "posix": {
+    "want": {
+     "ok": "\\\\srv\\share\\d"
+    },
+    "py": {
+     "ok": "\\\\srv\\share\\d"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\srv\\share\\d"
+    },
+    "py": {
+     "ok": "\\\\srv\\share\\d"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://localhost/tmp/x",
+   "why": "localhost は手元",
+   "posix": {
+    "want": {
+     "ok": "/tmp/x"
+    },
+    "py": {
+     "ok": "/tmp/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\x"
+    },
+    "py": {
+     "ok": "\\tmp\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "FILE://[::1]/x",
+   "why": "版 3.113.0 で窓が任せた形: [IPv6] は Microsoft の IPv6 の UNC の名前（: → -・頭の - に 0）",
+   "posix": {
+    "want": {
+     "ok": "\\\\0--1.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[::1]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\0--1.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[::1]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[fe80::1ff:fe23:4567:890a]/s/d",
+   "why": "Microsoft の例の字",
+   "posix": {
+    "want": {
+     "ok": "\\\\fe80--1ff-fe23-4567-890a.ipv6-literal.net\\s\\d"
+    },
+    "py": {
+     "ok": "\\\\[fe80::1ff:fe23:4567:890a]\\s\\d"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\fe80--1ff-fe23-4567-890a.ipv6-literal.net\\s\\d"
+    },
+    "py": {
+     "ok": "\\\\[fe80::1ff:fe23:4567:890a]\\s\\d"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[::]/x",
+   "why": "頭と終わりの - に 0",
+   "posix": {
+    "want": {
+     "ok": "\\\\0--0.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[::]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\0--0.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[::]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[1:0:0:1::]/x",
+   "why": "書き方は縮めた形（RFC 5952。Python の compressed・Rust の Display）",
+   "posix": {
+    "want": {
+     "ok": "\\\\1-0-0-1--0.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[1:0:0:1::]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\1-0-0-1--0.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[1:0:0:1::]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[FE80:0:0:0:0:0:0:1]/x",
+   "why": "大文字・0 を並べた書き方も縮めた小文字",
+   "posix": {
+    "want": {
+     "ok": "\\\\fe80--1.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[FE80:0:0:0:0:0:0:1]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\fe80--1.ipv6-literal.net\\x"
+    },
+    "py": {
+     "ok": "\\\\[FE80:0:0:0:0:0:0:1]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[::1/x",
+   "why": "閉じない [（前は Python が 500: Invalid IPv6 URL）",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: Invalid IPv6 URL"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: Invalid IPv6 URL"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://::1]/x",
+   "why": "開かない ]",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: Invalid IPv6 URL"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: Invalid IPv6 URL"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[zz]/x",
+   "why": "IP でない [zz]（前は Python が 500）",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: 'zz' does not appear to be an IPv4 or IPv6 address"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: 'zz' does not appear to be an IPv4 or IPv6 address"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[fe80::1%25eth0]/x",
+   "why": "ゾーン ID は断る（s の形は作らない）",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[fe80::1%25eth0]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[fe80::1%25eth0]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[::1]:445/x",
+   "why": "口の番号（UNC に口は無い）",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::1]:445\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::1]:445\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[127.0.0.1]/x",
+   "why": "IPv4 は [ ] に入れない",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: An IPv4 address cannot be in brackets"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "error": "ValueError: An IPv4 address cannot be in brackets"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[::ffff:1.2.3.4]/x",
+   "why": "IPv4 の書き方の入った IPv6",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::ffff:1.2.3.4]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::ffff:1.2.3.4]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[::ffff:102:304]/x",
+   "why": "16 進で書いても縮めた形が IPv4 の書き方になる（::ffff:1.2.3.4）",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::ffff:102:304]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[::ffff:102:304]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://u@[::1]/x",
+   "why": "利用者の名前の付いた [ ]",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\u@[::1]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\u@[::1]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://[v1.x]/x",
+   "why": "IPvFuture は使わない",
+   "posix": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[v1.x]\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_BRACKET"
+    },
+    "py": {
+     "ok": "\\\\[v1.x]\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://ｓｒｖ/share/x",
+   "why": "版 3.113.0 で窓が任せた形: ASCII でないサーバー名は字のまま通す",
+   "posix": {
+    "want": {
+     "ok": "\\\\ｓｒｖ\\share\\x"
+    },
+    "py": {
+     "ok": "\\\\ｓｒｖ\\share\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\ｓｒｖ\\share\\x"
+    },
+    "py": {
+     "ok": "\\\\ｓｒｖ\\share\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file://a℀b/x",
+   "why": "NFKC で区切りの字（a/c）になるサーバー名（前は Python が 500: urlsplit の ValueError）",
+   "posix": {
+    "want": {
+     "no": "E_URL_HOST"
+    },
+    "py": {
+     "error": "ValueError: netloc 'a℀b' contains invalid characters under NFKC normalization"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_URL_HOST"
+    },
+    "py": {
+     "error": "ValueError: netloc 'a℀b' contains invalid characters under NFKC normalization"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a;b",
+   "why": "; は字のまま（file は urlparse の uses_params に無い）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a;b"
+    },
+    "py": {
+     "ok": "/tmp/a;b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a;b"
+    },
+    "py": {
+     "ok": "\\tmp\\a;b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a;b/c",
+   "why": "途中の段の ; は字のまま",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a;b/c"
+    },
+    "py": {
+     "ok": "/tmp/a;b/c"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a;b\\c"
+    },
+    "py": {
+     "ok": "\\tmp\\a;b\\c"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a%00b",
+   "why": "百分率符号で書いた NUL",
+   "posix": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "/tmp/a\u0000b"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "\\tmp\\a\u0000b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a\tb\nc",
+   "why": "URL の中のタブ・改行は取り除く（urlsplit）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/abc"
+    },
+    "py": {
+     "ok": "/tmp/abc"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\abc"
+    },
+    "py": {
+     "ok": "\\tmp\\abc"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\C:\\x",
+   "why": "装置の道 \\\\?\\X:\\… は X:\\…（Windows の Python が今開ける形）",
+   "posix": {
+    "want": {
+     "ok": "C:\\x"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\C:",
+   "why": "\\\\?\\X: は X:\\",
+   "posix": {
+    "want": {
+     "ok": "C:\\"
+    },
+    "py": {
+     "ok": "\\\\?\\C:"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\"
+    },
+    "py": {
+     "ok": "\\\\?\\C:"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\UNC\\srv\\share\\d",
+   "why": "\\\\?\\UNC\\… は \\\\サーバー\\…",
+   "posix": {
+    "want": {
+     "ok": "\\\\srv\\share\\d"
+    },
+    "py": {
+     "ok": "\\\\?\\UNC\\srv\\share\\d"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\srv\\share\\d"
+    },
+    "py": {
+     "ok": "\\\\?\\UNC\\srv\\share\\d"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\unc\\srv\\share. \\d",
+   "why": "UNC の字は大文字小文字を見ない。サーバー・共有の名前は見ない（Win32 も整えない）",
+   "posix": {
+    "want": {
+     "ok": "\\\\srv\\share. \\d"
+    },
+    "py": {
+     "ok": "\\\\?\\unc\\srv\\share. \\d"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\srv\\share. \\d"
+    },
+    "py": {
+     "ok": "\\\\?\\unc\\srv\\share. \\d"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\C:\\a\\..\\b",
+   "why": "装置の道の「..」は字の名前（書き直すと別の所）",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\C:\\a \\b",
+   "why": "装置の道の最後が空白の名前",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\a \\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\a \\b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\UNC\\srv\\share\\d.\\e",
+   "why": "装置の道の最後が「.」の名前",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\UNC\\srv\\share\\d.\\e"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE_TRIM"
+    },
+    "py": {
+     "ok": "\\\\?\\UNC\\srv\\share\\d.\\e"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\.\\C:\\x",
+   "why": "\\\\.\\… は断る",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\.\\C:\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\.\\C:\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\.\\pipe\\x",
+   "why": "名前付きパイプ",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\.\\pipe\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\.\\pipe\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\Volume{01234567-89ab-cdef-0123-456789abcdef}\\x",
+   "why": "ボリュームの GUID",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\?\\Volume{01234567-89ab-cdef-0123-456789abcdef}\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\?\\Volume{01234567-89ab-cdef-0123-456789abcdef}\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1\\x",
+   "why": "GLOBALROOT",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "ok": "\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "//?/C:/x",
+   "why": "POSIX の // は POSIX の道（装置の道は \\ の形だけ）。Windows は / も区切り",
+   "posix": {
+    "want": {
+     "ok": "//?/C:/x"
+    },
+    "py": {
+     "ok": "//?/C:/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x"
+    },
+    "py": {
+     "ok": "\\\\?\\C:\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/tmp/a\u0000b",
+   "why": "NUL はどの OS も（前は窓が Rust の英語の文）",
+   "posix": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "/tmp/a\u0000b"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "\\tmp\\a\u0000b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/tmp/a\u0001b",
+   "why": "U+0001〜U+001F は Windows の名前に使えない（Linux は名前の字）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a\u0001b"
+    },
+    "py": {
+     "ok": "/tmp/a\u0001b"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "\\tmp\\a\u0001b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/tmp/a\tb",
+   "why": "途中のタブ（前後の空白は外す）",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a\tb"
+    },
+    "py": {
+     "ok": "/tmp/a\tb"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "ok": "\\tmp\\a\tb"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "名前が 255 バイトちょうど",
+   "posix": {
+    "want": {
+     "ok": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    },
+    "py": {
+     "ok": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    },
+    "py": {
+     "ok": "\\字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "名前が 258 バイト（Windows は 86 字）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "ok": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    },
+    "py": {
+     "ok": "\\字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "why": "Windows の名前は UTF-16 の 255 単位まで",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_LONG_NT"
+    },
+    "py": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "why": "POSIX では C:\\… も 1 つの名前（255 バイト）",
+   "posix": {
+    "want": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "py": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "py": {
+     "ok": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "why": "代用字の対は 2 単位（128 字で 256）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "ok": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_LONG_NT"
+    },
+    "py": {
+     "ok": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "why": "254 単位",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "ok": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    },
+    "py": {
+     "ok": "C:\\😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "why": "POSIX は道全体も 4096 バイト未満（Windows の MAX_PATH は決めない）",
+   "posix": {
+    "want": {
+     "no": "E_PATH_POSIX"
+    },
+    "py": {
+     "ok": "/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "py": {
+     "ok": "\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a.\\b",
+   "why": "段の終わりの「.」1 つ",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a.\\b"
+    },
+    "py": {
+     "ok": "C:\\w\\a.\\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a\\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a..\\b",
+   "why": "外すのは「.」1 つだけ",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a..\\b"
+    },
+    "py": {
+     "ok": "C:\\w\\a..\\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a.\\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a...\\b",
+   "why": "外すのは「.」1 つだけ",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a...\\b"
+    },
+    "py": {
+     "ok": "C:\\w\\a...\\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a..\\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a \\b",
+   "why": "途中の段の空白は外さない",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a \\b"
+    },
+    "py": {
+     "ok": "C:\\w\\a \\b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a \\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a\\b.",
+   "why": "道の終わりの「.」",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a\\b."
+    },
+    "py": {
+     "ok": "C:\\w\\a\\b."
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a\\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a\\b. .",
+   "why": "道の終わりの空白と「.」は全部",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a\\b. ."
+    },
+    "py": {
+     "ok": "C:\\w\\a\\b. ."
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a\\b"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\w\\a \\",
+   "why": "「参照…」は末尾の区切りを先に外す（その後の道の終わりの空白を外す）",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": "C:\\w\\a "
+    },
+    "py": {
+     "ok": "C:\\w\\a "
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a"
+    },
+    "py": {
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "\\\\srv\\share. \\x",
+   "why": "共有の名前（サーバー・共有の段）は整えない（GetFullPathNameW も共有の根を整えない。門は呼ばない）",
+   "posix": {
+    "want": {
+     "ok": "\\\\srv\\share. \\x"
+    },
+    "py": {
+     "ok": "\\\\srv\\share. \\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\\\srv\\share. \\x"
+    },
+    "py": {
+     "ok": "\\\\srv\\share. \\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\x\\CON\\y",
+   "why": "予約名の段（ntpath.isreserved は真）は門では断らない（そういうフォルダは作れないので「届きません」）",
+   "posix": {
+    "want": {
+     "ok": "C:\\x\\CON\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\CON\\y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x\\CON\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\CON\\y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\x\\con.txt\\y",
+   "why": "同上",
+   "posix": {
+    "want": {
+     "ok": "C:\\x\\con.txt\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\con.txt\\y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x\\con.txt\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\con.txt\\y"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "",
+   "why": "空は道の部品が「入れてください」",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "  ",
+   "why": "空白だけも同じ",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/srv/x",
+   "why": "ふつうの道は字のまま",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": " \"/srv/x/\" ",
+   "why": "引用符は道の部品が外す（字のまま渡す）",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:",
+   "why": "版 3.113.0 の Windows で窓が任せた形: ドライブだけは根（前の Python はドライブの今のフォルダ）",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\"
+    },
+    "py": {
+     "note": "Path('C:') はドライブの今のフォルダ（GetFullPathName）。窓は答えず任せた（py_resolve）"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "c:",
+   "why": "小文字のドライブ",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "c:\\"
+    },
+    "py": {
+     "note": "同上"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:x",
+   "why": "ドライブ相対は断る（プロセスごとの今のフォルダを混ぜない）",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DRIVE_REL"
+    },
+    "py": {
+     "note": "ドライブの今のフォルダの下の x。窓は任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:..\\x",
+   "why": "同上",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DRIVE_REL"
+    },
+    "py": {
+     "note": "同上"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "D:/data",
+   "why": "/ の根も根",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "\\\\?\\D:\\data",
+   "why": "装置の道の書き直しは上のフォルダも同じ",
+   "posix": {
+    "want": {
+     "ok": "D:\\data"
+    },
+    "py": {
+     "note": "相対の名前（届きません）"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "D:\\data"
+    },
+    "py": {
+     "note": "Path.is_dir はそのまま開ける"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "\\\\.\\D:\\data",
+   "why": "\\\\.\\… は断る",
+   "posix": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "note": "相対の名前（届きません）"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_DEVICE"
+    },
+    "py": {
+     "note": "Path.is_dir はそのまま開ける（装置の名前空間）"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/srv/a\u0000",
+   "why": "版 3.113.0 で窓が任せた形（Path.is_dir が ValueError を偽にした）",
+   "posix": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "note": "Path.is_dir が ValueError を偽にして「届きません」。窓は任せた"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "note": "同上"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/srv/x\u0001",
+   "why": "U+0001〜U+001F は Windows だけ断る",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_CTRL"
+    },
+    "py": {
+     "note": "Win32 が ERROR_INVALID_NAME（123）→ 届きません"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/srv/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "why": "上のフォルダの長い名前（前は Python の Path.is_dir が ENAMETOOLONG で 500）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "Path.is_dir が ENAMETOOLONG を投げて 500。窓は任せた"
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_LONG_NT"
+    },
+    "py": {
+     "note": "ERROR_INVALID_NAME を無視して届きません"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "字 × 90 は 270 バイト（Windows は 90 字）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "Path.is_dir が ENAMETOOLONG を投げて 500"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "why": "道全体が 4096 バイトを超える（POSIX）",
+   "posix": {
+    "want": {
+     "no": "E_PATH_POSIX"
+    },
+    "py": {
+     "note": "Path.is_dir が ENAMETOOLONG を投げて 500"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:\\w\\new. ",
+   "why": "版 3.113.0 の Windows の死んだ歩の形（道の終わりの「.」と空白）",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\new"
+    },
+    "py": {
+     "note": "版 3.113.0 の probe_scenario の Windows の歩（流れない場面の中）。窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:\\w\\a \\",
+   "why": "区切りで終わる道は整えない（GetFullPathNameW も字のまま）",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "C:\\w\\a.\\b",
+   "why": "途中の段の終わりの「.」1 つ",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a\\b"
+    },
+    "py": {
+     "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": " \"  \" ",
+   "why": "版 3.113.0 の Windows で窓が任せた形: 空白だけの段は今のフォルダ（cwd）につないでから整える（区切りで終わる）",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\work\\"
+    },
+    "py": {
+     "note": "Path('  ') は今のフォルダ（Win32 が削る）。窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "w\\a.",
+   "why": "相対の道は cwd につないでから整える",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\work\\w\\a"
+    },
+    "py": {
+     "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "\\w\\a.",
+   "why": "根からの道はドライブを cwd から（ntpath.join）",
+   "win32": true,
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\w\\a"
+    },
+    "py": {
+     "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "配布",
+   "why": "ふつうの名前",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "255 バイトちょうど",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "258 バイト（Windows は 86 字で 120 字まで）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "同上"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "版 3.113.0 で窓が任せた形（字 120 は 360 バイト。前は Python が File name too long）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "Path.exists が ENAMETOOLONG で落ちる（読めません〈File name too long〉）。窓は任せた"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "  字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字  ",
+   "why": "前後の空白を外した名前で数える",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "同上"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "why": "256 バイト（Windows は 128 単位）",
+   "posix": {
+    "want": {
+     "no": "E_LONG_POSIX"
+    },
+    "py": {
+     "note": "同上"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "why": "121 字は check_name が「120 字まで」と断る（門は見ない）",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "a\u0000b",
+   "why": "NUL は check_name が「使えない字」と断る",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  },
+  {
+   "kind": "name",
+   "text": "a/b",
+   "why": "区切りは check_name",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   }
+  }
+ ]
+}
