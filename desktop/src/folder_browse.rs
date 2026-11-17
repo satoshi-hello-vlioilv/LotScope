@@ -8,8 +8,8 @@
 //! 門番は Python の _browse_gate と同じ（参照先〈管理のマスタ〉を書ける PC だけ）。利用者の決め（版 3.100.0）は Python と同じ定数:
 //! NATURAL_SORT（エクスプローラーと同じ自然な並び）・WORKLOG_MARK（作業実績の印の頭）・HIDE_ATTRS（Windows の隠し・システムの属性は出さない）。
 //! 道の字は Python の字の上の整え（tidy: ntpath・posixpath の normpath。記号リンクは解かない）と、Path の anchor・parts（crumbs）と同じ。
-//! 窓が Python と同じ字にできない形（~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・\\?\ の道・欄の値が並び・表）は
-//! 答えず Python に任せる。突き合わせ: desktop/tests/fs_parity.rs ← program/tests/fs_oracle.py、事例の表 place_cases.json の
+//! 欄の字は道の門（path_gate.rs。版 3.114.0）が先に決める（~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・装置の道・NUL・
+//! 長すぎる名前。前は答えず Python に任せた）。届くかを尋ねる糸は probe.rs の係の 1 つ（道の根ごとに 1 本）。突き合わせ: desktop/tests/fs_parity.rs ← program/tests/fs_oracle.py、事例の表 place_cases.json の
 //! sort・clean・marks・hidden（desktop/tests/place_cases.rs）。
 
 use crate::release_place::{ignorable, join_for, normcase};
@@ -17,7 +17,6 @@ use crate::worksum::py_str;
 use serde_json::{json, Value};
 use std::io;
 use std::path::Path;
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 pub const LIMIT: usize = 400;
@@ -148,7 +147,7 @@ fn nt_splitroot(p: &str) -> (String, String, String) {
     (String::new(), String::new(), p)
 }
 
-/// ntpath.normpath（Python 3.13。装置の道 \\?\・\\.\ は呼ぶ側が Python に任せる）
+/// ntpath.normpath（Python 3.13。装置の道 \\?\・\\.\ は道の門が先に決める）
 fn nt_normpath(s: &str) -> String {
     let (drive, root, rest) = nt_splitroot(s);
     let mut comps: Vec<&str> = vec![];
@@ -173,130 +172,36 @@ fn nt_normpath(s: &str) -> String {
     format!("{prefix}{}", comps.join("\\"))
 }
 
-/// 装置の道（\\?\・\\.\。ntpath.normpath が別に扱う）
-fn device_path(s: &str) -> bool {
-    let t = s.replace('/', "\\");
-    t.starts_with("\\\\?\\") || t.starts_with("\\\\.\\")
-}
-
-/// Python の tidy（字の上で整えた道。win はその PC が Windows か）。None は窓が Python と同じ字にできない形
-pub fn tidy_for(s: &str, win: bool) -> Option<String> {
+/// Python の tidy（字の上で整えた道。win はその PC が Windows か）。装置の道（\\?\・\\.\）は道の門（path_gate.rs）が先に
+/// 書き直すか断るので、ここへは来ない
+pub fn tidy_for(s: &str, win: bool) -> String {
     if s.is_empty() {
-        return Some(String::new());
+        return String::new();
     }
     let cs: Vec<char> = s.chars().collect();
     let unc = s.starts_with("\\\\") || (win && s.starts_with("//"));
     if unc || (cs.len() >= 2 && cs[1] == ':' && cs[0].is_ascii_alphabetic()) {
-        if device_path(s) {
-            return None;
-        }
         let out = nt_normpath(&crate::master_place::drive_root(s));
         let oc: Vec<char> = out.chars().collect();
         if oc.len() == 3 && oc[1] == ':' {
-            return Some(out);
+            return out;
         }
         let t = out.trim_end_matches('\\');
-        return Some(if t.is_empty() { out.clone() } else { t.to_string() });
-    }
-    if win && device_path(s) {
-        return None;
+        return if t.is_empty() { out.clone() } else { t.to_string() };
     }
     let out = if win { nt_normpath(s) } else { posix_normpath(s) };
     let t = out.trim_end_matches(['\\', '/']);
-    Some(if t.is_empty() { out.chars().take(1).collect() } else { t.to_string() })
-}
-
-/// urllib.parse.unquote（UTF-8・置き換え）
-fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = String::new();
-    let mut run: Vec<u8> = vec![];
-    let mut i = 0;
-    let hex = |c: u8| (c as char).to_digit(16);
-    while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
-                run.push((h * 16 + l) as u8);
-                i += 3;
-                continue;
-            }
-        }
-        if !run.is_empty() {
-            out.push_str(&String::from_utf8_lossy(&run));
-            run.clear();
-        }
-        let ch = s[i..].chars().next().unwrap();
-        out.push(ch);
-        i += ch.len_utf8();
-    }
-    if !run.is_empty() {
-        out.push_str(&String::from_utf8_lossy(&run));
-    }
-    out
-}
-
-/// file: の URL → 道（Python の clean の urlparse の所）。None は窓が同じに読めない形
-fn from_file_url(s: &str) -> Option<String> {
-    // urlsplit: タブ・改行は取り除く。scheme は「file」（呼ぶ側が見た）
-    let u: String = s.chars().filter(|c| !matches!(c, '\t' | '\r' | '\n')).collect();
-    let i = u.find(':')?;
-    let mut rest = &u[i + 1..];
-    let mut netloc = "";
-    if let Some(r) = rest.strip_prefix("//") {
-        let end = r.find(['/', '?', '#']).unwrap_or(r.len());
-        netloc = &r[..end];
-        rest = &r[end..];
-        if netloc.contains(['[', ']']) || !netloc.is_ascii() {
-            return None; // IPv6 の [ ]・NFKC の確かめ（Python は ValueError もある）
-        }
-    }
-    let rest = rest.split('#').next().unwrap_or("");
-    let path = rest.split('?').next().unwrap_or("");
-    let body = percent_decode(path);
-    let bc: Vec<char> = body.chars().collect();
-    Some(if !netloc.is_empty() && netloc.to_lowercase() != "localhost" {
-        format!("\\\\{netloc}{}", body.replace('/', "\\"))
-    } else if bc.len() > 2 && bc[0] == '/' && bc[2] == ':' {
-        bc[1..].iter().collect::<String>().replace('/', "\\")
+    if t.is_empty() {
+        out.chars().take(1).collect()
     } else {
-        body
-    })
+        t.to_string()
+    }
 }
 
-/// os.path.expanduser（~ と ~/… だけ。~ユーザー名は None＝Python に任せる）
-fn expanduser(s: &str) -> Option<String> {
-    if !s.starts_with('~') {
-        return Some(s.to_string());
-    }
-    let seps: &[char] = if cfg!(windows) { &['/', '\\'] } else { &['/'] };
-    let i = s[1..].find(seps).map(|i| i + 1).unwrap_or(s.len());
-    if i != 1 {
-        return None;
-    }
-    let home = if cfg!(windows) {
-        match std::env::var("USERPROFILE") {
-            Ok(h) => h,
-            Err(_) => match std::env::var("HOMEPATH") {
-                Ok(hp) => format!("{}{hp}", std::env::var("HOMEDRIVE").unwrap_or_default()),
-                Err(_) => return Some(s.to_string()),
-            },
-        }
-    } else {
-        let h = std::env::var("HOME").ok()?;
-        let t = h.trim_end_matches('/').to_string();
-        let out = format!("{t}{}", &s[i..]);
-        return Some(if out.is_empty() { "/".into() } else { out });
-    };
-    Some(format!("{home}{}", &s[i..]))
-}
-
-/// 欄の字 → 道（Python の clean）。None は窓が同じ字にできない形
-pub fn clean(text: &str) -> Option<String> {
-    let s = crate::lists::unquote_path(text);
-    let s = crate::pyfmt::strip(&s).trim_matches('\'').to_string();
-    let s = if s.to_lowercase().starts_with("file:") { from_file_url(&s)? } else { s };
-    let s = if s.is_empty() { s } else { crate::bundle::expandvars(&expanduser(&s)?) };
-    tidy_for(&s, cfg!(windows))
+/// 欄の字 → 道（Python の clean）。版 3.114.0 から道の門（path_gate.rs の Browse。事例の表 ospath_cases.json）: Err は断る理由
+pub fn clean(text: &str) -> Result<String, String> {
+    let cwd = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+    crate::path_gate::gate(crate::path_gate::Kind::Browse, text, &crate::path_gate::Env::here(&cwd))
 }
 
 /// 区切り（パンくず）→ [{name, path}]（Python の crumbs。共有は \\サーバー\共有 を 1 つ目）
@@ -363,9 +268,9 @@ fn parent(path: &str) -> String {
     }
 }
 
-/// ファイルの道 → それを入れたフォルダ（字の上で。Python の parent_of）
-pub fn parent_of(text: &str) -> Option<String> {
-    Some(parent(&clean(text)?))
+/// ファイルの道 → それを入れたフォルダ（字の上で。Python の parent_of）。道の門が断る字は空
+pub fn parent_of(text: &str) -> String {
+    clean(text).map(|c| parent(&c)).unwrap_or_default()
 }
 
 // ------------------------------------------------------------------ 中を見る
@@ -543,15 +448,6 @@ fn list(folder: &str, purpose: &str, pattern: &str) -> io::Result<Value> {
     Ok(json!({"entries": entries, "more": more, "others": others, "mark": mark_dir(fp, purpose, pattern)}))
 }
 
-/// f を別の糸で動かし、seconds 秒で打ち切る（届かない共有の読みは OS の待ちが長い。糸は裏で終わるのを待つ）。None は時間切れ
-fn bounded<T: Send + 'static>(seconds: f64, f: impl FnOnce() -> T + Send + 'static) -> Option<T> {
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(f());
-    });
-    rx.recv_timeout(Duration::from_secs_f64(seconds)).ok()
-}
-
 /// Path.is_dir()・is_file()（「無い」でない誤りは例外）
 fn kind_e(p: &str) -> io::Result<(bool, bool)> {
     match std::fs::metadata(p) {
@@ -561,25 +457,45 @@ fn kind_e(p: &str) -> io::Result<(bool, bool)> {
     }
 }
 
-/// POST /api/fs/browse の答え（Python の browse）。None は窓が同じ字にできない形
-pub fn browse(text: &str, purpose: &str, pattern: &str, timeout: f64) -> Option<Value> {
-    let purpose = if purpose_of(purpose).is_some() { purpose } else { "folder" };
-    let asked = clean(text)?;
+fn answer(asked: &str, purpose: &str) -> Value {
     let kind = purpose_of(purpose).map(|p| p.0).unwrap_or("folder");
-    let mut out = json!({"asked": asked, "path": "", "exists": false, "file": "", "crumbs": [], "parent": "", "entries": [], "more": 0,
-                         "others": 0, "mark": null, "problem": "", "kind": kind});
+    json!({"asked": asked, "path": "", "exists": false, "file": "", "crumbs": [], "parent": "", "entries": [], "more": 0,
+           "others": 0, "mark": null, "problem": "", "kind": kind})
+}
+
+/// 道の門が断った欄の答え（asked は打った字を前後の空白と引用符を外した字・problem に理由。Python の folder_browse.refused と同じ）
+pub fn refused(text: &str, purpose: &str, why: &str) -> Value {
+    let purpose = if purpose_of(purpose).is_some() { purpose } else { "folder" };
+    let asked = crate::pyfmt::strip(&crate::lists::unquote_path(text)).trim_matches('\'').to_string();
+    let mut out = answer(&asked, purpose);
+    out["problem"] = json!(why);
+    out
+}
+
+/// POST /api/fs/browse の答え（Python の browse）
+pub fn browse(text: &str, purpose: &str, pattern: &str, timeout: f64) -> Value {
+    match clean(text) {
+        Ok(asked) => browse_asked(&asked, purpose, pattern, timeout),
+        Err(why) => refused(text, purpose, &why),
+    }
+}
+
+/// 道の門を通った字（clean の答え）で browse。届くかを尋ねる糸は probe の係の 1 つ（道の根ごとに 1 本。版 3.114.0）
+pub fn browse_asked(asked: &str, purpose: &str, pattern: &str, timeout: f64) -> Value {
+    let purpose = if purpose_of(purpose).is_some() { purpose } else { "folder" };
+    let mut out = answer(asked, purpose);
     if asked.is_empty() {
-        return Some(out);
+        return out;
     }
-    if !(asked.starts_with("\\\\") || Path::new(&asked).is_absolute()) {
+    if !(asked.starts_with("\\\\") || Path::new(asked).is_absolute()) {
         out["problem"] = json!("ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。");
-        return Some(out);
+        return out;
     }
-    let a = asked.clone();
-    let find = move || -> io::Result<(String, String)> {
+    let a = asked.to_string();
+    let find = move || -> Result<(String, String), String> {
         let mut cur = a;
         while !cur.is_empty() {
-            let (d, f) = kind_e(&cur)?;
+            let (d, f) = kind_e(&cur).map_err(|e| crate::builder::strerror(&e))?;
             if d {
                 return Ok((cur, String::new()));
             }
@@ -598,35 +514,39 @@ pub fn browse(text: &str, purpose: &str, pattern: &str, timeout: f64) -> Option<
         Ok((String::new(), String::new()))
     };
     let fail_time = format!("{} 秒で読めませんでした: {asked}（共有・BOX に届いているかを確かめてください）", timeout.round() as i64);
-    let (here, file) = match bounded(timeout, find) {
+    let key = crate::probe::root_key("browse", asked);
+    let probes = &crate::probe::PROBES;
+    let (here, file) = match probes.ask(&key, None, Duration::from_secs_f64(timeout), true, find) {
         None => {
             out["problem"] = json!(fail_time);
-            return Some(out);
+            return out;
         }
         Some(Err(e)) => {
-            out["problem"] = json!(format!("読めません: {asked}（{}）", crate::builder::strerror(&e)));
-            return Some(out);
+            out["problem"] = json!(format!("読めません: {asked}（{e}）"));
+            return out;
         }
         Some(Ok(x)) => x,
     };
     if here.is_empty() {
         out["problem"] = json!(format!("届きません: {asked}（つながっているか・名前が合っているかを確かめてください）"));
-        return Some(out);
+        return out;
     }
     let (h, p, pat) = (here.clone(), purpose.to_string(), pattern.to_string());
     // Python は 2 回目も timeout 秒を待つ（_bounded を 2 度呼ぶ）
-    let listed = match bounded(timeout, move || list(&h, &p, &pat)) {
+    let listed = match probes.ask(&key, None, Duration::from_secs_f64(timeout), true, move || {
+        list(&h, &p, &pat).map_err(|e| crate::builder::strerror(&e))
+    }) {
         None => {
             out["problem"] = json!(fail_time);
-            return Some(out);
+            return out;
         }
         Some(Err(e)) => {
-            out["problem"] = json!(format!("読めません: {asked}（{}）", crate::builder::strerror(&e)));
-            return Some(out);
+            out["problem"] = json!(format!("読めません: {asked}（{e}）"));
+            return out;
         }
         Some(Ok(v)) => v,
     };
-    let exact = normcase(&here) == normcase(&asked) || !file.is_empty();
+    let exact = normcase(&here) == normcase(asked) || !file.is_empty();
     for k in ["entries", "more", "others", "mark"] {
         out[k] = listed[k].clone();
     }
@@ -638,9 +558,9 @@ pub fn browse(text: &str, purpose: &str, pattern: &str, timeout: f64) -> Option<
     if !exact {
         let rest: String = asked.chars().skip(here.chars().count()).collect();
         let rest = rest.trim_start_matches(['\\', '/']);
-        out["problem"] = json!(format!("「{}」が見つかりません。届いた所: {here}", if rest.is_empty() { asked.as_str() } else { rest }));
+        out["problem"] = json!(format!("「{}」が見つかりません。届いた所: {here}", if rest.is_empty() { asked } else { rest }));
     }
-    Some(out)
+    out
 }
 
 /// Path.home()
@@ -673,13 +593,14 @@ fn user_dirs() -> Vec<(String, String)> {
     out
 }
 
-/// GET /api/fs/places の答え（Python の places）。app_paths: [(鍵, 名前, 道〈「;」で区切って複数も〉)]。None は窓が同じ字にできない形
-pub fn places(app_paths: &[(String, String, String)], timeout: f64) -> Option<Value> {
+/// GET /api/fs/places の答え（Python の places）。app_paths: [(鍵, 名前, 道〈「;」で区切って複数も〉)]。道の門が断る字の場所は出さない。
+/// 届くかは probe の係（道の根ごとに 1 本・まとめて timeout 秒まで。終わらなかった物は reach null。覚えは 2 秒）
+pub fn places(app_paths: &[(String, String, String)], timeout: f64) -> Value {
     let mut seen: Vec<String> = vec![];
     let mut rows: Vec<Value> = vec![];
     for (key, label, raw) in app_paths {
         for one in raw.split(';') {
-            let p = clean(one)?;
+            let Ok(p) = clean(one) else { continue };
             if p.is_empty() {
                 continue;
             }
@@ -698,31 +619,25 @@ pub fn places(app_paths: &[(String, String, String)], timeout: f64) -> Option<Va
             rows.push(json!({"group": "pc", "key": "pc", "label": label, "path": p, "reach": null}));
         }
     }
-    let (tx, rx) = mpsc::channel();
-    for (i, r) in rows.iter().enumerate() {
-        let (tx, p) = (tx.clone(), r["path"].as_str().unwrap_or("").to_string());
-        std::thread::spawn(move || {
-            let reach = match kind_e(&p) {
+    let probes = &crate::probe::PROBES;
+    let tickets: Vec<_> = rows
+        .iter()
+        .map(|r| {
+            let p = r["path"].as_str().unwrap_or("").to_string();
+            let memo = format!("reach:{}", normcase(&p));
+            probes.start(&crate::probe::root_key("reach", &p), Some(&memo), move || match kind_e(&p) {
                 Ok((d, f)) => d || f,
                 Err(_) => false,
-            };
-            let _ = tx.send((i, reach));
-        });
-    }
-    drop(tx);
+            })
+        })
+        .collect();
     let end = Instant::now() + Duration::from_secs_f64(timeout);
-    let mut got = 0;
-    while got < rows.len() {
-        let left = end.saturating_duration_since(Instant::now());
-        match rx.recv_timeout(left) {
-            Ok((i, reach)) => {
-                rows[i]["reach"] = json!(reach);
-                got += 1;
-            }
-            Err(_) => break,
+    for (r, t) in rows.iter_mut().zip(tickets) {
+        if let Some(reach) = probes.wait(t, end, true) {
+            r["reach"] = json!(reach);
         }
     }
-    Some(json!({"items": rows.into_iter().filter(|r| r["group"] == "app" || r["reach"] == json!(true)).collect::<Vec<_>>()}))
+    json!({"items": rows.into_iter().filter(|r| r["group"] == "app" || r["reach"] == json!(true)).collect::<Vec<_>>()})
 }
 
 // ------------------------------------------------------------------ 道と門番
@@ -796,9 +711,18 @@ pub fn handle(
     match route {
         Route::Browse => {
             let (path, purpose, pattern) = browse_args(body)?;
-            browse(&path, &purpose, &pattern, TIMEOUT).map(|v| (200, v))
+            // 道の欄は道の門（path_gate.rs。版 3.114.0）を通す。断る形は欄の知らせ（problem）に理由
+            let cwd = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+            let mut v = std::collections::HashMap::from([("path".to_string(), path.clone())]);
+            Some((
+                200,
+                match crate::path_gate::apply("POST", "/api/fs/browse", &mut v, &crate::path_gate::Env::here(&cwd)) {
+                    Ok(()) => browse_asked(&v["path"], &purpose, &pattern, TIMEOUT),
+                    Err(why) => refused(&path, &purpose, &why),
+                },
+            ))
         }
-        Route::Places => places(&app_paths()?, PLACE_TIMEOUT).map(|v| (200, v)),
+        Route::Places => Some((200, places(&app_paths()?, PLACE_TIMEOUT))),
     }
 }
 
@@ -814,9 +738,9 @@ mod tests {
         assert_eq!(nt_normpath("C:\\a\\..\\..\\b"), "C:\\b");
         assert_eq!(nt_normpath("C:a\\..\\..\\b"), "C:..\\b");
         assert_eq!(nt_normpath("\\\\srv\\share\\c\\..\\d"), "\\\\srv\\share\\d");
-        assert_eq!(tidy_for("C:", true).unwrap(), "C:\\");
-        assert_eq!(tidy_for("/", false).unwrap(), "/");
-        assert_eq!(percent_decode("a%20b%E5%AD%97%zz%"), "a b字%zz%");
+        assert_eq!(tidy_for("C:", true), "C:\\");
+        assert_eq!(tidy_for("/", false), "/");
+        assert_eq!(crate::path_gate::percent_decode("a%20b%E5%AD%97%zz%"), "a b字%zz%");
     }
 
     #[test]

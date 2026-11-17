@@ -31,7 +31,7 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// 置き場の状態（status・place）で共有を見るのにかける秒（まとめて。fs/places と同じ区切り）
@@ -388,6 +388,10 @@ fn can_write(folder: &Path, name: &str) -> String {
 
 // ------------------------------------------------------------------ 確かめる（plan）
 
+/// 道を解けない（Windows の canonicalize が権限・輪で失敗した）。門の後ろでは起きない形（試験では debug_assert で落とす）。
+/// 製品では理由を答え、Python に任せない（版 3.114.0）
+pub const UNRESOLVED: &str = "置き場の道を解けません（途中のフォルダの権限か、記号リンクの輪を確かめてください）。";
+
 fn fail(problem: impl Into<String>) -> Value {
     json!({"ok": false, "problem": problem.into()})
 }
@@ -419,18 +423,25 @@ pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value
     if !Path::new(&p).is_absolute() && !par.starts_with("\\\\") {
         return Some(fail("置く場所は、ドライブ（C:\\…）か共有（\\\\サーバー\\…）から書いてください。"));
     }
-    if cfg!(windows) && crate::release_place::win_trims(&p) {
-        return None; // Win32 が段の末尾の空白・「.」を削る道。Python に任せる
-    }
-    if !crate::release_place::py_is_dir(&at(cwd, &p)).ok()? {
-        return Some(fail(format!("置く場所に届きません: {par}（フォルダがあるか・つながっているかを確かめてください）")));
+    // Win32 の段の末尾の整え・装置の道・ドライブ相対は道の門（path_gate.rs。版 3.114.0）が先に決める（前は Python に任せた）
+    match is_dir_e(&at(cwd, &p)) {
+        Ok(true) => {}
+        Ok(false) => return Some(fail(format!("置く場所に届きません: {par}（フォルダがあるか・つながっているかを確かめてください）"))),
+        // 置く場所を読めない（権限で途中の段に入れない）: 理由を答える（版 3.114.0。Python も同じ言葉。前は Python が 500・窓は任せた）
+        Err(e) => {
+            return Some(fail(format!("置く場所を読めません: {par}（{}）。権限か、つながりを確かめてください。", strerror(&e))))
+        }
     }
     let dest = join_for(&p, &nm, cfg!(windows));
     if let Some(cur) = store.share_dir().map(|c| c.to_string_lossy().into_owned()) {
-        if same(&dest, &cur, cwd)? {
+        let (Some(sm), Some(ins)) = (same(&dest, &cur, cwd), inside(&dest, &cur, cwd)) else {
+            debug_assert!(false, "門の後ろで道を解けない: {dest}");
+            return Some(fail_at(&dest, UNRESOLVED));
+        };
+        if sm {
             return Some(fail_at(&dest, "いまの置き場と同じです。"));
         }
-        if inside(&dest, &cur, cwd)? {
+        if ins {
             return Some(fail_at(&dest, "いまの置き場の中には置けません。"));
         }
     }
@@ -498,7 +509,11 @@ fn share_root(store: &Store, server: &str, name: &str, cwd: &Path) -> Option<Val
         ));
     }
     if let Some(cur) = store.share_dir().map(|c| c.to_string_lossy().into_owned()) {
-        if same(&dest, &cur, cwd)? {
+        let Some(sm) = same(&dest, &cur, cwd) else {
+            debug_assert!(false, "門の後ろで道を解けない: {dest}");
+            return Some(fail_at(&dest, UNRESOLVED));
+        };
+        if sm {
             return Some(fail_at(&dest, "いまの置き場と同じです。"));
         }
     }
@@ -855,48 +870,18 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
     Some(out)
 }
 
-/// 同じ置き場へ尋ねている糸（1 本まで）
-/// 糸の答えを置く所（None はまだ。Some(None) は窓が答えない形）
-type Slot<T> = Arc<Mutex<Option<Option<T>>>>;
-static PROBES: LazyLock<Mutex<HashMap<String, Slot<Value>>>> = LazyLock::new(Default::default);
-
-/// GET /api/masters/status の答え（Python の master_place.status）。共有を見るのは SHARE_PROBE_SEC まで（終わらなければ reachable null）
+/// GET /api/masters/status の答え（Python の master_place.status）。共有を見るのは SHARE_PROBE_SEC まで（終わらなければ reachable null）。
+/// 尋ねる糸は probe.rs の係の 1 つ（置き場ごとに 1 本。前の糸が終わっていなければ待たずに写しで答える。呼ぶたびに確かめ、覚えは使わない）
 pub fn status(store: &Arc<Store>, local: &Local) -> Option<Value> {
     let Some(dir) = store.share_dir().map(|d| d.to_string_lossy().into_owned()) else {
         let mut st = status_of(store, local, false)?;
         st["caution"] = json!("");
         return Some(st);
     };
-    let got = {
-        let mut probes = PROBES.lock().unwrap_or_else(|e| e.into_inner());
-        let busy = probes.get(&dir).is_some_and(|b| b.lock().unwrap_or_else(|e| e.into_inner()).is_none());
-        if busy {
-            None // 前の糸がまだ終わっていない（届かない共有へ尋ねるたびに糸を積まない）
-        } else {
-            let slot = Arc::new(Mutex::new(None));
-            probes.insert(dir.clone(), slot.clone());
-            let (st, lc, sl) = (store.clone(), local.clone(), slot.clone());
-            std::thread::spawn(move || {
-                let v = status_of(&st, &lc, false);
-                *sl.lock().unwrap_or_else(|e| e.into_inner()) = Some(v);
-            });
-            Some(slot)
-        }
-    };
-    let end = Instant::now() + Duration::from_secs_f64(SHARE_PROBE_SEC);
-    let mut answer = None;
-    if let Some(slot) = got {
-        loop {
-            if let Some(v) = slot.lock().unwrap_or_else(|e| e.into_inner()).clone() {
-                answer = Some(v);
-                break;
-            }
-            if Instant::now() >= end {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        }
-    }
+    let (st, lc) = (store.clone(), local.clone());
+    let key = format!("status:{}", crate::release_place::normcase(&dir));
+    let answer =
+        crate::probe::PROBES.ask(&key, None, Duration::from_secs_f64(SHARE_PROBE_SEC), false, move || status_of(&st, &lc, false));
     let mut st = match answer {
         Some(v) => v?,
         None => {
@@ -914,7 +899,8 @@ pub fn status(store: &Arc<Store>, local: &Local) -> Option<Value> {
     Some(st)
 }
 
-/// 置き場ごとに、いま使っている PC → [{dir, reachable, pcs}]。届くかはまとめて SHARE_PROBE_SEC まで（終わらなければ reachable null）
+/// 置き場ごとに、いま使っている PC → [{dir, reachable, pcs}]。届くかはまとめて SHARE_PROBE_SEC まで（終わらなければ reachable null）。
+/// 尋ねる糸は probe.rs の係の 1 つ（道の根ごとに 1 本。止まっている間は MEMO 秒以内の答えで代える）
 pub fn using(dirs: &[String], now: chrono::NaiveDateTime) -> Vec<Value> {
     let mut rows: Vec<String> = vec![];
     let mut seen: Vec<String> = vec![];
@@ -926,21 +912,18 @@ pub fn using(dirs: &[String], now: chrono::NaiveDateTime) -> Vec<Value> {
         seen.push(key);
         rows.push(d.clone());
     }
-    let boxes: Vec<Slot<Vec<Value>>> = rows.iter().map(|_| Arc::new(Mutex::new(None))).collect();
-    for (d, b) in rows.iter().zip(&boxes) {
-        let (d, b) = (PathBuf::from(d), b.clone());
-        std::thread::spawn(move || {
-            let pcs = crate::presence::online_in(&d, now);
-            *b.lock().unwrap_or_else(|e| e.into_inner()) = Some(pcs);
-        });
-    }
+    let probes = &crate::probe::PROBES;
+    let tickets: Vec<_> = rows
+        .iter()
+        .map(|d| {
+            let p = PathBuf::from(d);
+            probes.start(&crate::probe::root_key("online", d), Some(&format!("online:{d}")), move || crate::presence::online_in(&p, now))
+        })
+        .collect();
     let end = Instant::now() + Duration::from_secs_f64(SHARE_PROBE_SEC);
-    while Instant::now() < end && boxes.iter().any(|b| b.lock().unwrap_or_else(|e| e.into_inner()).is_none()) {
-        std::thread::sleep(Duration::from_millis(5));
-    }
     rows.iter()
-        .zip(&boxes)
-        .map(|(d, b)| match b.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+        .zip(tickets)
+        .map(|(d, t)| match probes.wait(t, end, true) {
             Some(pcs) => json!({"dir": d, "reachable": pcs.is_some(), "pcs": pcs.unwrap_or_default()}),
             None => json!({"dir": d, "reachable": null, "pcs": []}),
         })
@@ -990,6 +973,13 @@ fn args_of(body: &[u8]) -> Option<(String, String)> {
     Some((a.parent, a.name))
 }
 
+/// 道の欄（parent・name）を道の門（path_gate.rs。版 3.114.0）へ通す。Err は断る理由
+fn gated((parent, name): (String, String), rule: &str, cwd: &Path) -> Result<(String, String), String> {
+    let mut v = HashMap::from([("parent".to_string(), parent), ("name".to_string(), name)]);
+    crate::path_gate::apply("POST", rule, &mut v, &crate::path_gate::Env::here(&cwd.to_string_lossy()))?;
+    Ok((v.remove("parent").unwrap_or_default(), v.remove("name").unwrap_or_default()))
+}
+
 /// 4 本の答え。None は Python に任せる（?engine=python も。move は製品では Python が断る: 写す係は窓の 1 つ）
 pub fn handle(
     route: Route,
@@ -1007,14 +997,20 @@ pub fn handle(
         Route::Status => status(store, local).map(|v| (200, v)),
         Route::Place => place_answer(store, local, &me(), now_local()).map(|v| (200, v)),
         Route::Check => {
-            let (parent, name) = args_of(body)?;
+            let (parent, name) = match gated(args_of(body)?, "/api/masters/place/check", cwd) {
+                Ok(x) => x,
+                Err(why) => return Some((200, fail(why))),
+            };
             plan(store, &parent, &name, cwd).map(|v| (200, v))
         }
         Route::Move => {
             if let Some(no) = crate::release_place::gate(&me()) {
                 return Some(no);
             }
-            let (parent, name) = args_of(body)?;
+            let (parent, name) = match gated(args_of(body)?, "/api/masters/place/move", cwd) {
+                Ok(x) => x,
+                Err(why) => return Some((400, json!({"error": why, "kind": "invalid"}))),
+            };
             match move_to(store, &parent, &name, cwd, &read_file) {
                 Ok(v) => Some((200, v)),
                 Err(MoveError::Invalid(m)) => Some((400, json!({"error": m, "kind": "invalid"}))),

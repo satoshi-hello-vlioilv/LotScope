@@ -117,6 +117,23 @@ pub fn py_key(s: &str) -> String {
     pyfmt::strip(&py_nfkc_upper(s)).to_string()
 }
 
+/// NFKC（Python の unicodedata.normalize("NFKC", s)。Python で割り当てのない字は py_key と同じくそのまま残す。版 3.114.0: 道の門が
+/// file: の URL のサーバー名を urllib.parse._checknetloc と同じに確かめる）
+pub fn py_nfkc(s: &str) -> String {
+    let (mut out, mut seg) = (String::new(), String::new());
+    for c in s.chars() {
+        if unassigned_in_python(c) {
+            out.extend(seg.nfkc());
+            seg.clear();
+            out.push(c);
+        } else {
+            seg.push(c);
+        }
+    }
+    out.extend(seg.nfkc());
+    out
+}
+
 /// NFKC・大文字（Python の unicodedata.normalize("NFKC", s).upper()。前後の空白は残す。py_key と同じ表の扱い。版 3.96.0）
 pub fn py_nfkc_upper(s: &str) -> String {
     let (mut out, mut seg) = (String::new(), String::new());

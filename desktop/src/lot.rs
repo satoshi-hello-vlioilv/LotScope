@@ -1021,7 +1021,7 @@ impl Lot {
             let local = crate::master_place::Local { configured: String::new(), root: store.local_root().to_path_buf() };
             let mut out = vec![
                 ("master".into(), "マスタの置き場".into(), store.share_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default()),
-                ("quality".into(), "品質データのフォルダ".into(), crate::folder_browse::parent_of(&src)?),
+                ("quality".into(), "品質データのフォルダ".into(), crate::folder_browse::parent_of(&src)),
                 ("worklog".into(), "作業実績のフォルダ".into(), wl),
                 // 更新の置き場が決まらない形（版 3.112.0）は候補に出さない（空）
                 ("release".into(), "配布の置き場".into(), inp.update_source().unwrap_or_default()),
