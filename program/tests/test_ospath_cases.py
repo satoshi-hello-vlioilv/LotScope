@@ -88,19 +88,71 @@ class Cases(unittest.TestCase):
                 n += 1
         self.assertGreaterEqual(n, 20)
 
+    def test_routes(self):
+        """欄の並びごとの門（apply）: 名前が check_name で断られる・上のフォルダが空なら後ろの欄を見ない（作った後の採点の割れ 4）"""
+        bad = []
+        for r in TABLE["routes"]:
+            for col in ("posix", "nt"):
+                want = r[col]
+                try:
+                    got = {"ok": path_rules.apply("POST", r["rule"], r["values"], env_of(col, {col: {}}))}
+                except path_rules.PathRefused as e:
+                    got = {"no": str(e)}
+                exp = ({"no": TABLE["messages"][want["no"]]} if "no" in want
+                       else {"ok": {**r["values"], **(want["ok"] or {})}})
+                if got != exp:
+                    bad.append(f"{r['why']} {col}: 表 {exp} / 門 {got}")
+        self.assertEqual(bad, [], "\n".join(bad))
+        self.assertGreaterEqual(len(TABLE["routes"]), 9)
+
+    def test_stops(self):
+        """stops: 名前が check_name で断られる・上のフォルダ（dir）が空なら止める。browse は止めない"""
+        self.assertTrue(path_rules.stops("name", ""))
+        self.assertTrue(path_rules.stops("name", "a/b"))
+        self.assertFalse(path_rules.stops("name", "配布"))
+        self.assertTrue(path_rules.stops("dir", ' "" '))
+        self.assertFalse(path_rules.stops("dir", "/srv"))
+        self.assertFalse(path_rules.stops("browse", ""))
+
+    def test_expandvars_is_pythons(self):
+        """%VAR%・$VAR の事例は本物の ntpath・posixpath.expandvars（os.environ を表の環境に差し替え）とも同じ"""
+        n = 0
+        for c in TABLE["cases"]:
+            if "$" not in c["text"] and "%" not in c["text"]:
+                continue
+            for col, mod in (("posix", posixpath), ("nt", ntpath)):
+                envd = dict(TABLE["env"][col]["env"])
+                real = dict(envd)
+                if col == "nt" and os.name != "nt":      # Windows の os.environ は名前の大文字小文字を見ない（Linux で流すときは小文字の名前も置く）
+                    real.update({k.lower(): v for k, v in envd.items()})
+                with mock.patch.dict(os.environ, real, clear=True):
+                    want = mod.expandvars(c["text"])
+                self.assertEqual(path_rules.expandvars(c["text"], col == "nt", envd), want, f"{c['text']!r} {col}")
+                n += 1
+        self.assertGreaterEqual(n, 16)
+
     @unittest.skipUnless(os.name == "nt", "GetFullPathNameW は Windows だけ")
     def test_win32_is_getfullpathname(self):
-        """win32 の事例は nt._getfullpathname（ntpath.abspath が呼ぶ関数）の答えと同じ（want を人が書き違えていないか）"""
+        """win32 の事例は nt._getfullpathname（ntpath.abspath が呼ぶ関数）の答えと同じ（want を人が書き違えていないか。browse も dir も）。
+        共有の根（uncRoot）は GetFullPathNameW も整えないこと（門は整えない前提）"""
         import nt
+        from app.fsio import unquote_path
+        n = 0
         for c in TABLE["cases"]:
-            if not c.get("win32"):
-                continue
             w = c["nt"]["want"]
-            if "ok" in w and w["ok"] is not None and c["kind"] == "dir":
-                from app.fsio import unquote_path
+            if c.get("win32") and "ok" in w and w["ok"] is not None:
                 s = unquote_path(c["text"])
-                p = s if path_rules._absolute(s, True) else ntpath.join(TABLE["env"]["nt"]["cwd"], s)
-                self.assertEqual(nt._getfullpathname(p), w["ok"], c["text"])
+                if c["kind"] == "dir":
+                    self.assertEqual(nt._getfullpathname(s), w["ok"], c["text"])
+                else:
+                    t = path_rules.tidy(s.strip("'"), True)
+                    self.assertEqual(path_rules.tidy(nt._getfullpathname(t), True), w["ok"], c["text"])
+                n += 1
+            if c.get("uncRoot"):
+                t = path_rules.tidy(path_rules.device(unquote_path(c["text"]), True), True)
+                self.assertEqual(nt._getfullpathname(t), t, f"共有の根は整えない: {c['text']}")
+                n += 1
+        self.assertGreaterEqual(n, 10)
 
 
 if __name__ == "__main__":

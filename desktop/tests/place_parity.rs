@@ -280,7 +280,8 @@ fn master_place_matches_python() {
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     // 歩の下限は環境で違う（place_oracle.py の「空白だけ・ドライブだけ・共有の根」の 3 歩は POSIX だけ。Windows は 58。PR #105 の CI）
     // 版 3.114.0: 道の門の 7 歩と、引っ越しの印をたどる場面の 2 歩を足した
-    let min_steps = if cfg!(windows) { 67 } else { 70 };
+    // 版 3.114.0 の作った後の直し: 相対の道の 4 歩・名前が誤りの 3 歩と、空白だけの上のフォルダを Windows でも
+    let min_steps = if cfg!(windows) { 74 } else { 76 };
     assert!(steps >= min_steps && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

@@ -3,7 +3,7 @@
 //! Python の答え（py）を並べる。種類（browse・dir・name）× OS（posix・nt）。POSIX と Windows の両方の決まりを 1 つの PC で突き合わせ、
 //! GetFullPathNameW で整える事例（win32）は Windows でだけ流す（Windows の CI）。
 
-use da_core::path_gate::{gate, Env, Kind, Passwd};
+use da_core::path_gate::{apply, gate, Env, Kind, Passwd};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -56,10 +56,11 @@ fn messages_are_the_gates() {
         ("E_URL_BRACKET", da_core::path_gate::E_URL_BRACKET),
         ("E_URL_HOST", da_core::path_gate::E_URL_HOST),
         ("E_FULL", da_core::path_gate::E_FULL),
+        ("E_REL_TRIM", da_core::path_gate::E_REL_TRIM),
     ] {
         assert_eq!(m[k].as_str(), Some(v), "{k}");
     }
-    assert_eq!(m.as_object().unwrap().len(), 10);
+    assert_eq!(m.as_object().unwrap().len(), 11);
 }
 
 #[test]
@@ -85,8 +86,49 @@ fn gate_answers_like_the_table() {
             }
         }
     }
-    assert!(ran >= 180, "事例が少ない: {ran}");
+    assert!(ran >= 210, "事例が少ない: {ran}");
     assert!(bad.is_empty(), "{} 件:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// 欄の並びごとの門（apply）: 名前が check_name で断られる・上のフォルダが空なら後ろの欄を見ない（作った後の採点の割れ 4。stops を外すと落ちる）
+#[test]
+fn apply_answers_like_the_routes() {
+    let t = table();
+    let mut bad = vec![];
+    for r in t["routes"].as_array().unwrap() {
+        for col in ["posix", "nt"] {
+            let want = &r[col];
+            let mut v: HashMap<String, String> = strs(&r["values"]);
+            let got = apply("POST", r["rule"].as_str().unwrap(), &mut v, &env_of(&t, &Value::Null, col)).map(|_| v);
+            let exp: Result<HashMap<String, String>, String> = match want.get("no") {
+                Some(k) => Err(t["messages"][k.as_str().unwrap()].as_str().unwrap().into()),
+                None => {
+                    let mut e = strs(&r["values"]);
+                    e.extend(strs(&want["ok"]));
+                    Ok(e)
+                }
+            };
+            if got != exp {
+                bad.push(format!("{} {col}: 表 {exp:?} / 門 {got:?}", r["why"]));
+            }
+        }
+    }
+    assert!(t["routes"].as_array().unwrap().len() >= 9);
+    assert!(bad.is_empty(), "{} 件:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// Windows の CI: 共有の根（uncRoot）は GetFullPathNameW も整えない（門は整えない前提。windows_risks 2）
+#[cfg(windows)]
+#[test]
+fn unc_roots_are_not_trimmed_by_win32() {
+    let t = table();
+    let mut n = 0;
+    for c in t["cases"].as_array().unwrap().iter().filter(|c| c["uncRoot"] == true) {
+        let p = c["nt"]["want"]["ok"].as_str().unwrap();
+        assert_eq!(da_core::path_gate::full_path_name(p).as_deref(), Some(p), "{}", c["text"]);
+        n += 1;
+    }
+    assert!(n >= 2);
 }
 
 /// Windows の CI: win32 の事例は、門が呼ぶ GetFullPathNameW の答えが表の want と同じ（人が書いた want が Win32 の決まりと合う）

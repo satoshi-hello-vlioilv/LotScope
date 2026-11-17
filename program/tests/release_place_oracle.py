@@ -179,6 +179,14 @@ def scenarios():
             S(BOSS, "POST", C, A("@ROOT/" + "字" * 90, "x")),
             S(BOSS, "POST", C, A("@ROOT/" + "a" * 300, "x")),
             S(BOSS, "POST", C, A("\\\\.\\C:\\x", "x")),
+            # 作った後の採点の割れ 4: 名前が誤り・上のフォルダが空なら、後ろの欄の門の理由より plan の言葉が先（門の stops）
+            S(BOSS, "POST", C, A("@ROOT/new\u0000x", "")),
+            S(BOSS, "POST", C, A("\\\\.\\C:\\x", "a/b")),
+            S(BOSS, "POST", C, A("@ROOT/" + "a" * 300, "CON")),
+            S(BOSS, "POST", C, A("", "x", src="@ROOT/rel\u0000")),
+            # 割れ 3: 相対の道の末尾の「.」・空白（Windows は門が断る。POSIX は名前の字）
+            S(BOSS, "POST", C, A("w\\a.", "x")),
+            S(BOSS, "POST", C, A("data \\M", "x")),
             *([S(BOSS, "POST", C, A("\\\\?\\@ROOT\\new", "fresh"))] if os.name == "nt" else [S(BOSS, "POST", C, A("\\\\?\\C:\\x", "x"))]),
             S(BOSS, "POST", C, A("@ROOT/無い", "x")),
             S(BOSS, "POST", C, A(' "@ROOT/new" ', "fresh")),

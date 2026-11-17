@@ -27,6 +27,7 @@ pub const E_PATH_POSIX: &str = "道が長すぎます（この PC の上限 4096
 pub const E_URL_BRACKET: &str = "file: の URL が読めません（サーバー名の [ ]）。";
 pub const E_URL_HOST: &str = "file: の URL のサーバー名に使えない字があります。";
 pub const E_FULL: &str = "道を整えられません（Windows が読めない形）。";
+pub const E_REL_TRIM: &str = "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。";
 
 pub const NAME_BYTES: usize = 255;
 pub const NAME_UNITS: usize = 255;
@@ -68,7 +69,7 @@ pub enum Passwd {
 pub struct Env {
     /// Windows の決まりか
     pub nt: bool,
-    /// 環境変数（HOME・USERPROFILE・USERNAME・HOMEDRIVE・HOMEPATH。有る物だけ）
+    /// 環境変数（~・%VAR%・$VAR を広げる。Windows の名前は大文字小文字を見ない）
     pub vars: HashMap<String, String>,
     pub passwd: Passwd,
     /// 相対の道の見方（Python の今のフォルダ）
@@ -80,11 +81,17 @@ pub struct Env {
 impl Env {
     /// この PC の様子
     pub fn here(cwd: &str) -> Env {
-        let vars = ["HOME", "USERPROFILE", "USERNAME", "HOMEDRIVE", "HOMEPATH"]
-            .iter()
-            .filter_map(|k| std::env::var(k).ok().map(|v| (k.to_string(), v)))
-            .collect();
+        let vars = std::env::vars_os().filter_map(|(k, v)| Some((k.into_string().ok()?, v.into_string().ok()?))).collect();
         Env { nt: cfg!(windows), vars, passwd: Passwd::System, cwd: cwd.to_string(), win32: cfg!(windows) }
+    }
+
+    /// 環境変数（Windows は名前の大文字小文字を見ない: Python の os.environ と同じ）
+    pub fn var(&self, name: &str) -> Option<&String> {
+        if self.nt {
+            self.vars.iter().find(|(k, _)| k.to_uppercase() == name.to_uppercase()).map(|(_, v)| v)
+        } else {
+            self.vars.get(name)
+        }
     }
 
     fn home_of(&self, name: Option<&str>) -> Option<String> {
@@ -304,13 +311,146 @@ pub fn full_path_name(_p: &str) -> Option<String> {
     None
 }
 
-/// Win32 の整え（相対の道は cwd につないでから）
+/// Win32 の整え（絶対の道だけ。相対の道は呼ぶ側が断る: 版 3.114.0 の作った後の採点の割れ 3）
 fn full(s: &str, env: &Env) -> Result<String, String> {
     if !env.win32 {
         return Err(E_FULL.into());
     }
-    let p = if absolute(s, true) { s.to_string() } else { nt_join(&env.cwd, s) };
-    full_path_name(&p).ok_or_else(|| E_FULL.to_string())
+    full_path_name(s).ok_or_else(|| E_FULL.to_string())
+}
+
+// ------------------------------------------------------------------ %VAR%・$VAR
+
+/// os.path.expandvars（Python 3.13 の ntpath・posixpath）を、門の Env の環境変数で（このプロセスの環境変数を直に見ない）
+pub fn expandvars(s: &str, env: &Env) -> String {
+    let cs = chars(s);
+    if env.nt {
+        if !s.contains(['$', '%']) {
+            return s.to_string();
+        }
+        let get = |name: &str| env.var(name).cloned();
+        let varchar = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+        let mut path = cs;
+        let (mut res, mut index) = (String::new(), 0usize);
+        while index < path.len() {
+            let c = path[index];
+            if c == '\'' {
+                path = path[index + 1..].to_vec();
+                match path.iter().position(|&x| x == '\'') {
+                    Some(i) => {
+                        index = i;
+                        res.push(c);
+                        res.extend(&path[..=i]);
+                    }
+                    None => {
+                        res.push(c);
+                        res.extend(&path);
+                        index = path.len().saturating_sub(1);
+                        if path.is_empty() {
+                            break;
+                        }
+                    }
+                }
+            } else if c == '%' {
+                if path.get(index + 1) == Some(&'%') {
+                    res.push(c);
+                    index += 1;
+                } else {
+                    path = path[index + 1..].to_vec();
+                    match path.iter().position(|&x| x == '%') {
+                        None => {
+                            res.push('%');
+                            res.extend(&path);
+                            index = path.len().saturating_sub(1);
+                            if path.is_empty() {
+                                break;
+                            }
+                        }
+                        Some(i) => {
+                            index = i;
+                            let var: String = path[..i].iter().collect();
+                            res.push_str(&get(&var).unwrap_or_else(|| format!("%{var}%")));
+                        }
+                    }
+                }
+            } else if c == '$' {
+                if path.get(index + 1) == Some(&'$') {
+                    res.push(c);
+                    index += 1;
+                } else if path.get(index + 1) == Some(&'{') {
+                    path = path[index + 2..].to_vec();
+                    match path.iter().position(|&x| x == '}') {
+                        None => {
+                            res.push_str("${");
+                            res.extend(&path);
+                            index = path.len().saturating_sub(1);
+                            if path.is_empty() {
+                                break;
+                            }
+                        }
+                        Some(i) => {
+                            index = i;
+                            let var: String = path[..i].iter().collect();
+                            res.push_str(&get(&var).unwrap_or_else(|| format!("${{{var}}}")));
+                        }
+                    }
+                } else {
+                    let mut var = String::new();
+                    index += 1;
+                    while index < path.len() && varchar(path[index]) {
+                        var.push(path[index]);
+                        index += 1;
+                    }
+                    res.push_str(&get(&var).unwrap_or_else(|| format!("${var}")));
+                    if index < path.len() {
+                        index -= 1;
+                    }
+                }
+            } else {
+                res.push(c);
+            }
+            index += 1;
+        }
+        return res;
+    }
+    if !s.contains('$') {
+        return s.to_string();
+    }
+    // posixpath: \$(\w+|\{[^}]*\})（re.ASCII）。無い名前はそのまま
+    let mut out = cs;
+    let mut i = 0;
+    while i < out.len() {
+        if out[i] != '$' {
+            i += 1;
+            continue;
+        }
+        let (name, j) = if out.get(i + 1) == Some(&'{') {
+            match out[i + 2..].iter().position(|&c| c == '}') {
+                Some(k) => (out[i + 2..i + 2 + k].iter().collect::<String>(), i + 3 + k),
+                None => {
+                    i += 1;
+                    continue;
+                }
+            }
+        } else {
+            let k = out[i + 1..].iter().take_while(|c| c.is_ascii_alphanumeric() || **c == '_').count();
+            if k == 0 {
+                i += 1;
+                continue;
+            }
+            (out[i + 1..i + 1 + k].iter().collect::<String>(), i + 1 + k)
+        };
+        match env.var(&name) {
+            Some(v) => {
+                let v: Vec<char> = v.chars().collect();
+                let n = v.len();
+                out.splice(i..j, v);
+                i += n;
+            }
+            None => i = j,
+        }
+    }
+    out.into_iter().collect()
 }
 
 // ------------------------------------------------------------------ ~ と ~名前
@@ -326,17 +466,17 @@ pub fn expanduser(s: &str, env: &Env) -> String {
         while i < cs.len() && !matches!(cs[i], '\\' | '/') {
             i += 1;
         }
-        let home = if let Some(h) = env.vars.get("USERPROFILE") {
+        let home = if let Some(h) = env.var("USERPROFILE") {
             h.clone()
-        } else if let Some(hp) = env.vars.get("HOMEPATH") {
-            nt_join(env.vars.get("HOMEDRIVE").map(String::as_str).unwrap_or(""), hp)
+        } else if let Some(hp) = env.var("HOMEPATH") {
+            nt_join(env.var("HOMEDRIVE").map(String::as_str).unwrap_or(""), hp)
         } else {
             return s.to_string();
         };
         let mut home = home;
         if i != 1 {
             let target: String = cs[1..i].iter().collect();
-            let current = env.vars.get("USERNAME");
+            let current = env.var("USERNAME");
             if Some(&target) != current {
                 let (dir, base) = nt_split(&home);
                 if current != Some(&base) {
@@ -349,7 +489,7 @@ pub fn expanduser(s: &str, env: &Env) -> String {
     }
     let i = s[1..].find('/').map(|i| i + 1).unwrap_or(s.len());
     let home = if i == 1 {
-        match env.vars.get("HOME") {
+        match env.var("HOME") {
             Some(h) => Some(h.clone()),
             None => env.home_of(None),
         }
@@ -480,7 +620,7 @@ pub fn gate(kind: Kind, text: &str, env: &Env) -> Result<String, String> {
             }
             ctrl(&s, nt)?;
             let s = device(&s, nt)?;
-            let s = if s.is_empty() { s } else { crate::bundle::expandvars(&expanduser(&s, env)) };
+            let s = if s.is_empty() { s } else { expandvars(&expanduser(&s, env), env) };
             let mut out = crate::folder_browse::tidy_for(&s, nt);
             lengths(&out, nt, false)?;
             if nt && absolute(&out, true) && trims(&out) {
@@ -503,6 +643,9 @@ pub fn gate(kind: Kind, text: &str, env: &Env) -> Result<String, String> {
             }
             lengths(&t, nt, false)?;
             if nt && trims(&t) {
+                if !absolute(&t, true) {
+                    return Err(E_REL_TRIM.into());
+                }
                 t = full(&t, env)?;
             }
             Ok(if t == s { text.to_string() } else { t })

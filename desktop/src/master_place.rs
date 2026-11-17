@@ -919,8 +919,8 @@ pub fn using(dirs: &[String], now: chrono::NaiveDateTime) -> Vec<Value> {
         .collect();
     let end = Instant::now() + Duration::from_secs_f64(SHARE_PROBE_SEC);
     rows.iter()
-        .zip(tickets)
-        .map(|(d, t)| match probes.wait(t, end, true) {
+        .zip(probes.wait_all(tickets, end))
+        .map(|(d, got)| match got {
             Some(pcs) => json!({"dir": d, "reachable": pcs.is_some(), "pcs": pcs.unwrap_or_default()}),
             None => json!({"dir": d, "reachable": null, "pcs": []}),
         })

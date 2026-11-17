@@ -1,6 +1,9 @@
 {
  "about": "道の字の門（版 3.114.0。services/path_rules.py・desktop/src/path_gate.rs）の事例の表。種類（browse: 「参照…」の欄・dir: 上のフォルダといまの置き場・name: フォルダの名前）× OS（posix・nt）ごとに、人が仕様と OS の決まりから書いた答え want （ok: 門を通った字〈null は字のまま〉・no: 断る理由の名前）と、版 3.113.0 の Python の答え py（browse は前の clean の字、dir・name は前の道の部品の振る舞い）を並べる。窓（desktop/tests/ospath_cases.rs）と Python（tests/test_ospath_cases.py）が同じ表を読む",
  "note": [
+  "routes: 欄の並びごとの門（path_rules.apply・path_gate::apply）。ok が null は欄の字が全部そのまま、表は書き直した欄だけ（ほかはそのまま）。名前が check_name で断られる・上のフォルダが空のときは、後ろの欄を門へ通さない（plan が先に自分の言葉で答える）",
+  "uncRoot: 共有の根（\\\\サーバー\\共有）の段の末尾の空白・「.」。門は整えない。Windows の CI で GetFullPathNameW も共有の根を整えないかを比べる",
+  "環境変数: env の表だけを門が読む（このプロセスの環境変数を見ない）。Windows は名前の大文字小文字を見ない",
   "env: 列ごとの PC の様子（POSIX は HOME・利用者の表 passwd・今の利用者の家 uid・cwd、Windows は環境変数と cwd）。事例の env は差し替える項目だけ",
   "win32: Windows の GetFullPathNameW（Python の nt._getfullpathname と同じ関数）で整える事例。Windows でだけ流す（Windows の CI）",
   "~名前 の Windows の答えは ntpath.expanduser（Python 3.13）の当て推量のまま: プロファイルを別の所へ移した PC では違う所を指しうる（前の Python と同じ）",
@@ -12,7 +15,8 @@
  "env": {
   "posix": {
    "env": {
-    "HOME": "/home/taro"
+    "HOME": "/home/taro",
+    "DATA": "/srv/data"
    },
    "passwd": {
     "taro": "/home/taro",
@@ -26,12 +30,15 @@
   "nt": {
    "env": {
     "USERPROFILE": "C:\\Users\\taro",
-    "USERNAME": "taro"
+    "USERNAME": "taro",
+    "TEMP": "C:\\Temp",
+    "DATA": "D:\\data"
    },
    "cwd": "C:\\work"
   }
  },
  "messages": {
+  "E_REL_TRIM": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。",
   "E_CTRL": "道に使えない字（制御文字）があります。",
   "E_DEVICE": "装置の道（\\\\.\\… など）は使えません。C:\\… か \\\\サーバー\\共有\\… で書いてください。",
   "E_DEVICE_TRIM": "装置の道（\\\\?\\…）の中に「.」「..」や、最後が空白か「.」の名前があります。C:\\… か \\\\サーバー\\共有\\… で書いてください。",
@@ -914,6 +921,279 @@
   },
   {
    "kind": "browse",
+   "text": "file:///tmp/a%41",
+   "why": "末尾の %XX",
+   "posix": {
+    "want": {
+     "ok": "/tmp/aA"
+    },
+    "py": {
+     "ok": "/tmp/aA"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\aA"
+    },
+    "py": {
+     "ok": "\\tmp\\aA"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a%4",
+   "why": "途中で切れた %X は字のまま",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a%4"
+    },
+    "py": {
+     "ok": "/tmp/a%4"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a%4"
+    },
+    "py": {
+     "ok": "\\tmp\\a%4"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a%",
+   "why": "末尾の % は字のまま",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a%"
+    },
+    "py": {
+     "ok": "/tmp/a%"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a%"
+    },
+    "py": {
+     "ok": "\\tmp\\a%"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/a%FFb",
+   "why": "UTF-8 でないバイトは置き換え字",
+   "posix": {
+    "want": {
+     "ok": "/tmp/a�b"
+    },
+    "py": {
+     "ok": "/tmp/a�b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\a�b"
+    },
+    "py": {
+     "ok": "\\tmp\\a�b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "file:///tmp/%E5%AD",
+   "why": "途中で切れた UTF-8 は置き換え字 1 つ",
+   "posix": {
+    "want": {
+     "ok": "/tmp/�"
+    },
+    "py": {
+     "ok": "/tmp/�"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\tmp\\�"
+    },
+    "py": {
+     "ok": "\\tmp\\�"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "$HOME/x",
+   "why": "$名前（Windows の表に HOME は無い）",
+   "posix": {
+    "want": {
+     "ok": "/home/taro/x"
+    },
+    "py": {
+     "ok": "/home/taro/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "$HOME\\x"
+    },
+    "py": {
+     "ok": "$HOME\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "${DATA}/x",
+   "why": "${名前}",
+   "posix": {
+    "want": {
+     "ok": "/srv/data/x"
+    },
+    "py": {
+     "ok": "/srv/data/x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "D:\\data\\x"
+    },
+    "py": {
+     "ok": "D:\\data\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "%DATA%\\x",
+   "why": "%名前% は Windows だけ",
+   "posix": {
+    "want": {
+     "ok": "%DATA%\\x"
+    },
+    "py": {
+     "ok": "%DATA%\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "D:\\data\\x"
+    },
+    "py": {
+     "ok": "D:\\data\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "%data%\\x",
+   "why": "Windows の名前は大文字小文字を見ない",
+   "posix": {
+    "want": {
+     "ok": "%data%\\x"
+    },
+    "py": {
+     "ok": "%data%\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "D:\\data\\x"
+    },
+    "py": {
+     "ok": "%data%\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\Users\\O'Brien\\%TEMP%\\x",
+   "why": "Windows: ' の後ろは広げない（閉じない ' は最後まで）",
+   "posix": {
+    "want": {
+     "ok": "C:\\Users\\O'Brien\\%TEMP%\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\O'Brien\\%TEMP%\\x"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\Users\\O'Brien\\%TEMP%\\x"
+    },
+    "py": {
+     "ok": "C:\\Users\\O'Brien\\%TEMP%\\x"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\x\\$TEMP-y",
+   "why": "Windows の $ の名前は - も含む（TEMP-y は無い）",
+   "posix": {
+    "want": {
+     "ok": "C:\\x\\$TEMP-y"
+    },
+    "py": {
+     "ok": "C:\\x\\$TEMP-y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x\\$TEMP-y"
+    },
+    "py": {
+     "ok": "C:\\x\\$TEMP-y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "C:\\x\\%NOPE%\\y",
+   "why": "無い名前は字のまま",
+   "posix": {
+    "want": {
+     "ok": "C:\\x\\%NOPE%\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\%NOPE%\\y"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "C:\\x\\%NOPE%\\y"
+    },
+    "py": {
+     "ok": "C:\\x\\%NOPE%\\y"
+    }
+   }
+  },
+  {
+   "kind": "browse",
+   "text": "/a/$$b",
+   "why": "Windows の $$ は $",
+   "posix": {
+    "want": {
+     "ok": "/a/$$b"
+    },
+    "py": {
+     "ok": "/a/$$b"
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": "\\a\\$b"
+    },
+    "py": {
+     "ok": "\\a\\$b"
+    }
+   }
+  },
+  {
+   "kind": "browse",
    "text": "\\\\?\\C:\\x",
    "why": "装置の道 \\\\?\\X:\\… は X:\\…（Windows の Python が今開ける形）",
    "posix": {
@@ -979,6 +1259,7 @@
    "kind": "browse",
    "text": "\\\\?\\unc\\srv\\share. \\d",
    "why": "UNC の字は大文字小文字を見ない。サーバー・共有の名前は見ない（Win32 も整えない）",
+   "uncRoot": true,
    "posix": {
     "want": {
      "ok": "\\\\srv\\share. \\d"
@@ -1532,6 +1813,7 @@
    "kind": "browse",
    "text": "\\\\srv\\share. \\x",
    "why": "共有の名前（サーバー・共有の段）は整えない（GetFullPathNameW も共有の根を整えない。門は呼ばない）",
+   "uncRoot": true,
    "posix": {
     "want": {
      "ok": "\\\\srv\\share. \\x"
@@ -1996,8 +2278,7 @@
   {
    "kind": "dir",
    "text": " \"  \" ",
-   "why": "版 3.113.0 の Windows で窓が任せた形: 空白だけの段は今のフォルダ（cwd）につないでから整える（区切りで終わる）",
-   "win32": true,
+   "why": "版 3.113.0 の Windows で窓が任せた形: 空白だけの段の相対の道は断る（作った後の採点の割れ 3: 今のフォルダ〈プログラムのフォルダ〉につながない）",
    "posix": {
     "want": {
      "ok": null
@@ -2008,7 +2289,7 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\work\\"
+     "no": "E_REL_TRIM"
     },
     "py": {
      "note": "Path('  ') は今のフォルダ（Win32 が削る）。窓は win_trims で任せた"
@@ -2018,8 +2299,7 @@
   {
    "kind": "dir",
    "text": "w\\a.",
-   "why": "相対の道は cwd につないでから整える",
-   "win32": true,
+   "why": "相対の道の末尾の「.」",
    "posix": {
     "want": {
      "ok": null
@@ -2030,7 +2310,7 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\work\\w\\a"
+     "no": "E_REL_TRIM"
     },
     "py": {
      "note": "窓は win_trims で任せた"
@@ -2040,8 +2320,7 @@
   {
    "kind": "dir",
    "text": "\\w\\a.",
-   "why": "根からの道はドライブを cwd から（ntpath.join）",
-   "win32": true,
+   "why": "根からの道もドライブが無いので相対",
    "posix": {
     "want": {
      "ok": null
@@ -2052,10 +2331,52 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\w\\a"
+     "no": "E_REL_TRIM"
     },
     "py": {
      "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "data \\M",
+   "why": "途中の段の末尾の空白",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "no": "E_REL_TRIM"
+    },
+    "py": {
+     "note": "窓は win_trims で任せた"
+    }
+   }
+  },
+  {
+   "kind": "dir",
+   "text": "rel",
+   "why": "整える所の無い相対の道は字のまま（マスタは plan が断り、配布は今のフォルダで見る）",
+   "posix": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
+    }
+   },
+   "nt": {
+    "want": {
+     "ok": null
+    },
+    "py": {
+     "same": true
     }
    }
   },
@@ -2246,6 +2567,145 @@
     "py": {
      "same": true
     }
+   }
+  }
+ ],
+ "routes": [
+  {
+   "why": "名前が空なら、上のフォルダの NUL は見ない（plan が「名前を入れてください」）",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "",
+    "parent": "/srv/a\u0000",
+    "from": ""
+   },
+   "posix": {
+    "ok": null
+   },
+   "nt": {
+    "ok": null
+   }
+  },
+  {
+   "why": "名前に禁じた字なら、装置の道の上のフォルダは見ない",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "a/b",
+    "parent": "\\\\.\\C:\\x",
+    "from": ""
+   },
+   "posix": {
+    "ok": null
+   },
+   "nt": {
+    "ok": null
+   }
+  },
+  {
+   "why": "上のフォルダが空なら、いまの置き場の NUL は見ない（plan が「置く場所を入れてください」）",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "x",
+    "parent": "  ",
+    "from": "/srv/a\u0000"
+   },
+   "posix": {
+    "ok": null
+   },
+   "nt": {
+    "ok": null
+   }
+  },
+  {
+   "why": "名前と上のフォルダが通れば、いまの置き場の NUL を断る",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "x",
+    "parent": "/srv",
+    "from": "/srv/a\u0000"
+   },
+   "posix": {
+    "no": "E_CTRL"
+   },
+   "nt": {
+    "no": "E_CTRL"
+   }
+  },
+  {
+   "why": "書き直した上のフォルダを渡す",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "x",
+    "parent": "\\\\?\\C:\\x",
+    "from": ""
+   },
+   "posix": {
+    "ok": {
+     "parent": "C:\\x"
+    }
+   },
+   "nt": {
+    "ok": {
+     "parent": "C:\\x"
+    }
+   }
+  },
+  {
+   "why": "名前の長さは名前の欄で断る（上のフォルダの NUL より先）。Windows は名前が通り、上のフォルダの NUL",
+   "rule": "/api/release/place/check",
+   "values": {
+    "name": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+    "parent": "/srv/a\u0000",
+    "from": ""
+   },
+   "posix": {
+    "no": "E_LONG_POSIX"
+   },
+   "nt": {
+    "no": "E_CTRL"
+   }
+  },
+  {
+   "why": "マスタの置き場: 予約名の名前なら、装置の道の上のフォルダは見ない",
+   "rule": "/api/masters/place/check",
+   "values": {
+    "name": "CON",
+    "parent": "\\\\.\\x"
+   },
+   "posix": {
+    "ok": null
+   },
+   "nt": {
+    "ok": null
+   }
+  },
+  {
+   "why": "マスタの置き場: ドライブだけは根（Windows）",
+   "rule": "/api/masters/place/check",
+   "values": {
+    "name": "M",
+    "parent": "C:"
+   },
+   "posix": {
+    "ok": null
+   },
+   "nt": {
+    "ok": {
+     "parent": "C:\\"
+    }
+   }
+  },
+  {
+   "why": "「参照…」の欄",
+   "rule": "/api/fs/browse",
+   "values": {
+    "path": "file://[zz]/x"
+   },
+   "posix": {
+    "no": "E_URL_BRACKET"
+   },
+   "nt": {
+    "no": "E_URL_BRACKET"
    }
   }
  ]

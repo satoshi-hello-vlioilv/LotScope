@@ -2,7 +2,12 @@
 //! 打ち切れない。前は「参照…」（folder_browse の bounded・places）・マスタの置き場の状態（master_place の PROBES）・使っている PC
 //! （using）が別々に糸を立て、status のほかは尋ねるたびに糸を積んだ（止まる共有へ「参照…」を開き直すたびに増えた）。
 //!
-//! ここは 1 つの係: 鍵（normcase した道の根〈X:\ か \\サーバー\共有〉と尋ね方）ごとに走る糸は 1 本・全体で LIMIT 本まで。
+//! ここは 1 つの係: 鍵（normcase した道の根〈X:\ か \\サーバー\共有〉と尋ね方）ごとに走る糸は 1 本。止まりうる道（共有〈\\…〉と
+//! Windows の割り当てたネットワークドライブ〈GetDriveTypeW が DRIVE_REMOTE〉）の尋ねだけを全体で LIMIT 本までに数える（版 3.114.0 の作った後の
+//! 採点の割れ 2: 止まる共有が上限を塞ぐと、ローカルの C:\ の「参照…」まで待たされた）。人が押した「参照…」（browse）は上限で待たせない。
+//! 割り当てたドライブ（Z:\）とその実体の \\サーバー\共有 は別の鍵（同じサーバーへ 2 本まで。どちらも上限に数える。windows_risks 4）。
+//! 並んだ行（places・using）は wait_all でまとめて待つ（空きができたらすぐ次を起こし、終わった物から受け取る。割れ 1: 行の順に待つと、
+//! 止まる行の後ろで上限を待った行が締め切りの後に起こされて消えた）。
 //! 待ちは Condvar（前は 5 ms ごとに見に行った）。終わった鍵は片付ける。上限に当たった・時間切れの答えは None（呼ぶ側は reachable
 //! null＝確かめ中で答え、false〈届かない〉にしない: 版 3.100.0 の決まり。null は保存を止めない）。覚え（memo）は、鍵が塞がっている・
 //! 時間切れのときに、MEMO 秒以内に終わった同じ尋ね方の答えで代える（using・places の行だけ。GET /api/masters/status は呼ぶたびに確かめる）。
@@ -23,6 +28,7 @@ type Memo = HashMap<String, (Instant, Arc<dyn Any + Send + Sync>)>;
 #[derive(Default)]
 struct State {
     busy: HashSet<String>,
+    /// 上限に数える糸（止まりうる道）の数
     running: usize,
     memo: Memo,
     /// これまでに立てた糸（試験が見る）
@@ -62,7 +68,7 @@ impl Probes {
         self.inner.st.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// 走っている糸の数（試験）
+    /// 上限に数える走っている糸の数（試験）
     pub fn running(&self) -> usize {
         self.lock().running
     }
@@ -85,7 +91,8 @@ impl Probes {
         memo: Option<&str>,
         job: Job<T>,
     ) -> Result<Arc<Mutex<Option<T>>>, Job<T>> {
-        if st.busy.contains(key) || st.running >= self.inner.limit {
+        let limited = limited(key);
+        if st.busy.contains(key) || (limited && st.running >= self.inner.limit) {
             return Err(job);
         }
         let slot: Arc<Mutex<Option<T>>> = Arc::new(Mutex::new(None));
@@ -98,7 +105,9 @@ impl Probes {
             let v = f.map(|f| f());
             let mut st = inner.st.lock().unwrap_or_else(|e| e.into_inner());
             st.busy.remove(&k);
-            st.running -= 1;
+            if limited {
+                st.running -= 1;
+            }
             if let (Some(v), Some(m)) = (v.as_ref(), m) {
                 st.memo.retain(|_, (at, _)| at.elapsed() <= MEMO);
                 st.memo.insert(m, (Instant::now(), Arc::new(v.clone())));
@@ -110,7 +119,7 @@ impl Probes {
         match spawned {
             Ok(_) => {
                 st.busy.insert(key.to_string());
-                st.running += 1;
+                st.running += limited as usize;
                 st.spawned += 1;
                 Ok(slot)
             }
@@ -164,6 +173,41 @@ impl Probes {
         }
     }
 
+    /// 並んだ尋ねをまとめて deadline まで待つ（空きができたら待っている尋ねをすぐ起こし、終わった物から受け取る）。答えは並びの順。
+    /// 締め切りまでに答えの無い物は覚え（memo）か None
+    pub fn wait_all<T: Clone + Send + Sync + 'static>(&self, tickets: Vec<Ticket<T>>, deadline: Instant) -> Vec<Option<T>> {
+        let mut tickets = tickets;
+        let mut out: Vec<Option<Option<T>>> = tickets.iter().map(|_| None).collect();
+        let mut st = self.lock();
+        loop {
+            for (t, o) in tickets.iter_mut().zip(out.iter_mut()) {
+                if o.is_some() {
+                    continue;
+                }
+                if t.slot.is_none() {
+                    if let Some(job) = t.job.take() {
+                        match self.launch(&mut st, &t.key, t.memo.as_deref(), job) {
+                            Ok(slot) => t.slot = Some(slot),
+                            Err(job) => t.job = Some(job),
+                        }
+                    }
+                }
+                if let Some(v) = t.slot.as_ref().and_then(|s| s.lock().unwrap_or_else(|e| e.into_inner()).take()) {
+                    *o = Some(Some(v));
+                }
+            }
+            if out.iter().all(Option::is_some) {
+                break;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            st = self.inner.cv.wait_timeout(st, deadline - now).unwrap_or_else(|e| e.into_inner()).0;
+        }
+        tickets.iter().zip(out).map(|(t, o)| o.unwrap_or_else(|| Self::remembered(&st, t.memo.as_deref()))).collect()
+    }
+
     /// 尋ねて timeout まで待つ（start と wait）
     pub fn ask<T, F>(&self, key: &str, memo: Option<&str>, timeout: Duration, queue: bool, f: F) -> Option<T>
     where
@@ -174,6 +218,41 @@ impl Probes {
         let t = self.start(key, memo, f);
         self.wait(t, deadline, queue)
     }
+}
+
+/// 上限に数える鍵か: 尋ね方が「参照…」（browse。人が押した 1 本）でなく、道が止まりうる（共有・割り当てたネットワークドライブ）。
+/// 鍵は「尋ね方:道」（root_key・master_place の status:置き場）
+pub fn limited(key: &str) -> bool {
+    match key.split_once(':') {
+        Some((kind, path)) => kind != "browse" && remote(path),
+        None => false,
+    }
+}
+
+/// 止まりうる道か（共有〈\\…・//…〉と、Windows の割り当てたネットワークドライブ）
+pub fn remote(path: &str) -> bool {
+    if path.starts_with("\\\\") || path.starts_with("//") {
+        return true;
+    }
+    let mut cs = path.chars();
+    match (cs.next(), cs.next()) {
+        (Some(d), Some(':')) if d.is_ascii_alphabetic() => drive_remote(d),
+        _ => false,
+    }
+}
+
+#[cfg(windows)]
+fn drive_remote(d: char) -> bool {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    let root: Vec<u16> = format!("{d}:\\").encode_utf16().chain(std::iter::once(0)).collect();
+    // DRIVE_REMOTE（4）
+    unsafe { GetDriveTypeW(PCWSTR::from_raw(root.as_ptr())) == 4 }
+}
+
+#[cfg(not(windows))]
+fn drive_remote(_d: char) -> bool {
+    false
 }
 
 /// 道の根の鍵（normcase した X:\ か \\サーバー\共有。POSIX は /）。同じ止まる共有の別のフォルダで糸を積まない
@@ -263,6 +342,63 @@ mod tests {
         assert_eq!(p.wait(first, end, true), Some(1));
         assert_eq!(p.wait(second, end, true), Some(2), "同じ鍵の 2 つ目は空いてから走る");
         assert_eq!(p.spawned(), 2);
+    }
+
+    /// 作った後の採点の割れ 1: 止まる 1 行の後ろで上限を待った行も、空きができたらすぐ起こし、締め切りの中で答える（行の順に待たない）
+    #[test]
+    fn rows_behind_a_stuck_row_still_answer() {
+        let p = Probes::new(4);
+        let (tx, rx) = mpsc::channel::<()>();
+        let rx = Arc::new(Mutex::new(rx));
+        let r2 = rx.clone();
+        let mut tickets = vec![p.start("reach:\\\\srv\\share\\", None, move || {
+            let _ = r2.lock().unwrap().recv();
+            true
+        })];
+        // 止まりうる道（共有）の速い行 20: 上限 4 なので 3 本ずつ空きを待つ
+        for i in 0..20 {
+            tickets.push(p.start(&format!("reach:\\\\srv{i}\\s\\"), None, move || {
+                std::thread::sleep(Duration::from_millis(5));
+                i % 2 == 0
+            }));
+        }
+        let got = p.wait_all(tickets, Instant::now() + Duration::from_secs(5));
+        assert_eq!(got[0], None, "止まる行は確かめ中");
+        assert!(got[1..].iter().all(Option::is_some), "後ろの行も答える: {got:?}");
+        assert_eq!(got[2], Some(false));
+        tx.send(()).unwrap();
+    }
+
+    /// 割れ 2: 止まる共有が上限を塞いでも、ローカルの道（上限に数えない）と人が押した「参照…」は待たされない
+    #[test]
+    fn a_full_limit_does_not_starve_local_or_browse() {
+        let p = Probes::new(16);
+        let (tx, rx) = mpsc::channel::<()>();
+        let rx = Arc::new(Mutex::new(rx));
+        for i in 0..16 {
+            let r = rx.clone();
+            let _ = p.start(&format!("online:\\\\srv\\s{i}\\"), None, move || {
+                let _ = r.lock().unwrap().recv();
+                true
+            });
+        }
+        assert_eq!(p.running(), 16);
+        let t0 = Instant::now();
+        assert_eq!(p.ask("browse:c:\\", None, Duration::from_secs(2), true, || 1u8), Some(1), "ローカルの「参照…」");
+        assert_eq!(p.ask("reach:/", None, Duration::from_secs(2), true, || 2u8), Some(2), "ローカルの行");
+        assert_eq!(p.ask("browse:\\\\srv2\\x\\", None, Duration::from_secs(2), true, || 3u8), Some(3), "人が押した共有の「参照…」");
+        assert!(t0.elapsed() < Duration::from_secs(1));
+        assert_eq!(p.ask("reach:\\\\srv3\\x\\", None, Duration::from_millis(100), true, || 4u8), None, "共有の行は上限を守る");
+        for _ in 0..16 {
+            tx.send(()).unwrap();
+        }
+    }
+
+    #[test]
+    fn what_is_limited() {
+        assert!(limited("reach:\\\\srv\\s\\") && limited("online://srv/s") && limited("status:\\\\srv\\s\\M"));
+        assert!(!limited("browse:\\\\srv\\s\\") && !limited("reach:/") && !limited("k"));
+        assert_eq!(limited("reach:c:\\"), cfg!(windows) && remote("c:\\"), "Windows は割り当てたネットワークドライブだけ");
     }
 
     #[test]

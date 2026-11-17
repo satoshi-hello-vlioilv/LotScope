@@ -170,8 +170,16 @@ def scenarios():
             S(BOSS, "POST", CK, A("", "M")),
             # 空白だけ・ドライブだけ・共有の根は POSIX だけ（Windows は段の末尾の空白を削る〈窓は Python に任せる〉・C:\ に試しのフォルダを
             # 作る・本物の共有へ尋ねる）
-            *([S(BOSS, "POST", CK, A("  \"  \"  ", "M")), S(BOSS, "POST", CK, A("C:", "M")), S(BOSS, "POST", CK, A("\\\\srv", "M"))]
-              if os.name != "nt" else []),
+            # 空白だけの上のフォルダはどの OS でも（版 3.114.0 の作った後の採点の割れ 3: Windows は相対の道として門が断る。前は窓が任せた）
+            S(BOSS, "POST", CK, A("  \"  \"  ", "M")),
+            S(BOSS, "POST", CK, A("w\\a.", "M")),
+            S(BOSS, "POST", CK, A("data \\M", "M")),
+            S(BOSS, "POST", MV, A("w\\a.", "M")),
+            # 割れ 4: 名前が誤りなら上のフォルダの門の理由より check_name の言葉が先
+            S(BOSS, "POST", CK, A("@ROOT/nas\u0000x", "")),
+            S(BOSS, "POST", CK, A("\\\\.\\C:\\x", "CON")),
+            S(BOSS, "POST", MV, A("@ROOT/nas\u0000x", "a/b")),
+            *([S(BOSS, "POST", CK, A("C:", "M")), S(BOSS, "POST", CK, A("\\\\srv", "M"))] if os.name != "nt" else []),
             S(BOSS, "POST", CK, A("rel", "M")),
             # 道の門（版 3.114.0）: NUL・長い上のフォルダ（前は Python が 500）・装置の道・長い名前（Linux）・move も同じ理由で 400
             S(BOSS, "POST", CK, A("@ROOT/nas\u0000x", "M")),

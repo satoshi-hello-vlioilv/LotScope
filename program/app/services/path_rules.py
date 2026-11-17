@@ -21,8 +21,12 @@ r"""道の字の門（版 3.114.0。Rust 化の段 ③ の 3 つ目）。窓（d
 - ドライブ（Windows・欄の道だけ）: C: は C:\、C:x（ドライブ相対）は断る（プロセスごとの今のフォルダを混ぜない）
 - 長さ: 名前（段）ごとに POSIX は UTF-8 の 255 バイト、Windows は UTF-16 の 255 単位。POSIX は道全体も 4096 バイト未満
   （前は Python の Path.is_dir が ENAMETOOLONG で 500）。Windows の MAX_PATH（260）を超える道全体の長さは、この版では決めない
-- Win32 の段の末尾の整え（Windows だけ）: 段が空白か「.」で終わる道は、GetFullPathNameW（Python の nt._getfullpathname と同じ関数）で
-  整えた字にする。手で書かない（Windows の CI で事例ごとに want と比べる）。相対の道は今のフォルダ（cwd）につないでから整える
+- Win32 の段の末尾の整え（Windows だけ）: 段が空白か「.」で終わる絶対の道（ドライブ＋根・共有）は、GetFullPathNameW（Python の
+  nt._getfullpathname と同じ関数）で整えた字にする。手で書かない（Windows の CI で事例ごとに want と比べる）。相対の道（上のフォルダ・
+  いまの置き場）は断る（版 3.114.0 の作った後の採点の割れ 3: 今のフォルダ〈更新で入れ替わるプログラムのフォルダ〉につなぐと、マスタの置き場が
+  そこへ写せた。前の窓は任せ、Python は Win32 が削った字で見ていた）
+- %VAR%・$VAR（「参照…」だけ）: Python 3.13 の ntpath・posixpath.expandvars と同じ決まりを、門の Env の環境変数で（窓も同じ: このプロセスの
+  環境変数を事例の表で差し替える。Windows は名前の大文字小文字を見ない・'…' の中は広げない・$ の名前は英数字と _ -）
 
 門は道の頭（欄の字）だけに当て、保存済みの置き場の読み（束・master_share.json・引っ越しの印）には当てない。
 """
@@ -56,6 +60,8 @@ E_PATH_POSIX = "道が長すぎます（この PC の上限 4096 バイト）。
 E_URL_BRACKET = "file: の URL が読めません（サーバー名の [ ]）。"
 E_URL_HOST = "file: の URL のサーバー名に使えない字があります。"
 E_FULL = "道を整えられません（Windows が読めない形）。"
+E_REL_TRIM = ("相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。"
+              "ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。")
 
 NAME_BYTES = 255           # POSIX の NAME_MAX（UTF-8 のバイト）
 NAME_UNITS = 255           # NTFS の名前の上限（UTF-16 の単位）
@@ -151,20 +157,120 @@ def trims(s: str) -> bool:
     return any(p not in (".", "..") and p[-1:] in (" ", ".") for p in parts)
 
 
-def nt_join(a: str, b: str) -> str:
-    """ntpath.join(a, b)（Python 3.13。窓の path_gate::nt_join と同じ）"""
-    return ntpath.join(a, b)
-
-
-def _full(s: str, cwd: str, full) -> str:
-    """Win32 の整え（GetFullPathNameW）。相対の道は cwd につないでから"""
+def _full(s: str, full) -> str:
+    """Win32 の整え（GetFullPathNameW。絶対の道だけ）"""
     if full is None:
         raise PathRefused(E_FULL)
-    p = s if _absolute(s, True) else nt_join(cwd, s)
     try:
-        return full(p)
+        return full(s)
     except (OSError, ValueError):
         raise PathRefused(E_FULL) from None
+
+
+# ---------------------------------------------------------------- %VAR%・$VAR
+
+_POSIX_VAR = re.compile(r"\$(\w+|\{[^}]*\})", re.ASCII)
+_NT_VARCHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+
+
+def expandvars(s: str, nt: bool, env) -> str:
+    """os.path.expandvars（Python 3.13 の ntpath・posixpath）を、渡した環境変数で。Windows は名前の大文字小文字を見ない"""
+    if nt:
+        if "$" not in s and "%" not in s:
+            return s
+        up = {str(k).upper(): v for k, v in env.items()}
+
+        def get(name):
+            return up[name.upper()]
+        res, index, path = "", 0, s
+        pathlen = len(path)
+        while index < pathlen:
+            c = path[index:index + 1]
+            if c == "'":
+                path = path[index + 1:]
+                pathlen = len(path)
+                try:
+                    index = path.index(c)
+                    res += c + path[:index + 1]
+                except ValueError:
+                    res += c + path
+                    index = pathlen - 1
+            elif c == "%":
+                if path[index + 1:index + 2] == "%":
+                    res += c
+                    index += 1
+                else:
+                    path = path[index + 1:]
+                    pathlen = len(path)
+                    try:
+                        index = path.index("%")
+                    except ValueError:
+                        res += "%" + path
+                        index = pathlen - 1
+                    else:
+                        var = path[:index]
+                        try:
+                            value = get(var)
+                        except KeyError:
+                            value = "%" + var + "%"
+                        res += value
+            elif c == "$":
+                if path[index + 1:index + 2] == "$":
+                    res += c
+                    index += 1
+                elif path[index + 1:index + 2] == "{":
+                    path = path[index + 2:]
+                    pathlen = len(path)
+                    try:
+                        index = path.index("}")
+                    except ValueError:
+                        res += "${" + path
+                        index = pathlen - 1
+                    else:
+                        var = path[:index]
+                        try:
+                            value = get(var)
+                        except KeyError:
+                            value = "${" + var + "}"
+                        res += value
+                else:
+                    var = ""
+                    index += 1
+                    c = path[index:index + 1]
+                    while c and c in _NT_VARCHARS:
+                        var += c
+                        index += 1
+                        c = path[index:index + 1]
+                    try:
+                        value = get(var)
+                    except KeyError:
+                        value = "$" + var
+                    res += value
+                    if c:
+                        index -= 1
+            else:
+                res += c
+            index += 1
+        return res
+    if "$" not in s:
+        return s
+    i = 0
+    while True:
+        m = _POSIX_VAR.search(s, i)
+        if not m:
+            break
+        i, j = m.span(0)
+        name = m.group(1)
+        if name.startswith("{") and name.endswith("}"):
+            name = name[1:-1]
+        if name in env:
+            tail = s[j:]
+            s = s[:i] + env[name]
+            i = len(s)
+            s += tail
+        else:
+            i = j
+    return s
 
 
 # ---------------------------------------------------------------- ~ と ~名前
@@ -339,11 +445,11 @@ def gate(kind: str, text, env: Env | None = None) -> str:
         _ctrl(s, nt)
         s = device(s, nt)
         if s:
-            s = (ntpath if nt else posixpath).expandvars(expanduser(s, nt, e.env, e.passwd))
+            s = expandvars(expanduser(s, nt, e.env, e.passwd), nt, e.env)
         out = tidy(s, nt)
         _lengths(out, nt)
         if nt and _absolute(out, True) and trims(out):
-            out = tidy(_full(out, e.cwd, e.full), nt)
+            out = tidy(_full(out, e.full), nt)
         return out
     # dir
     from ..fsio import unquote_path
@@ -359,7 +465,9 @@ def gate(kind: str, text, env: Env | None = None) -> str:
         t = t + "\\"
     _lengths(t, nt)
     if nt and trims(t):
-        t = _full(t, e.cwd, e.full)
+        if not _absolute(t, True):
+            raise PathRefused(E_REL_TRIM)
+        t = _full(t, e.full)
     return text if t == s else t
 
 
