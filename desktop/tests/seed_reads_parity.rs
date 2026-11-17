@@ -44,7 +44,7 @@ fn masked(v: &Value) -> Value {
 fn reads_seed_the_same_masters_as_python() {
     let base = common::work("seed-reads");
     let mut bk = common::bake::Bake::open("seed_reads", &base);
-    (bk.strip, bk.strip_in) = (vec!["files".into(), "status".into()], "path");
+    (bk.strip, bk.strip_in) = (vec!["files".into(), "status".into()], vec!["path"]);
     let oracle = bk.oracle("seed_reads_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut answered, mut delegated, mut seeded) = (0, 0, 0);

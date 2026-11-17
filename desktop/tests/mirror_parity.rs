@@ -47,7 +47,7 @@ fn set_age(p: &Path, hours: f64) {
 fn rust_mirrors_like_python() {
     let work = common::work("mirror");
     let mut bk = common::bake::Bake::open("mirror", &work);
-    (bk.strip, bk.strip_in) = (vec!["results".into()], "steps");
+    (bk.strip, bk.strip_in) = (vec!["results".into()], vec!["steps"]);
     let o = bk.oracle("mirror_oracle.py", &["scenario", work.to_str().unwrap()]);
     let base = work.join("rs");
     std::fs::create_dir_all(base.join("share")).unwrap();

@@ -15,7 +15,8 @@
   "modified",
   "savedAt",
   "lastSeen",
-  "last_seen"
+  "last_seen",
+  "mtimeNs"
  ],
  "forms": [
   {

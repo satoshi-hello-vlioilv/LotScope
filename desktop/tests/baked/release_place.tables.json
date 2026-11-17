@@ -1,0 +1,879 @@
+{
+ "about": "窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 release_place.tables。作り直すのは python program/tools/bless.py release_place.tables",
+ "answers": {
+  "join #00": {"posix":"/n","posixBase":"/","win":"\\n","winBase":"\\"},
+  "join #01": {"posix":"/名前.v","posixBase":"/","win":"\\名前.v","winBase":"\\"},
+  "join #02": {"posix":"//n","posixBase":"//","win":"\\\\n","winBase":"\\\\"},
+  "join #03": {"posix":"//名前.v","posixBase":"//","win":"\\\\名前.v","winBase":"\\\\"},
+  "join #04": {"posix":"/n","posixBase":"/","win":"\\\\\\n","winBase":"\\\\\\"},
+  "join #05": {"posix":"/名前.v","posixBase":"/","win":"\\\\\\名前.v","winBase":"\\\\\\"},
+  "join #06": {"posix":"/@TMP/n","posixBase":"/@TMP","win":"\\\\tmp\\n\\","winBase":"\\\\tmp"},
+  "join #07": {"posix":"/@TMP/名前.v","posixBase":"/@TMP","win":"\\\\tmp\\名前.v\\","winBase":"\\\\tmp"},
+  "join #08": {"posix":"@TMP/n","posixBase":"@TMP","win":"\\tmp\\n","winBase":"\\tmp"},
+  "join #09": {"posix":"@TMP/名前.v","posixBase":"@TMP","win":"\\tmp\\名前.v","winBase":"\\tmp"},
+  "join #10": {"posix":"/a/b/n","posixBase":"/a/b","win":"\\a\\b\\n","winBase":"\\a\\b"},
+  "join #11": {"posix":"/a/b/名前.v","posixBase":"/a/b","win":"\\a\\b\\名前.v","winBase":"\\a\\b"},
+  "join #12": {"posix":"a/n","posixBase":"a","win":"a\\n","winBase":"a"},
+  "join #13": {"posix":"a/名前.v","posixBase":"a","win":"a\\名前.v","winBase":"a"},
+  "join #14": {"posix":"n","posixBase":".","win":"n","winBase":"."},
+  "join #15": {"posix":"名前.v","posixBase":".","win":"名前.v","winBase":"."},
+  "join #16": {"posix":"a/../n","posixBase":"a/..","win":"a\\..\\n","winBase":"a\\.."},
+  "join #17": {"posix":"a/../名前.v","posixBase":"a/..","win":"a\\..\\名前.v","winBase":"a\\.."},
+  "join #18": {"posix":"C:/n","posixBase":"C:","win":"C:n","winBase":"C:"},
+  "join #19": {"posix":"C:/名前.v","posixBase":"C:","win":"C:名前.v","winBase":"C:"},
+  "join #20": {"posix":"C:\\/n","posixBase":"C:\\","win":"C:\\n","winBase":"C:\\"},
+  "join #21": {"posix":"C:\\/名前.v","posixBase":"C:\\","win":"C:\\名前.v","winBase":"C:\\"},
+  "join #22": {"posix":"C:/x/n","posixBase":"C:/x","win":"C:\\x\\n","winBase":"C:\\x"},
+  "join #23": {"posix":"C:/x/名前.v","posixBase":"C:/x","win":"C:\\x\\名前.v","winBase":"C:\\x"},
+  "join #24": {"posix":"C:x/n","posixBase":"C:x","win":"C:x\\n","winBase":"C:x"},
+  "join #25": {"posix":"C:x/名前.v","posixBase":"C:x","win":"C:x\\名前.v","winBase":"C:x"},
+  "join #26": {"posix":"\\/n","posixBase":"\\","win":"\\n","winBase":"\\"},
+  "join #27": {"posix":"\\/名前.v","posixBase":"\\","win":"\\名前.v","winBase":"\\"},
+  "join #28": {"posix":"\\x/n","posixBase":"\\x","win":"\\x\\n","winBase":"\\x"},
+  "join #29": {"posix":"\\x/名前.v","posixBase":"\\x","win":"\\x\\名前.v","winBase":"\\x"},
+  "join #30": {"posix":"\\\\srv\\share/n","posixBase":"\\\\srv\\share","win":"\\\\srv\\share\\n","winBase":"\\\\srv\\share\\"},
+  "join #31": {"posix":"\\\\srv\\share/名前.v","posixBase":"\\\\srv\\share","win":"\\\\srv\\share\\名前.v","winBase":"\\\\srv\\share\\"},
+  "join #32": {"posix":"\\\\srv\\share\\/n","posixBase":"\\\\srv\\share\\","win":"\\\\srv\\share\\n","winBase":"\\\\srv\\share\\"},
+  "join #33": {"posix":"\\\\srv\\share\\/名前.v","posixBase":"\\\\srv\\share\\","win":"\\\\srv\\share\\名前.v","winBase":"\\\\srv\\share\\"},
+  "join #34": {"posix":"\\\\srv\\share\\d/n","posixBase":"\\\\srv\\share\\d","win":"\\\\srv\\share\\d\\n","winBase":"\\\\srv\\share\\d"},
+  "join #35": {"posix":"\\\\srv\\share\\d/名前.v","posixBase":"\\\\srv\\share\\d","win":"\\\\srv\\share\\d\\名前.v","winBase":"\\\\srv\\share\\d"},
+  "join #36": {"posix":"//srv/share/n","posixBase":"//srv/share","win":"\\\\srv\\share\\n","winBase":"\\\\srv\\share\\"},
+  "join #37": {"posix":"//srv/share/名前.v","posixBase":"//srv/share","win":"\\\\srv\\share\\名前.v","winBase":"\\\\srv\\share\\"},
+  "join #38": {"posix":"\\\\srv/n","posixBase":"\\\\srv","win":"\\\\srv\\n\\","winBase":"\\\\srv"},
+  "join #39": {"posix":"\\\\srv/名前.v","posixBase":"\\\\srv","win":"\\\\srv\\名前.v\\","winBase":"\\\\srv"},
+  "join #40": {"posix":"/q/n","posixBase":"/q","win":"\\q\\n","winBase":"\\q"},
+  "join #41": {"posix":"/q/名前.v","posixBase":"/q","win":"\\q\\名前.v","winBase":"\\q"},
+  "join #42": {"posix":"c:/A/B/n","posixBase":"c:/A/B","win":"c:\\A\\B\\n","winBase":"c:\\A\\B"},
+  "join #43": {"posix":"c:/A/B/名前.v","posixBase":"c:/A/B","win":"c:\\A\\B\\名前.v","winBase":"c:\\A\\B"},
+  "oserror #00": "[Errno 2] No such file or directory",
+  "oserror #01": "[Errno 2] No such file or directory: '/a/b'",
+  "oserror #02": "[Errno 2] No such file or directory: \"/x'y\"",
+  "oserror #03": "[Errno 2] No such file or directory: '/x\"y'",
+  "oserror #04": "[Errno 2] No such file or directory: '/x\\'\"y'",
+  "oserror #05": "[Errno 2] No such file or directory: 'C:\\\\a'",
+  "oserror #06": "[Errno 2] No such file or directory: '/改行\\nの名前'",
+  "oserror #07": "[Errno 2] No such file or directory: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #08": "[Errno 2] No such file or directory: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #09": "[Errno 2] No such file or directory: '/タブ\\t'",
+  "oserror #10": "[Errno 2] No such file or directory: '/a/b' -> \"/x'y\"",
+  "oserror #11": "[Errno 2] No such file or directory: '/a/b' -> '/x\"y'",
+  "oserror #12": "[Errno 20] Not a directory",
+  "oserror #13": "[Errno 20] Not a directory: '/a/b'",
+  "oserror #14": "[Errno 20] Not a directory: \"/x'y\"",
+  "oserror #15": "[Errno 20] Not a directory: '/x\"y'",
+  "oserror #16": "[Errno 20] Not a directory: '/x\\'\"y'",
+  "oserror #17": "[Errno 20] Not a directory: 'C:\\\\a'",
+  "oserror #18": "[Errno 20] Not a directory: '/改行\\nの名前'",
+  "oserror #19": "[Errno 20] Not a directory: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #20": "[Errno 20] Not a directory: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #21": "[Errno 20] Not a directory: '/タブ\\t'",
+  "oserror #22": "[Errno 20] Not a directory: '/a/b' -> \"/x'y\"",
+  "oserror #23": "[Errno 20] Not a directory: '/a/b' -> '/x\"y'",
+  "oserror #24": "[Errno 39] Directory not empty",
+  "oserror #25": "[Errno 39] Directory not empty: '/a/b'",
+  "oserror #26": "[Errno 39] Directory not empty: \"/x'y\"",
+  "oserror #27": "[Errno 39] Directory not empty: '/x\"y'",
+  "oserror #28": "[Errno 39] Directory not empty: '/x\\'\"y'",
+  "oserror #29": "[Errno 39] Directory not empty: 'C:\\\\a'",
+  "oserror #30": "[Errno 39] Directory not empty: '/改行\\nの名前'",
+  "oserror #31": "[Errno 39] Directory not empty: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #32": "[Errno 39] Directory not empty: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #33": "[Errno 39] Directory not empty: '/タブ\\t'",
+  "oserror #34": "[Errno 39] Directory not empty: '/a/b' -> \"/x'y\"",
+  "oserror #35": "[Errno 39] Directory not empty: '/a/b' -> '/x\"y'",
+  "oserror #36": "[Errno 28] No space left on device",
+  "oserror #37": "[Errno 28] No space left on device: '/a/b'",
+  "oserror #38": "[Errno 28] No space left on device: \"/x'y\"",
+  "oserror #39": "[Errno 28] No space left on device: '/x\"y'",
+  "oserror #40": "[Errno 28] No space left on device: '/x\\'\"y'",
+  "oserror #41": "[Errno 28] No space left on device: 'C:\\\\a'",
+  "oserror #42": "[Errno 28] No space left on device: '/改行\\nの名前'",
+  "oserror #43": "[Errno 28] No space left on device: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #44": "[Errno 28] No space left on device: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #45": "[Errno 28] No space left on device: '/タブ\\t'",
+  "oserror #46": "[Errno 28] No space left on device: '/a/b' -> \"/x'y\"",
+  "oserror #47": "[Errno 28] No space left on device: '/a/b' -> '/x\"y'",
+  "oserror #48": "[Errno 13] Permission denied",
+  "oserror #49": "[Errno 13] Permission denied: '/a/b'",
+  "oserror #50": "[Errno 13] Permission denied: \"/x'y\"",
+  "oserror #51": "[Errno 13] Permission denied: '/x\"y'",
+  "oserror #52": "[Errno 13] Permission denied: '/x\\'\"y'",
+  "oserror #53": "[Errno 13] Permission denied: 'C:\\\\a'",
+  "oserror #54": "[Errno 13] Permission denied: '/改行\\nの名前'",
+  "oserror #55": "[Errno 13] Permission denied: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #56": "[Errno 13] Permission denied: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #57": "[Errno 13] Permission denied: '/タブ\\t'",
+  "oserror #58": "[Errno 13] Permission denied: '/a/b' -> \"/x'y\"",
+  "oserror #59": "[Errno 13] Permission denied: '/a/b' -> '/x\"y'",
+  "oserror #60": "[Errno 6] No such device or address",
+  "oserror #61": "[Errno 6] No such device or address: '/a/b'",
+  "oserror #62": "[Errno 6] No such device or address: \"/x'y\"",
+  "oserror #63": "[Errno 6] No such device or address: '/x\"y'",
+  "oserror #64": "[Errno 6] No such device or address: '/x\\'\"y'",
+  "oserror #65": "[Errno 6] No such device or address: 'C:\\\\a'",
+  "oserror #66": "[Errno 6] No such device or address: '/改行\\nの名前'",
+  "oserror #67": "[Errno 6] No such device or address: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #68": "[Errno 6] No such device or address: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #69": "[Errno 6] No such device or address: '/タブ\\t'",
+  "oserror #70": "[Errno 6] No such device or address: '/a/b' -> \"/x'y\"",
+  "oserror #71": "[Errno 6] No such device or address: '/a/b' -> '/x\"y'",
+  "oserror #72": "[Errno 21] Is a directory",
+  "oserror #73": "[Errno 21] Is a directory: '/a/b'",
+  "oserror #74": "[Errno 21] Is a directory: \"/x'y\"",
+  "oserror #75": "[Errno 21] Is a directory: '/x\"y'",
+  "oserror #76": "[Errno 21] Is a directory: '/x\\'\"y'",
+  "oserror #77": "[Errno 21] Is a directory: 'C:\\\\a'",
+  "oserror #78": "[Errno 21] Is a directory: '/改行\\nの名前'",
+  "oserror #79": "[Errno 21] Is a directory: '/\\x1f\\x7f\\x85\\xa0'",
+  "oserror #80": "[Errno 21] Is a directory: '/\\u3000\\u200b\\ue000\\ufeff'",
+  "oserror #81": "[Errno 21] Is a directory: '/タブ\\t'",
+  "oserror #82": "[Errno 21] Is a directory: '/a/b' -> \"/x'y\"",
+  "oserror #83": "[Errno 21] Is a directory: '/a/b' -> '/x\"y'"
+ },
+ "book": "release_place",
+ "file": "release_place.tables",
+ "oracle": {
+  "joins": [
+   {
+    "name": "n",
+    "parent": "/"
+   },
+   {
+    "name": "名前.v",
+    "parent": "/"
+   },
+   {
+    "name": "n",
+    "parent": "//"
+   },
+   {
+    "name": "名前.v",
+    "parent": "//"
+   },
+   {
+    "name": "n",
+    "parent": "///"
+   },
+   {
+    "name": "名前.v",
+    "parent": "///"
+   },
+   {
+    "name": "n",
+    "parent": "/@TMP"
+   },
+   {
+    "name": "名前.v",
+    "parent": "/@TMP"
+   },
+   {
+    "name": "n",
+    "parent": "@TMP/"
+   },
+   {
+    "name": "名前.v",
+    "parent": "@TMP/"
+   },
+   {
+    "name": "n",
+    "parent": "/a//b/"
+   },
+   {
+    "name": "名前.v",
+    "parent": "/a//b/"
+   },
+   {
+    "name": "n",
+    "parent": "a"
+   },
+   {
+    "name": "名前.v",
+    "parent": "a"
+   },
+   {
+    "name": "n",
+    "parent": "."
+   },
+   {
+    "name": "名前.v",
+    "parent": "."
+   },
+   {
+    "name": "n",
+    "parent": "./a/.."
+   },
+   {
+    "name": "名前.v",
+    "parent": "./a/.."
+   },
+   {
+    "name": "n",
+    "parent": "C:"
+   },
+   {
+    "name": "名前.v",
+    "parent": "C:"
+   },
+   {
+    "name": "n",
+    "parent": "C:\\"
+   },
+   {
+    "name": "名前.v",
+    "parent": "C:\\"
+   },
+   {
+    "name": "n",
+    "parent": "C:/x/"
+   },
+   {
+    "name": "名前.v",
+    "parent": "C:/x/"
+   },
+   {
+    "name": "n",
+    "parent": "C:x"
+   },
+   {
+    "name": "名前.v",
+    "parent": "C:x"
+   },
+   {
+    "name": "n",
+    "parent": "\\"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\"
+   },
+   {
+    "name": "n",
+    "parent": "\\x"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\x"
+   },
+   {
+    "name": "n",
+    "parent": "\\\\srv\\share"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\\\srv\\share"
+   },
+   {
+    "name": "n",
+    "parent": "\\\\srv\\share\\"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\\\srv\\share\\"
+   },
+   {
+    "name": "n",
+    "parent": "\\\\srv\\share\\d"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\\\srv\\share\\d"
+   },
+   {
+    "name": "n",
+    "parent": "//srv/share"
+   },
+   {
+    "name": "名前.v",
+    "parent": "//srv/share"
+   },
+   {
+    "name": "n",
+    "parent": "\\\\srv"
+   },
+   {
+    "name": "名前.v",
+    "parent": "\\\\srv"
+   },
+   {
+    "name": "n",
+    "parent": " \"/q\" "
+   },
+   {
+    "name": "名前.v",
+    "parent": " \"/q\" "
+   },
+   {
+    "name": "n",
+    "parent": "c:/A/B/"
+   },
+   {
+    "name": "名前.v",
+    "parent": "c:/A/B/"
+   }
+  ],
+  "oserrors": [
+   {
+    "a": null,
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 2
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 2
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 2
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 20
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 20
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 20
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 39
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 39
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 39
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 28
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 28
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 28
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 13
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 13
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 13
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 6
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 6
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 6
+   },
+   {
+    "a": null,
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/a/b",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/x'y",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/x\"y",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/x'\"y",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "C:\\a",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/改行\nの名前",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/\u001f ",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/　​﻿",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/タブ\t",
+    "b": null,
+    "errno": 21
+   },
+   {
+    "a": "/a/b",
+    "b": "/x'y",
+    "errno": 21
+   },
+   {
+    "a": "/a/b",
+    "b": "/x\"y",
+    "errno": 21
+   }
+  ]
+ },
+ "os": "posix",
+ "routes": {
+  "join #00": "join",
+  "join #01": "join",
+  "join #02": "join",
+  "join #03": "join",
+  "join #04": "join",
+  "join #05": "join",
+  "join #06": "join",
+  "join #07": "join",
+  "join #08": "join",
+  "join #09": "join",
+  "join #10": "join",
+  "join #11": "join",
+  "join #12": "join",
+  "join #13": "join",
+  "join #14": "join",
+  "join #15": "join",
+  "join #16": "join",
+  "join #17": "join",
+  "join #18": "join",
+  "join #19": "join",
+  "join #20": "join",
+  "join #21": "join",
+  "join #22": "join",
+  "join #23": "join",
+  "join #24": "join",
+  "join #25": "join",
+  "join #26": "join",
+  "join #27": "join",
+  "join #28": "join",
+  "join #29": "join",
+  "join #30": "join",
+  "join #31": "join",
+  "join #32": "join",
+  "join #33": "join",
+  "join #34": "join",
+  "join #35": "join",
+  "join #36": "join",
+  "join #37": "join",
+  "join #38": "join",
+  "join #39": "join",
+  "join #40": "join",
+  "join #41": "join",
+  "join #42": "join",
+  "join #43": "join",
+  "oserror #00": "oserror",
+  "oserror #01": "oserror",
+  "oserror #02": "oserror",
+  "oserror #03": "oserror",
+  "oserror #04": "oserror",
+  "oserror #05": "oserror",
+  "oserror #06": "oserror",
+  "oserror #07": "oserror",
+  "oserror #08": "oserror",
+  "oserror #09": "oserror",
+  "oserror #10": "oserror",
+  "oserror #11": "oserror",
+  "oserror #12": "oserror",
+  "oserror #13": "oserror",
+  "oserror #14": "oserror",
+  "oserror #15": "oserror",
+  "oserror #16": "oserror",
+  "oserror #17": "oserror",
+  "oserror #18": "oserror",
+  "oserror #19": "oserror",
+  "oserror #20": "oserror",
+  "oserror #21": "oserror",
+  "oserror #22": "oserror",
+  "oserror #23": "oserror",
+  "oserror #24": "oserror",
+  "oserror #25": "oserror",
+  "oserror #26": "oserror",
+  "oserror #27": "oserror",
+  "oserror #28": "oserror",
+  "oserror #29": "oserror",
+  "oserror #30": "oserror",
+  "oserror #31": "oserror",
+  "oserror #32": "oserror",
+  "oserror #33": "oserror",
+  "oserror #34": "oserror",
+  "oserror #35": "oserror",
+  "oserror #36": "oserror",
+  "oserror #37": "oserror",
+  "oserror #38": "oserror",
+  "oserror #39": "oserror",
+  "oserror #40": "oserror",
+  "oserror #41": "oserror",
+  "oserror #42": "oserror",
+  "oserror #43": "oserror",
+  "oserror #44": "oserror",
+  "oserror #45": "oserror",
+  "oserror #46": "oserror",
+  "oserror #47": "oserror",
+  "oserror #48": "oserror",
+  "oserror #49": "oserror",
+  "oserror #50": "oserror",
+  "oserror #51": "oserror",
+  "oserror #52": "oserror",
+  "oserror #53": "oserror",
+  "oserror #54": "oserror",
+  "oserror #55": "oserror",
+  "oserror #56": "oserror",
+  "oserror #57": "oserror",
+  "oserror #58": "oserror",
+  "oserror #59": "oserror",
+  "oserror #60": "oserror",
+  "oserror #61": "oserror",
+  "oserror #62": "oserror",
+  "oserror #63": "oserror",
+  "oserror #64": "oserror",
+  "oserror #65": "oserror",
+  "oserror #66": "oserror",
+  "oserror #67": "oserror",
+  "oserror #68": "oserror",
+  "oserror #69": "oserror",
+  "oserror #70": "oserror",
+  "oserror #71": "oserror",
+  "oserror #72": "oserror",
+  "oserror #73": "oserror",
+  "oserror #74": "oserror",
+  "oserror #75": "oserror",
+  "oserror #76": "oserror",
+  "oserror #77": "oserror",
+  "oserror #78": "oserror",
+  "oserror #79": "oserror",
+  "oserror #80": "oserror",
+  "oserror #81": "oserror",
+  "oserror #82": "oserror",
+  "oserror #83": "oserror"
+ },
+ "scene": {
+  "blobs": {},
+  "dirs": {},
+  "files": {},
+  "links": {}
+ },
+ "sources": {
+  "tests/oracle_gate.py": "74d8effb19f3211d",
+  "tests/release_place_oracle.py": "aece687ca37b7e07"
+ },
+ "variant": "root"
+}

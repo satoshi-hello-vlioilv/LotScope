@@ -181,7 +181,11 @@ fn follow(conf: &mut Value, rs: &Path) {
 #[test]
 fn master_place_matches_python() {
     let base = common::work("place");
-    let oracle = common::python_json("place_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("place", &base);
+    bk.strip = ["status", "json", "files"].map(String::from).to_vec();
+    bk.strip_in = vec!["method", "roots", "follow"];
+    bk.drop = vec!["rootUser", "root"];
+    let oracle = bk.oracle("place_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut steps, mut delegated, mut moved) = (0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -202,6 +206,10 @@ fn master_place_matches_python() {
             }
             // ほかの PC が引っ越しの印をたどる（版 3.114.0。窓が書いた印を、版 3.113.0 と同じ決め〈Python の follow_moved〉でたどる）
             if let Some(old) = st["follow"].as_str() {
+                // Python の follow_moved を相手にする（段 ④ の配布の間だけ凍らせた最後の Python。焼いた表で流すときは見ない）
+                if !bk.python() {
+                    continue;
+                }
                 let got = common::python_json("place_oracle.py", &["--follow", rs, old]);
                 if norm(&st["json"], py) != norm(&got, rs) {
                     bad.push(format!(
@@ -220,16 +228,32 @@ fn master_place_matches_python() {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
-            let (want, gotn) = (norm(&st["json"], py), norm(&got, rs));
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, &json!({"status": st["status"], "json": norm(&st["json"], py)}));
+            let (want, gotn) = (bk.s(&w.1), bk.s(&norm(&got, rs)));
             let (want, gotn) = same_lock_wait(&want, &gotn).unwrap_or((want, gotn));
-            if status as i64 != st["status"].as_i64().unwrap_or(0) || common::diff(&want, &gotn, "").is_some() {
+            // 焼いた表は錠の秒を伏せてある（「<秒>」）。窓の秒も錠の長さの内なら伏せる
+            let gotn = match lock_secs(&gotn, &mut vec![]) {
+                g if !bk.python() && want.to_string().contains("<秒>") => {
+                    let mut gs = vec![];
+                    lock_secs(&gotn, &mut gs);
+                    if gs.iter().all(|n| (1..=21).contains(n)) {
+                        g
+                    } else {
+                        gotn
+                    }
+                }
+                _ => gotn,
+            };
+            bk.note_step(&key, st, status, &gotn, &(w.0, want.clone()));
+            if status as i64 != w.0 || common::diff(&want, &gotn, "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {} {}: {}\n  Python {} {want}\n  窓     {status} {gotn}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["body"],
                     common::diff(&want, &gotn, "").unwrap_or_default(),
-                    st["status"]
+                    w.0
                 ));
             }
             if st["path"] == "/api/masters/place/move" && status == 200 {
@@ -264,8 +288,11 @@ fn master_place_matches_python() {
             }
         }
         let got = listing(Path::new(rs));
-        let want = sc["files"].as_object().unwrap();
-        let (gotn, wantn) = (norm(&Value::Object(got), rs), norm(&Value::Object(want.clone()), py));
+        let fkey = format!("{name} ファイル");
+        let want = bk.want(&fkey, || norm(&sc["files"], py));
+        let gotn = norm(&Value::Object(got), rs);
+        bk.note(&fkey, "files", &gotn, &want);
+        let (gotn, wantn) = (bk.s(&gotn), bk.s(&want));
         let (g, w) = (gotn.as_object().unwrap(), wantn.as_object().unwrap());
         for k in g.keys().filter(|k| k.contains(".tmp-") || k.contains(".probe-") || k.ends_with("master.lock.json")) {
             bad.push(format!("{name}: 片付け忘れ {k}"));
@@ -283,6 +310,7 @@ fn master_place_matches_python() {
     // 版 3.114.0 の作った後の直し: 相対の道の 4 歩・名前が誤りの 3 歩と、空白だけの上のフォルダを Windows でも
     let min_steps = if cfg!(windows) { 74 } else { 76 };
     assert!(steps >= min_steps && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

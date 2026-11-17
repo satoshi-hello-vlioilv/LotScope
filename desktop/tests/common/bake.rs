@@ -362,6 +362,21 @@ pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
             e.insert("mtime".into(), mtime_decl(t));
         }
         let md = mode_of(&m);
+        if !m.is_dir() && !m.is_file() {
+            // 名前付きパイプなど（読むと止まる）は種類だけ持つ
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::FileTypeExt;
+                if m.file_type().is_fifo() {
+                    e.insert("fifo".into(), json!(true));
+                    if md != 0o644 {
+                        e.insert("mode".into(), json!(md));
+                    }
+                    files.insert(rel, Value::Object(e));
+                }
+            }
+            continue;
+        }
         if m.is_dir() {
             if md != 0o755 && cfg!(unix) {
                 e.insert("mode".into(), json!(md));
@@ -441,10 +456,14 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
     }
     // ファイルID を指す中身（@FID(道)）は、指すファイルを作った後に書く
     let mut fs: Vec<_> = decl["files"].as_object().unwrap().iter().collect();
-    fs.sort_by_key(|(_, e)| decl["blobs"][e["blob"].as_str().unwrap()]["text"].as_str().is_some_and(|t| t.contains("@FID(")));
+    fs.sort_by_key(|(_, e)| decl["blobs"][e["blob"].as_str().unwrap_or("")]["text"].as_str().is_some_and(|t| t.contains("@FID(")));
     for (rel, e) in fs {
         let p = base.join(rel);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        if e["fifo"] == true {
+            let _ = std::process::Command::new("mkfifo").arg(&p).status();
+            continue;
+        }
         let blob = &decl["blobs"][e["blob"].as_str().unwrap()];
         let bytes = match blob["text"].as_str() {
             Some(t) => fid_unsub(&text_of_decl(t, ctx), base).into_bytes(),
@@ -517,7 +536,7 @@ pub struct Bake {
     /// 答え合わせ役の答えの中で、歩の答え（焼かない欄。表は窓の答えを answers に持つ）
     pub strip: Vec<String>,
     /// strip を当てる表の印の鍵（歩の表は method を持つ）
-    pub strip_in: &'static str,
+    pub strip_in: Vec<&'static str>,
     /// 場面の宣言から除く名前（Python だけの写し）
     pub exclude: Vec<&'static str>,
     /// 答え合わせ役の答えの中の「ファイルID → 名前」の表の鍵（作業実績）。場面と答え合わせ役の答えのファイルID を @FID(道) にする
@@ -571,7 +590,7 @@ impl Bake {
             ctx: Ctx::new(base),
             keys: vec![],
             strip: vec!["status".into(), "json".into()],
-            strip_in: "method",
+            strip_in: vec!["method"],
             exclude: vec!["py", "pd"],
             fid_key: None,
             url_key: None,
@@ -601,7 +620,7 @@ impl Bake {
         match v {
             Value::Object(o) => Value::Object(
                 o.iter()
-                    .filter(|(k, _)| !(o.contains_key(self.strip_in) && self.strip.contains(k)))
+                    .filter(|(k, _)| !(self.strip_in.iter().any(|m| o.contains_key(*m)) && self.strip.contains(k)))
                     .map(|(k, x)| (k.clone(), self.strip_answers(x)))
                     .collect(),
             ),

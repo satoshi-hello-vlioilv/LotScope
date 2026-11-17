@@ -25,7 +25,7 @@ fn unlock(dir: &Path) {
 fn tidy_and_crumbs_match_python() {
     let base = common::work("fs-tables");
     let mut bk = common::bake::Bake::open_part("fs", "tables", &base);
-    (bk.strip, bk.strip_in) = (vec!["tidy".into(), "crumbs".into()], "text");
+    (bk.strip, bk.strip_in) = (vec!["tidy".into(), "crumbs".into()], vec!["text"]);
     let t = bk.oracle("fs_oracle.py", &["--tables"]);
     let mut bad = vec![];
     for c in t["tidy"].as_array().unwrap() {

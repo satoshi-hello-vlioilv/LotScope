@@ -65,7 +65,7 @@ def check():
             bad.append(f"{book}: 表に知らない元 {rel}")
         scene = t.get("scene", {})
         for rel, e in scene.get("files", {}).items():
-            if e.get("blob") not in scene.get("blobs", {}):
+            if not e.get("fifo") and e.get("blob") not in scene.get("blobs", {}):
                 bad.append(f"{book}: 場面のファイル {rel} の中身が無い")
         if set(t.get("answers", {})) != set(t.get("routes", {})):
             bad.append(f"{book}: 答えと道の型の鍵が合わない")

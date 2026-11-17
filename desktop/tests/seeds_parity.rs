@@ -31,7 +31,7 @@ fn the_window_leaves_the_same_files_as_python() {
     // 場面の置き場は窓が事例の表の走らせる形（run）から作る（seeds_store）ので、宣言には持たない（答え合わせ役の作業フォルダ oracle は除く）
     let mut bk = common::bake::Bake::open("seeds", &base);
     bk.exclude.push("oracle");
-    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], "run");
+    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], vec!["run"]);
     let oracle = bk.oracle("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let scenes = oracle["scenarios"].as_array().unwrap();
     assert!(scenes.len() >= 11, "事例の表の 8 と足した 3");
@@ -217,7 +217,7 @@ fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
     let base = common::work("seeds-cfg");
     let mut bk = common::bake::Bake::open_part("seeds", "cfg", &base);
     bk.exclude.push("oracle");
-    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], "run");
+    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], vec!["run"]);
     let oracle = bk.oracle("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let first = &oracle["scenarios"][0];
     assert!(first["name"].as_str().unwrap().contains("空の共有"));
