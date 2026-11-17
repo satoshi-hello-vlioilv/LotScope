@@ -1,5 +1,5 @@
 {
- "about": "置き場の行・設定・控えの形の事例（版 3.113.0。採点の指摘 1）。仕様から人が書いた正しい答え（want・why など）と、版 3.112.0 の Python の答え（py）を並べる。want が py と違う形は Python も同じ版で直した。窓は cargo test --test row_cases の rowshape_like_the_table、Python は tests/test_row_cases.py の RowShape が同じ表を読む。rows: 変換表・標準の行の形（why は隔てる理由・null は読む。view は conversions.view の答えの一部）。worklog: 作業実績の登録（listed は一覧に出すか・skipped は知らせるか）。sources: データ元の結合（joins は data_join.parse の答え）。keymap: LotDsp の学び（/api/config・/api/lotdsp/status の lotdsp_api）。seconds: LotDsp の設定の秒（direct.timeout_seconds・既定 60）。uistate: 画面の控え（GET の版の字と名前・POST {changed: {tpa.x: \"1\"}} の後の版と残る名前）",
+ "about": "置き場の行・設定・控えの形の事例（版 3.113.0。採点の指摘 1）。仕様から人が書いた正しい答え（want・why など）と、版 3.112.0 の Python の答え（py）を並べる。want が py と違う形は Python も同じ版で直した。窓は cargo test --test row_cases の rowshape_like_the_table、Python は tests/test_row_cases.py の RowShape が同じ表を読む。rows: 変換表・標準の行の形（why は隔てる理由・null は読む。view は conversions.view の答えの一部）。worklog: 作業実績の登録（listed は一覧に出すか・skipped は知らせるか）。sources: データ元の結合（joins は data_join.parse の答え）。keymap: LotDsp の学び（/api/config・/api/lotdsp/status の lotdsp_api）。cells: 変換表の行・標準に置く値（標準にする・標準に戻す。版 3.113.0 の作った後の直し）。seconds: LotDsp の設定の秒（direct.timeout_seconds・既定 60）。uistate: 画面の控え（GET の版の字と名前・POST {changed: {tpa.x: \"1\"}} の後の版と残る名前）",
  "rows": [
   {
    "name": "入力が表（手で直した共有の行）",
@@ -115,11 +115,79 @@
    "name": "入力が JSON でない字",
    "master": "conversions",
    "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": \"[bad\"}",
+   "why": "「入力」が JSON として読めません（'[bad'）",
+   "py": "既定の [] で読む（黙って入力の無い表）"
+  },
+  {
+   "name": "入力が前の版の repr の字",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": \"[{'name': 'a'}]\"}",
+   "why": "「入力」が JSON として読めません（\"[{'name': 'a'}]\"）",
+   "py": "既定の [] で読む（前の版の「標準に戻す」が書いた字。黙って入力の無い表）"
+  },
+  {
+   "name": "当て方が前の版の repr の字",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"当て方\": \"{'mode': 'add'}\"}",
+   "why": "「当て方」が JSON として読めません（\"{'mode': 'add'}\"）",
+   "py": "既定の {} で読む"
+  },
+  {
+   "name": "入力の要素が null",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": [null]}",
+   "why": "「入力」の 1 つ目が表ではありません（NoneType）",
+   "py": "素通し（画面の plan・inputs.map が TypeError）"
+  },
+  {
+   "name": "入力の 2 つ目が字",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": \"[{\\\"name\\\": \\\"a\\\"}, \\\"b\\\"]\"}",
+   "why": "「入力」の 2 つ目が表ではありません（字）",
+   "py": "素通し（画面が落ちる）"
+  },
+  {
+   "name": "入力の columns が数",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": [{\"name\": \"a\", \"columns\": 5}]}",
+   "why": "「入力」の 1 つ目の columns が並びではありません（数）",
+   "py": "素通し（画面の plan が TypeError）"
+  },
+  {
+   "name": "入力の columns が字",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": [{\"name\": \"a\", \"columns\": \"列A\"}]}",
+   "why": "「入力」の 1 つ目の columns が並びではありません（字）",
+   "py": "素通し"
+  },
+  {
+   "name": "入力の columns が null",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": [{\"name\": \"a\", \"columns\": null}]}",
    "why": null,
    "view": {
-    "inputs": []
+    "inputs": [
+     {
+      "name": "a",
+      "columns": null
+     }
+    ]
    },
-   "py": "同じ（読めない字は既定）"
+   "py": "同じ"
+  },
+  {
+   "name": "当て方の column が数",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"当て方\": {\"mode\": \"add\", \"column\": 5}}",
+   "why": "「当て方」の column が字ではありません（数）",
+   "py": "素通し（画面の plan・planAll が TypeError）"
+  },
+  {
+   "name": "当て方の column が表",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"当て方\": \"{\\\"column\\\": {\\\"a\\\": 1}}\"}",
+   "why": "「当て方」の column が字ではありません（表）",
+   "py": "素通し"
   },
   {
    "name": "入力の字に NaN",
@@ -250,6 +318,27 @@
    "py": "同じ"
   },
   {
+   "name": "その他が鍵 2 つ以上の表（書かれた順）",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"その他\": {\"b\": 1, \"a\": 2, \"c\": [{\"z\": 1, \"y\": 2}]}}",
+   "why": null,
+   "view": {
+    "other": "{'b': 1, 'a': 2, 'c': [{'z': 1, 'y': 2}]}"
+   },
+   "py": "同じ（書かれた順の repr）。窓は鍵を並べ替えた（版 3.113.0 の作った後の採点の割れ 2）"
+  },
+  {
+   "name": "その他が小数の大きな数",
+   "master": "conversions",
+   "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"その他\": 2.5e19, \"表示順\": 1e19}",
+   "why": null,
+   "view": {
+    "other": "2.5e+19",
+    "order": 10000000000000000000
+   },
+   "py": "同じ。窓は 8 本を中身へ回した（割れ 6）"
+  },
+  {
    "name": "名前が並び",
    "master": "conversions",
    "raw": "{\"id\": 1, \"名前\": \"t\", \"rev\": 1, \"入力\": \"[]\"}",
@@ -258,6 +347,16 @@
     "name": "t"
    },
    "py": "同じ"
+  },
+  {
+   "name": "名前が鍵 2 つの表（書かれた順の str()）",
+   "master": "conversions",
+   "raw": "{\"id\": 3, \"名前\": {\"y\": \"名\", \"x\": 1}, \"rev\": 1}",
+   "why": null,
+   "view": {
+    "name": "{'y': '名', 'x': 1}"
+   },
+   "py": "同じ。窓は鍵を並べ替えた（割れ 2）"
   },
   {
    "name": "名前が並び（str() で読む）",
@@ -376,6 +475,14 @@
    "py": "一覧の答えが JSON でない（NaN）。窓は中身へ回した"
   },
   {
+   "name": "備考が鍵 2 つの表",
+   "raw": "{\"id\": 12, \"キー\": \"g4\", \"設備名\": \"x\", \"備考\": {\"b\": 1, \"a\": 2}, \"rev\": 1}",
+   "why": null,
+   "listed": true,
+   "skipped": false,
+   "py": "同じ（値は表のまま答える）"
+  },
+  {
    "name": "id が字",
    "raw": "{\"id\": \"x\", \"キー\": \"g3\", \"設備名\": \"字の id\", \"rev\": 1}",
    "why": "id が数ではありません（'x'）",
@@ -430,6 +537,13 @@
     }
    ],
    "py": "同じ"
+  },
+  {
+   "name": "表示名が鍵 2 つの表",
+   "raw": "{\"id\": 15, \"キー\": \"s9\", \"表示名\": {\"b\": 1, \"a\": 2}, \"結合\": \"\"}",
+   "why": null,
+   "joins": [],
+   "py": "同じ（一覧は書かれた順の str()）"
   }
  ],
  "keymap": [
@@ -976,6 +1090,64 @@
     ]
    },
    "py": "同じ（int(5.7)）"
+  }
+ ],
+ "cells": [
+  {
+   "name": "入力が並び（鍵は書かれた順）",
+   "col": "入力",
+   "raw": "[{\"type\": \"text\", \"name\": \"a\", \"columns\": [\"列A\"]}]",
+   "want": "[{\"type\": \"text\", \"name\": \"a\", \"columns\": [\"列A\"]}]",
+   "py": "標準にするは並びのまま置き、標準に戻すは repr の字（\"[{'type': 'text', …}]\"）にして表が空になった"
+  },
+  {
+   "name": "判定が並び",
+   "col": "判定",
+   "raw": "[{\"out\": \"有\", \"when\": {}}]",
+   "want": "[{\"out\": \"有\", \"when\": {}}]",
+   "py": "同じく repr の字で空になった"
+  },
+  {
+   "name": "当て方が表",
+   "col": "当て方",
+   "raw": "{\"mode\": \"add\", \"column\": \"{列}_x\"}",
+   "want": "{\"mode\": \"add\", \"column\": \"{列}_x\"}",
+   "py": "repr の字で既定の {} になった"
+  },
+  {
+   "name": "入力が JSON の字",
+   "col": "入力",
+   "raw": "\"[]\"",
+   "want": "[]",
+   "py": "同じ"
+  },
+  {
+   "name": "その他が並び（中身の列でない）",
+   "col": "その他",
+   "raw": "[\"x\", 1]",
+   "want": "['x', 1]",
+   "py": "同じ（str()）"
+  },
+  {
+   "name": "その他が鍵 2 つの表",
+   "col": "その他",
+   "raw": "{\"b\": 1, \"a\": 2}",
+   "want": "{'b': 1, 'a': 2}",
+   "py": "同じ（窓は鍵を並べ替えた）"
+  },
+  {
+   "name": "名前の前後の空白",
+   "col": "名前",
+   "raw": "\" 課名 \"",
+   "want": "課名",
+   "py": "同じ（_clean）"
+  },
+  {
+   "name": "入力が null",
+   "col": "入力",
+   "raw": "null",
+   "want": "",
+   "py": "同じ"
   }
  ]
 }

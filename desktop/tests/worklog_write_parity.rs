@@ -97,7 +97,8 @@ fn work_log_registration_matches_python() {
             };
             // 答えは窓が画面へ返す字（held::reply_bytes: 持っている NaN は null）で比べる
             let text = String::from_utf8(da_core::held::reply_bytes(&got)).unwrap();
-            let got: Value = serde_json::from_str(&text.replace(&esc("rs"), &esc("py"))).unwrap();
+            // 大きな整数は桁のまま読む（版 3.113.0 の作った後の採点の割れ 7 (c): serde は 10^20 を 1e+20 の小数に丸めた）
+            let got: Value = common::json_keep(text.replace(&esc("rs"), &esc("py")).as_bytes()).unwrap();
             let want = &st["json"];
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want, &fids), &norm(&got, &fids), "").is_some() {
                 bad.push(format!(

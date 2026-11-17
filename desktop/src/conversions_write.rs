@@ -697,7 +697,7 @@ pub fn set_between_writes(f: Option<Between>) {
 /// 変換表の行・標準へ置く値（Python の master_repository._conv_cell。版 3.113.0 の作った後の採点の割れ 1）: 中身の列（入力・判定・当て方）の
 /// 並び・表そのものは、画面が書くのと同じ JSON の字（json.dumps(ensure_ascii=False)。表の鍵は書かれた順: held::to_j）。ほかは _clean の字。
 /// 前は「標準にする」で並び・表のまま置き、「標準に戻す」で repr の字にして、戻した表が黙って空になった
-fn conv_cell(k: &str, v: Option<&Value>) -> Value {
+pub fn conv_cell(k: &str, v: Option<&Value>) -> Value {
     match v {
         Some(x @ (Value::Array(_) | Value::Object(_))) if matches!(k, "入力" | "判定" | "当て方") => {
             json!(crate::held::to_j(x).dumps(None))

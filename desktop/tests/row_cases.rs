@@ -139,9 +139,17 @@ fn rowshape_like_the_table() {
             bad.push(format!("{name}: 書き {rev:?} {kept:?}（表 {} {want_kept:?}）", w["postRev"]));
         }
     }
+    // 標準に置く値・標準から戻す値（版 3.113.0 の作った後の採点の割れ 1）
+    for c in t["cells"].as_array().unwrap() {
+        let raw = da_core::held::parse(c["raw"].as_str().unwrap()).unwrap();
+        let got = da_core::conversions_write::conv_cell(c["col"].as_str().unwrap(), Some(&raw));
+        if got != c["want"] {
+            bad.push(format!("{}: 窓 {got}（表 {}）", c["name"], c["want"]));
+        }
+    }
     let _ = std::fs::remove_dir_all(&dir);
     assert!(bad.is_empty(), "{} 件違います:\n{}", bad.len(), bad.join("\n"));
-    for part in ["rows", "worklog", "sources", "keymap", "seconds", "uistate"] {
+    for part in ["rows", "worklog", "sources", "keymap", "seconds", "uistate", "cells"] {
         assert!(t[part].as_array().unwrap().iter().all(|c| c["py"].as_str().is_some_and(|p| !p.is_empty())), "{part} の py");
     }
 }

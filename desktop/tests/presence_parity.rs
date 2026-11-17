@@ -159,6 +159,15 @@ fn presence_matches_python() {
             };
             let Some((status, got)) = got else { continue };
             steps += 1;
+            // 画面へ返す字（held::reply_bytes）に、持っている対の無い代用字の私用面の字を出さない（Flask の jsonify と同じ \udXXX の字。
+            // 版 3.113.0 の作った後の採点の割れ 7 (b): 値で比べると見えない）
+            let text = String::from_utf8(da_core::held::reply_bytes(&got)).unwrap();
+            if text.chars().any(|c| da_core::held::lone_unit(c).is_some()) {
+                bad.push(format!("{name} [{i}] 答えの字に私用面の字（対の無い代用字を \\udXXX で書いていない）: {}", text.chars().take(200).collect::<String>()));
+            }
+            if st["json"].to_string().contains("\\ud8") && !text.contains("\\ud8") {
+                bad.push(format!("{name} [{i}] Python の答えにある \\udXXX の字が窓の答えに無い: {}", text.chars().take(200).collect::<String>()));
+            }
             let got = swap_root(&got, rs, py);
             let want = &st["json"];
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(want, &got, "").is_some() {

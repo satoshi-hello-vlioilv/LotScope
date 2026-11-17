@@ -167,9 +167,18 @@ class RowShape(unittest.TestCase):
                     bad.append(f"{c['name']}: 書き {rev} {sorted(after['keys'])}（表 {w['postRev']} {w['kept']}）")
         self.assertEqual(bad, [])
 
+    def test_cells_set_and_reset(self):
+        """標準に置く値・標準から戻す値（版 3.113.0 の作った後の採点の割れ 1）: 中身の列の並び・表は画面が書くのと同じ JSON の字（書かれた鍵の順）"""
+        bad = []
+        for c in SHAPES["cells"]:
+            got = mr.conv_cell(c["col"], json.loads(c["raw"]))
+            if got != c["want"]:
+                bad.append(f"{c['name']}: Python {got!r}（表 {c['want']!r}）")
+        self.assertEqual(bad, [])
+
     def test_py_column_tells_the_old_answer(self):
         """どの事例にも版 3.112.0 の Python の答え（py）が書いてある（正しい答えと違う形は Python も直した）"""
-        for part in ("rows", "worklog", "sources", "keymap", "seconds", "uistate"):
+        for part in ("rows", "worklog", "sources", "keymap", "seconds", "uistate", "cells"):
             for c in SHAPES[part]:
                 self.assertTrue(c.get("py"), f"{part} {c['name']}")
 

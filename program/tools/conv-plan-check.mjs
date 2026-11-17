@@ -80,5 +80,15 @@ check(`6. 読む行の形（${read.length} 件）の答えを画面の部品に�
 const old = SHAPES.rows.filter((c) => c.why && c.why.startsWith("「入力」が並びではありません（表）")).map((c) => JSON.parse(c.raw)["入力"]).filter((v) => v && typeof v === "object");
 check("6. 隔てる行（入力が表）の前の Python の答え（表のまま素通し）は画面の部品で落ちる（だから隔てる）",
   old.length >= 1 && old.every((inputs) => parts({ ...base, inputs }).length > 0), old);
+// 版 3.113.0 の作った後の採点の割れ 3: 入力の要素が表でない・columns が並びでない（数）・当て方の column が字でない形も、前の答え（素通し）は落ちる
+const J2 = (v) => (typeof v === "string" ? JSON.parse(v) : v);
+const elems = SHAPES.rows.filter((c) => c.why && /「入力」の \d+ つ目|「当て方」の column/.test(c.why)).map((c) => {
+  const r = JSON.parse(c.raw);
+  return { name: c.name, item: { ...base, ...(r["入力"] != null ? { inputs: J2(r["入力"]) } : { inputs: [{ name: "a" }] }), ...(r["当て方"] != null ? { apply: J2(r["当て方"]) } : {}) } };
+});
+// 字の要素・字の columns は画面では落ちないが、決まりを 1 つにするため同じく隔てる（数える物から外す）
+const kept = elems.filter((e) => !parts(e.item).length && !["入力の 2 つ目が字", "入力の columns が字"].includes(e.name)).map((e) => e.name);
+check(`6. 隔てる要素の形（${elems.length} 件）の前の答えは画面の部品で落ちる（入力の要素が表でない・columns が数・column が字でない。だから隔てる）`,
+  elems.length >= 6 && kept.length === 0, kept);
 console.log(bad ? `NG ${bad} 件` : "OK 変換表を当てる計画は合っています");
 process.exit(bad ? 1 : 0);

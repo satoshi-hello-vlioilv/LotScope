@@ -282,6 +282,12 @@ SCENARIOS = [
         {"op": "file", "t": at(5), "path": "@local/ui_state.json", "text": '{"rev": 1, "keys": {"tpa.n": 100000000000000000000, "tpa.f": NaN, "tpa.g": "g"}}'},
         R(at(5), U1, "GET", "/api/ui-state"),
         R(at(5), U1, "POST", "/api/ui-state", {"changed": {"tpa.h": "h"}}),
+        # 版 3.113.0 の作った後の採点の割れ 7 (a): 大きさの境は対の無い代用字を書く字（\\udXXX の 6 字）で数える。
+        # {"tpa.l": "<代用字>", "tpa.big": "a"×K} の字は K + 34（代用字を 4 字と数えると K + 32）。K = 4MB − 34 は通り、− 33 は断る
+        {"op": "file", "t": at(6), "path": "@local/ui_state.json", "text": '{"rev": 1, "keys": {"tpa.l": "\\ud800"}}'},
+        R(at(6), U1, "POST", "/api/ui-state", {"changed": {"tpa.big": "a" * (4 * 1024 * 1024 - 33)}}),
+        R(at(6), U1, "POST", "/api/ui-state", {"changed": {"tpa.big": "a" * (4 * 1024 * 1024 - 34)}}),
+        R(at(6), U1, "GET", "/api/ui-state"),
     ]},
 ]
 
@@ -315,6 +321,8 @@ def snapshot(root):
         try:
             indent = 0 if rel.endswith("ui_state.json") else 1
             canon = json.dumps(json.loads(text), ensure_ascii=False, indent=indent, sort_keys=True) + "\n"
+            # 対の無い代用字はファイルに書く字（write_json_atomic の backslashreplace: \\udXXX）にそろえる（版 3.113.0）
+            canon = canon.encode("utf-8", "backslashreplace").decode("utf-8")
         except ValueError:
             canon = None
         out[rel] = {"text": text, "canon": canon}
