@@ -243,7 +243,10 @@ fn same_remaining(py: &Value, rs: &mut Value) {
 fn master_writes_match_python() {
     let base = common::work("masters-parity");
     let py_base = base.join("py");
-    let oracle = common::python_json("masters_oracle.py", &[py_base.to_str().unwrap()]);
+    // 場面の置き場は窓が場面の宣言（scenario）から作る（setup）ので、焼いた表の宣言には持たない
+    let mut bk = common::bake::Bake::open("masters", &base);
+    (bk.strip, bk.strip_in) = (vec!["results".into()], vec!["scenario"]);
+    let oracle = bk.oracle("masters_oracle.py", &[py_base.to_str().unwrap()]);
     let mut bad = vec![];
     let cases = oracle.as_array().unwrap();
     assert!(cases.len() >= 20, "場面が少ない: {}", cases.len());
@@ -257,20 +260,27 @@ fn master_writes_match_python() {
         let mut got = vec![];
         run(&work, &st, sc["steps"].as_array().unwrap(), &mut got);
         let pw = case["work"].as_str().unwrap();
-        let want: Vec<Value> = case["results"].as_array().unwrap().iter().map(|x| norm(x, pw)).collect();
+        let want =
+            bk.want(&format!("{name} 答え"), || Value::Array(case["results"].as_array().unwrap().iter().map(|x| norm(x, pw)).collect()));
         let mut got: Vec<Value> = got.iter().map(|x| norm(x, work.to_str().unwrap())).collect();
-        for (w, g) in want.iter().zip(got.iter_mut()) {
+        for (w, g) in want.as_array().unwrap().iter().zip(got.iter_mut()) {
             same_remaining(w, g);
         }
-        let (want, got) = (Value::Array(want), Value::Array(got));
+        let got = Value::Array(got);
+        bk.note(&format!("{name} 答え"), "masters", &got, &want);
+        let (want, got) = (bk.s(&want), bk.s(&got));
         if let Some(d) = common::diff(&want, &got, "答え") {
             bad.push(format!("{name}: {d}\n  Python {want}\n  Rust   {got}"));
         }
-        let (fp, fr) = (norm(&files(Path::new(pw)), pw), norm(&files(&work), work.to_str().unwrap()));
+        let fp = bk.want(&format!("{name} ファイル"), || norm(&files(Path::new(pw)), pw));
+        let fr = norm(&files(&work), work.to_str().unwrap());
+        bk.note(&format!("{name} ファイル"), "files", &fr, &fp);
+        let (fp, fr) = (bk.s(&fp), bk.s(&fr));
         if let Some(d) = common::diff(&fp, &fr, "ファイル") {
             bad.push(format!("{name}: {d}\n  Python {fp}\n  Rust   {fr}"));
         }
     }
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
@@ -453,12 +463,16 @@ fn stores_keep_their_own_lock_place() {
 #[test]
 fn shared_always_matches_python() {
     let base = common::work("masters-shared");
-    let oracle = common::python_json("masters_oracle.py", &[base.join("py").to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open_part("masters", "shared", &base);
+    (bk.strip, bk.strip_in) = (vec!["results".into()], vec!["scenario"]);
+    let oracle = bk.oracle("masters_oracle.py", &[base.join("py").to_str().unwrap()]);
     let py: Vec<String> = oracle[0]["config"]["shared"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
     let mut rs: Vec<String> = da_core::master_store::SHARED_ALWAYS.iter().map(|s| s.to_string()).collect();
     rs.extend(["equipment_master".to_string(), "roll_master".to_string()]);
     rs.sort();
     rs.dedup();
+    bk.note("shared", "shared", &json!(rs), &json!(py));
     assert_eq!(rs, py);
+    bk.finish(&[]);
     let _ = std::fs::remove_dir_all(&base);
 }

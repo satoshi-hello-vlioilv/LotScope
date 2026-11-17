@@ -256,11 +256,7 @@ fn release_place_matches_python() {
                 g["final"] = norm(&fin, rs);
                 denied += w["final"].to_string().contains("Permission denied") as usize;
                 if let Some(d) = common::diff(&bk.s(&w["final"]), &bk.s(&norm(&fin, rs)), "") {
-                    bad.push(format!(
-                        "{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}",
-                        w["final"],
-                        norm(&fin, rs)
-                    ));
+                    bad.push(format!("{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}", w["final"], norm(&fin, rs)));
                 }
             }
             bk.note(&key, &common::bake::route_of(st), &g, &w);

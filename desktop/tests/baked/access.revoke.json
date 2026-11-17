@@ -1,0 +1,571 @@
+{
+ "about": "窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 access.revoke。作り直すのは python program/tools/bless.py access.revoke",
+ "answers": {
+  "-NaN は読めない": null,
+  "1NaN は読めない": null,
+  "BOM 付き": null,
+  "JSON の NaN": {"at":"@T","by":"b","byPc":"","reason":"","remainingSec":179},
+  "NaN の並び": {"at":"@T","by":"","byPc":"","reason":"","remainingSec":179},
+  "at ''": null,
+  "at '2026-11-03 09:58'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-03'": null,
+  "at '2026-11-03T09'": null,
+  "at '2026-11-03T09,25'": null,
+  "at '2026-11-03T09.'": null,
+  "at '2026-11-03T09.5'": null,
+  "at '2026-11-03T0958'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-03T0958,5'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":180},
+  "at '2026-11-03T0958.5'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":180},
+  "at '2026-11-03T09:5'": null,
+  "at '2026-11-03T09:55:00'": null,
+  "at '2026-11-03T09:55:00.249999'": null,
+  "at '2026-11-03T09:55:00.250000'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":0},
+  "at '2026-11-03T09:58.'": null,
+  "at '2026-11-03T09:58.5'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":180},
+  "at '2026-11-03T09:5800'": null,
+  "at '2026-11-03T09:58:00'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-03T09:58:00+09:00'": null,
+  "at '2026-11-03T09:58:00,5'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":180},
+  "at '2026-11-03T09:58:00-'": null,
+  "at '2026-11-03T09:58:00.'": null,
+  "at '2026-11-03T09:58:00.1234567'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-03T09:58:00.5.5'": null,
+  "at '2026-11-03T09:58:00.5x'": null,
+  "at '2026-11-03T09:58:00Z'": null,
+  "at '2026-11-03T09:58:60'": null,
+  "at '2026-11-03T10:00:30'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":329},
+  "at '2026-11-03T24:00:00'": null,
+  "at '2026-11-03T9:58'": null,
+  "at '2026-11-03X09:58'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-03\\u300009:58'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-11-3'": null,
+  "at '2026-13-03T09:00'": null,
+  "at '2026-W45'": null,
+  "at '2026-W45-2'": null,
+  "at '2026-W45-2T09:58'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026-W452T0958'": null,
+  "at '20261103 095800.5'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":180},
+  "at '20261103'": null,
+  "at '20261103T095800'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026W4'": null,
+  "at '2026W45'": null,
+  "at '2026W45209'": null,
+  "at '2026W4520958'": null,
+  "at '2026W452T09'": null,
+  "at '2026W452T0958'": {"at":"@T","by":"boss","byPc":"","reason":"r","remainingSec":179},
+  "at '2026W45T0958'": null,
+  "at 'きのう'": null,
+  "at が NaN": null,
+  "at が null": null,
+  "at が数": null,
+  "at が無い": null,
+  "by が null": {"at":"@T","by":null,"byPc":3,"reason":"","remainingSec":179},
+  "utf-8 でない": null,
+  "ファイルが無い": null,
+  "並び": null,
+  "壊れた字": null,
+  "空のファイル": null,
+  "空の表": null,
+  "読めない印": null,
+  "鍵が .. を含む": null,
+  "鍵が点で始まる": null,
+  "鍵に空白": null
+ },
+ "book": "access",
+ "file": "access.revoke",
+ "oracle": {
+  "cases": [
+   {
+    "key": "k0",
+    "label": "at '2026-11-03T09:58:00'"
+   },
+   {
+    "key": "k1",
+    "label": "at '2026-11-03 09:58'"
+   },
+   {
+    "key": "k2",
+    "label": "at '2026-11-03T09'"
+   },
+   {
+    "key": "k3",
+    "label": "at '2026-11-03T0958'"
+   },
+   {
+    "key": "k4",
+    "label": "at '20261103T095800'"
+   },
+   {
+    "key": "k5",
+    "label": "at '20261103 095800.5'"
+   },
+   {
+    "key": "k6",
+    "label": "at '2026-11-03T09:58:00,5'"
+   },
+   {
+    "key": "k7",
+    "label": "at '2026-11-03T09:58:00.1234567'"
+   },
+   {
+    "key": "k8",
+    "label": "at '2026-11-03X09:58'"
+   },
+   {
+    "key": "k9",
+    "label": "at '2026-11-03\\u300009:58'"
+   },
+   {
+    "key": "k10",
+    "label": "at '2026-W45-2T09:58'"
+   },
+   {
+    "key": "k11",
+    "label": "at '2026W452T0958'"
+   },
+   {
+    "key": "k12",
+    "label": "at '2026-W45-2'"
+   },
+   {
+    "key": "k13",
+    "label": "at '2026W45'"
+   },
+   {
+    "key": "k14",
+    "label": "at '2026-W45'"
+   },
+   {
+    "key": "k15",
+    "label": "at '2026-11-03'"
+   },
+   {
+    "key": "k16",
+    "label": "at '20261103'"
+   },
+   {
+    "key": "k17",
+    "label": "at '2026-11-03T9:58'"
+   },
+   {
+    "key": "k18",
+    "label": "at '2026-11-03T09:5'"
+   },
+   {
+    "key": "k19",
+    "label": "at '2026-11-03T09:5800'"
+   },
+   {
+    "key": "k20",
+    "label": "at '2026-11-03T24:00:00'"
+   },
+   {
+    "key": "k21",
+    "label": "at '2026-11-03T09:58:00Z'"
+   },
+   {
+    "key": "k22",
+    "label": "at '2026-11-03T09:58:00+09:00'"
+   },
+   {
+    "key": "k23",
+    "label": "at '2026-11-03T09:58:00-'"
+   },
+   {
+    "key": "k24",
+    "label": "at '2026-11-3'"
+   },
+   {
+    "key": "k25",
+    "label": "at '2026-13-03T09:00'"
+   },
+   {
+    "key": "k26",
+    "label": "at '2026-11-03T09:58:60'"
+   },
+   {
+    "key": "k27",
+    "label": "at '2026-11-03T09:58:00.'"
+   },
+   {
+    "key": "k28",
+    "label": "at '2026-11-03T09:58:00.5x'"
+   },
+   {
+    "key": "k29",
+    "label": "at 'きのう'"
+   },
+   {
+    "key": "k30",
+    "label": "at ''"
+   },
+   {
+    "key": "k31",
+    "label": "at '2026-11-03T09:55:00.250000'"
+   },
+   {
+    "key": "k32",
+    "label": "at '2026-11-03T09:55:00.249999'"
+   },
+   {
+    "key": "k33",
+    "label": "at '2026-11-03T09.5'"
+   },
+   {
+    "key": "k34",
+    "label": "at '2026-11-03T09:58.5'"
+   },
+   {
+    "key": "k35",
+    "label": "at '2026-11-03T0958,5'"
+   },
+   {
+    "key": "k36",
+    "label": "at '2026-11-03T0958.5'"
+   },
+   {
+    "key": "k37",
+    "label": "at '2026-11-03T09,25'"
+   },
+   {
+    "key": "k38",
+    "label": "at '2026-11-03T09.'"
+   },
+   {
+    "key": "k39",
+    "label": "at '2026-11-03T09:58.'"
+   },
+   {
+    "key": "k40",
+    "label": "at '2026-11-03T09:58:00.5.5'"
+   },
+   {
+    "key": "k41",
+    "label": "at '2026W45T0958'"
+   },
+   {
+    "key": "k42",
+    "label": "at '2026W452T09'"
+   },
+   {
+    "key": "k43",
+    "label": "at '2026W4520958'"
+   },
+   {
+    "key": "k44",
+    "label": "at '2026W45209'"
+   },
+   {
+    "key": "k45",
+    "label": "at '2026-W452T0958'"
+   },
+   {
+    "key": "k46",
+    "label": "at '2026-11-03T09:55:00'"
+   },
+   {
+    "key": "k47",
+    "label": "at '2026-11-03T10:00:30'"
+   },
+   {
+    "key": "k48",
+    "label": "at '2026W4'"
+   },
+   {
+    "key": "k49",
+    "label": "BOM 付き"
+   },
+   {
+    "key": "k50",
+    "label": "at が数"
+   },
+   {
+    "key": "k51",
+    "label": "at が null"
+   },
+   {
+    "key": "k52",
+    "label": "at が無い"
+   },
+   {
+    "key": "k53",
+    "label": "by が null"
+   },
+   {
+    "key": "k54",
+    "label": "JSON の NaN"
+   },
+   {
+    "key": "k55",
+    "label": "at が NaN"
+   },
+   {
+    "key": "k56",
+    "label": "読めない印"
+   },
+   {
+    "key": "k57",
+    "label": "-NaN は読めない"
+   },
+   {
+    "key": "k58",
+    "label": "1NaN は読めない"
+   },
+   {
+    "key": "k59",
+    "label": "NaN の並び"
+   },
+   {
+    "key": "k60",
+    "label": "並び"
+   },
+   {
+    "key": "k61",
+    "label": "空の表"
+   },
+   {
+    "key": "k62",
+    "label": "壊れた字"
+   },
+   {
+    "key": "k63",
+    "label": "utf-8 でない"
+   },
+   {
+    "key": "k64",
+    "label": "空のファイル"
+   },
+   {
+    "key": "a..b65",
+    "label": "鍵が .. を含む"
+   },
+   {
+    "key": ".k66",
+    "label": "鍵が点で始まる"
+   },
+   {
+    "key": "a b67",
+    "label": "鍵に空白"
+   },
+   {
+    "key": "none",
+    "label": "ファイルが無い"
+   }
+  ],
+  "now": "2026-11-03T10:00:00.250000"
+ },
+ "os": "posix",
+ "routes": {
+  "-NaN は読めない": "revoke",
+  "1NaN は読めない": "revoke",
+  "BOM 付き": "revoke",
+  "JSON の NaN": "revoke",
+  "NaN の並び": "revoke",
+  "at ''": "revoke",
+  "at '2026-11-03 09:58'": "revoke",
+  "at '2026-11-03'": "revoke",
+  "at '2026-11-03T09'": "revoke",
+  "at '2026-11-03T09,25'": "revoke",
+  "at '2026-11-03T09.'": "revoke",
+  "at '2026-11-03T09.5'": "revoke",
+  "at '2026-11-03T0958'": "revoke",
+  "at '2026-11-03T0958,5'": "revoke",
+  "at '2026-11-03T0958.5'": "revoke",
+  "at '2026-11-03T09:5'": "revoke",
+  "at '2026-11-03T09:55:00'": "revoke",
+  "at '2026-11-03T09:55:00.249999'": "revoke",
+  "at '2026-11-03T09:55:00.250000'": "revoke",
+  "at '2026-11-03T09:58.'": "revoke",
+  "at '2026-11-03T09:58.5'": "revoke",
+  "at '2026-11-03T09:5800'": "revoke",
+  "at '2026-11-03T09:58:00'": "revoke",
+  "at '2026-11-03T09:58:00+09:00'": "revoke",
+  "at '2026-11-03T09:58:00,5'": "revoke",
+  "at '2026-11-03T09:58:00-'": "revoke",
+  "at '2026-11-03T09:58:00.'": "revoke",
+  "at '2026-11-03T09:58:00.1234567'": "revoke",
+  "at '2026-11-03T09:58:00.5.5'": "revoke",
+  "at '2026-11-03T09:58:00.5x'": "revoke",
+  "at '2026-11-03T09:58:00Z'": "revoke",
+  "at '2026-11-03T09:58:60'": "revoke",
+  "at '2026-11-03T10:00:30'": "revoke",
+  "at '2026-11-03T24:00:00'": "revoke",
+  "at '2026-11-03T9:58'": "revoke",
+  "at '2026-11-03X09:58'": "revoke",
+  "at '2026-11-03\\u300009:58'": "revoke",
+  "at '2026-11-3'": "revoke",
+  "at '2026-13-03T09:00'": "revoke",
+  "at '2026-W45'": "revoke",
+  "at '2026-W45-2'": "revoke",
+  "at '2026-W45-2T09:58'": "revoke",
+  "at '2026-W452T0958'": "revoke",
+  "at '20261103 095800.5'": "revoke",
+  "at '20261103'": "revoke",
+  "at '20261103T095800'": "revoke",
+  "at '2026W4'": "revoke",
+  "at '2026W45'": "revoke",
+  "at '2026W45209'": "revoke",
+  "at '2026W4520958'": "revoke",
+  "at '2026W452T09'": "revoke",
+  "at '2026W452T0958'": "revoke",
+  "at '2026W45T0958'": "revoke",
+  "at 'きのう'": "revoke",
+  "at が NaN": "revoke",
+  "at が null": "revoke",
+  "at が数": "revoke",
+  "at が無い": "revoke",
+  "by が null": "revoke",
+  "utf-8 でない": "revoke",
+  "ファイルが無い": "revoke",
+  "並び": "revoke",
+  "壊れた字": "revoke",
+  "空のファイル": "revoke",
+  "空の表": "revoke",
+  "読めない印": "revoke",
+  "鍵が .. を含む": "revoke",
+  "鍵が点で始まる": "revoke",
+  "鍵に空白": "revoke"
+ },
+ "scene": {
+  "blobs": {
+   "046690229aff2dd7": {"text":"{\"x\": 1NaN, \"at\": \"2026-11-03T09:58:00\"}"},
+   "08bdc4695e894ed2": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:55:00\"}"},
+   "10bb7b282b4affa6": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-13-03T09:00\"}"},
+   "1187924098706704": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-3\"}"},
+   "1f50fe630eec0c03": {"text":"{}"},
+   "254076411f585c4a": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09.5\"}"},
+   "27c15ec50adb59f2": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W4520958\"}"},
+   "32a3de2ea642f974": {"text":"{\"_unreadable\": true, \"at\": \"2026-11-03T09:58:00\"}"},
+   "3fcfbbf10e6e294e": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09\"}"},
+   "401bd49783ebe044": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03 09:58\"}"},
+   "487062af0af0e5e5": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:5\"}"},
+   "491e19bba22f808e": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"20261103 095800.5\"}"},
+   "4f24094cbd9070e8": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-W452T0958\"}"},
+   "5258a8531c7cfa4a": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03　09:58\"}"},
+   "52b984bffb601fb9": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W452T09\"}"},
+   "53f2b92c2eaf7ffd": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00.5.5\"}"},
+   "53fee394264d00ff": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09,25\"}"},
+   "5abc5b7e47246579": {"text":"{\"x\": [NaN, Infinity, -Infinity, 1e999, -1e999], \"at\": \"2026-11-03T09:58:00\"}"},
+   "5e779c1a59efdc5f": {"text":"{\"by\": \"b\", \"x\": NaN, \"y\": -Infinity, \"at\": \"2026-11-03T09:58:00\"}"},
+   "61971d7d81d512c9": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"20261103\"}"},
+   "63be7e41e020bc00": {"text":""},
+   "72fcf7c2c018ec63": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00\"}"},
+   "76a97255de86b959": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T10:00:30\"}"},
+   "76d22d07cf08bccb": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W4\"}"},
+   "79e3c5dc92b936ad": {"text":"{\"by\": \"b\", \"at\": 20261103}"},
+   "7be9e0f459b3ddc1": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T0958,5\"}"},
+   "7d1d69a8571dd03c": {"text":"{\"at\": NaN}"},
+   "7d21c65778351ed8": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W45209\"}"},
+   "7e2d86a386226f15": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-W45\"}"},
+   "7e820bbd76a3b0fa": {"text":"{\"by\": null, \"byPc\": 3, \"at\": \"2026-11-03T09:58:00\"}"},
+   "7f0a6a3e5a25b28c": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:60\"}"},
+   "829d791ac3c841f4": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T24:00:00\"}"},
+   "88726ed6cf9e28fa": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T0958\"}"},
+   "8984cf84c11f8145": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58.\"}"},
+   "8b320ba8e0c6308b": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W45T0958\"}"},
+   "8d42466a05cfddac": {"text":"﻿{\"by\": \"b\", \"at\": \"2026-11-03T09:58:00\"}"},
+   "96e20ffc3ae4e375": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58.5\"}"},
+   "9a0d83329fc87a54": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00+09:00\"}"},
+   "9eb946cbd6a4c143": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W452T0958\"}"},
+   "a100ae48f0dde301": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03\"}"},
+   "a237cb75763dcae4": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T9:58\"}"},
+   "a71a0a6a18b6c092": {"text":"{\"x\": -NaN, \"at\": \"2026-11-03T09:58:00\"}"},
+   "a72da925dbeca8fc": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"きのう\"}"},
+   "afb8b63dc5367b67": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03X09:58\"}"},
+   "b7c0f51760a2d180": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"\"}"},
+   "bd83900f4e1a096d": {"text":"[1, 2]"},
+   "ca366ddc402c749a": {"text":"{\"by\": \"b\", \"at\": null}"},
+   "cff9d900d0014c5b": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00.5x\"}"},
+   "da28f63c6f81f430": {"text":"{\"by\": \"b\"}"},
+   "dabf1e47e9cdd962": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T0958.5\"}"},
+   "de7a20213edbdd90": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:5800\"}"},
+   "df86d3632c0e85ce": {"b64":"eyJieSI6ICKCoCIsICJhdCI6ICIyMDI2LTExLTAzVDA5OjU4OjAwIn0="},
+   "dfb0827279cb9044": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00.\"}"},
+   "e07518249e323af9": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00.1234567\"}"},
+   "e17cdbcfd1a65550": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00,5\"}"},
+   "e299ad3f8187e7e6": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-W45-2\"}"},
+   "e9ee1338462824da": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"20261103T095800\"}"},
+   "ee3f5d1e377ff29b": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026W45\"}"},
+   "efe89238b3b761ad": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-W45-2T09:58\"}"},
+   "f0ba179206100b26": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00Z\"}"},
+   "f21a4e6464fc05fb": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09.\"}"},
+   "f406327679b18326": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:58:00-\"}"},
+   "f91032dfb28d8723": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:55:00.250000\"}"},
+   "fa997f4b3a4b9085": {"text":"{\"by\": \"boss\", \"reason\": \"r\", \"at\": \"2026-11-03T09:55:00.249999\"}"},
+   "fd14bf867f33bf4b": {"text":"{\"at\": "}
+  },
+  "dirs": {},
+  "files": {
+   "k0.revoke.json": {"blob":"72fcf7c2c018ec63","mtime":"@NOW(-25ms)"},
+   "k1.revoke.json": {"blob":"401bd49783ebe044","mtime":"@NOW(-33ms)"},
+   "k10.revoke.json": {"blob":"efe89238b3b761ad","mtime":"@NOW(-40ms)"},
+   "k11.revoke.json": {"blob":"9eb946cbd6a4c143","mtime":"@NOW(-47ms)"},
+   "k12.revoke.json": {"blob":"e299ad3f8187e7e6","mtime":"@NOW(-54ms)"},
+   "k13.revoke.json": {"blob":"ee3f5d1e377ff29b","mtime":"@NOW(-62ms)"},
+   "k14.revoke.json": {"blob":"7e2d86a386226f15","mtime":"@NOW(-69ms)"},
+   "k15.revoke.json": {"blob":"a100ae48f0dde301","mtime":"@NOW(-75ms)"},
+   "k16.revoke.json": {"blob":"61971d7d81d512c9","mtime":"@NOW(-82ms)"},
+   "k17.revoke.json": {"blob":"a237cb75763dcae4","mtime":"@NOW(-89ms)"},
+   "k18.revoke.json": {"blob":"487062af0af0e5e5","mtime":"@NOW(-98ms)"},
+   "k19.revoke.json": {"blob":"de7a20213edbdd90","mtime":"@NOW(-104ms)"},
+   "k2.revoke.json": {"blob":"3fcfbbf10e6e294e","mtime":"@NOW(-111ms)"},
+   "k20.revoke.json": {"blob":"829d791ac3c841f4","mtime":"@NOW(-116ms)"},
+   "k21.revoke.json": {"blob":"f0ba179206100b26","mtime":"@NOW(-122ms)"},
+   "k22.revoke.json": {"blob":"9a0d83329fc87a54","mtime":"@NOW(-128ms)"},
+   "k23.revoke.json": {"blob":"f406327679b18326","mtime":"@NOW(-134ms)"},
+   "k24.revoke.json": {"blob":"1187924098706704","mtime":"@NOW(-140ms)"},
+   "k25.revoke.json": {"blob":"10bb7b282b4affa6","mtime":"@NOW(-145ms)"},
+   "k26.revoke.json": {"blob":"7f0a6a3e5a25b28c","mtime":"@NOW(-151ms)"},
+   "k27.revoke.json": {"blob":"dfb0827279cb9044","mtime":"@NOW(-157ms)"},
+   "k28.revoke.json": {"blob":"cff9d900d0014c5b","mtime":"@NOW(-162ms)"},
+   "k29.revoke.json": {"blob":"a72da925dbeca8fc","mtime":"@NOW(-168ms)"},
+   "k3.revoke.json": {"blob":"88726ed6cf9e28fa","mtime":"@NOW(-174ms)"},
+   "k30.revoke.json": {"blob":"b7c0f51760a2d180","mtime":"@NOW(-179ms)"},
+   "k31.revoke.json": {"blob":"f91032dfb28d8723","mtime":"@NOW(-183ms)"},
+   "k32.revoke.json": {"blob":"fa997f4b3a4b9085","mtime":"@NOW(-189ms)"},
+   "k33.revoke.json": {"blob":"254076411f585c4a","mtime":"@NOW(-195ms)"},
+   "k34.revoke.json": {"blob":"96e20ffc3ae4e375","mtime":"@NOW(-201ms)"},
+   "k35.revoke.json": {"blob":"7be9e0f459b3ddc1","mtime":"@NOW(-207ms)"},
+   "k36.revoke.json": {"blob":"dabf1e47e9cdd962","mtime":"@NOW(-213ms)"},
+   "k37.revoke.json": {"blob":"53fee394264d00ff","mtime":"@NOW(-218ms)"},
+   "k38.revoke.json": {"blob":"f21a4e6464fc05fb","mtime":"@NOW(-224ms)"},
+   "k39.revoke.json": {"blob":"8984cf84c11f8145","mtime":"@NOW(-230ms)"},
+   "k4.revoke.json": {"blob":"e9ee1338462824da","mtime":"@NOW(-237ms)"},
+   "k40.revoke.json": {"blob":"53f2b92c2eaf7ffd","mtime":"@NOW(-241ms)"},
+   "k41.revoke.json": {"blob":"8b320ba8e0c6308b","mtime":"@NOW(-246ms)"},
+   "k42.revoke.json": {"blob":"52b984bffb601fb9","mtime":"@NOW(-252ms)"},
+   "k43.revoke.json": {"blob":"27c15ec50adb59f2","mtime":"@NOW(-257ms)"},
+   "k44.revoke.json": {"blob":"7d21c65778351ed8","mtime":"@NOW(-263ms)"},
+   "k45.revoke.json": {"blob":"4f24094cbd9070e8","mtime":"@NOW(-268ms)"},
+   "k46.revoke.json": {"blob":"08bdc4695e894ed2","mtime":"@NOW(-274ms)"},
+   "k47.revoke.json": {"blob":"76a97255de86b959","mtime":"@NOW(-278ms)"},
+   "k48.revoke.json": {"blob":"76d22d07cf08bccb","mtime":"@NOW(-284ms)"},
+   "k49.revoke.json": {"blob":"8d42466a05cfddac","mtime":"@NOW(-289ms)"},
+   "k5.revoke.json": {"blob":"491e19bba22f808e","mtime":"@NOW(-299ms)"},
+   "k50.revoke.json": {"blob":"79e3c5dc92b936ad","mtime":"@NOW(-303ms)"},
+   "k51.revoke.json": {"blob":"ca366ddc402c749a","mtime":"@NOW(-310ms)"},
+   "k52.revoke.json": {"blob":"da28f63c6f81f430","mtime":"@NOW(-317ms)"},
+   "k53.revoke.json": {"blob":"7e820bbd76a3b0fa","mtime":"@NOW(-324ms)"},
+   "k54.revoke.json": {"blob":"5e779c1a59efdc5f","mtime":"@NOW(-332ms)"},
+   "k55.revoke.json": {"blob":"7d1d69a8571dd03c","mtime":"@NOW(-339ms)"},
+   "k56.revoke.json": {"blob":"32a3de2ea642f974","mtime":"@NOW(-346ms)"},
+   "k57.revoke.json": {"blob":"a71a0a6a18b6c092","mtime":"@NOW(-354ms)"},
+   "k58.revoke.json": {"blob":"046690229aff2dd7","mtime":"@NOW(-361ms)"},
+   "k59.revoke.json": {"blob":"5abc5b7e47246579","mtime":"@NOW(-368ms)"},
+   "k6.revoke.json": {"blob":"e17cdbcfd1a65550","mtime":"@NOW(-378ms)"},
+   "k60.revoke.json": {"blob":"bd83900f4e1a096d","mtime":"@NOW(-381ms)"},
+   "k61.revoke.json": {"blob":"1f50fe630eec0c03","mtime":"@NOW(-389ms)"},
+   "k62.revoke.json": {"blob":"fd14bf867f33bf4b","mtime":"@NOW(-396ms)"},
+   "k63.revoke.json": {"blob":"df86d3632c0e85ce","mtime":"@NOW(-403ms)"},
+   "k64.revoke.json": {"blob":"63be7e41e020bc00","mtime":"@NOW(-403ms)"},
+   "k7.revoke.json": {"blob":"e07518249e323af9","mtime":"@NOW(-414ms)"},
+   "k8.revoke.json": {"blob":"afb8b63dc5367b67","mtime":"@NOW(-422ms)"},
+   "k9.revoke.json": {"blob":"5258a8531c7cfa4a","mtime":"@NOW(-429ms)"}
+  },
+  "links": {}
+ },
+ "sources": {
+  "tests/access_oracle.py": "11e14ba43570baef"
+ },
+ "variant": "root"
+}

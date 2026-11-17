@@ -97,7 +97,8 @@ def comparable(t):
     files = {rel: {**e, "blob": sc["blobs"].get(e["blob"])} for rel, e in sc["files"].items()}
     s = json.dumps({"oracle": t["oracle"], "answers": t["answers"], "files": files, "dirs": sc["dirs"], "links": sc["links"],
                     "variants": t.get("variants")}, ensure_ascii=False, sort_keys=True)
-    return json.loads(re.sub(r"@NOW\(-?\d+ms", "@NOW(~", s))
+    # 今からのずれと、Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
+    return json.loads(re.sub(r"\b[0-9a-f]{32}\b", "@HEX32", re.sub(r"@NOW\(-?\d+ms", "@NOW(~", s)))
 
 
 def first_diff(a, b, p=""):

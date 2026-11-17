@@ -515,7 +515,9 @@ fn decl_cmp(v: &Value) -> Value {
         }
     }
     let w = json!({"files": files, "dirs": v["dirs"], "links": v["links"]});
-    map_strings(&w, &|s| re.replace_all(s, "@NOW(~").into_owned())
+    // Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
+    let hex = regex::Regex::new(r"\b[0-9a-f]{32}\b").unwrap();
+    map_strings(&w, &|s| hex.replace_all(&re.replace_all(s, "@NOW(~"), "@HEX32").into_owned())
 }
 
 // ------------------------------------------------------------------ 焼く係
@@ -656,7 +658,8 @@ impl Bake {
         let ex: Vec<&str> = self.exclude.clone();
         self.scene = snapshot(&self.base, &self.ctx, &ex);
         let ctx = self.ctx.clone();
-        self.oracle = map_strings(&self.strip_answers(v), &|s| ctx.sub(s));
+        // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
+        self.oracle = map_strings(&self.strip_answers(v), &|s| text_decl(s, &ctx));
         if let Some(o) = self.oracle.as_object_mut() {
             o.retain(|k, _| !self.drop.contains(&k.as_str()));
         }
@@ -693,7 +696,11 @@ impl Bake {
                 self.bad.push(format!("焼いた表 tests/baked/{}.json がありません（TPA_BLESS=1 で焼く）", self.file));
                 return;
             };
-            let (a, b) = (settle(&t["oracle"], &self.ctx, &self.keys), settle(&self.oracle, &self.ctx, &self.keys));
+            let now_free = |v: &Value| {
+                let re = regex::Regex::new(r"@NOW\(-?\d+ms").unwrap();
+                settle(&map_strings(v, &|s| re.replace_all(s, "@NOW(~").into_owned()), &self.ctx, &self.keys)
+            };
+            let (a, b) = (now_free(&t["oracle"]), now_free(&self.oracle));
             if let Some(d) = super::diff(&a, &b, "oracle") {
                 self.bad.push(format!("表が古い（答え合わせ役の場面・歩が変わった。tools/bless.py で焼き直す）: {d}"));
             }
@@ -713,7 +720,7 @@ impl Bake {
         let ctx = self.ctx.clone();
         let base = self.base.clone();
         let url = if self.url_key.is_some() { serve_404() } else { String::new() };
-        map_strings(&t["oracle"], &|s| fid_unsub(&ctx.unsub(s), &base).replace("@URL", &url))
+        map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url))
     }
 
     /// 場面が置いた物か（作業フォルダの中の道）
@@ -920,7 +927,9 @@ pub fn lines(v: &Value, depth: usize) -> String {
                 format!("[\n{}\n{}]", items.join(",\n"), pad(depth))
             }
             // 大きな整数（held の印の字）は桁のまま書く（読み戻すと common::json_keep が同じ印にする）
-            _ if da_core::held::has_held(v) || da_core::held::has_nonfinite(v) || da_core::held::has_lone(v) => da_core::held::to_text(v, None),
+            _ if da_core::held::has_held(v) || da_core::held::has_nonfinite(v) || da_core::held::has_lone(v) => {
+                da_core::held::to_text(v, None)
+            }
             _ => serde_json::to_string(v).unwrap(),
         }
     }
