@@ -596,15 +596,18 @@ fn user_dirs() -> Vec<(String, String)> {
 /// GET /api/fs/places の答え（Python の places）。app_paths: [(鍵, 名前, 道〈「;」で区切って複数も〉)]。道の門が断る字の場所は出さない。
 /// 届くかは probe の係（道の根ごとに 1 本・まとめて timeout 秒まで。終わらなかった物は reach null。覚えは 2 秒）
 pub fn places(app_paths: &[(String, String, String)], timeout: f64) -> Value {
-    places_with(&crate::probe::PROBES, app_paths, timeout)
+    let reach: Reach = std::sync::Arc::new(|p: &str| match kind_e(p) {
+        Ok((d, f)) => d || f,
+        Err(_) => false,
+    });
+    places_with(&crate::probe::PROBES, app_paths, timeout, reach)
 }
 
-/// 試験だけ: その道で届くかを尋ねるのにかかる時間を足す（止まる共有の形。製品では None）
-#[doc(hidden)]
-pub static TEST_SLOW: std::sync::Mutex<Option<(String, u64)>> = std::sync::Mutex::new(None);
+/// 届くかを尋ねる関数（製品は Path.is_dir() or is_file()。試験は止まる行・すぐ答える行を作る: OS の本物の尋ねに頼らない）
+pub type Reach = std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
-/// places（尋ねる係を渡す: 試験は上限の小さな係で、止まる行の後ろの行が答えるかを見る）
-pub fn places_with(probes: &crate::probe::Probes, app_paths: &[(String, String, String)], timeout: f64) -> Value {
+/// places（尋ねる係と尋ね方を渡す: 試験は上限の小さな係と作り物の尋ね方で、止まる行の後ろの行が答えるかを見る）
+pub fn places_with(probes: &crate::probe::Probes, app_paths: &[(String, String, String)], timeout: f64, reach: Reach) -> Value {
     let mut seen: Vec<String> = vec![];
     let mut rows: Vec<Value> = vec![];
     for (key, label, raw) in app_paths {
@@ -633,16 +636,8 @@ pub fn places_with(probes: &crate::probe::Probes, app_paths: &[(String, String, 
         .map(|r| {
             let p = r["path"].as_str().unwrap_or("").to_string();
             let memo = format!("reach:{}", normcase(&p));
-            let slow = TEST_SLOW.lock().unwrap_or_else(|e| e.into_inner()).clone().filter(|(x, _)| *x == p).map(|(_, ms)| ms);
-            probes.start(&crate::probe::root_key("reach", &p), Some(&memo), move || {
-                if let Some(ms) = slow {
-                    std::thread::sleep(Duration::from_millis(ms));
-                }
-                match kind_e(&p) {
-                    Ok((d, f)) => d || f,
-                    Err(_) => false,
-                }
-            })
+            let reach = reach.clone();
+            probes.start(&crate::probe::root_key("reach", &p), Some(&memo), move || reach(&p))
         })
         .collect();
     // まとめて待つ（版 3.114.0 の作った後の採点の割れ 1: 行の順に待つと、止まる行の後ろの行が締め切りの後に起こされて消えた）
@@ -762,25 +757,35 @@ mod tests {
     /// （前は行の順に待ち、後ろの行が締め切りの後に起こされて reach null になり、この PC の場所は一覧から消えた）
     #[test]
     fn places_rows_behind_a_stuck_share_still_answer() {
+        // 尋ね方は作り物（OS の本物の尋ねに頼らない: Windows では実在しないサーバーへの名前引きが待たされ、締め切りで null になった。PR #114 の CI）:
+        // 止まる共有は 4 秒、ほかの共有はすぐ「届かない」、この PC の場所はすぐ「届く」
         let probes = crate::probe::Probes::new(2);
         let stuck = "\\\\stuck-srv\\share".to_string();
-        *TEST_SLOW.lock().unwrap() = Some((stuck.clone(), 4000));
+        let s2 = stuck.clone();
+        let reach: Reach = std::sync::Arc::new(move |p: &str| {
+            if p == s2 {
+                std::thread::sleep(Duration::from_millis(4000));
+                return true;
+            }
+            !p.starts_with("\\\\")
+        });
         let mut paths = vec![("master".to_string(), "マスタの置き場".to_string(), stuck.clone())];
         for i in 0..6 {
             paths.push((format!("k{i}"), format!("共有 {i}"), format!("\\\\srv{i}\\s")));
         }
         let t0 = Instant::now();
-        let v = places_with(&probes, &paths, 1.0);
-        *TEST_SLOW.lock().unwrap() = None;
+        let v = places_with(&probes, &paths, 1.0, reach);
         assert!(t0.elapsed() < Duration::from_secs(2), "締め切りで答える");
         let items = v["items"].as_array().unwrap();
         assert_eq!(items[0]["reach"], Value::Null, "止まる行は確かめ中: {v}");
         for it in &items[1..7] {
             assert_eq!(it["reach"], json!(false), "後ろの共有の行も答える: {it}");
         }
-        let home = home();
-        if !home.is_empty() {
-            assert!(items.iter().any(|x| x["key"] == "pc" && x["label"] == "ホーム"), "この PC の場所が消えない: {v}");
+        if !home().is_empty() {
+            assert!(
+                items.iter().any(|x| x["key"] == "pc" && x["label"] == "ホーム" && x["reach"] == true),
+                "この PC の場所が消えない: {v}"
+            );
         }
     }
 

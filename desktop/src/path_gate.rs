@@ -280,11 +280,9 @@ fn lengths(s: &str, nt: bool, name_only: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Win32 が整える段がある（段が空白か「.」で終わる。「.」「..」と共有の根〈\\サーバー\共有〉の 2 段は除く: Win32 も整えない）
+/// Win32 が整えうる段がある（段が空白か「.」で終わる。「.」「..」は除く）。共有の根の段も含め、整えるかは GetFullPathNameW に任せる
 pub fn trims(s: &str) -> bool {
-    let parts: Vec<&str> = s.split(['\\', '/']).collect();
-    let skip = if s.starts_with("\\\\") || s.starts_with("//") { 4 } else { 0 };
-    parts.iter().skip(skip).any(|p| *p != "." && *p != ".." && p.ends_with([' ', '.']))
+    s.split(['\\', '/']).any(|p| p != "." && p != ".." && p.ends_with([' ', '.']))
 }
 
 /// GetFullPathNameW（Windows だけ。Python の nt._getfullpathname と同じ関数）
@@ -730,11 +728,11 @@ mod tests {
 
     #[test]
     fn win32_trimmed_parts_are_found() {
-        // 版 3.113.0 の release_place::win_trims の事例（共有の根〈\\サーバー\共有〉の 2 段は Win32 も整えないので見ない）
-        for p in [" ", "  ", "a ", "a.", "C:\\x\\ ", "\\\\srv\\share\\d.\\e", "x/y ./z"] {
+        // 版 3.113.0 の release_place::win_trims の事例（共有の根の段も見る: 整えるかは GetFullPathNameW）
+        for p in [" ", "  ", "a ", "a.", "C:\\x\\ ", "\\\\srv\\share\\d.\\e", "x/y ./z", "\\\\srv\\share. \\d"] {
             assert!(trims(p), "{p:?}");
         }
-        for p in ["", ".", "..", "a", "C:\\x\\y", "..\\a", "./a", "\\\\srv\\share\\d", "a b\\c", "\\\\srv\\share. \\d"] {
+        for p in ["", ".", "..", "a", "C:\\x\\y", "..\\a", "./a", "\\\\srv\\share\\d", "a b\\c"] {
             assert!(!trims(p), "{p:?}");
         }
     }

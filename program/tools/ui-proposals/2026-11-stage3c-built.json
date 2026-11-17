@@ -181,11 +181,11 @@
   "windows_risks": [
    {
     "risk": 1,
-    "fix": "test_win32_is_getfullpathname（Python・Windows だけ）は browse の win32 の事例も nt._getfullpathname で比べる（dir は道そのもの、browse は tidy → GetFullPathNameW → tidy）。窓の win32_cases_are_getfullpathname は門の答えと want。外れれば Windows の CI で落ちる。win32 の事例は 10 件（相対の 3 件は断る形にしたので外した）"
+    "fix": "test_win32_is_getfullpathname（Python・Windows だけ）は want を字で書いた win32 の事例を、browse も dir も nt._getfullpathname で比べる。Microsoft の文書が決めていない形（途中の段の「..」・「...」で終わる名前・途中の段の末尾の空白・共有の根の段）は want を os にし、Windows の CI では GetFullPathNameW の答えそのものを正しい答えにする（PR #114 の CI の直し）。win32 の事例は 12 件（字で書いた 6・os 4・字のまま 2）"
    },
    {
     "risk": 2,
-    "fix": "共有の根の 2 段の事例に uncRoot の印を付け、Windows の CI で GetFullPathNameW（窓 unc_roots_are_not_trimmed_by_win32・Python test_win32_is_getfullpathname）が共有の根を整えないことを確かめる。外れたら門の trims を直す"
+    "fix": "門の trims は共有の根の段も見る（整えるかどうかは GetFullPathNameW に任せ、門は決めつけない）。共有の根の 2 件は want を os にした（前の版の作った後の直しでは『整えない』と決めて Windows の CI で比べる試験を置いたが、文書に無い形なので OS の答えに替えた）"
    },
    {
     "risk": 3,
@@ -200,6 +200,18 @@
     "fix": "cfg(windows) の道（full_path_name の GetFullPathNameW・probe の drive_remote の GetDriveTypeW）を作業用クレート（path_gate.rs・probe.rs を写した物）で cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings に通した。窓全体は libsqlite3-sys の build script で組めない"
    }
   ],
-  "measured": "変異 7 つ（窓）と 1 つ（Python）がどれも落ちた（scratchpad/b3114/mutate2.log）。delegate-count --check は予算 5 と同じ。check-all --verify は scratchpad/b3114/check2"
+  "measured": "変異 7 つ（窓）と 1 つ（Python）がどれも落ちた（scratchpad/b3114/mutate2.log）。delegate-count --check は予算 5 と同じ。check-all --verify は scratchpad/b3114/check2",
+  "ci_fix": {
+   "when": "2026-11-17・PR #114 の Windows の CI（run 44174302123・job 134361406491）",
+   "failed": "folder_browse::tests::places_rows_behind_a_stuck_share_still_answer: 試験が本物の道 \\\\srv0\\s を尋ね、Windows では実在しないサーバーへの名前引きが待たされて締め切りで null になった",
+   "fix": "places_with に尋ね方（Reach: 道 → 届くか）を渡す形にし、試験は作り物の尋ね方（止まる共有は 4 秒・ほかの共有はすぐ届かない・この PC の場所はすぐ届く）で OS によらず同じ答え。製品は今までどおり Path.is_dir() or is_file()（届かない共有は締め切りで null）。TEST_SLOW を外した",
+   "reviewed": [
+    "本物のネットワークの道を尋ねる試験: lib・probe・probe_rows は作り物の尋ね方だけ。fs_parity・release_parity・place_parity の共有の道の歩は POSIX だけ（Windows は ROOT の下と装置の道の書き直し）",
+    "win32 の want: 文書が決めていない 4 形を os に（上の windows_risks 1・2）",
+    "pwd の無い Windows で test_expanduser_is_pythons が import pwd で落ちる所を直した（POSIX の列は比べない）",
+    "Windows の下限: 窓 win32_cases_are_getfullpathname と Python test_win32_is_getfullpathname の数の下限を、字で書いた win32 の 6 件に"
+   ],
+   "mutation": "places を行の順に待つ → places_rows_behind_a_stuck_share_still_answer が落ちる（作り物の尋ね方でも）"
+  }
  }
 }

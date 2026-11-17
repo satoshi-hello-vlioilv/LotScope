@@ -2270,8 +2270,11 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   4. 止める欄（名前が check_name で断られる・上のフォルダが空）を事例の表の routes 節と答え合わせ役の歩に足した（stops を外すと落ちる）。
   5. file: の百分率符号の端と %VAR%・$VAR を事例の表に足した。環境変数は門の Env から読む（`path_gate::expandvars`・`path_rules.expandvars`。
      Python 3.13 の ntpath・posixpath.expandvars の決まり。本物の expandvars とも比べる）。
-  - windows_risks: win32 の事例は Windows の CI で browse も dir も nt._getfullpathname と比べる（`test_win32_is_getfullpathname`）。共有の根を
-    GetFullPathNameW も整えないかを `unc_roots_are_not_trimmed_by_win32`・Python の同じ試験で見る（外れたら門の trims を直す）。
+  - windows_risks: win32 の事例は Windows の CI で browse も dir も nt._getfullpathname と比べる（`test_win32_is_getfullpathname`）。Microsoft の文書が
+    決めていない形（途中の段の「..」・「...」・空白で終わる名前と、共有の根の段の末尾の空白・「.」）は want を os にし、GetFullPathNameW の答えそのものを
+    正しい答えにした。門の trims は共有の根の段も見て、整えるかは GetFullPathNameW に任せる（PR #114 の Windows の CI の直し）。
+  - PR #114 の Windows の CI で `places_rows_behind_a_stuck_share_still_answer` が落ちた（試験が本物の \\srv0\s を尋ね、Windows では名前引きが待たされた）。
+    `places_with` に尋ね方を渡す形にし、試験は作り物の尋ね方で OS によらず同じ答え（製品の振る舞いは変えない）。
 
 #### 版 3.114.0 の後に残る任せる歩（5）と転送（比べる口 135）
 
