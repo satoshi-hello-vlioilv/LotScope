@@ -111,5 +111,95 @@
    "4. root_key は Windows では nt_splitroot の (ドライブ, 根) を normcase した鍵で、割り当てたネットワークドライブ（Z:\\）と、その実体の \\\\サーバー\\共有 は別の鍵になる（同じ止まるサーバーへ 2 本）。上限の数え方（割れ 2）と合わせて見る",
    "5. clippy --target x86_64-pc-windows-msvc は作業用クレートでしか通していない（窓全体は libsqlite3-sys の build script で組めない）。full_path_name の GetFullPathNameW（windows 0.62.2: lpfilename P0: Param<PCWSTR>・lpbuffer Option<&mut [u16]>・lpfilepart Option<*mut PWSTR>）の呼び方は採点者が crate の型と照らして合っていた。cfg(windows) の Env::here の win32: true の道は Windows の CI の lot::tests・place_parity でしか通らない"
   ]
+ },
+ "built_fixed": {
+  "by": "作った係（2026-11-17）。決まり 2026-11-06 により採点し直しはしない。割れはすべて直し、その形を試験に足した",
+  "cracks": [
+   {
+    "crack": 1,
+    "fix": "probe に wait_all（並んだ尋ねをまとめて待つ: 空きができたら待っている Ticket をすぐ起こし、終わった物から受け取る。Condvar の 1 つの待ち）を足し、folder_browse::places（places_with）と master_place::using から呼ぶ",
+    "tests": [
+     "desktop/tests/probe_rows.rs（採点者の zz_probe_repro.rs を、直した形で落ちる試験に: 止まる 1 行＋ドライブ 20 行＋共有 20 行で答えの無い行は止まる 1 行だけ）",
+     "probe::tests::rows_behind_a_stuck_row_still_answer（上限 4・止まる 1 行＋共有の速い 20 行が全部答える）",
+     "folder_browse::tests::places_rows_behind_a_stuck_share_still_answer（上限 2 の係で places_with: 止まる共有の後ろの共有 6 行が reach false で答え、ホームが消えない。TEST_SLOW で止まる尋ね方を差し込む）"
+    ],
+    "mutations": [
+     "places を行の順に待つ → places_rows_behind_a_stuck_share_still_answer が落ちる",
+     "wait_all が待っている尋ねを起こさない → rows_behind_a_stuck_row_still_answer が落ちる"
+    ]
+   },
+   {
+    "crack": 2,
+    "fix": "上限は止まりうる道の尋ねだけに数える（probe::limited: 尋ね方が browse でなく、道が共有〈\\\\…・//…〉か Windows の割り当てたネットワークドライブ〈GetDriveTypeW が DRIVE_REMOTE〉）。人が押した「参照…」とローカルの道は上限で待たせない。割り当てたドライブとその実体の共有は別の鍵のまま（同じサーバーへ 2 本まで。どちらも上限に数える: windows_risks 4 の決め）",
+    "tests": [
+     "probe::tests::a_full_limit_does_not_starve_local_or_browse（止まる共有 16 本で上限を塞いでも、ローカルの「参照…」・ローカルの行・共有の「参照…」はすぐ答え、共有の行は上限を守る）",
+     "probe::tests::what_is_limited",
+     "probe_rows::a_full_limit_does_not_starve_a_local_ask"
+    ],
+    "mutations": [
+     "全部の尋ねを上限に数える → a_full_limit_does_not_starve_local_or_browse が落ちる"
+    ]
+   },
+   {
+    "crack": 3,
+    "fix": "上のフォルダ・いまの置き場（dir）の Win32 の整えは絶対の道（ドライブ＋根・共有）だけ。相対の道に整える段（最後が空白か「.」の名前）があれば、Windows では E_REL_TRIM「相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。」で断る（窓と Python）。採点の案（字のまま部品へ渡す）にしなかった理由: マスタの置き場は plan が断るので同じだが、配布の置き場は相対の道を Python が Win32 の削った字で stat し、窓は今のフォルダにつないでから見るので割れる（版 3.95.0 の Windows の CI で見た割れ。前の版は窓が任せていた）。両方で断れば割れず、プログラムのフォルダの下へも写せない。整える所の無い相対の道（rel）は前どおり字のまま",
+    "tests": [
+     "ospath_cases.json の dir: ' \"  \" '・'w\\a.'・'\\w\\a.'・'data \\M' の nt の want を E_REL_TRIM（前は C:\\work\\… に整える want を焼いていた）・'rel' は字のまま",
+     "place_oracle の手元のみの場面に、どの OS でも流れる「空白だけの上のフォルダ」「w\\a.」「data \\M」の check と「w\\a.」の move（Windows は門が断り、POSIX は plan が「ドライブ…から」）",
+     "release_place_oracle に「w\\a.」「data \\M」の check（Windows は門・POSIX は「届きません」）"
+    ],
+    "mutations": [
+     "相対の道も整える（断らない）→ gate_answers_like_the_table が落ちる"
+    ]
+   },
+   {
+    "crack": 4,
+    "fix": "止める欄の形を事例の表と答え合わせ役に足した（窓・Python とも stops を外すと落ちる）",
+    "tests": [
+     "ospath_cases.json の routes 節（9 件: 名前が空＋上のフォルダに NUL・名前に / ＋装置の道・上のフォルダが空＋いまの置き場に NUL・書き直した上のフォルダ・名前の長さが上のフォルダの NUL より先・マスタの予約名の名前＋装置の道・ドライブだけ・「参照…」）を ospath_cases.rs の apply_answers_like_the_routes と test_ospath_cases.py の test_routes で読む",
+     "test_ospath_cases.py の test_stops（Python の stops）・test_path_routes.py の名前の誤りと空の上のフォルダの歩",
+     "release_place_oracle に 名前が空＋上のフォルダに NUL・名前に / ＋ \\\\.\\・名前 CON ＋長い上のフォルダ・上のフォルダが空＋いまの置き場に NUL、place_oracle に 名前が空＋NUL・CON ＋ \\\\.\\・move の a/b ＋NUL（どれも expect same）"
+    ],
+    "mutations": [
+     "M1（窓の stops を外す）→ apply_answers_like_the_routes が落ちる",
+     "Python の stops を外す → test_routes・test_check_routes_answer_the_reason が落ちる"
+    ]
+   },
+   {
+    "crack": 5,
+    "fix": "file: の百分率符号の端と %VAR%・$VAR を事例の表に足した。門の環境変数は Env から読む（窓 path_gate::expandvars・Python path_rules.expandvars。Python 3.13 の ntpath.expandvars〈'…' の中は広げない・$ の名前は英数字と _ -・%% と $$・Windows は名前の大文字小文字を見ない〉と posixpath.expandvars〈$名前・${名前}〉の決まり。窓はこのプロセスの環境変数を直に見ない: Env::here が全部の環境変数を写す）",
+    "tests": [
+     "ospath_cases.json の browse: file:///tmp/a%41・a%4・a%・a%FFb・%E5%AD と $HOME/x・${DATA}/x・%DATA%\\x・%data%\\x・O'Brien\\%TEMP%・$TEMP-y・%NOPE%・$$（posix・nt。表の env に DATA・TEMP）",
+     "test_ospath_cases.py の test_expandvars_is_pythons（本物の ntpath・posixpath.expandvars と os.environ を差し替えて比べる）"
+    ],
+    "mutations": [
+     "百分率符号の端（i + 3 < len）→ gate_answers_like_the_table が落ちる",
+     "環境変数をこのプロセスから読む（bundle::expandvars）→ gate_answers_like_the_table が落ちる"
+    ]
+   }
+  ],
+  "windows_risks": [
+   {
+    "risk": 1,
+    "fix": "test_win32_is_getfullpathname（Python・Windows だけ）は browse の win32 の事例も nt._getfullpathname で比べる（dir は道そのもの、browse は tidy → GetFullPathNameW → tidy）。窓の win32_cases_are_getfullpathname は門の答えと want。外れれば Windows の CI で落ちる。win32 の事例は 10 件（相対の 3 件は断る形にしたので外した）"
+   },
+   {
+    "risk": 2,
+    "fix": "共有の根の 2 段の事例に uncRoot の印を付け、Windows の CI で GetFullPathNameW（窓 unc_roots_are_not_trimmed_by_win32・Python test_win32_is_getfullpathname）が共有の根を整えないことを確かめる。外れたら門の trims を直す"
+   },
+   {
+    "risk": 3,
+    "fix": "割れ 5 と同じ（門の Env の環境変数で ntpath・posixpath.expandvars の決まり。O'Brien・$TEMP-y の事例）"
+   },
+   {
+    "risk": 4,
+    "fix": "割れ 2 の決め（割り当てたドライブと実体の共有は別の鍵。どちらも止まりうる道として上限に数える。サーバーごとの上限は、ドライブ → 共有の名前を引く WNetGetConnection を足す要があり、この版では入れない）"
+   },
+   {
+    "risk": 5,
+    "fix": "cfg(windows) の道（full_path_name の GetFullPathNameW・probe の drive_remote の GetDriveTypeW）を作業用クレート（path_gate.rs・probe.rs を写した物）で cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings に通した。窓全体は libsqlite3-sys の build script で組めない"
+   }
+  ],
+  "measured": "変異 7 つ（窓）と 1 つ（Python）がどれも落ちた（scratchpad/b3114/mutate2.log）。delegate-count --check は予算 5 と同じ。check-all --verify は scratchpad/b3114/check2"
  }
 }

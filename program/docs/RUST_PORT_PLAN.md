@@ -2259,6 +2259,20 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   probe の鍵を外す・上限で false・~名前 を字のまま・[IPv6] を書き直さない・長さを見ない・読めない上のフォルダを任せる。GetFullPathNameW を手書きに替える
   変異は Windows の CI だけが見る。
 
+- 作った後の採点（50.2 点。`2026-11-stage3c-built.json`）の割れ 5 つを直した（built_fixed）:
+  1. よく使う場所・使っている PC は、行の順に待たず `probe::wait_all` でまとめて待つ（空きができたらすぐ次を起こし、終わった物から受け取る）。
+     前は止まる 1 行の後ろで上限を待った行が締め切りの後に起こされ、この PC の場所（J:〜Z:）が一覧から消えた。
+  2. 上限（16）は止まりうる道（共有と、Windows の割り当てたネットワークドライブ〈GetDriveTypeW が DRIVE_REMOTE〉）の尋ねだけに数え、人が押した
+     「参照…」は数えない（`probe::limited`）。割り当てたドライブとその実体の共有は別の鍵のまま（同じサーバーへ 2 本まで。どちらも上限に数える）。
+  3. 上のフォルダ・いまの置き場の Win32 の整えは絶対の道だけ。相対の道に整える段があれば、Windows では「相対の道の中に、最後が空白か「.」の名前が
+     あります」で断る（採点の案は「字のまま渡す」だったが、配布の置き場では Python〈Win32 が削った字で stat〉と窓〈今のフォルダにつないでから〉が
+     割れる〈版 3.95.0 の CI〉ので、両方で断る形にした）。
+  4. 止める欄（名前が check_name で断られる・上のフォルダが空）を事例の表の routes 節と答え合わせ役の歩に足した（stops を外すと落ちる）。
+  5. file: の百分率符号の端と %VAR%・$VAR を事例の表に足した。環境変数は門の Env から読む（`path_gate::expandvars`・`path_rules.expandvars`。
+     Python 3.13 の ntpath・posixpath.expandvars の決まり。本物の expandvars とも比べる）。
+  - windows_risks: win32 の事例は Windows の CI で browse も dir も nt._getfullpathname と比べる（`test_win32_is_getfullpathname`）。共有の根を
+    GetFullPathNameW も整えないかを `unc_roots_are_not_trimmed_by_win32`・Python の同じ試験で見る（外れたら門の trims を直す）。
+
 #### 版 3.114.0 の後に残る任せる歩（5）と転送（比べる口 135）
 
 | 形 | 数 | 元 | 消える段 | 理由 |
