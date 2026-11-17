@@ -1,0 +1,328 @@
+{
+ "title": "Rust 化の版 3.114.0 で何をするか（段 ③ の 3 つ目: OS の道の任せる歩 6 と S12b〈「参照…」・置き場の確かめの裏の糸〉。答え合わせ役の置き換えの最初の一部を同じ版に入れるか）の案出し（2026-11-17）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（窓が OS の道の形を Python に任せない・裏の糸を窓の 1 つの係に・答え合わせ役の一部を独立の答えへ）なので決まり 2026-11-06（案の採点は 1 回だけ。届かなくても 1 位に指摘を直して入れた形で作る。作った後の採点も 1 回だけ）。画面に出る変化は、珍しい欄の字（NUL・長すぎる名前・~名前・file: の [ ]・デバイスの道・末尾の空白と「.」）のときに『参照…』の窓と配布・マスタの置き場の確かめに出る理由の字だけで、新しい部品・見せ方は足さない（B・F で断る形を選ぶと、今 Windows で通る形が断りに変わる後戻りがある）。H は https・プロキシ越しの CM3 でスケジュールのタブが窓だけで出る。cfg(windows) の道（win_trims・ドライブ・~名前・NTFS の長さ）を変える案（A・C・D の後半・E・F・H）は cargo clippy --target x86_64-pc-windows-msvc を通し、Windows の CI（desktop.yml の cargo test）で fs_parity・release_parity・place_parity・place_cases の Windows の場面を見る。main.rs・update.rs・install.rs・distribute.rs を変える案は無い（verify.py の通しは要らない見込み）。採点はまだ（別の係がする）",
+ "measured": {
+  "where": "作業場所 /home/user/LotScope/.claude/worktrees/stage3c（ブランチ stage3c・版 3.113.0 の PR の頭 9e49a07）。Linux の開発コンテナ（root）・Python 3.13.18・窓は CARGO_TARGET_DIR=/home/user/LotScope/desktop/target の debug。check-all・verify.py は流していない。測った物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3c/ に置いた（commit しない）: dc.json・dc.log（delegate-count）・route_reach.log・fs.json・rp.json・pl.json（答え合わせ役 3 本の答え。任せる歩の Python の答え）・py_probe.txt（Python の部品に珍しい字を当てた）・probe_rs.log（窓の部品に同じ字を当てた一時の試験 zz_probe_3c.rs。流した後に消した。中身は zz_probe_3c.rs.txt）",
+  "delegates": "python program/tools/delegate-count.py 作業フォルダ --check --json → 計 11（予算と同じ・終了コード 0・38 秒）。層: OS 6・口 5。元: fs 3（OS 2〈~nobody/x・file://[::1]/x〉・口 1）・release_place 7（OS 4〈名前が 255 バイトを超える・上のフォルダに NUL・元に NUL・move の上のフォルダに NUL〉・口 3〈check・progress・move の ?engine=python〉）・place 1（口）。Python の答え: OS 2xx 5・4xx 1（move の NUL は 400）、口 2xx 5",
+  "route_reach": "CARGO_TARGET_DIR=… cargo test --locked --test route_reach -- --nocapture → 1 passed（試験 57.8 秒・組み立て込み 64 秒）。中身へ回す当たり 135（予算 135）・場面 135。どれも GET /api/lotlist/settings（比べる口）。route_reach は settings_oracle と appsettings_cases の場面だけを数えるので、OS の道（fs・配布・マスタの置き場の欄の字）は 1 つも数に入らない（任せる歩 6 は delegate-count だけが数える）",
+  "os_forms_python": "任せる 6 歩の Python の答え（fs.json・rp.json）: (1) ~nobody/x → 200。expanduser が passwd から /nonexistent/x にし、「「nonexistent/x」が見つかりません。届いた所: /」（この PC の利用者の表しだい）。(2) file://[::1]/x → 200。urlparse の netloc をそのまま \\\\[::1]\\x にし「届きません」。(3) 名前が字 120（360 バイト）→ 200 で ok:false「新しい場所を読めません（File name too long）。権限か、つながりを確かめてください。」（OSError を受けた理由。英語の strerror 入り）。(4) 上のフォルダに NUL → 200 ok:false「上のフォルダに届きません: …\\u0000x」（Path.is_dir が ValueError を偽にする）。(5) 元に NUL → 200 ok:false「いまの置き場に届かないので写せません…」。(6) move の上のフォルダに NUL → 400 invalid（同じ理由）。どれも落ちてはいないが、(1) は OS の利用者の表、(2) は Windows が読めない UNC（IPv6 は 0--1.ipv6-literal.net の形でなければ届かない）、(3)(4)(5) は Python の pathlib の例外の扱いで決まり、仕様から決めた答えではない",
+  "os_forms_windows": "Windows で答えが違う所: ~名前 は ntpath.expanduser が %USERPROFILE% の親に名前をつなぐ（py_probe.txt: C:\\Users\\nobody\\x。当て推量で、プロファイルの場所は登録簿 ProfileList が本当）。255 バイトは Windows では起きない（名前の上限 120 字＜NTFS の 255 字。release_place_oracle も Linux だけの歩）。Windows だけの任せる歩は 2: 上のフォルダ ' \" \" '（Win32 が段の末尾の空白・「.」を削る。release_place::win_trims）と、ドライブだけの上のフォルダ C:（py_resolve。Python はドライブごとの今のフォルダで解く）。envLess の 2（Linux root 7・Windows 5）はこれで説明がつく",
+  "hidden_forms": "予算外（答え合わせ役に歩が無く、数に出ない）の形をコードと一時の試験で見つけた: (a) fs: ~存在しない名前（窓 None・Python は字のまま相対の道 →「ドライブか共有から書いてください」）・file://[::1/x と file://[zz]/x（窓 None・Python は urlparse の ValueError で 500）・file://ｓｒｖ/x（ASCII でないサーバー名。窓 None・Python 200「届きません」）・\\\\?\\C:\\x・\\\\.\\C:\\x（デバイスの道。窓 None・Python 200「届きません」）。(b) fs の NUL は窓と Python が割れる（試験が無い）: Python「「a\\u0000b」が見つかりません。届いた所: /tmp」、窓「読めません: /tmp/a\\u0000b（file name contained an unexpected NUL byte）」（Rust の英語の文が画面に出る）。(c) 配布の置き場: 上のフォルダが 255 バイトを超える（字×90・a×300）→ 窓 None・Python は Path.is_dir が ENAMETOOLONG を投げて 500。(d) release_place_oracle の probe_scenario は Linux だけで足すのに、Windows の末尾の空白・「.」の 3 歩（' \"  \" '・new. ・LotScope. ）は `if os.name == \"nt\"` の中にある → どこでも流れない死んだ歩。(e) マスタの置き場（master_place.rs の plan・move）にも win_trims・py_is_dir の Err（NUL・長い名前）・Fail::Py の任せが 20 か所あるが、place_oracle は ?engine=python の 1 歩しか持たない。(f) 製品では、窓が任せた move（配布・マスタの置き場）は Python が shell_serves の release・place を見て 409「…写すのはデスクトップ版の窓の係です。窓の画面からやり直してください。」で断る（答え合わせ役は TPA_SHELL_SERVES を外して流すので 400 の理由が出る。製品の答えは試験と違い、理由も違う）",
+  "s12b": "裏の糸（届かない共有で待たせない打ち切り）: Python は folder_browse._bounded（browse ごとに 2 本）・places の probe（行ごとに 1 本）・master_place._bounded（鍵ごとに 1 本まで）・using（置き場ごとに 1 本）。製品で Python の糸が動くのは、窓が任せた形（OS の 6・予算外の (a)(c)(e)）と ?engine=python の口だけ。窓にも別々の 4 つがある: folder_browse::bounded（browse ごとに 2 本・重ねない仕組みなし）・places（行ごとに 1 本・同じ）・master_place::status の PROBES（置き場ごとに 1 本まで・5 ms ごとに見に行く）・using（置き場ごとに 1 本・重ねない仕組みなし・5 ms ごと）。止まる共有へ『参照…』を開き直すたびに browse・places の糸が積み上がる形は窓に残る（Python の master_place だけが重ねない）。Linux のコンテナでは止まる SMB を作れないので、糸の数は測らず設計から数えた",
+  "sizes": "窓: folder_browse.rs 831 行・release_place.rs 1,167 行・master_place.rs 1,120 行（任せる所 None・ok()?・Fail::Py・MoveError::Py が 7・9・20 か所）。Python: folder_browse.py 344・release_place.py 197・master_place.py 434 行。答え合わせ役: fs_oracle.py 254・release_place_oracle.py 576・place_oracle.py 404（計 1,234 行）、呼ぶ試験 fs_parity.rs 116・release_parity.rs 274・place_parity.rs 426。独立の答え tools/place-truth.py 273 行・事例の表 place_cases.json 21.7 KB（names・sort・clean・sync・marks・moves・tabExceptions・tabCounts・blank・hidden・moveRaces）",
+  "windows_ci": "Windows の CI（.github/workflows/desktop.yml の windows-latest）は cargo test --locked を全部流す（fs_parity・release_parity・place_parity・place_cases が Windows の Python と突き合わさる）。cfg(windows) の道は手元では clippy --target x86_64-pc-windows-msvc でしか確かめられない。windows クレートは Win32_Storage_FileSystem（GetFullPathNameW）・Win32_UI_Shell（SHGetKnownFolderPath）を既に持ち、登録簿（Win32_System_Registry）は持たない。libc は Cargo.lock にあるが直の依存ではない",
+  "not_measured": "check-all・verify.py の通し・Windows（cfg(windows) の道・Windows の Python の答え）・止まる共有での糸の数・Windows の MAX_PATH（260）を超える上のフォルダ＋名前（窓の std は長い道を \\\\?\\ で開けるが、Python・エクスプローラー・ほかの PC は LongPathsEnabled しだい）"
+ },
+ "inventory": [
+  "O1 ~ユーザー名（fs 1・両方の OS）: Python の答えは OS の利用者の表（Linux getpwnam）か当て推量（Windows ntpath: %USERPROFILE% の親＋名前）。Windows の OS そのものに ~ の決まりは無い（エクスプローラーは ~ を広げない）。正しい答えは仕様で決める要（広げる・広げずに理由つきで断る・OS に尋ねる）。予算外: ~存在しない名前",
+  "O2 file: の URL の [ ]（fs 1・両方の OS）: Python は \\\\[::1]\\x（Windows が読めない UNC。Microsoft の決まりでは IPv6 の UNC は 0--1.ipv6-literal.net）。予算外: 閉じない [ ・IP でない [zz] は Python 500、ASCII でないサーバー名は Python 200・窓 None、\\\\?\\・\\\\.\\ のデバイスの道は Python 200・窓 None",
+  "O3 NUL（release_place 3・Linux の場面だけ）: どの OS でも道に NUL は置けない（Windows の名前の決まり〈0〜31 は使えない〉と POSIX の字の終わり）。Python は is_dir の偽で『届きません』『写せません』。予算外: fs の browse で窓と Python が割れる（窓は Rust の英語の文）・マスタの置き場も任せる",
+  "O4 255 バイトを超える名前（release_place 1・Linux だけ）: Linux の NAME_MAX 255 バイト（字 120 は 360 バイト）。Windows は 255 字なので名前の上限 120 字では起きない。Python は OSError を受けて『読めません（File name too long）』（英語入り）。予算外: 上のフォルダが長いと Python は 500",
+  "O5 Windows だけの 2（CI の数）: 段の末尾の空白・「.」（win_trims）・ドライブだけの C:。正しい答えは Win32 の道の整え（GetFullPathName の決まり）と、folder_browse が既に決めた『C: は C:\\』（place_cases の clean）で書ける。予算外: 同じ形の 3 歩が死んだ歩（どこでも流れない）・マスタの置き場の win_trims",
+  "O6 製品の move の任せ: 配布・マスタの置き場の move で窓が任せると、製品の Python は 409『窓の画面からやり直してください』で断る（理由が違う。試験は SERVES を外すので見えない）。任せる歩を閉じると無くなる",
+  "S12b 裏の糸: Python の 4 つは窓が任せた形と ?engine=python でだけ動く。窓の 4 つは別々で、browse・places・using は重ねない仕組みが無い（止まる共有で糸が積み上がる）。窓の 1 つの係（鍵ごとに 1 本・上限・待ちは条件変数）にまとめれば、Python の 4 つは ?engine=python のときだけになり段 ④ で消える",
+  "R 比べる口 5（fs 1・place 1・release_place 3）と転送 135（GET /api/lotlist/settings）: 段 ④ で外す。この版では残す。答え合わせ役 fs・place・release_place を独立の答えに替えると、口の 5 歩は数え方から消えるが、口そのもの（?engine=python）は製品に残る（数の見かけと中身がずれる点に注意）",
+  "③-6 CM3 の https・プロキシ（利用者の決め: TLS の crate〈Windows の証明書ストア〉・プロキシは Windows の設定から・認証なし・VPN か社内 LAN だけ）: この版では扱わない。H の案だけが同じ版に入れる形を見せる"
+ ],
+ "visible": [
+  "A・C・D・E・G: 画面の見た目は変わらない。珍しい欄の字で、『参照…』と置き場の確かめに出る理由の字が変わる（今は英語の strerror・500・製品の move は 409『窓の画面からやり直してください』）",
+  "B・F（断る決め）: ~名前・末尾に空白の段の上のフォルダは、今 Windows で通る所が断りに変わる（後戻り）",
+  "H: https・プロキシ越しの CM3 を使う PC で、スケジュールのタブが窓だけで出る"
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-17。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流して測った数と読んだコードで採点した。物差しの読み替えは版 3.112.0・3.113.0 の採点（2026-11-stage3a.json・2026-11-stage3b.json）と同じ: 順序＝版の並びが段 ③→④ の流れに沿うか・チャンク＝版の切り方・階層化＝主の狙いが 1 つか・視覚化＝効き目と残りが数で見えるか・ステップ数＝作る量と版の数・考えさせない＝落とし穴の少なさ・直感的＝今までの版の型（事例の表・門・独立の答え）に沿うか・形と色／言葉と置き場＝決まりが 1 か所か・整列＝範囲の釣り合い・調子＝理由と断る言葉の明るさ。減点の『機能が消える・届かない −10』は、今 Windows で通る欄の字を断りに変える後戻り 1 形ごとに引いた。流した物（台本は自分で書いた。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3c-score/）: (1) delegate-count.py を自分の作業フォルダ dc/ で --check --json（dc.json・dc.log。計 11・終了コード 0・38 秒）。(2) py_routes_probe.py … fs_oracle と同じ組み立て（create_app・TESTING・名乗りの差し替え）で、Python の道 POST /api/fs/browse・/api/release/place/check・/api/masters/place/check に 閉じない [ ・[zz]・[::1]・NUL・\\\\?\\・\\\\.\\・~無い名前・ASCII でないサーバー名・上のフォルダが字×90／a×300・名前 120 字・名前の NUL を当てた（py_routes.txt）。(3) 一時の結合の試験 desktop/tests/zz_score_3c.rs（流した後に消し、git status が案のファイルだけなのを見た）: 窓の folder_browse::browse と release_place::plan に同じ字を当てた。(4) Python の folder_browse.browse に NUL を直に当てた・release_place.plan の長い上のフォルダの traceback を見た。(5) コードを読んだ: folder_browse.rs（device_path・tidy_for・bounded）・release_place.rs（py_resolve の C:x・win_trims・py_is_dir の ok()?）・master_place.rs（PROBES・status・using）・presence.rs の online_in（py_is_dir を使う）・lot.rs（distribute の settings_answer・masters/status の試験）・routes/settings.py（move の 409）・folder_browse.py の clean・tidy・release_place_oracle.py の probe_scenario と perm_scenario。流していない: Windows（\\\\?\\・GetFullPathNameW・ntpath.expanduser・長い段の winerror の答えは Python 3.13 の pathlib とコードから推した）・route_reach（案の係の 135 を使った）・check-all・verify.py",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像なし（測った数とコード）。測った物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/stage3c/ の dc.json・dc.log・route_reach.log・fs.json・rp.json・pl.json・py_probe.txt・probe_rs.log",
+   "self_check": "案を作った者が採点に渡す前に自分で確かめたこと: (1) delegate-count.py --check --json を自分の作業フォルダで流して 11（予算と同じ・終了コード 0）と、任せる歩の中身（fs 3〈~nobody/x・file://[::1]/x・口〉・release_place 7〈255 バイトの名前・NUL 3・口 3〉・place 1〈口〉）を答え合わせ役の答え（fs.json・rp.json）から 1 歩ずつ読み、Python の答えが落ち方か OS の決まりかを分けた（6 歩とも 200／400 で落ちてはいないが、どれも OS の利用者の表・pathlib の例外の扱い・Windows が読めない UNC で決まる）。(2) cargo test --test route_reach を流して 135（比べる口だけ）。OS の道は route_reach の数に入らないことを確かめた。(3) Python の部品（folder_browse.clean・browse・release_place.plan）と窓の部品（folder_browse::browse・release_place::plan。一時の試験 zz_probe_3c.rs。流した後に消し、git status がこの JSON だけなのを見た）に同じ珍しい字を当て、予算外の形を見つけた: Python が 500 になる 3 形（閉じない [ ・[zz]・長い上のフォルダ）・窓が任せる 5 形（~無い名前・ASCII でないサーバー名・デバイスの道・長い上のフォルダ・マスタの置き場の OS の形）・窓と Python が割れる 1 形（browse の NUL。窓は Rust の英語の文）・どこでも流れない Windows の 3 歩（probe_scenario は Linux だけで足し、その中で os.name == nt の時だけ足す）・製品の move の任せは Python が 409 で断る（試験は SERVES を外して流すので見えない）。(4) Windows の答えは ntpath.expanduser を USERPROFILE を差し替えて当てた（C:\\Users\\nobody\\x）ほかは、コード（win_trims・py_resolve のドライブ・ignorable の Windows の番号）と desktop.yml を読んで数えた（Linux root 7・Windows 5 は probe_scenario が Linux だけなのと win_trims・C: で説明がつく）。(5) S12b は Python の 4 つの糸と窓の 4 つの糸をコードで数えた（止まる共有を Linux で作れないので糸の数は測っていない）。流していない物: check-all・verify.py・Windows（cfg(windows) の道・Windows の Python）。案を作った者の推し（採点ではない）: F の門の形に A の決め（整えて通す所は Win32 の整えと C: → C:\\、理由つきで断るのは NUL・長さ・デバイスの道・閉じない [ ）を入れた形、次点 A。理由: 予算外の任せが 3 つの道とマスタの置き場に散っていて、道ごとに None を外す A では次に欄を足したときにまた漏れる。本文の門（3.104.0）と同じ型で道の字を入口の 1 か所で決め、焼いた表の古さの試験で漏れを止められる。~名前 は A の決め（Windows は ntpath の決まり）にして、今 Windows で通る形を断る後戻りを作らない。答え合わせ役の置き換え（C）は、競い合いの場面を Python 相手に残す要があり、この版に入れると大きすぎるので次の版（③-4）で fs・release_place から始める。H の https・プロキシは別の話なので別の版（③-6）。",
+   "proposals": {
+    "A 事例の表と OS の決まりで窓が組む（OS の 6 と予算外の形を閉じる・S12b を窓の 1 つの係に。答え合わせ役は替えない）": {
+     "what": "方向: 事例の表＋窓が組む。(1) 人が仕様から書く事例の表 tests/fixtures/ospath_cases.json（形 × OS〈posix・nt〉→ want と、版 3.113.0 の Python の答え py を並べる。rowshape_cases と同じ型。40〜60 件）。決め: ~ と ~\\… は今どおり家のフォルダ。~名前 は Windows では ntpath の決まり（%USERPROFILE% の親＋名前。同じ PC の別の利用者）、POSIX では利用者の表（無い名前は字のまま）。file://[v6]/… は Microsoft の IPv6 の UNC（0--1.ipv6-literal.net）に書き換え、閉じない [ ・IP でない [ ] は『file: の URL が読めません（サーバー名の [ ]）』。ASCII でないサーバー名は urlsplit の NFKC の確かめ（access::py_key の NFKC を使う）だけ見て通す。デバイスの道（\\\\?\\・\\\\.\\）は『デバイスの道（\\\\?\\…）は使えません。C:\\… か \\\\サーバー\\… で書いてください』。NUL は 3 本の道（browse・配布・マスタの置き場）とも『道に使えない字（制御文字）があります』（check_name の言葉に合わせる）。255 バイト（POSIX）・255 字（NTFS）を超える段は『フォルダの名前が長すぎます（この PC の上限 255 バイト）』、上のフォルダでも同じ（Python の 500 を無くす）。win_trims は Win32 の道の整え（段の末尾の空白・「.」を削る）を純粋な関数で書いて答える。ドライブだけの C: は C:\\（folder_browse の clean と同じ）、C:x は『ドライブの根（C:\\…）から書いてください』。(2) 窓は表どおりに答え、None を外す（folder_browse 7・release_place 9・master_place の該当分）。(3) Python も同じ表で同じ答えにする最小の直し（50〜100 行。比べる口と段 ④ までの開発用サーバーのため）。(4) S12b: 窓に src/probe.rs（届くかを尋ねる係。鍵＝normcase した道＋尋ね方、鍵ごとに走る糸は 1 本・全体の上限 16・結果は 2 秒だけ覚える・待ちは Condvar）を作り、folder_browse の bounded・places・master_place の PROBES・using を載せ替える。(5) 答え合わせ役 fs・release_place・place に表の形を歩として足し（予算外の形も）、死んだ Windows の 3 歩を Windows でも流れる場面へ移す",
+     "removes": "任せる歩: OS 6（fs 2・release_place 4）→ 11 → 5（口だけ）。Windows の CI の数も 5 → 3（win_trims・C: の 2 が消える。envLess を 2 → 0 に直す）。予算外の任せ（fs 5 形・配布の長い上のフォルダ・マスタの置き場 20 か所のうち OS の形）も閉じ、製品の move の 409（O6）が無くなる。S12b: Python の 4 つの糸は ?engine=python のときだけ動く。窓の糸は 1 つの係に。消える答え合わせ役: 0",
+     "risks": "(a) ~名前 の Windows の決め（%USERPROFILE% の親）は当て推量で、プロファイルを D: などへ移した PC では違う所を指す（今の Python と同じ。表に書いて残す）。(b) IPv6 の UNC への書き換えは、Windows の CI に IPv6 の共有が無いので『届きません』の字までしか確かめられない。(c) Win32 の道の整えを自前で書くと、GetFullPathNameW と細部（「...」・「. .」・UNC の段・\\\\?\\）で割れうる → Windows の CI で事例ごとに GetFullPathNameW と比べる試験を足す（試験の中だけで OS に尋ねる）。(d) Python も直すので、比べる口（engine=python）の答えも変わる（自己診断の比べで割れを言わない形にする）。(e) Windows の MAX_PATH（260）を超える上のフォルダ＋名前は扱わない（窓は開けるがほかの PC が開けない形は残る）",
+     "windows": "cfg(windows) の道（win_trims の整え・ドライブ・ntpath の ~名前・NTFS の 255 字）を変えるので、手元で clippy --target x86_64-pc-windows-msvc を通し、Windows の CI（desktop.yml の cargo test）で ospath_cases の nt の節と release_parity・fs_parity・place_parity の Windows の場面を見る。GetFullPathNameW と比べる試験は CI だけで流れる。CI だけで確かめられる（作業用クレートは要らない見込み: windows クレートの Win32_Storage_FileSystem が既にある）",
+     "size": "Rust 450〜700 行（表の決めの部品 ospath.rs 200〜300・3 つの道の None を外す 100〜150・probe.rs 150〜200・試験 150）＋cfg(windows) 60〜100 行。事例の表 40〜60 件。Python 50〜100 行。答え合わせ役に 15〜25 歩。1 版（中くらい）",
+     "tests": "cargo test --test ospath_cases（窓）と tests/test_ospath_cases.py（Python）が同じ表・fs_parity・release_parity・place_parity の新しい歩を expect same・delegate-count の予算 11 → 5（fs 1・release_place 3・place 1）と envExtra・envLess を直す・probe.rs の試験（止まる尋ね方を差し込み、100 回呼んでも糸が上限を超えない・同じ鍵は 1 本・結果の覚え）・変異（NUL を任せに戻す・win_trims を任せに戻す・probe の重ねない仕組みを抜く）で落ちることを見る",
+     "stage4": "段 ④ の前提『窓は OS の道を Python に任せない』が予算 5（口だけ）で保たれる。Python を外したとき、OS の形の答えは表で決まっている。答え合わせ役 fs・release_place・place は Python の道のまま残る（③-4・5 で替える）",
+     "visible": "画面の見た目は変わらない。珍しい欄の字（NUL・長すぎる名前・閉じない [ ・\\\\?\\・末尾の空白）で、『参照…』の窓と配布・マスタの置き場の確かめに出る理由の字が変わる（今は英語の strerror や 500・製品の move は 409『窓の画面からやり直してください』）。新しい部品は無い",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す"
+      }
+     ],
+     "seen": "OS の 6 歩と予算外の形を 1 版で閉じ、S12b も入る。8 案で効き目（11 → 5）と作る量の釣り合いがいちばん良い。採点者の測りで数は本物（11・Python の 500・NUL の割れ）。落とし穴: (1) デバイスの道を断るのは Windows の後戻り（減点）。\\\\?\\C:\\ と \\\\?\\UNC\\ は書き直して通せる。(2) Win32 の末尾の整えを手で書くと GetFullPathNameW と割れうる（案も risk (c) に書く）。窓は Windows で GetFullPathNameW をそのまま呼べる（windows クレートの Win32_Storage_FileSystem は既にある。Python の ntpath.abspath が呼ぶのも同じ関数）。(3) 決めは ospath.rs に 1 つだが、どの欄に当てるかの表が無く、次に欄を足すとまた漏れる（F の path_routes が埋める）。(4) 長さの理由『この PC の上限 255 バイト』は POSIX の言葉。Windows は段ごとに UTF-16 の 255 単位。(5) probe.rs の『結果を 2 秒覚える』と『上限 16』は、上限・時間切れの答えを決めていない。3.100.0 の決まり（reachable null は保存を止めない・false は止める）を崩すと、置き場の帯の後戻りになる。(6) py_is_dir は presence::online_in も使い、release_place.rs の settings_answer は /api/update/settings（更新の流れ）が使う。これらを触らずに門の前で決める要がある。(7) envExtra（root でない CI の『中を読めない置き場』）を数えていない。11 → 5 は root の数で、CI では 6 のまま。(8) 採点者の測りで、マスタの置き場の check も長い上のフォルダ（字×90・a×300）で Python が 500 になる。案の『Python が 500 になる 3 形』は 5 形。A の決めでまとめて閉じる"
+    },
+    "B 理由つきで断る（OS の形は広げず・整えず、どの OS でも同じ断りの字に。最小）": {
+     "what": "方向: 理由つきで断る。窓の 1 か所に『道の字の確かめ』を足し、OS の形をどの OS でも同じ理由で断る: ~名前（『~名前 の形は使えません。C:\\Users\\名前 のように書いてください』）・file: の URL の [ ]（IPv6 の字。『サーバー名に IPv6 の字は使えません。名前で書いてください』）・ASCII でないサーバー名は通す・デバイスの道・NUL・255 バイト／255 字を超える段・段の末尾の空白と「.」（『フォルダの名前の終わりに空白・「.」は使えません』。check_name の names と同じ考え）・ドライブだけの C:x（C: は C:\\）。広げる・書き換えることはしない。事例の表は理由の字だけ（20〜30 件・OS で答えが割れない）。Python も同じ確かめを道の頭に足す（30〜60 行）。S12b は A と同じ probe.rs",
+     "removes": "任せる歩 11 → 5（A と同じ）。Windows の CI も 5 → 3。予算外の形も閉じる。S12b は A と同じ",
+     "risks": "(a) 今 Windows で通っている形を断る後戻り: ~名前（Python は C:\\Users\\名前 に広げて届く）・末尾に空白の段のある上のフォルダ（Win32 が削って届く）。利用者がこの形で置き場を決めている PC は、確かめ直すと断られる（置き場の画面を開き直したときだけ。保存済みの置き場は読みで確かめない）。(b) IPv6 の共有を名前でなく字で使う現場は断られる（VPN・社内 LAN で IPv6 の字の UNC はまず無い見込み）。(c) 断りの字が増える分、画面の『直すこと』の言葉を揃える要",
+     "windows": "cfg(windows) の分岐はほぼ無くなる（OS で答えが割れない決め）ので、手元の Linux で表の全部を確かめられる。clippy の msvc と Windows の CI は念のため。CI だけで確かめられる",
+     "size": "Rust 250〜400 行（確かめの部品 100〜150・3 つの道の None を外す 100・probe.rs 150〜200）。事例の表 20〜30 件。Python 30〜60 行。1 版（小さい）",
+     "tests": "ospath_cases（理由の字の表）を窓と Python で・fs_parity・release_parity・place_parity に断る歩を expect same・delegate-count 11 → 5・probe.rs の試験・『今通っている Windows の形』を事例の表に『断る（後戻り）』と印を付けて並べる",
+     "stage4": "A と同じ（予算 5）。決めが OS によらないので、Python を外した後も Linux の CI だけで答えが確かめられる",
+     "visible": "『参照…』と置き場の確かめで、珍しい形に新しい断りの理由が出る。~名前・末尾に空白の段の上のフォルダは、今は通る所が断りに変わる（後戻り）",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の決め『~名前 の形は使えません』: Windows の Python は ntpath.expanduser で C:\\Users\\名前\\… に広げて届く（案の係の py_probe.txt で C:\\Users\\nobody\\x）。今通る形が断りに変わる"
+      },
+      {
+       "kind": "lost",
+       "where": "案の決め『フォルダの名前の終わりに空白・「.」は使えません』（上のフォルダの段も）: Windows は Win32 が削って届く（release_place::win_trims が任せる形。Python は Path.resolve の GetFullPathNameW で削る）。置き場を確かめ直すと断られる"
+      },
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す"
+      }
+     ],
+     "seen": "最小で OS で答えが割れないので Linux で表の全部を確かめられる点は良い。ただし断る決めが 3 形で今 Windows で通る形を断る（減点 3 つ）。どれも Linux の試験には出ず、現場の PC で初めて分かる形。断りの言葉が増えるぶん、理由の調子も硬い。S12b は A と同じなので A の (5) の落とし穴も持つ"
+    },
+    "C A＋答え合わせ役の置き換えの最初の一部（fs・release_place・place の 3 本を独立の答えに替える）": {
+     "what": "方向: 事例の表＋独立の答え＋窓が組む。A の全部に加え、③-4・5 の最初の一部として、答え合わせ役 fs_oracle.py・release_place_oracle.py・place_oracle.py（1,234 行。Python の app を import して道そのものを答えにする）を、app を import しない独立の答え tools/place-truth.py の拡張（browse・places の中身〈os.scandir・自然な並び・印・隠し〉・配布の plan〈stat と表の決め〉・マスタの引っ越しの終わった後のフォルダ〈--copied・--followed・--rows は既にある〉）と事例の表 ospath_cases.json・place_cases.json に替える。fs_parity・release_parity・place_parity は窓の答えを独立の答えと比べる（Python の道とは比べない）。断る言葉は表に書いた字（道の言葉の決めを place_cases に 1 か所）。比べる口 ?engine=python の歩は 3 本の答え合わせ役から外す（口は製品に残し、自己診断が使う）",
+     "removes": "任せる歩: 11 → 0（OS 6 は窓が答え、口 5 は数え方の元が無くなる）。ただし口そのもの（?engine=python）は製品に残るので、数の 0 は『口が無い』ではない（delegates_budget の routerForward と並べて、口の数を別に書く）。消える答え合わせ役: 3 本・1,234 行（36 本 → 33 本）",
+     "risks": "(a) 大きい: 独立の答えが Python の道の字（断る言葉 60 種前後・os_error の Python の str の字・進み具合）を写し直す量が多く、独立の答えが Python の写しになりやすい（答えが字なので、字は表に書いて独立の答えは中身〈数・道・有る無し〉だけを出す、と分ける要）。(b) place_oracle の 2 つのプロセスの競い合い（種まき・引っ越しと錠）は Python のプロセスを相手にしているので、独立の答えへ替えると『窓と Python が同時に』の場面を失う（段 ④ まで Python は製品に居る）→ 競い合いの場面だけは Python を相手に残す要。(c) Windows の Python の答え（ntpath・os.stat）で突き合わせていた所を、独立の答えでも Windows で流す（place-truth.py は app を import しない Python なので Windows の CI で動く）",
+     "windows": "A と同じ（clippy の msvc・Windows の CI）。加えて place-truth.py の拡張を Windows の CI でも流す。CI だけで確かめられるが、Windows でしか出ない字（ntpath・隠しの属性）の独立の答えは CI の 1 回目で割れが出やすい",
+     "size": "A（Rust 450〜700＋cfg(windows) 60〜100・Python 50〜100）に加え、独立の答え 400〜700 行・試験の付け替え 300〜500 行・事例の表 60〜100 件。大きい 1 版（2 版分）",
+     "tests": "A の試験に加え、fs_parity・release_parity・place_parity を独立の答えと比べる形に・delegate-count の ORACLES から 3 本を外す（予算 0）・競い合いの場面は Python を相手に残す（place_parity の一部）・独立の答えを Python の道とも比べる試験を 1 回だけ（tests/test_place_truth.py。替えた後に割れを見つける）",
+     "stage4": "段 ④ で Python を外すとき、fs・配布・マスタの置き場の試験は既に Python に頼らない（33 本が残る）。③-4・5 の型（独立の答え＋表で、答え合わせ役 1 本ずつ替える）の最初の手本になる",
+     "visible": "A と同じ",
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の removes『11 → 0』: 口（?engine=python）は製品に残るのに数え方の元が消えて 0 と出る。数の見かけと中身がずれる（案も書く）。予算の守りが口を見なくなる"
+      }
+     ],
+     "seen": "A に答え合わせ役 3 本（1,234 行）の置き換えを足す 2 版分の 1 版。③-4・5 の手本になる狙いは良いが、place_oracle の 2 つのプロセスの競い合いは Python を相手に残す要があり、独立の答えが Python の断る言葉 60 種を写し直すと Python の写しになりやすい。この採点で Python の 500 が 5 形・NUL の割れが見つかったように、焼く元の答えにまだ誤りがある段階で替えるのは早い"
+    },
+    "D 2 版に分ける: 3.114.0 は事例の表と独立の答えで正しい答えを決め、Python の落ち方を直す。窓へ移すのは 3.115.0": {
+     "what": "方向: 事例の表＋独立の答え（先）→ 窓が組む（後）。3.114.0: ospath_cases.json を人が仕様から書き（A の決め）、place-truth.py に独立の答え（~名前・file: の URL・NUL・長さ・Win32 の整え・C:）を足し、Python を表に合わせて直す（500 の 3 形〈閉じない [ ・[zz]・長い上のフォルダ〉・browse の NUL・製品の move の 409 の理由）。予算外の形を答え合わせ役の歩にして数える（任せる歩は 11 → 18〜22 に一度増える。版 3.112.0 の conversions・sources_write と同じ型）。死んだ Windows の 3 歩を生かす。S12b の probe.rs も 3.114.0。3.115.0: 窓が表どおりに答え、None を外す（11 → 5）",
+     "removes": "3.114.0: 任せる歩 11 → 18〜22（数えていなかった任せを場面にする）・Python の 500 が 3 形消える・S12b。3.115.0: 18〜22 → 5",
+     "risks": "(a) 版が 1 つ増え、③ の終わりが遅れる（③-4・5・6 が後ろへ）。(b) 3.114.0 の間は窓と Python が割れる形（browse の NUL）が残る。(c) 予算を一度上げるので、予算の『増えたら落とす』の効き目が 1 版弱まる",
+     "windows": "3.114.0 は Python と独立の答えの直しが主で、cfg(windows) の Rust はほぼ触らない（Windows の CI は Python の答えの確かめ）。3.115.0 で A と同じ確かめ。CI だけで確かめられる",
+     "size": "3.114.0: 事例の表 40〜60 件・独立の答え 150〜250 行・Python 80〜150 行・答え合わせ役に 20〜30 歩・probe.rs 150〜200 行（小〜中）。3.115.0: Rust 300〜500 行（小〜中）",
+     "tests": "3.114.0: tests/test_ospath_cases.py（Python と独立の答え）・答え合わせ役の新しい歩・delegate-count の予算を上げる（raisedWhy に理由）・probe.rs の試験。3.115.0: ospath_cases（窓）・*_parity を expect same・予算 5",
+     "stage4": "A と同じ所へ 2 版で着く。正しい答えが Python の直しより先に決まるので、窓が Python の落ち方を写す危うさが小さい",
+     "visible": "3.114.0 で Python の答える珍しい形の理由の字が変わる（500 が理由つきに）。3.115.0 は変わらない",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す（D は 3.114.0 で Python を表の決めに合わせて直すので、その版から断る）"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案の size: 版が 1 つ増え（3.114.0 は任せる歩 11 → 18〜22 に上げ、3.115.0 で 5）、③-4・5・6 が後ろへずれる。3.112.0 に続いて予算を上げる版になる"
+      }
+     ],
+     "seen": "正しい答えを先に決めてから窓へ移す向きは、Python の落ち方を写さない点で良い。ただし 3.114.0 は製品の答えが Python 側でしか変わらず、窓と Python の NUL の割れも 1 版残る。A の中で『表を先に書き、want が py と違う形は Python も同じ版で直す』とすれば 1 版で同じ効き目になる（3.113.0 の採点の指摘 1 と同じ型）"
+    },
+    "E OS に尋ねる: 正しい答えの元を OS の API にする（Windows は GetFullPathNameW・プロファイルの登録簿・IPv6 の UNC、POSIX は getpwnam・pathconf）": {
+     "what": "方向: 窓が組む（OS が答えの元）。窓は道の字を Python の字の決めで写すのをやめ、OS に尋ねる: Windows は GetFullPathNameW で整え（末尾の空白・「.」・ドライブごとの今のフォルダ〈C:x〉も OS の答え）、~名前 はプロファイルの登録簿（HKLM\\…\\ProfileList の SID → ProfileImagePath。LookupAccountNameW で SID）、長さは GetVolumeInformationW の最大の名前の長さ、IPv6 は ipv6-literal.net。POSIX は getpwnam_r・pathconf(_PC_NAME_MAX)・realpath。NUL は OS へ渡す前に断る（OS も受けない）。試験の正しい答えも同じ OS の答え（Windows の CI では登録簿・GetFullPathNameW を試験の中で直に呼んで比べる）。S12b は A と同じ probe.rs",
+     "removes": "任せる歩 11 → 5。Windows の CI も 5 → 3。予算外の形も閉じる（C:x も OS の答えで答える）。S12b は A と同じ",
+     "risks": "(a) 答えが PC ごとに変わる（利用者の表・プロファイルの場所・ボリュームの上限）ので、事例の表に want を書けない形が残り、『仕様から決めた答え』でなく『その PC の OS の答え』になる（試験は OS に尋ね直すだけで、独立の答えにならない）。(b) windows クレートに Win32_System_Registry・Win32_Security_Authorization などの機能を足す（Cargo.toml と Cargo.lock は変わらないが、組む物が増える）・libc を直の依存に足す（POSIX の getpwnam_r）。(c) ドライブごとの今のフォルダ（C:x）は窓のプロセスの環境で決まり、Python（別プロセス）の答えと割れうる。(d) 製品は Windows だけなので、POSIX の分は開発と CI のためだけの手間",
+     "windows": "cfg(windows) の Rust が最も多い（登録簿・SID・GetFullPathNameW・GetVolumeInformationW）。手元では clippy の msvc まで。Linux から Windows 向けに組めない部分は CLAUDE.md の作業用クレートで cargo check。答えの確かめは Windows の CI だけ",
+     "size": "Rust 500〜800 行（cfg(windows) 250〜400）＋試験 150〜250。事例の表は形だけ（want は OS の答え）20〜30 件。Python 0〜40 行。1 版（中〜大）",
+     "tests": "ospath_os（Windows の CI で OS の API と窓の答えを比べる・POSIX は getpwnam と比べる）・fs_parity・release_parity の OS の歩を『窓の答え＝OS の答え』で・delegate-count 11 → 5・probe.rs の試験",
+     "stage4": "Python を外した後も OS が答えの元なので、Python の版に頼らない。ただし試験は『窓が OS を正しく呼んだか』までで、決めの正しさは表で残らない",
+     "visible": "~名前 がプロファイルを移した PC でも正しい所を指す・C:x がドライブの今のフォルダで解ける（どちらも珍しい）。見た目は変わらない",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 5,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の risks (a)(c): 答えがその PC の OS の答え（利用者の表・プロファイルの場所・ドライブごとの今のフォルダ）になり、C:x は窓のプロセスの今のフォルダで解けて Python（別のプロセス）と割れる。事例の表に want を書けず、試験は『OS を呼んだか』までで決めの正しさが残らない"
+      }
+     ],
+     "seen": "~名前 をプロファイルの登録簿で正しく引ける唯一の案で、デバイスの道も断らない。ただし cfg(windows) の Rust が最も多く（250〜400 行・登録簿と SID の機能を足す）、手元の Linux では clippy まで、答えの確かめは Windows の CI だけ。決めが表に残らず、段 ④ の後に『正しい答え』を持てない。部分的には良い: Win32 の末尾の整えだけは GetFullPathNameW を呼ぶ形が A の手書きより安全（first_fixes に入れた）"
+    },
+    "F 道の字の門（本文の門と同じ型で、道を受ける 7 本の頭に 1 つの確かめを置き、Python と窓が同じ表を読む）": {
+     "what": "方向: 流れの変え方（入口で 1 回決める）。版 3.104.0 の本文の門（body_rules・body::gate と body_cases.json）と同じ型で、道の字の門 path_gate を作る: 道を受ける欄（fs/browse の path・配布の check・move の from・parent・name・マスタの置き場の check・move の parent・name・参照先の確かめ settings/check の値）の表 path_routes（焼いた表 desktop/src/path_routes.json）と、字の形 → 通す・整えて通す（C: → C:\\・Win32 の末尾の整え）・理由つきで断る（NUL・長さ・~名前・デバイスの道・[ ]）の事例の表 path_gate_cases.json。門を通った字だけが各道の部品へ届くので、各部品の None（OS の形）は門の後ろでは起きない（起きたら試験で落とす: 部品の None を debug_assert に）。Python も同じ門（services/path_rules.py。30〜60 行）。S12b は A と同じ probe.rs",
+     "removes": "任せる歩 11 → 5。予算外の形（マスタの置き場・参照先の確かめの欄も）を道ごとでなく門で一度に閉じる。O6（製品の move の 409）も門が先に断るので無くなる。S12b は A と同じ",
+     "risks": "(a) 門の決め（通す・整える・断る）は B に近く、~名前 と末尾の空白の段を断れば B と同じ後戻りがある（整えて通すを選べば A の Win32 の整えが門に入る）。(b) 門の表と各道の部品の決め（tidy・check_name）が 2 か所になり、食い違いを試験で止める要（path_routes の古さの試験・門の後ろの None を落とす試験）。(c) 参照先の確かめ（settings/check）まで門に入れると、参照先の値の読み方（空・既定）と順が変わらないかを page_parity・settings_write_parity で見る要",
+     "windows": "門の決めは OS で割れない字の決め（Win32 の整えだけ cfg(windows)）。手元の Linux で表の大半を確かめられ、Windows の CI で nt の節。CI だけで確かめられる",
+     "size": "Rust 350〜550 行（門 150〜200・焼いた表と道の当て方 80・各道の None を外す 80〜120・probe.rs 150〜200）。事例の表 40〜60 件・焼く道具 python tools/path-routes.py 60〜100 行。Python 60〜120 行。1 版（中）",
+     "tests": "cargo test --test path_gate_cases（窓）・tests/test_path_gate_cases.py（Python）が同じ表・tests/test_path_routes.py（道を受ける欄は全部、門を当てるか当てないかに決めてある・焼いた表が古くない）・*_parity の新しい歩・delegate-count 11 → 5・門の後ろの部品が None を返したら落ちる試験・probe.rs の試験",
+     "stage4": "段 ④ で Python を外しても、道の字の決めは門の表 1 か所にある。新しい道の欄を足したとき、門に当てたかを path_routes の試験が止める（本文の門と同じ守り）",
+     "visible": "B か A（門の決めしだい）。新しい部品は無い",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 9,
+      "form": 9,
+      "place": 9,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の what『理由つきで断る（NUL・長さ・~名前・デバイスの道・[ ]）』の ~名前: Windows の Python は ntpath.expanduser で C:\\Users\\名前\\… に広げて届く。今通る形が断りに変わる（案の risks (a) も書く。案を作った者の推しは ~名前 を A の決めにした形）"
+      },
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す"
+      }
+     ],
+     "seen": "版 3.104.0 の本文の門と同じ型で、道を受ける欄を path_routes の表に決め、新しい欄の漏れを試験で止める。決まりが 1 か所になる点は 8 案でいちばん良い（形と色・言葉と置き場が高い）。ただし書いたままの決めは ~名前 とデバイスの道を断る（減点 2 つ）。門の範囲に参照先の確かめ（settings/check）まで入れると、束・参照先の読みの順が変わらないかを page_parity・settings_write_parity で見る要が増える（任せる歩は無いので、この版では SKIP と理由で決めるだけでよい）。S12b は A と同じなので A の (5) の落とし穴を持つ。決めを A にすれば A と同じ所に着く（A の first_fixes に F の門の形を入れた）"
+    },
+    "G S12b と掘り出しだけ（窓の裏の糸を 1 つの係にし、予算外の形を全部場面にして数える。閉じるのは次の版）": {
+     "what": "方向: 版の切り方（小さく先に）。(1) S12b: probe.rs（A と同じ）に窓の 4 つの糸を載せ替える。止まる尋ね方を差し込む試験で、糸の数が上限を超えないことを測って示す。(2) 予算外の形（fs 5 形・browse の NUL の割れ・配布の長い上のフォルダ・マスタの置き場の OS の形・死んだ Windows の 3 歩・製品の move の 409）を答え合わせ役の歩にして数える（任せる歩 11 → 20 前後。delegates_budget の raisedWhy に書く）。browse の NUL の割れだけは窓を Python の答えに合わせる（英語の文を出さない。5〜10 行）。(3) 製品の move の任せ（O6）を試験で見える形にする（答え合わせ役を TPA_SHELL_SERVES 付きでも流す場面）。正しい答えの決めと窓が答えるのは次の版（A か F）",
+     "removes": "任せる歩: 11 → 20 前後（一度増える）。S12b は閉じる。browse の NUL の割れが消える",
+     "risks": "(a) 任せる歩が減らない版になる（③ の残りが 1 版増える）。(b) 予算を上げる版が続くと（3.112.0 にも上げた）、予算の守りが弱く見える。(c) 次の版で A・B・F のどれを選ぶかを先送りする",
+     "windows": "probe.rs は OS によらない（Windows の CI は念のため）。死んだ Windows の 3 歩を生かすと Windows の CI の数が増える（envLess・envExtra を測り直す）。CI だけで確かめられる",
+     "size": "Rust 200〜300 行（probe.rs 150〜200・載せ替え 50〜100・NUL 5〜10）・答え合わせ役に 20〜30 歩・Python 0〜10 行。1 版（小さい）",
+     "tests": "probe.rs の試験（止まる尋ね方・100 回・上限・同じ鍵 1 本）・fs_parity・release_parity・place_parity の新しい任せる歩・delegate-count の予算を上げる・製品の形（SERVES 付き）の move の答えを見る場面",
+     "stage4": "段 ④ の前に、OS の任せが全部数に出ている（隠れた任せが無い）ことを先に保つ。閉じるのは次の版",
+     "visible": "『参照…』で NUL を含む欄の理由の字が Python と同じになる（英語の文が出なくなる）。ほかは変わらない",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案の removes: 任せる歩は 11 → 20 前後に一度増え、閉じるのは次の版。3.112.0 に続いて予算を上げる版になり、③ の残りが 1 版増える"
+      }
+     ],
+     "seen": "後戻りが無く、予算外の形を全部数に出す向きは正しい（採点者の測りでも数えていない任せと Python の 500 が 5 形あった）。ただし製品の答えは browse の NUL の割れのほか変わらず、製品の move の 409（O6）も Python の 500 も残る。正しい答えの決め（A か F）を先送りするだけで、この版で直せる形を次へ回す"
+    },
+    "H A＋③-6（CM3 の https・プロキシ）を同じ版に: ③ の窓の残りを答え合わせ役の置き換えのほか全部閉じる": {
+     "what": "方向: 版の切り方（大きくまとめる）。A の全部に加え、利用者の決めどおり CM3 を https とプロキシ越しにつなぐ: TLS の crate を足す（rustls＋Windows の証明書ストアを読む rustls-platform-verifier か rustls-native-certs。native-tls〈schannel〉も候補）、プロキシは Windows の設定から読む（WinHttpGetIEProxyConfigForCurrentUser。自動構成スクリプト〈PAC〉・WPAD は読まず、固定のプロキシとバイパスの一覧だけ。認証なし）、cm3_http.rs に CONNECT のトンネル。スケジュールの係を降りる形（Fail::Python のうち https・プロキシ）を窓が答え、charset・数でない timeout は理由つきで断る",
+     "removes": "任せる歩 11 → 5（A と同じ）＋スケジュールの係を降りる形（schedule_parity の『係を降りた』のうち https・システムのプロキシ）。③ の残りは比べる口と答え合わせ役の置き換えだけになる",
+     "risks": "(a) 2 つの別の話（道の字と TLS・プロキシ）を 1 版に入れるので、作った後の採点で割れが出たときの直しが大きい。(b) TLS の crate で依存と exe が大きくなる（rustls なら数百 KB〜1 MB 台）・Cargo.lock が大きく変わり、CI の clippy・cargo deny の見直し。(c) 試験の CM3 は作り物（tests/schedule_fixture.Cm3Server）なので、https は自前の証明書を試験の中だけ信じる形、プロキシは作り物のプロキシを起こす要。Windows の証明書ストアと IE のプロキシ設定は Windows の CI でしか読めない（CI の runner に社内の設定は無く、『設定なし』の形しか確かめられない）。(d) PAC を読まない決めは、PAC を使う社内 LAN でつながらない（理由つきで断る字を決める要）",
+     "windows": "A の確かめに加え、Win32_Networking_WinHttp の機能を windows クレートに足す（Linux から組めない部分は作業用クレートで cargo check）。証明書ストアとプロキシの本物の形は Windows の CI でも確かめきれない（現場の VPN・社内 LAN だけ）",
+     "size": "A（Rust 450〜700＋cfg(windows) 60〜100）に加え Rust 400〜700 行（TLS 150〜250・プロキシの読み 100〜200・CONNECT 80〜150・試験 100〜150）・依存の crate 2〜5。大きい 1 版",
+     "tests": "A の試験に加え、schedule_parity に https（試験の中だけの証明書）とプロキシ（作り物の CONNECT のプロキシ）の場面・プロキシの設定の読み方の事例の表（バイパスの一覧〈<local>・*.社内〉の当て方）・Windows の CI で WinHttp の読み（設定なし）",
+     "stage4": "③ の窓の作りの残りが無くなり、次は答え合わせ役の置き換え（③-4・5）と段 ④ だけになる",
+     "visible": "https・プロキシ越しの CM3 を使う PC で、スケジュールのタブが窓だけで出る（今は Python が取る）。道の字は A と同じ",
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の py_routes_probe.py と folder_browse.py の tidy: Python は \\\\?\\C:\\x を ntpath.normpath のまま Path.is_dir に渡すので、Windows では今『参照…』で開ける（窓は device_path で任せ、Python が答える）。案の決め『デバイスの道は使えません』は、今 Windows で通る形を断りに変える後戻り。Linux の試験では『届きません』しか出ないので見逃す"
+      }
+     ],
+     "seen": "③ の窓の作りを 1 版で終える狙いだが、道の字と TLS・プロキシの 2 つの別の話を 1 版に入れる。利用者は ③-6 を別の版と決めている（https・プロキシ・認証なし・VPN か社内 LAN）。TLS の crate で依存と Cargo.lock が大きく変わり、Windows の証明書ストアと IE のプロキシ設定は CI でも『設定なし』しか見られない。PAC を読まない決めは社内 LAN によってはつながらない。この版に入れる理由が無い"
+    }
+   }
+  }
+ ],
+ "evaluation": {
+  "verified_claims": [
+   "任せる歩 11（OS 6・口 5／fs 3・release_place 7・place 1）: 正しい。採点者が自分の作業フォルダ dc/ で delegate-count.py --check --json を流して同じ数・『予算と同じです』・終了コード 0（38.3 秒）。Python の答えも OS {2xx 5・4xx 1}・口 {2xx 5} で同じ",
+   "予算外の形で Python が 500: 正しく、案より多い。採点者の py_routes_probe.py で、POST /api/fs/browse の file://[::1/x（ValueError: Invalid IPv6 URL）・file://[zz]/x（'zz' does not appear to be an IPv4 or IPv6 address）、POST /api/release/place/check の上のフォルダ 字×90・a×300（OSError: [Errno 36] File name too long。Python 3.13 の pathlib の is_dir は ENAMETOOLONG を無視しない）に加え、POST /api/masters/place/check の上のフォルダ 字×90・a×300 も 500。案の『3 形』は道で数えると 4 形・字で数えると 6 歩。窓は同じ形で None（任せる）を採点者の一時の試験で見た。Windows の長い段は winerror 123（ERROR_INVALID_NAME）を pathlib が無視するので『届きません』になる見込み（流していない）。500 は Linux（開発と CI）の形",
+   "窓と Python の NUL の割れ: 正しい。Python の folder_browse.browse('/tmp/a\\x00b') は『「a\\u0000b」が見つかりません。届いた所: /tmp』（path /tmp）、窓の folder_browse::browse は『読めません: …/a\\u0000b（file name contained an unexpected NUL byte）』（path 空・Rust の英語の文）。配布の check の上のフォルダの NUL は窓が None・Python は『上のフォルダに届きません』、マスタの置き場の check は Python『置く場所に届きません』、名前の NUL はどちらも check_name の『使えない字（制御文字）』",
+   "その他の主張: ~無い名前は Python『ドライブ（C:\\…）か共有…から書いてください』・窓 None、ASCII でないサーバー名・\\\\?\\・\\\\.\\ は Linux の Python『届きません』・窓 None で案と同じ。製品の move の 409 は routes/settings.py の shell_serves の分岐で確かめた。死んだ Windows の 3 歩は release_place_oracle.py の 281 行（probe_scenario は os.name != 'nt' の中）と 379 行（その中の os.name == 'nt' の分）で確かめた。窓の browse（bounded）・places・using が呼ぶたびに糸を立て、master_place::status だけが PROBES で重ねないことをコードで確かめた",
+   "案が見ていない所: (a) \\\\?\\C:\\x は Windows の Python が ntpath.normpath のまま Path.is_dir に渡すので今開ける（tidy の 124〜127 行。窓は device_path で任せる）。A・B・C・D・F・H の『デバイスの道を断る』は Windows だけの後戻りで、Linux の試験は見逃す。(b) envExtra 1（root でない CI の『中を読めない置き場』noread）も OS の任せで、11 → 5 は root の数。CI では 6 のまま。(c) release_place::py_is_dir は presence::online_in（置き場の利用状況）も使い、release_place::settings_answer は distribute の /api/update/settings が使う。(d) GET /api/masters/status の reachable null／false は 3.100.0 の決まり（null は保存を止めない）で、probe.rs の上限・覚えの答え方しだいで変わる"
+  ],
+  "rank": "1 位 A（61.6）。2 位 G（61.3）・3 位 F（58.2）・4 位 D（57.8）・5 位 E（49.1）・6 位 C（45.2）・7 位 H（43.7）・8 位 B（40.9）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しをやり直さず、A に下の指摘を入れた形で作る。A を 1 位にした理由: OS の 6 歩と予算外の任せ（採点者の測りで Python の 500 が 5 形・NUL の割れ・製品の move の 409）を 1 版で閉じ、段 ④ の前提『窓は OS の道を Python に任せない（口だけ）』を予算 5 で保てる。~名前 を Windows の今の答え（ntpath）にする決めで、断る案（B・F）の後戻りを避けている。差が小さい G は後戻りが無いが、製品の答えをほとんど変えずに 1 版を使う。F は決まりを 1 か所にする形がいちばん良いが、書いたままでは ~名前 を断る。このため作る形は、案を作った者の推しと同じく『A の決めを F の門の形で入れる』とし、F の path_routes を first_fixes の 1 に入れた。A の足りない点は、デバイスの道を断る後戻り（Windows だけ・Linux の試験では見えない）・Win32 の整えの手書き・probe.rs の上限と覚えの答え方・envExtra の数え漏れ・py_is_dir と settings_answer を通じた置き場の利用状況と更新の流れへの触れ。どれも 1 版の中で直せる",
+  "first_fixes": [
+   "形: A の決めを F の門で入れる。窓 src/path_gate.rs と Python services/path_rules.py が同じ事例の表 tests/fixtures/ospath_cases.json（形 × posix・nt → want と、版 3.113.0 の Python の答え py）を読む。道を受ける欄の表 path_routes を焼く（desktop/src/path_routes.json。焼く道具 tools/path-routes.py）。当てる欄: POST /api/fs/browse の path、/api/release/place/check・move の from・parent・name、/api/masters/place/check・move の parent・name。POST /api/settings/check と PUT /api/settings/<key> は、この版では SKIP とし理由を書く（束と参照先の読みの順を変えない）。tests/test_path_routes.py は、道を受ける欄が全部 ROUTES か SKIP に決めてあることと、焼いた表が古くないことを見る。門の後ろの部品の None は debug_assert にする。製品では os_error の理由で答え、任せない",
+   "デバイスの道は断らない（Windows の後戻りを作らない）。\\\\?\\X:\\… は X:\\… に、\\\\?\\UNC\\サーバー\\共有\\… は \\\\サーバー\\共有\\… に書き直して通す（今 Windows の Python が Path.is_dir で開ける形）。\\\\?\\ の後ろに末尾の空白・「.」の段がある形は断る。書き直すと Win32 が削って別のフォルダを指すため。\\\\.\\…・\\\\?\\Volume{…}・\\\\?\\GLOBALROOT など、そのほかの装置の道は『装置の道（\\\\.\\…）は使えません。C:\\… か \\\\サーバー\\… で書いてください』で断る。nt の表に 8〜10 件並べる",
+   "~名前 は ntpath.expanduser（Python 3.13）の決めそのままにする。Windows は ~ が家（USERPROFILE）。~名前 は、USERNAME と basename(USERPROFILE) が違えば字のまま（相対の道の断り『ドライブ…から書いてください』へ）、同じなら dirname(USERPROFILE)＋名前、名前が USERNAME と同じなら家。純粋な関数は USERPROFILE・USERNAME を引数で受け、表は値を書いて決める（CI の runneradmin に頼らない）。POSIX は /etc/passwd を読み（libc を直の依存に足さない）、無い名前は字のままにする。NSS だけの利用者の差は開発用として表の note に書く",
+   "Win32 の段の末尾の空白・「.」は手で書かない。Windows では GetFullPathNameW（Python の ntpath.abspath が呼ぶのと同じ関数。windows クレートの Win32_Storage_FileSystem は既にある）で整える。ただし C:x（ドライブ相対）とデバイスの道は門で先に決める（プロセスごとの今のフォルダを混ぜない）。nt の表に want を書いて Windows の CI で GetFullPathNameW と比べる形: a.\\b・a..\\b・a...\\b・a \\b・a\\b ・a\\b. ・a \\（区切りで終わる）・\\\\srv\\share. \\x・' \"  \" '・予約名の段 C:\\x\\CON\\y・C:\\x\\con.txt\\y（ntpath.isreserved。place-truth.py が使う独立の答え）。POSIX では整えない（Linux では末尾の空白も名前の字）",
+   "C: は C:\\（folder_browse の clean と同じ）。C:x は『ドライブの根（C:\\…）から書いてください』で断る。配布とマスタの置き場で、Python が今プロセスの今のフォルダで解いていた C:（release_place_oracle の Windows の任せる歩）の行き先が変わる。表に py と want を並べて、変わることを書いて残す",
+   "長さは段ごとに決める: POSIX は UTF-8 の 255 バイト、Windows は UTF-16 の 255 単位（字の数ではない。代用字の対は 2）。理由の字は OS ごと（『この PC の上限 255 バイト／255 字』）。上のフォルダも同じ決めにして、Python の 500（採点者の測りで配布の check とマスタの置き場の check の長い上のフォルダ、計 4 歩）を閉じる。MAX_PATH（260）を超える全体の長さは、この版では決めない旨を表の note に書く",
+   "制御文字: NUL は 3 本とも、check_name と同じ言葉で断る（『道に使えない字（制御文字）があります』）。U+0001〜U+001F も表で決める（Windows では名前に使えず、Python は『届きません』。Linux では名前に使える）。browse の NUL の割れ（窓の Rust の英語の文）は、この門で閉じる",
+   "file: の [ ]: 閉じない [ ・IP でない [zz] は『file: の URL が読めません（サーバー名の [ ]）』で断る（今 Python は 500）。[v6] は ipv6-literal.net の形に書き直す。ゾーン ID（%25eth0）付きは断り、s の形は作らない。ASCII でないサーバー名は通す。file://[::1]:445/x（口の番号付き）も表に並べる",
+   "予算と環境の幅: delegates_budget.json の total を 11 → 5（fs 1・release_place 3・place 1）、envLess を 0 にする。envExtra（root でない CI の『中を読めない置き場』noread: Python は iterdir の PermissionError）も表で決めて 0 にする。決めないなら envExtra を残す理由を書く。死んだ Windows の 3 歩（probe_scenario の中の os.name == 'nt'）は、Windows でも流れる場面へ移す。予算外の形（採点者の測り: fs 5 形・配布の長い上 2・マスタの置き場の長い上 2・3 本の NUL・装置の道）を答え合わせ役 fs・release_place・place の歩に足し、expect same にする",
+   "触れない所を決める: release_place::py_is_dir・os_error・settings_answer は変えない（presence::online_in と distribute の /api/update/settings が使う）。変えるなら verify.py の distribute と update を 1 回通す。門は道の頭（欄の字）だけに当て、保存済みの置き場の読み（束・master_share.json・引っ越しの印）には当てない。新しい版が書く字は絶対の道なので、2 台の PC で版が混ざっても古い版は読める。place_parity に『新しい版が書いた引っ越しの印を前の版の決めでたどる』場面を 1 つ足す",
+   "probe.rs: 上限に当たったときと時間切れは reachable null（確かめ中）で答え、false（届かない）にしない（3.100.0 の決まり: null は保存を止めない）。GET /api/masters/status は今どおり呼ぶたびに確かめる（2 秒の覚えは using・places の行にだけ使う）。browse・places の鍵は道の根（X:\\ か \\\\サーバー\\共有）にして、同じ止まる共有の別のフォルダで糸を積まない。PROBES の終わった slot は片付ける。待ちは Condvar。試験は止まる尋ね方を差し込み、100 回呼んでも糸が上限以下・鍵ごとに 1 本・答えが null・止まりが解けたら次は真の答え。lot::tests の masters/status の試験と node program/tools/ui-eval-masterpin.mjs を 1 回流す",
+   "確かめ: clippy --target x86_64-pc-windows-msvc を通す。Windows の CI で ospath_cases の nt の節と fs_parity・release_parity・place_parity・place_cases を見る。変異で落ちることを見る（装置の道を断るに戻す・NUL を任せに戻す・GetFullPathNameW を手書きの整えに替える・門を外す・probe の鍵を外す・上限で false を返す）。main.rs・update.rs・install.rs・distribute.rs は変えない"
+  ],
+  "estimates": "量の見込み: A の Rust 450〜700＋cfg(windows) 60〜100 に、門と欄の表（path_routes の焼きと当て方 80〜120）・装置の道の書き直し 30・GetFullPathNameW の包み 30〜50（cfg(windows)。手書きの整えの 100 前後は要らなくなる）・/etc/passwd の読み 30 を足して、Rust 600〜850 行（cfg(windows) 90〜150）・Python 100〜180 行（path_rules・焼く道具・Python の 500 の直し）・事例の表 60〜80 件・答え合わせ役に 25〜35 歩。1 版（中〜大）に収まる。S12b の probe.rs は 150〜200 行のままだが、上限と null の決めの試験で +50。G の 200〜300 行・D の 2 版は妥当。C は独立の答えの写し直しが 1 版の上限を超える見込み。H は TLS とプロキシで 400〜700 行に加えて依存が変わり、利用者の決めどおり ③-6 の別の版にする。答え合わせ役の置き換えをいつ始めるかの意見: この版では始めず、次の版（3.115.0・③-4）から始める。順は次のとおり。(i) fs_oracle（読むだけ。place-truth.py の os.scandir・自然な並び・印・隠しを伸ばせば独立の答えになる。OS の形はこの版の ospath_cases が既に人の表で持つ）。(ii) release_place_oracle の 1 台の PC の部分（確かめる・写す・終わった後のフォルダは --copied・--tree-size が既にある）。2 つの PC が同じ置き場を写す場面は Python を相手に残す。(iii) place_oracle は最後にする。種まきと引っ越しの競い合い（窓 2 つと Python）は、段 ④ で Python を外すまで Python を相手に残す。この版を先にする理由は 2 つ。1 つは、この採点で Python の 500 が 5 形・NUL の割れが見つかったこと。Python の答えを焼く前に、門の表で Python の落ち方を直しておく（3.113.0 の採点と同じ教訓）。もう 1 つは、OS の形を表で決めておけば、独立の答えは OS の形を写さずに中身（数・道・有る無し）だけを出せること。置き換えたら delegates_budget の ORACLES から外す。そのとき口（?engine=python）の数が見かけで消えないよう、口の数は route_reach と並べて別に報告する（C の落とし穴）"
+ }
+}
