@@ -1151,7 +1151,6 @@ pub fn missing_lots(path: &Path, table: &str, brought: &[String]) -> Result<Opti
     Ok(Some(if nums.is_empty() { texts.into_iter().map(Value::String).collect() } else { nums.into_iter().map(|x| x.1).collect() }))
 }
 
-
 /// JSON の字の外に NaN・Infinity・-Infinity があるか（Python の json.loads が parse_constant を呼ぶ字）
 fn json_constant(text: &str) -> bool {
     let b = text.as_bytes();

@@ -144,12 +144,27 @@ fn compiled() -> &'static (Vec<(regex::Regex, String)>, regex::Regex) {
     })
 }
 
-/// そろえる（鍵の名前の表＋字の形。tests/baked/settle.json）。extra_keys は本ごとに足す鍵
+/// そろえる（鍵の名前の表＋字の形。tests/baked/settle.json）。extra_keys は本ごとに足す鍵。
+/// TPA_SETTLE_DROP=鍵か形の置き換えの字（例 updated_at・@T）で、その決まりを 1 つ外して流せる（変異: 外すと焼きの 2 回目・表との比べが落ちる）
 pub fn settle(v: &Value, ctx: &Ctx, extra_keys: &[String]) -> Value {
+    static DROP: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    let drop = DROP.get_or_init(|| std::env::var("TPA_SETTLE_DROP").ok().filter(|s| !s.is_empty()));
+    settle_with(v, ctx, extra_keys, drop.as_deref())
+}
+
+/// settle の決まりを 1 つ外した形（drop: 鍵の名前か、形の置き換えの字）
+pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&str>) -> Value {
     let r = rules();
-    let keys: Vec<&str> =
-        r["timeKeys"].as_array().unwrap().iter().filter_map(Value::as_str).chain(extra_keys.iter().map(String::as_str)).collect();
-    let (forms, day_re) = compiled();
+    let keys: Vec<&str> = r["timeKeys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(Value::as_str)
+        .chain(extra_keys.iter().map(String::as_str))
+        .filter(|k| Some(*k) != drop)
+        .collect();
+    let (all, day_re) = compiled();
+    let forms: Vec<&(regex::Regex, String)> = all.iter().filter(|(_, to)| Some(to.as_str()) != drop).collect();
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。OS の利用者の名前（書いた人の login）は @USER に（root と CI の利用者で同じ表）
@@ -161,7 +176,7 @@ pub fn settle(v: &Value, ctx: &Ctx, extra_keys: &[String]) -> Value {
                 t = t.replace(&format!("／{u} "), "／@USER ");
             }
         }
-        for (re, to) in forms {
+        for (re, to) in &forms {
             if re.is_match(&t) {
                 t = re.replace_all(&t, to.as_str()).into_owned();
             }
@@ -523,6 +538,8 @@ fn decl_cmp(v: &Value) -> Value {
 // ------------------------------------------------------------------ 焼く係
 
 pub struct Bake {
+    /// 表を書くフォルダ（None は TPA_BAKE_OUT か tests/baked）
+    pub out: Option<PathBuf>,
     pub book: String,
     /// 表のファイルの名前（本の名前か「本.部分」。1 つの試験のファイルに焼く試験が 2 つ以上あるとき）
     file: String,
@@ -587,13 +604,19 @@ impl Bake {
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
         let path = baked_dir().join(format!("{file}.json"));
         let table = std::fs::read(&path).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display())));
-        let check = cfg!(unix) && mode != Mode::Bless;
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
             panic!("焼いた表 {} がありません（TPA_BLESS=1 で焼く）", path.display());
         }
+        Bake::with(book, &file, mode, scope, table, base)
+    }
+
+    /// 流し方と表を決めて作る（試験の変異で使う。open_part は環境変数と tests/baked から決める）
+    pub fn with(book: &str, file: &str, mode: Mode, scope: Vec<String>, table: Option<Value>, base: &Path) -> Bake {
+        let check = cfg!(unix) && mode != Mode::Bless;
         Bake {
+            out: None,
             book: book.into(),
-            file,
+            file: file.into(),
             mode,
             scope,
             check,
@@ -875,7 +898,7 @@ impl Bake {
     }
 
     fn write(&self) {
-        let out_dir = std::env::var("TPA_BAKE_OUT").map(PathBuf::from).unwrap_or_else(|_| baked_dir());
+        let out_dir = self.out.clone().or_else(|| std::env::var("TPA_BAKE_OUT").ok().map(PathBuf::from)).unwrap_or_else(baked_dir);
         std::fs::create_dir_all(&out_dir).unwrap();
         let path = out_dir.join(format!("{}.json", self.file));
         let old = self.table.clone().unwrap_or(Value::Null);

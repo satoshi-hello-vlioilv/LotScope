@@ -169,7 +169,7 @@ pub fn decode_body(raw: &[u8], content_type: Option<&str>) -> R<String> {
     names.push("cp932".into());
     for n in &names {
         let Some(codec) = codec_of(n) else { continue }; // LookupError
-        // 窓の持たない codec（EUC-JP など）は引けない名前と同じに飛ばす（版 3.115.0。Python の _decode_body の CODECS と同じ 6 つ）
+                                                         // 窓の持たない codec（EUC-JP など）は引けない名前と同じに飛ばす（版 3.115.0。Python の _decode_body の CODECS と同じ 6 つ）
         match decode(raw, codec) {
             None | Some(None) => continue,
             Some(Some(s)) => return Ok(s),
