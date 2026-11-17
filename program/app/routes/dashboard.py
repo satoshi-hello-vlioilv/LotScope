@@ -899,8 +899,12 @@ def dashboard_fields():
 def _dashboard_fields():
     a = (req_body()) if request.method == "POST" else request.args
     calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
+    # 字の欄に数・真偽が来たら str(値 or "")（版 3.115.0。前は source が数で startswith の AttributeError の 500。窓の builder::fields も同じ読み方）
+    def text(v):
+        return v if isinstance(v, str) else str(v or "")
+    equips = [text(x) for x in a.get("equips")] if isinstance(a.get("equips"), list) else None
     try:
-        parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""), equips=a.get("equips") if isinstance(a.get("equips"), list) else None)
+        parts, failed, name, _ = panel_parts(text(a.get("source", "")), text(a.get("equip", "")), equips=equips)
     except _Fail as f:
         return f.resp
     use = builder.use_parts(parts)

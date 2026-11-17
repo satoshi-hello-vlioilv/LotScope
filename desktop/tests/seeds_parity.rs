@@ -177,6 +177,9 @@ fn with_python(old: bool, tag: &str) -> Vec<PathBuf> {
 
 #[test]
 fn the_window_and_python_reading_the_record_together_apply_once() {
+    if !common::bake::frozen_python("the_window_and_python_reading_the_record_together_apply_once") {
+        return;
+    }
     for share in with_python(false, "窓と今の版の Python") {
         once_each(&share, "窓と今の版の Python");
     }
@@ -184,6 +187,9 @@ fn the_window_and_python_reading_the_record_together_apply_once() {
 
 #[test]
 fn the_window_never_adds_a_second_record_even_beside_the_old_python() {
+    if !common::bake::frozen_python("the_window_never_adds_a_second_record_even_beside_the_old_python") {
+        return;
+    }
     // 前の版の Python は見直さないので記録が 2 行になりうる（今の版の窓・Python どうしは塞がる）。窓は自分より先の記録があれば足さない
     for share in with_python(true, "窓と前の版の Python") {
         contents_once(&share, "窓と前の版の Python");
@@ -267,6 +273,9 @@ fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
 
 #[test]
 fn the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app() {
+    if !common::bake::frozen_python("the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app") {
+        return;
+    }
     // 作った後の採点の割れ 3: 起動の同じ瞬間に、窓の束の種まき（Builder::inputs。warm・最初の画面・更新の係の道）と Python の create_app
     // （起動の参照先の読み＝ path_settings の種まき）が同じ空の共有で錠を取り合っても、初期値は 5 回の待ちの中で当たり、中身は 1 つずつ・
     // 錠は残らない

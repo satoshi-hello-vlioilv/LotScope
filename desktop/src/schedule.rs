@@ -233,10 +233,9 @@ impl Cfg {
             match t {
                 Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
                 Value::Bool(b) => f64::from(u8::from(*b)),
-                Value::String(s) => {
-                    crate::pyfmt::py_float(s).map_err(|_| Fail::Python("timeout_sec が数でない（Python は ValueError）"))?
-                }
-                _ => return Err(Fail::Python("timeout_sec が並び・表")),
+                // 数でない timeout（「abc」・並び・表）は既定の 15 秒（版 3.115.0。Python の num_setting.read と同じ。前は Python が ValueError）
+                Value::String(s) => crate::pyfmt::py_float(s).unwrap_or(15.0),
+                _ => 15.0,
             }
         };
         if !secs.is_finite() || secs <= 0.0 || secs > 1e6 {
@@ -687,6 +686,10 @@ impl Schedules {
         let r = crate::cm3_http::post(url, base, body.as_bytes(), timeout)?;
         let text = cm3::decode_body(&r.body, r.header("Content-Type"))?;
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
+        // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
+        if json_constant(&text) {
+            return Err(Fail::Cm3("CM3の応答がJSONではありません".into()));
+        }
         if first.is_some_and(|c| "{[\"-0123456789tfnNI".contains(c)) && crate::master_rows::text_split(&text) {
             return Err(Fail::Python("JSON の読みが Python と割れる（NaN・大きな整数・深い入れ子）"));
         }
@@ -1146,6 +1149,29 @@ pub fn missing_lots(path: &Path, table: &str, brought: &[String]) -> Result<Opti
     texts.sort();
     nums.sort_by(|a, b| a.0.total_cmp(&b.0));
     Ok(Some(if nums.is_empty() { texts.into_iter().map(Value::String).collect() } else { nums.into_iter().map(|x| x.1).collect() }))
+}
+
+
+/// JSON の字の外に NaN・Infinity・-Infinity があるか（Python の json.loads が parse_constant を呼ぶ字）
+fn json_constant(text: &str) -> bool {
+    let b = text.as_bytes();
+    let (mut i, mut in_str) = (0, false);
+    while i < b.len() {
+        let c = b[i];
+        if in_str {
+            if c == b'\\' {
+                i += 1;
+            } else if c == b'"' {
+                in_str = false;
+            }
+        } else if c == b'"' {
+            in_str = true;
+        } else if b[i..].starts_with(b"NaN") || b[i..].starts_with(b"Infinity") {
+            return true;
+        }
+        i += 1;
+    }
+    false
 }
 
 #[cfg(test)]

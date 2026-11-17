@@ -554,6 +554,16 @@ pub struct Bake {
     bad: Vec<String>,
 }
 
+/// 段 ④ の配布の間だけ凍らせた最後の Python を相手にする試験（競い合い・受け身・前の版の読み手）か。TPA_NO_PYTHON=1（④ の後の形）では
+/// 流さない（配布が終わった版で試験ごと消す。決めは tools/ui-proposals/2026-11-stage3d.json の frozen_python）
+pub fn frozen_python(why: &str) -> bool {
+    if env_on("TPA_NO_PYTHON") {
+        eprintln!("凍らせた Python を相手にする試験なので流しません（TPA_NO_PYTHON）: {why}");
+        return false;
+    }
+    true
+}
+
 fn env_on(k: &str) -> bool {
     std::env::var(k).is_ok_and(|v| !v.is_empty() && v != "0")
 }

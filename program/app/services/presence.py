@@ -195,9 +195,11 @@ def _month_after(month):
     """"2026-09" → その次の月の初め（datetime）。読めなければ None。"""
     try:
         y, m = (int(x) for x in month.split("-"))
-    except ValueError:
+        # 年が datetime の外（10000 年・i64 に入らない数）も読めない名前（版 3.115.0。前は ValueError・OverflowError で
+        # 心拍の掃除の糸が終わり、管理する人の「古い記録を整理」が 500。窓は答えずに任せた）
+        return datetime(y + (m == 12), m % 12 + 1, 1)
+    except (ValueError, OverflowError):
         return None
-    return datetime(y + (m == 12), m % 12 + 1, 1)
 
 
 def _cutoff(now=None):

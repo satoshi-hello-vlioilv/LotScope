@@ -70,19 +70,21 @@ pub enum Route {
 
 /// 窓が受ける道か（Flask の <key> は / を含まない空でない字。百分率符号は Python が戻してから探すので任せる）
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
-    let key_ok = |k: &str| !k.is_empty() && !k.contains('/') && !k.contains('%');
+    // 元のキーは百分率符号を 1 回戻して読む（Python の web.App.handle の unquote と同じ。版 3.115.0。前は「%」の道を Python に任せた）。
+    // 戻した字に「/」があれば道の型に当たらない（Python は 404 の道なし）ので任せる
+    let key_ok = |k: &str| !k.is_empty() && !k.contains('/');
     match (method, path) {
         ("GET" | "POST", "/api/dashboard/fields") => Some(Route::Fields),
         ("GET", "/api/data/columns") => Some(Route::DataColumns),
         ("POST", "/api/sources/check") => Some(Route::Check),
         ("POST", "/api/sources/join/preview") => Some(Route::JoinPreview),
         ("GET", p) => {
-            let k = p.strip_prefix("/api/sources/")?.strip_suffix("/columns")?;
-            key_ok(k).then(|| Route::SrcColumns(k.into()))
+            let k = crate::body::unquote(p.strip_prefix("/api/sources/")?.strip_suffix("/columns")?);
+            key_ok(&k).then_some(Route::SrcColumns(k))
         }
         ("POST", p) => {
-            let k = p.strip_prefix("/api/sources/")?.strip_suffix("/conn/check")?;
-            key_ok(k).then(|| Route::ConnCheck(k.into()))
+            let k = crate::body::unquote(p.strip_prefix("/api/sources/")?.strip_suffix("/conn/check")?);
+            key_ok(&k).then_some(Route::ConnCheck(k))
         }
         _ => None,
     }
@@ -142,8 +144,9 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
         let equips = match t.get("equips") {
             Some(Tree::Arr(a)) => {
                 let mut out = vec![];
+                // 字でない設備は str(値 or "")（版 3.115.0。Python の _dashboard_fields と同じ。並び・表は本文の門が断る）
                 for x in a {
-                    out.push(text_of(Some(x)).filter(|_| matches!(x, Tree::Str(_)))?);
+                    out.push(text_or_num(Some(x))?);
                 }
                 out
             }
@@ -154,7 +157,7 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
             Some(o @ Tree::Obj(_)) => crate::formula::clean_calc(&o.dumps(", ", ": ")),
             _ => None,
         };
-        (text_of_strict(t.get("source"))?, text_of_strict(t.get("equip"))?, equips, calc)
+        (text_or_num(t.get("source"))?, text_or_num(t.get("equip"))?, equips, calc)
     } else {
         let q = lotlist::parse_query(query);
         let get = |k: &str| q.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
@@ -193,15 +196,6 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
         special.push(json!({"column": "@shift", "name": "直", "hint": "作業開始の時刻が入る直（マスタ管理の勤務体系）"}));
     }
     Some((200, json!({"fields": fields, "special": special, "table": table, "sourceName": name, "failed": failed})))
-}
-
-/// a.get(k, "")（無ければ ""。字でなければ None＝Python に任せる: panel_parts は字として比べる）
-fn text_of_strict(t: Option<&Tree>) -> Option<String> {
-    match t {
-        None => Some(String::new()),
-        Some(Tree::Str(s)) => Some(s.clone()),
-        _ => None,
-    }
 }
 
 // ------------------------------------------------------------------ 当てる列（GET /api/data/columns）
@@ -866,12 +860,16 @@ mod tests {
             ("PUT", "/api/sources/wip/conn"),
             ("POST", "/api/sources/wip/columns"),
             ("GET", "/api/sources/a/b/columns"),
-            ("GET", "/api/sources/%E7/columns"),
             ("GET", "/api/sources//columns"),
+            ("GET", "/api/sources/a%2Fb/columns"),
             ("POST", "/api/settings/check"),
         ] {
             assert_eq!(route_of(m, p), None, "{m} {p}");
         }
+        // 百分率符号は 1 回戻す（Python の unquote。UTF-8 として読めないバイトは U+FFFD。版 3.115.0）
+        assert_eq!(route_of("GET", "/api/sources/%E7/columns"), Some(Route::SrcColumns("\u{FFFD}".into())));
+        assert_eq!(route_of("GET", "/api/sources/%E7%84%A1/columns"), Some(Route::SrcColumns("無".into())));
+        assert_eq!(route_of("POST", "/api/sources/w%69p/conn/check"), Some(Route::ConnCheck("wip".into())));
     }
 
     #[test]

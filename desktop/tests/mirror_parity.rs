@@ -166,6 +166,9 @@ fn rust_mirrors_like_python() {
 /// 元の場所で引いて読み、窓の置いた周回の様子（理由・確かめた時刻）を言う。元の字の書き方（./ の有無）が違っても同じ写し
 #[test]
 fn passive_python_reads_the_copy_the_window_shares() {
+    if !common::bake::frozen_python("passive_python_reads_the_copy_the_window_shares") {
+        return;
+    }
     let work = common::work("mirror-passive");
     let o = common::python_json("mirror_oracle.py", &["scenario", work.join("x").to_str().unwrap()]);
     assert!(o["results"].is_array());
@@ -193,6 +196,9 @@ fn passive_python_reads_the_copy_the_window_shares() {
 
 #[test]
 fn python_and_rust_share_the_ledger() {
+    if !common::bake::frozen_python("python_and_rust_share_the_ledger") {
+        return;
+    }
     let work = common::work("mirror-share");
     let o = common::python_json("mirror_oracle.py", &["scenario", work.join("x").to_str().unwrap()]); // 元ファイルの見本を作らせる
     assert!(o["results"].is_array());

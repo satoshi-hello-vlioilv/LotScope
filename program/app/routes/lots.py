@@ -6,7 +6,7 @@ import time
 
 from ..web import current_app, jsonify, render_template, request
 
-from ..services import lotdsp_api, lotdsp_direct, lotdsp_link, lotdsp_progress, lotdsp_rules
+from ..services import calc_errors, lotdsp_api, lotdsp_direct, lotdsp_link, lotdsp_progress, lotdsp_rules
 from ..version import APP_VERSION
 from .common import api_map, bp, calculator, error, exception_error, req_body
 
@@ -237,4 +237,5 @@ def calculate():
             return error("計算するロット（lot）がありません。", 400)
         return jsonify(calculator().calculate(payload["lot"], payload["inputs"]))
     except Exception as e:
-        return exception_error(e)
+        # 例外の字は日本語の言葉にする（版 3.115.0。services/calc_errors。type の欄は API の名残で今のまま）
+        return error(calc_errors.of(e), 400, type=type(e).__name__)

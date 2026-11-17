@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import codecs
 import html
 import json
 import re
@@ -20,6 +21,8 @@ import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
+
+from . import num_setting
 
 JST = timezone(timedelta(hours=9))
 
@@ -38,15 +41,27 @@ def build_payload(setsubi, term_kbn, client_ip):
     }
 
 
+# 読む codec（版 3.115.0。窓の src/cm3.rs の decode と同じ 6 つ）。見出しの charset がほかの codec（EUC-JP など）なら引けない名前と
+# 同じに飛ばして UTF-8 → CP932 と読む（CM3 は CP932 で答える。前は Python だけが EUC-JP を読み、窓は答えずに任せた）
+CODECS = ("utf-8", "cp932", "shift_jis", "iso8859-1", "ascii", "cp1252")
+
+
 def _decode_body(raw, content_type):
     """答えのバイト列 → 字。charset の見出し → UTF-8 → CP932 の順に試す。"""
     m = re.search(r"charset=([\w\-]+)", content_type or "", re.I)
     for enc in ([m.group(1)] if m else []) + ["utf-8", "cp932"]:
         try:
+            if codecs.lookup(enc).name not in CODECS:
+                continue
             return raw.decode(enc)
         except (LookupError, UnicodeDecodeError):
             continue
     return raw.decode("utf-8", errors="replace")
+
+
+def _no_constant(name):
+    """JSON の NaN・Infinity は CM3 の答えにしない（版 3.115.0。窓の serde と同じく読めない答え。前は Python だけが読み、窓は任せた）"""
+    raise ValueError(name)
 
 
 def fetch_raw(cfg, setsubi, term_kbn):
@@ -61,7 +76,9 @@ def fetch_raw(cfg, setsubi, term_kbn):
     # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ
     opener = urllib.request.build_opener() if cfg.get("use_system_proxy") else urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with opener.open(req, timeout=float(cfg.get("timeout_sec") or 15)) as res:
+        # 数でない timeout（「abc」・並び）は既定の 15 秒（版 3.115.0。数の設定の読み方 num_setting と同じ。前は ValueError の 500）
+        secs, ok = num_setting.read(cfg.get("timeout_sec") or 15, 15)
+        with opener.open(req, timeout=float(secs if ok else 15)) as res:
             text = _decode_body(res.read(), res.headers.get("Content-Type"))
     except urllib.error.HTTPError as e:
         raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None
@@ -70,7 +87,7 @@ def fetch_raw(cfg, setsubi, term_kbn):
     except (TimeoutError, OSError) as e:
         raise Cm3Error("CM3の応答がタイムアウトしました" if isinstance(e, TimeoutError) else f"CM3に接続できません: {e}") from None
     try:
-        return json.loads(text)
+        return json.loads(text, parse_constant=_no_constant)
     except ValueError:
         raise Cm3Error("CM3の応答がJSONではありません") from None
 

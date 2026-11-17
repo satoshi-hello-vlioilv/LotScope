@@ -289,6 +289,9 @@ fn master_writes_match_python() {
 /// どちらの係も、断られたら少し待って送り直す（画面の withLockWait と同じ）
 #[test]
 fn python_and_window_writing_together_lose_nothing() {
+    if !common::bake::frozen_python("python_and_window_writing_together_lose_nothing") {
+        return;
+    }
     for shared in [true, false] {
         let work = common::work(if shared { "masters-race-share" } else { "masters-race-local" });
         let sc = json!({"shared": shared, "files": {"data/equipment_master.json": []}});

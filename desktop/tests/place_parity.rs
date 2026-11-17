@@ -332,6 +332,9 @@ fn python_status(root: &str, ready_go: Option<(&Path, &Path)>) -> Value {
 /// まき終えた後の窓 2 つと Python の答えが同じ（置いた人・時刻・錠・名乗りは比べない）
 #[test]
 fn an_empty_share_is_seeded_once_by_whoever_comes_first() {
+    if !common::bake::frozen_python("an_empty_share_is_seeded_once_by_whoever_comes_first") {
+        return;
+    }
     let base = common::work("place-seed");
     let oracle = common::python_json("place_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let sc = oracle["scenarios"].as_array().unwrap().iter().find(|s| s["name"].as_str().unwrap().contains("空の共有")).unwrap();
