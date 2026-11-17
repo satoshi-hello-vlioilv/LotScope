@@ -177,7 +177,7 @@ def bless_user(books):
         os.chmod(d, 0o777)
     bins = test_bins(tests_of(books))
     for t in tests_of(books):
-        env = ["env", f"HOME={home}", "TPA_BLESS=1", f"TPA_BAKE_OUT={out}", f"TPA_PYTHON={shutil.which('python3')}", "PYTHONDONTWRITEBYTECODE=1"]
+        env = ["env", f"HOME={home}", "USER=nobody", "LOGNAME=nobody", "TPA_BLESS=1", f"TPA_BAKE_OUT={out}", f"TPA_PYTHON={shutil.which('python3')}", "PYTHONDONTWRITEBYTECODE=1"]
         r = subprocess.run(["runuser", "-u", "nobody", "--"] + env + [bins[t], "--test-threads=1"], cwd=DESKTOP, capture_output=True, text=True)
         sys.stderr.write(r.stderr[-3000:])
         if r.returncode:

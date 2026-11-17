@@ -1,0 +1,395 @@
+{
+ "about": "窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 fs.tables。作り直すのは python program/tools/bless.py fs.tables",
+ "answers": {
+  "\".\" win=false": {"crumbs":[],"tidy":"."},
+  "\".\" win=true": {"crumbs":[],"tidy":"."},
+  "\"./a/\" win=false": {"crumbs":[{"name":"a","path":"a"}],"tidy":"a"},
+  "\"./a/\" win=true": {"crumbs":[{"name":"a","path":"a"}],"tidy":"a"},
+  "\"/\" win=false": {"crumbs":[{"name":"/","path":"/"}],"tidy":"/"},
+  "\"/\" win=true": {"crumbs":[{"name":"\\","path":"\\"}],"tidy":"\\"},
+  "\"//\" win=false": {"crumbs":[{"name":"/","path":"/"}],"tidy":"/"},
+  "\"//\" win=true": {"crumbs":[{"name":"\\\\","path":"\\\\"}],"tidy":"\\\\"},
+  "\"///tmp/x/\" win=false": {"crumbs":[{"name":"/","path":"/"},{"name":"tmp","path":"@TMP"},{"name":"x","path":"@TMP/x"}],"tidy":"@TMP/x"},
+  "\"///tmp/x/\" win=true": {"crumbs":[{"name":"\\\\tmp\\x","path":"\\\\tmp\\x"}],"tidy":"\\\\\\tmp\\x"},
+  "\"//srv/share/x/\" win=false": {"crumbs":[{"name":"//","path":"//"},{"name":"srv","path":"//srv"},{"name":"share","path":"//srv/share"},{"name":"x","path":"//srv/share/x"}],"tidy":"//srv/share/x"},
+  "\"//srv/share/x/\" win=true": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"},{"name":"x","path":"\\\\srv\\share\\x"}],"tidy":"\\\\srv\\share\\x"},
+  "\"//tmp/x\" win=false": {"crumbs":[{"name":"//","path":"//"},{"name":"tmp","path":"/@TMP"},{"name":"x","path":"/@TMP/x"}],"tidy":"/@TMP/x"},
+  "\"//tmp/x\" win=true": {"crumbs":[{"name":"\\\\tmp\\x","path":"\\\\tmp\\x"}],"tidy":"\\\\tmp\\x"},
+  "\"/tmp/x/../y\" win=false": {"crumbs":[{"name":"/","path":"/"},{"name":"tmp","path":"@TMP"},{"name":"y","path":"@TMP/y"}],"tidy":"@TMP/y"},
+  "\"/tmp/x/../y\" win=true": {"crumbs":[{"name":"\\","path":"\\"},{"name":"tmp","path":"\\tmp"},{"name":"y","path":"\\tmp\\y"}],"tidy":"\\tmp\\y"},
+  "\"C:\" win=false": {"crumbs":[{"name":"C:\\","path":"C:\\"}],"tidy":"C:\\"},
+  "\"C:\" win=true": {"crumbs":[{"name":"C:","path":"C:\\"}],"tidy":"C:\\"},
+  "\"C:..\\\\x\" win=false": {"crumbs":[{"name":"C:..\\x","path":"C:..\\x"}],"tidy":"C:..\\x"},
+  "\"C:..\\\\x\" win=true": {"crumbs":[{"name":"C:","path":"C:"},{"name":"..","path":"C:.."},{"name":"x","path":"C:..\\x"}],"tidy":"C:..\\x"},
+  "\"C:/a//b/\" win=false": {"crumbs":[{"name":"C:\\a\\b","path":"C:\\a\\b"}],"tidy":"C:\\a\\b"},
+  "\"C:/a//b/\" win=true": {"crumbs":[{"name":"C:","path":"C:\\"},{"name":"a","path":"C:\\a"},{"name":"b","path":"C:\\a\\b"}],"tidy":"C:\\a\\b"},
+  "\"C:\\\\\" win=false": {"crumbs":[{"name":"C:\\","path":"C:\\"}],"tidy":"C:\\"},
+  "\"C:\\\\\" win=true": {"crumbs":[{"name":"C:","path":"C:\\"}],"tidy":"C:\\"},
+  "\"C:\\\\a\\\\..\\\\b\" win=false": {"crumbs":[{"name":"C:\\b","path":"C:\\b"}],"tidy":"C:\\b"},
+  "\"C:\\\\a\\\\..\\\\b\" win=true": {"crumbs":[{"name":"C:","path":"C:\\"},{"name":"b","path":"C:\\b"}],"tidy":"C:\\b"},
+  "\"C:a\\\\..\\\\..\" win=false": {"crumbs":[{"name":"C:..","path":"C:.."}],"tidy":"C:.."},
+  "\"C:a\\\\..\\\\..\" win=true": {"crumbs":[{"name":"C:","path":"C:"},{"name":"..","path":"C:.."}],"tidy":"C:.."},
+  "\"D:\\\\データ\\\\検査\\\\\" win=false": {"crumbs":[{"name":"D:\\データ\\検査","path":"D:\\データ\\検査"}],"tidy":"D:\\データ\\検査"},
+  "\"D:\\\\データ\\\\検査\\\\\" win=true": {"crumbs":[{"name":"D:","path":"D:\\"},{"name":"データ","path":"D:\\データ"},{"name":"検査","path":"D:\\データ\\検査"}],"tidy":"D:\\データ\\検査"},
+  "\"Z:\\\\.\\\\a\\\\.\\\\b\\\\.\" win=false": {"crumbs":[{"name":"Z:\\a\\b","path":"Z:\\a\\b"}],"tidy":"Z:\\a\\b"},
+  "\"Z:\\\\.\\\\a\\\\.\\\\b\\\\.\" win=true": {"crumbs":[{"name":"Z:","path":"Z:\\"},{"name":"a","path":"Z:\\a"},{"name":"b","path":"Z:\\a\\b"}],"tidy":"Z:\\a\\b"},
+  "\"\\\\\\\\srv\" win=false": {"crumbs":[{"name":"\\\\srv","path":"\\\\srv"}],"tidy":"\\\\srv"},
+  "\"\\\\\\\\srv\" win=true": {"crumbs":[{"name":"\\\\srv","path":"\\\\srv"}],"tidy":"\\\\srv"},
+  "\"\\\\\\\\srv\\\\share\" win=false": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"}],"tidy":"\\\\srv\\share"},
+  "\"\\\\\\\\srv\\\\share\" win=true": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"}],"tidy":"\\\\srv\\share"},
+  "\"\\\\\\\\srv\\\\share\\\\..\\\\..\" win=false": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"}],"tidy":"\\\\srv\\share"},
+  "\"\\\\\\\\srv\\\\share\\\\..\\\\..\" win=true": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"}],"tidy":"\\\\srv\\share"},
+  "\"\\\\\\\\srv\\\\share\\\\c\\\\..\\\\d\" win=false": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"},{"name":"d","path":"\\\\srv\\share\\d"}],"tidy":"\\\\srv\\share\\d"},
+  "\"\\\\\\\\srv\\\\share\\\\c\\\\..\\\\d\" win=true": {"crumbs":[{"name":"\\\\srv\\share","path":"\\\\srv\\share"},{"name":"d","path":"\\\\srv\\share\\d"}],"tidy":"\\\\srv\\share\\d"},
+  "\"\\\\x\\\\..\\\\y\" win=false": {"crumbs":[{"name":"\\x\\..\\y","path":"\\x\\..\\y"}],"tidy":"\\x\\..\\y"},
+  "\"\\\\x\\\\..\\\\y\" win=true": {"crumbs":[{"name":"\\","path":"\\"},{"name":"y","path":"\\y"}],"tidy":"\\y"},
+  "\"a/../..\" win=false": {"crumbs":[{"name":"..","path":".."}],"tidy":".."},
+  "\"a/../..\" win=true": {"crumbs":[{"name":"..","path":".."}],"tidy":".."},
+  "\"c:\" win=false": {"crumbs":[{"name":"c:\\","path":"c:\\"}],"tidy":"c:\\"},
+  "\"c:\" win=true": {"crumbs":[{"name":"c:","path":"c:\\"}],"tidy":"c:\\"}
+ },
+ "book": "fs",
+ "file": "fs.tables",
+ "oracle": {
+  "ntpath": [
+   [
+    "C:\\a\\..\\b",
+    "C:\\b"
+   ],
+   [
+    "C:/a//b/",
+    "C:\\a\\b"
+   ],
+   [
+    "c:",
+    "c:"
+   ],
+   [
+    "C:",
+    "C:"
+   ],
+   [
+    "C:\\",
+    "C:\\"
+   ],
+   [
+    "C:..\\x",
+    "C:..\\x"
+   ],
+   [
+    "C:a\\..\\..",
+    "C:.."
+   ],
+   [
+    "\\\\srv\\share\\c\\..\\d",
+    "\\\\srv\\share\\d"
+   ],
+   [
+    "\\\\srv\\share",
+    "\\\\srv\\share"
+   ],
+   [
+    "\\\\srv",
+    "\\\\srv"
+   ],
+   [
+    "\\\\srv\\share\\..\\..",
+    "\\\\srv\\share\\"
+   ],
+   [
+    "//srv/share/x/",
+    "\\\\srv\\share\\x"
+   ],
+   [
+    "@TMP/x/../y",
+    "\\tmp\\y"
+   ],
+   [
+    "/@TMP/x",
+    "\\\\tmp\\x"
+   ],
+   [
+    "//@TMP/x/",
+    "\\\\\\tmp\\x"
+   ],
+   [
+    "/",
+    "\\"
+   ],
+   [
+    "//",
+    "\\\\"
+   ],
+   [
+    "a/../..",
+    ".."
+   ],
+   [
+    ".",
+    "."
+   ],
+   [
+    "./a/",
+    "a"
+   ],
+   [
+    "\\x\\..\\y",
+    "\\y"
+   ],
+   [
+    "D:\\データ\\検査\\",
+    "D:\\データ\\検査"
+   ],
+   [
+    "Z:\\.\\a\\.\\b\\.",
+    "Z:\\a\\b"
+   ]
+  ],
+  "tidy": [
+   {
+    "text": "C:\\a\\..\\b",
+    "win": false
+   },
+   {
+    "text": "C:/a//b/",
+    "win": false
+   },
+   {
+    "text": "c:",
+    "win": false
+   },
+   {
+    "text": "C:",
+    "win": false
+   },
+   {
+    "text": "C:\\",
+    "win": false
+   },
+   {
+    "text": "C:..\\x",
+    "win": false
+   },
+   {
+    "text": "C:a\\..\\..",
+    "win": false
+   },
+   {
+    "text": "\\\\srv\\share\\c\\..\\d",
+    "win": false
+   },
+   {
+    "text": "\\\\srv\\share",
+    "win": false
+   },
+   {
+    "text": "\\\\srv",
+    "win": false
+   },
+   {
+    "text": "\\\\srv\\share\\..\\..",
+    "win": false
+   },
+   {
+    "text": "//srv/share/x/",
+    "win": false
+   },
+   {
+    "text": "@TMP/x/../y",
+    "win": false
+   },
+   {
+    "text": "/@TMP/x",
+    "win": false
+   },
+   {
+    "text": "//@TMP/x/",
+    "win": false
+   },
+   {
+    "text": "/",
+    "win": false
+   },
+   {
+    "text": "//",
+    "win": false
+   },
+   {
+    "text": "a/../..",
+    "win": false
+   },
+   {
+    "text": ".",
+    "win": false
+   },
+   {
+    "text": "./a/",
+    "win": false
+   },
+   {
+    "text": "\\x\\..\\y",
+    "win": false
+   },
+   {
+    "text": "D:\\データ\\検査\\",
+    "win": false
+   },
+   {
+    "text": "Z:\\.\\a\\.\\b\\.",
+    "win": false
+   },
+   {
+    "text": "C:\\a\\..\\b",
+    "win": true
+   },
+   {
+    "text": "C:/a//b/",
+    "win": true
+   },
+   {
+    "text": "c:",
+    "win": true
+   },
+   {
+    "text": "C:",
+    "win": true
+   },
+   {
+    "text": "C:\\",
+    "win": true
+   },
+   {
+    "text": "C:..\\x",
+    "win": true
+   },
+   {
+    "text": "C:a\\..\\..",
+    "win": true
+   },
+   {
+    "text": "\\\\srv\\share\\c\\..\\d",
+    "win": true
+   },
+   {
+    "text": "\\\\srv\\share",
+    "win": true
+   },
+   {
+    "text": "\\\\srv",
+    "win": true
+   },
+   {
+    "text": "\\\\srv\\share\\..\\..",
+    "win": true
+   },
+   {
+    "text": "//srv/share/x/",
+    "win": true
+   },
+   {
+    "text": "@TMP/x/../y",
+    "win": true
+   },
+   {
+    "text": "/@TMP/x",
+    "win": true
+   },
+   {
+    "text": "//@TMP/x/",
+    "win": true
+   },
+   {
+    "text": "/",
+    "win": true
+   },
+   {
+    "text": "//",
+    "win": true
+   },
+   {
+    "text": "a/../..",
+    "win": true
+   },
+   {
+    "text": ".",
+    "win": true
+   },
+   {
+    "text": "./a/",
+    "win": true
+   },
+   {
+    "text": "\\x\\..\\y",
+    "win": true
+   },
+   {
+    "text": "D:\\データ\\検査\\",
+    "win": true
+   },
+   {
+    "text": "Z:\\.\\a\\.\\b\\.",
+    "win": true
+   }
+  ]
+ },
+ "os": "posix",
+ "routes": {
+  "\".\" win=false": "tidy",
+  "\".\" win=true": "tidy",
+  "\"./a/\" win=false": "tidy",
+  "\"./a/\" win=true": "tidy",
+  "\"/\" win=false": "tidy",
+  "\"/\" win=true": "tidy",
+  "\"//\" win=false": "tidy",
+  "\"//\" win=true": "tidy",
+  "\"///tmp/x/\" win=false": "tidy",
+  "\"///tmp/x/\" win=true": "tidy",
+  "\"//srv/share/x/\" win=false": "tidy",
+  "\"//srv/share/x/\" win=true": "tidy",
+  "\"//tmp/x\" win=false": "tidy",
+  "\"//tmp/x\" win=true": "tidy",
+  "\"/tmp/x/../y\" win=false": "tidy",
+  "\"/tmp/x/../y\" win=true": "tidy",
+  "\"C:\" win=false": "tidy",
+  "\"C:\" win=true": "tidy",
+  "\"C:..\\\\x\" win=false": "tidy",
+  "\"C:..\\\\x\" win=true": "tidy",
+  "\"C:/a//b/\" win=false": "tidy",
+  "\"C:/a//b/\" win=true": "tidy",
+  "\"C:\\\\\" win=false": "tidy",
+  "\"C:\\\\\" win=true": "tidy",
+  "\"C:\\\\a\\\\..\\\\b\" win=false": "tidy",
+  "\"C:\\\\a\\\\..\\\\b\" win=true": "tidy",
+  "\"C:a\\\\..\\\\..\" win=false": "tidy",
+  "\"C:a\\\\..\\\\..\" win=true": "tidy",
+  "\"D:\\\\データ\\\\検査\\\\\" win=false": "tidy",
+  "\"D:\\\\データ\\\\検査\\\\\" win=true": "tidy",
+  "\"Z:\\\\.\\\\a\\\\.\\\\b\\\\.\" win=false": "tidy",
+  "\"Z:\\\\.\\\\a\\\\.\\\\b\\\\.\" win=true": "tidy",
+  "\"\\\\\\\\srv\" win=false": "tidy",
+  "\"\\\\\\\\srv\" win=true": "tidy",
+  "\"\\\\\\\\srv\\\\share\" win=false": "tidy",
+  "\"\\\\\\\\srv\\\\share\" win=true": "tidy",
+  "\"\\\\\\\\srv\\\\share\\\\..\\\\..\" win=false": "tidy",
+  "\"\\\\\\\\srv\\\\share\\\\..\\\\..\" win=true": "tidy",
+  "\"\\\\\\\\srv\\\\share\\\\c\\\\..\\\\d\" win=false": "tidy",
+  "\"\\\\\\\\srv\\\\share\\\\c\\\\..\\\\d\" win=true": "tidy",
+  "\"\\\\x\\\\..\\\\y\" win=false": "tidy",
+  "\"\\\\x\\\\..\\\\y\" win=true": "tidy",
+  "\"a/../..\" win=false": "tidy",
+  "\"a/../..\" win=true": "tidy",
+  "\"c:\" win=false": "tidy",
+  "\"c:\" win=true": "tidy"
+ },
+ "scene": {
+  "blobs": {},
+  "dirs": {},
+  "files": {},
+  "links": {}
+ },
+ "sources": {
+  "tests/fs_oracle.py": "f221bd94a9bb359e",
+  "tests/oracle_gate.py": "74d8effb19f3211d"
+ },
+ "variant": "root"
+}

@@ -23,28 +23,38 @@ fn unlock(dir: &Path) {
 
 #[test]
 fn tidy_and_crumbs_match_python() {
-    let t = common::python_json("fs_oracle.py", &["--tables"]);
+    let base = common::work("fs-tables");
+    let mut bk = common::bake::Bake::open_part("fs", "tables", &base);
+    (bk.strip, bk.strip_in) = (vec!["tidy".into(), "crumbs".into()], "text");
+    let t = bk.oracle("fs_oracle.py", &["--tables"]);
     let mut bad = vec![];
     for c in t["tidy"].as_array().unwrap() {
         let (s, win) = (c["text"].as_str().unwrap(), c["win"].as_bool().unwrap());
+        let key = format!("{s:?} win={win}");
+        let w = bk.want(&key, || json!({"tidy": c["tidy"], "crumbs": c["crumbs"]}));
         let got = tidy_for(s, win);
-        if Some(got.as_str()) != c["tidy"].as_str() {
-            bad.push(format!("tidy {s:?} win={win}: Python {} / 窓 {got:?}", c["tidy"]));
+        let cr = json!(crumbs_for(&got, win));
+        bk.note(&key, "tidy", &json!({"tidy": got, "crumbs": cr}), &w);
+        let (w, got, cr) = (bk.s(&w), bk.s(&json!(got)).as_str().unwrap().to_string(), bk.s(&cr));
+        if Some(got.as_str()) != w["tidy"].as_str() {
+            bad.push(format!("tidy {s:?} win={win}: Python {} / 窓 {got:?}", w["tidy"]));
             continue;
         }
-        let cr = json!(crumbs_for(c["tidy"].as_str().unwrap(), win));
-        if cr != c["crumbs"] {
-            bad.push(format!("crumbs {:?} win={win}: Python {} / 窓 {cr}", c["tidy"], c["crumbs"]));
+        if cr != w["crumbs"] {
+            bad.push(format!("crumbs {:?} win={win}: Python {} / 窓 {cr}", w["tidy"], w["crumbs"]));
         }
     }
     assert!(t["tidy"].as_array().unwrap().len() >= 40);
+    bk.finish(&bad);
+    let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件:\n{}", bad.len(), bad.join("\n"));
 }
 
 #[test]
 fn folder_browse_matches_python() {
     let base = common::work("fs");
-    let oracle = common::python_json("fs_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("fs", &base);
+    let oracle = bk.oracle("fs_oracle.py", &[base.to_str().unwrap()]);
     let root = oracle["root"].as_str().unwrap().to_string();
     let esc = serde_json::to_string(&root).unwrap();
     let app_paths: Vec<(String, String, String)> = oracle["appPaths"]
@@ -85,19 +95,30 @@ fn folder_browse_matches_python() {
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for (i, st) in oracle["steps"].as_array().unwrap().iter().enumerate() {
+        // その場の OS で決まる歩（/ の中身・~nobody の家）は焼かない（事例の表 ospath_cases が見る）。Python と比べるときだけ見る
+        let os_bound = ["\"/\"", "~nobody"].iter().any(|b| st["body"].as_str().unwrap_or("").contains(b));
+        if os_bound && !bk.python() {
+            continue;
+        }
         steps += 1;
         let Some((status, got)) = answer(st) else {
             bad.push(format!("[{i}] 窓が答えない: {} {}", st["path"], st["body"]));
             continue;
         };
-        if status as i64 != st["status"].as_i64().unwrap() || common::diff(&st["json"], &got, "").is_some() {
+        let key = format!("#{i:02}");
+        let w = bk.want_step(&key, st);
+        if !os_bound {
+            bk.note_step(&key, st, status, &got, &w);
+        }
+        let (want, got) = (bk.s(&w.1), bk.s(&got));
+        if status as i64 != w.0 || common::diff(&want, &got, "").is_some() {
             bad.push(format!(
                 "[{i}] {} {}: {}\n  Python {} {}\n  窓     {status} {got}",
                 st["path"],
                 st["body"],
-                common::diff(&st["json"], &got, "").unwrap_or_default(),
-                st["status"],
-                st["json"]
+                common::diff(&want, &got, "").unwrap_or_default(),
+                w.0,
+                want
             ));
         }
     }
@@ -110,6 +131,7 @@ fn folder_browse_matches_python() {
     eprintln!("歩 {steps}・Python に任せた歩 {delegated}");
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     assert!(steps >= 30, "歩が少ない: {steps}・{delegated}");
+    bk.finish(&bad);
     unlock(&base.join("fs"));
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

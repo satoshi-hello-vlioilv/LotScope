@@ -58,6 +58,13 @@ pub fn variant() -> &'static str {
     "root"
 }
 
+/// OS の利用者の名前（Python の getpass.getuser と同じ順: LOGNAME・USER・LNAME・USERNAME）
+pub fn os_user() -> Option<&'static str> {
+    static U: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    U.get_or_init(|| ["LOGNAME", "USER", "LNAME", "USERNAME"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty())))
+        .as_deref()
+}
+
 /// 置き換える道の字（作業フォルダ・一時フォルダ・家）。長い物から
 #[derive(Clone)]
 pub struct Ctx {
@@ -79,12 +86,29 @@ impl Ctx {
         }
         Ctx { subs }
     }
+    /// 長い道から、段の境（後ろが字の終わり・区切り・引用符・空白）で置き換える（/tmp が /tmp.abc の頭に当たらない）
     fn sub(&self, s: &str) -> String {
+        let mut subs: Vec<&(String, String)> = self.subs.iter().collect();
+        subs.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
         let mut t = s.to_string();
-        for (a, b) in &self.subs {
-            if t.contains(a.as_str()) {
-                t = t.replace(a.as_str(), b);
+        for (a, b) in subs {
+            if !t.contains(a.as_str()) {
+                continue;
             }
+            let mut out = String::with_capacity(t.len());
+            let mut rest = t.as_str();
+            while let Some(i) = rest.find(a.as_str()) {
+                let after = rest[i + a.len()..].chars().next();
+                out.push_str(&rest[..i]);
+                if after.is_none_or(|c| matches!(c, '/' | '\\' | '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | ':')) {
+                    out.push_str(b);
+                } else {
+                    out.push_str(a);
+                }
+                rest = &rest[i + a.len()..];
+            }
+            out.push_str(rest);
+            t = out;
         }
         t
     }
@@ -128,8 +152,15 @@ pub fn settle(v: &Value, ctx: &Ctx, extra_keys: &[String]) -> Value {
     let (forms, day_re) = compiled();
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
-        // 大きな整数の印（起動ごとの乱数つき）は @HELD: に
+        // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。OS の利用者の名前（書いた人の login）は @USER に（root と CI の利用者で同じ表）
         let mut t = ctx.sub(t).replace(da_core::held::mark(), "@HELD:");
+        if let Some(u) = os_user() {
+            if t == u {
+                t = "@USER".into();
+            } else if t.contains(&format!("／{u} ")) {
+                t = t.replace(&format!("／{u} "), "／@USER ");
+            }
+        }
         for (re, to) in forms {
             if re.is_match(&t) {
                 t = re.replace_all(&t, to.as_str()).into_owned();
@@ -493,6 +524,8 @@ pub struct Bake {
     pub fid_key: Option<&'static str>,
     /// 答え合わせ役が起こした作り物のサーバーの URL の鍵（組む所の CM3）。焼いた表では @URL にし、Python 無しでは窓の側で 404 を答える作り物を起こす
     pub url_key: Option<&'static str>,
+    /// 答え合わせ役の答えの上の段で、焼かない鍵（root で流したか など利用者で変わる印）
+    pub drop: Vec<&'static str>,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -542,6 +575,7 @@ impl Bake {
             exclude: vec!["py", "pd"],
             fid_key: None,
             url_key: None,
+            drop: vec!["rootUser"],
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -604,6 +638,9 @@ impl Bake {
         self.scene = snapshot(&self.base, &self.ctx, &ex);
         let ctx = self.ctx.clone();
         self.oracle = map_strings(&self.strip_answers(v), &|s| ctx.sub(s));
+        if let Some(o) = self.oracle.as_object_mut() {
+            o.retain(|k, _| !self.drop.contains(&k.as_str()));
+        }
         if let Some(url) = self.url_key.and_then(|k| v[k].as_str()).filter(|u| !u.is_empty()) {
             let url = url.to_string();
             self.oracle = map_strings(&self.oracle, &|s| s.replace(url.as_str(), "@URL"));
