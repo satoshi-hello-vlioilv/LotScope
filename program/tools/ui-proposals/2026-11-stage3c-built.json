@@ -1,0 +1,115 @@
+{
+ "title": "Rust 化の段 ③ の 3 つ目: 道の字の門（path_gate・path_rules）と届くかを尋ねる係（probe）。OS の道の任せる歩 11 → 5。版 3.114.0 の作った後の採点（2026-11-17）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3c.json",
+ "applies_note": "版 3.114.0 は 2026-11-stage3c.json の回の 1 位 A（61.6 点・80 に届かず）を F の門の形で、採点の指摘 first_fixes の 12 を入れて作った物（git diff b1fae55 180d49b。bd04ef9 は main を合わせただけ、180d49b が本体）。新しい案出しは無いので rounds は空にし、判定は 2026-11-stage3c.json の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面の見た目は変えていない（「参照…」の欄の知らせの字が増えただけ）ので画像は撮らず、加点の 11 項目は作りの分かりやすさ・直しやすさ・決めの揃い方として付けた",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-17。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff b1fae55 180d49b を読み、変わった Rust の試験 6 本（ospath_cases・fs_parity・place_cases・place_parity・release_parity・route_reach）と lib の probe・path_gate・folder_browse・master_place・release_place、Python の 5 本、delegate-count.py --check を自分で流し、一時の試験（desktop/tests/zz_g3114_tmp.rs。採点の後に消した）で門の答えを Python と 30,000 形の乱択で突き合わせ、probe の待ち方を再現し、変異 3 つを当てて戻した",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.114.0・commit 180d49b）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3114（画像は撮っていない。測りの記録: t1.log〈Rust の試験 6 本〉・t2.log〈lib〉・py1.log〈Python〉・dc.log・dc.json〈任せる歩〉・fuzz_py.py・fuzz_in.json・fuzz_rs.json〈門の乱択の突き合わせ〉・probe_tmp.log・zz_probe_repro.rs〈probe の再現〉・mut.sh・mut.log・mut_M1*.log・mut_M3*.log・mut_M7*.log〈変異〉・cases.txt〈事例の表の一覧〉）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "tests": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked: ospath_cases 2・fs_parity 2・place_cases 8・place_parity 3（40.8 秒）・release_parity 2・route_reach 1（51.4 秒）がすべて ok（t1.log）。--lib の probe・path_gate・folder_browse・master_place・release_place ほか 18 も ok（t2.log）。Python: tests.test_ospath_cases・test_path_routes・test_place_cases・test_release_place・test_delegates_budget で Ran 55・OK（skipped 4。Windows だけの試験）・終了コード 0（py1.log）",
+   "delegates": "python program/tools/delegate-count.py scratchpad/g3114/dc --check --json → 計 5（fs 1・place 1・release_place 3。全部『engine=python（自己診断・突き合わせの口）』）・『予算と同じです』・終了コード 0。報告の 11 → 5 は本物。envExtra・envLess の 0 は root の手元では確かめたが、root でない CI の Linux と Windows の数は見ていない（CI で見る）",
+   "route_reach": "route_reach → 1 passed。delegate-count の『道ごとに中身へ回す当たり』は 135（版 3.113.0 の採点では 129。main を合わせて settings_oracle の場面が増えた分で、routerForward は GET /api/lotlist/settings の 1 本のまま）",
+   "gate_fuzz": "門の答えを窓と Python で乱択の 30,000 形（種類 browse・dir・name × posix・nt。頭に file://・FILE://[・\\\\?\\・\\\\?\\UNC\\・\\\\.\\・C:・~・~taro/・//・\\\\srv\\share\\・引用符、字に 字・😀・空白・.・..・区切り・:・[ ]・NUL・\\x01・\\x1f・タブ・é・ｓ・℀・%20・%00・%E5%AD%97・Volume{1}、3% は 80〜300 字の長い名前）で突き合わせ: 食い違い 0・Python の例外 0・窓の panic 0（fuzz_in.json・fuzz_rs.json）。% と $（環境変数）は窓が cfg!(windows) とこの PC の環境変数を見るので Linux では比べられず外した（windows_risks 3）。win32（GetFullPathNameW）の形は Linux では E_FULL で比べた",
+   "probe": "一時の試験で Probes::new(16) に places と同じ待ち方（並びの順に同じ締め切りで wait・queue あり）を当てた: 1 行目が止まり 2〜21 行目が速い道のとき None の行は [0, 18, 19, 20]（上限で待たされた 17 行目以降は、止まった行を待ち終えた後＝締め切りの後に起こされて None）。上限 16 を止まる鍵が塞ぐと、別の根 browse:c:\\ の queue つきの尋ねも 400 ms の締め切りまで待って None（probe_tmp.log・zz_probe_repro.rs）",
+   "mutations": "M1（窓の path_gate::apply の stops の break を外す）: ospath_cases・fs_parity・place_parity・release_parity・place_cases・lib の master_place・probe・lot::tests がすべて通る（変異が生き残る。割れ 4）。M3（master_place::status の queue を false → true）: lib の master_place::tests::a_slow_share_is_checking_not_down が落ちる。M7（percent_decode の i + 2 < len → i + 3 < len。末尾の %XX を読まない）: fs_parity の folder_browse_matches_python が落ちる（ospath_cases は通る: 表に末尾の %XX が無い）。どれも戻した（git status は空）",
+   "py_windows_sim": "Python の path_rules.apply（Env(nt=True, cwd='C:\\\\Program Files\\\\LotScope\\\\program', full=.NET の文書どおりの近似)）でマスタの置き場の check の欄を通すと、上のフォルダ ' \"  \" ' → 'C:\\\\Program Files\\\\LotScope\\\\program\\\\'・'w\\\\a.' → '…\\\\program\\\\w\\\\a'・'M. ' → '…\\\\program\\\\M'（相対のまま断られていた形が絶対の道になる）・'rel' → 'rel'（字のまま。plan が断る）",
+   "two_pc": "門は道の頭の欄だけに当たり、書く字は絶対のふつうの道（\\\\?\\ を外した形・GetFullPathNameW の形）なので、版 3.113.0 の PC は同じ共有の印・ピン・束を前と同じに読む。place_parity の『新しい版が書いた引っ越しの印を前の版の決めでたどる』は通る。版 3.113.0 の PC は自分の Python に任せるだけで共有に何も書き足さない",
+   "untouched": "git diff の範囲に main.rs・update.rs・install.rs・distribute.rs は無い。release_place の py_is_dir・py_stat・os_error・settings_answer も変わっていない（stat_e を足しただけ）"
+  },
+  "cracks": [
+   {
+    "name": "1. 「参照…」のよく使う場所（GET /api/fs/places）で、前の行が止まると上限で待たされた後ろの行が速い道でも reach null になり、この PC の場所（ドライブ）が一覧から消える。places は行の並びの順に同じ締め切り end で probes.wait し、上限 16 で起こせなかった行（Ticket の job）は自分の番の wait で初めて起こすので、先の行が締め切りまで止まると、後ろの行は締め切りの後に起こされて remembered（memo は書く前なので None）を返す。group pc の行は reach == true だけを残すので消える",
+    "where": "desktop/src/folder_browse.rs の places（tickets を作って rows.zip(tickets) で順に probes.wait(t, end, true)）・desktop/src/probe.rs の wait（slot が無い Ticket は wait の中で launch。締め切りを過ぎていれば remembered）・master_place::using も同じ待ち方",
+    "path": "Windows の places の行は app（マスタ・品質・作業実績・配布・前のマスタの置き場）＋ この PC（デスクトップ・ドキュメント・Box・C:/boxdrive/Box・ホーム）＋ C:〜Z: の 24 ドライブで約 35 行。1 行目のマスタの置き場（\\\\サーバー\\共有）が止まる（VPN が切れた・サーバーが眠った）と、前 16 行の後ろ（おおよそ J:〜Z:。割り当てたネットワークドライブ・ほかのサーバーの共有・USB）が届いても出ない。版 3.113.0 は行ごとに糸を立てて同じ 2 秒の中で答えた行を出していた",
+    "repro": "一時の試験（scratchpad/g3114/zz_probe_repro.rs の queued_rows_behind_a_stuck_row_get_none）: Probes::new(16) に止まる 1 行と速い 20 行（別の鍵）を start し、並びの順に同じ締め切り 500 ms で wait → None の行は [0, 18, 19, 20]",
+    "fix": "places・using は並びの順に待たず、まとめて待つ: probe に wait_all(tickets, end)（空きができたら待っている Ticket をすぐ起こし、終わった物から答えを受ける。Condvar の 1 つの待ちで回す）を足して places と using から呼ぶ。試験: probe に『止まる 1 行＋速い 20 行で、速い行は全部 Some』、fs_parity か lot::tests に『places の 1 行目が止まる道（止まる尋ね方を差し込む）でも後ろの行が出る』",
+    "reproduced": true
+   },
+   {
+    "name": "2. 上限 16 を止まる共有の鍵が塞ぐと、ほかの道の尋ねがすべて締め切りまで待たされる: ローカルの C:\\ の「参照…」も『4 秒で読めませんでした: C:\\…（共有・BOX に届いているかを…）』になり、places の C: ドライブ・デスクトップも null で消える。上限は全部の種類（browse・reach・online・status）と全部の根で 1 つ、鍵は根と種類ごとなので、止まる根が多いと埋まる",
+    "where": "desktop/src/probe.rs の LIMIT（16）と launch（running >= limit で Err）・folder_browse::browse_asked（queue true）・places・master_place::using／status",
+    "path": "VPN が切れたノート PC・眠ったファイルサーバー: マスタ・品質・作業実績・配布・前のマスタの置き場の共有（reach と online と status の 3 種）＋割り当てたネットワークドライブ（H:・S:・Z: など reach）＋開いた「参照…」（browse）。共有ごとに 2〜4 鍵になり、SMB の待ち（数十秒）の間、16 本が塞がりうる。前は上限が無く、ローカルの読みは影響を受けなかった",
+    "repro": "一時の試験（zz_probe_repro.rs の a_full_limit_starves_a_local_ask）: Probes::new(16) に止まる online: の鍵 16 本 → p.ask(\"browse:c:\\\\\", None, 400 ms, queue true) は None（400 ms 待った）",
+    "fix": "上限を、止まりうる道（共有〈\\\\…〉と割り当てたネットワークドライブ〈GetDriveTypeW が DRIVE_REMOTE〉）だけに数え、ローカルのドライブ・POSIX の根は数えないか別の上限にする。または上限をサーバーごと（\\\\サーバー の鍵ごとに n 本）にし、全体の上限は種類ごとに分ける。browse（人が押した 1 本）は上限で待たせない。試験: 止まる共有で上限まで塞いだまま、別の根の browse・places の速い行が Some",
+    "reproduced": true
+   },
+   {
+    "name": "3. Windows のマスタの置き場で、相対の上のフォルダが Win32 の整えで今のフォルダの下の絶対の道に変わり、前は『置く場所は、ドライブ（C:\\…）か共有（\\\\サーバー\\…）から書いてください。』と断っていた形を通す。門の Dir は trims（段の末尾の空白・「.」）があれば相対の道を cwd（Python の今のフォルダ＝プログラムのフォルダ）につないで GetFullPathNameW するので、' \"  \" '・'マスタ.'・'w\\a.'・'data \\M' が C:\\…\\program\\… になり、master_place.plan の絶対の道の確かめを抜けて、更新で入れ替わるプログラムのフォルダの下へマスタを写せる。Browse は absolute のときだけ整えるのに、Dir は相対にも当てている（表の dir ' \"  \" ' の want が C:\\work\\・'w\\a.' が C:\\work\\w\\a で、この振る舞いを決めとして焼いている）",
+    "where": "program/app/services/path_rules.py の gate の dir（if nt and trims(t): t = _full(t, …)）・desktop/src/path_gate.rs の Kind::Dir（if nt && trims(&t) { t = full(&t, env)? }）・_full／full の『相対の道は cwd につないでから』・tests/fixtures/ospath_cases.json の dir の win32 の 3 件",
+    "path": "マスタ管理の『マスタの置き場を変える』（POST /api/masters/place/check・move）で、上のフォルダに相対の名前を打ち、末尾に「.」か途中の段の末尾に空白がある（打ち間違い・貼り付け）。配布の置き場（release_place.plan）は前から相対を Python の今のフォルダで見ていたので変わらないが、マスタは前は断っていた",
+    "repro": "Python: path_rules.apply('POST', '/api/masters/place/check', {'parent': ' \"  \" ', 'name': 'M'}, Env(nt=True, cwd='C:\\\\Program Files\\\\LotScope\\\\program', full=近似)) → parent 'C:\\\\Program Files\\\\LotScope\\\\program\\\\'・'w\\\\a.' → '…\\\\program\\\\w\\\\a'・'M. ' → '…\\\\program\\\\M'（'rel' は 'rel' のまま。plan が断る）。master_place.plan は drive_root(unquote) した字が絶対なのでそのまま進む（コードを読んで。Windows の本物では見ていない）",
+    "fix": "Dir の Win32 の整えは絶対の道（ドライブ＋根・\\\\…）だけに当て、相対の道は字のまま部品へ渡す（Browse と同じ。master は plan が断り、release は前と同じく Python の今のフォルダで見る）。表の dir ' \"  \" '・'w\\\\a.' の nt の want を『字のまま（null）』にし、place_oracle に Windows でも流れる『相対＋末尾の「.」の上のフォルダは断る』の歩を足す",
+    "reproduced": true
+   },
+   {
+    "name": "4. 試験の穴: 門の stops（名前が check_name で断られる・上のフォルダが空なら、後ろの欄を門に通さず plan に自分の言葉で答えさせる）を窓から外しても、どの試験も落ちない（変異 M1 が生き残る）。名前が誤り（空・禁じた字）で、上のフォルダかいまの置き場に門が断る字（NUL・装置の道・長すぎる名前）がある歩が、答え合わせ役にも事例の表にも無い。Python の stops にも試験が無い",
+    "where": "desktop/src/path_gate.rs の apply の if stops(*kind, &v) { break; }・program/app/services/path_rules.py の apply・stops",
+    "path": "配布の置き場の check で name ''・parent '@ROOT/new\\u0000x' は、stops があれば『名前を入れてください』系の check_name の言葉、無ければ E_CTRL。窓だけ・Python だけが外しても突き合わせは同じ場面を持たないので落ちない",
+    "repro": "scratchpad/g3114/mut.sh の M1（path_gate.rs 555 行の if stops(...) を if false && stops(...) に）→ ospath_cases・fs_parity・place_parity・release_parity・place_cases・lib（master_place・probe・lot::tests）が全部 ok（mut.log の M1 EXIT 0・M1 LIB EXIT 0）",
+    "fix": "release_place_oracle と place_oracle に『名前が誤り＋上のフォルダに NUL』『名前が誤り＋装置の道』『上のフォルダが空＋いまの置き場に NUL』の歩を足し（expect same）、ospath_cases.json に欄の並びごとの apply の事例（routes 節: 道・欄の値 → 通った字か最初の理由）を足して ospath_cases.rs と test_ospath_cases.py で読む",
+    "reproduced": true
+   },
+   {
+    "name": "5. 試験の穴（小）: 事例の表 ospath_cases.json に file: の URL の末尾の %XX（file:///tmp/a%41）・%XX の途中切れ（%4・%）・不正な UTF-8 の並び（%FF）が無く、門の percent_decode の端の誤りを表では止められない（変異 M7 は fs_parity の 1 歩が拾ったが、ospath_cases は通った）。環境変数（%USERPROFILE%・$HOME・'…' の中の %VAR%）の事例も表に無い（windows_risks 3）",
+    "where": "program/tests/fixtures/ospath_cases.json の browse の file: の節・desktop/src/path_gate.rs の percent_decode・expandvars の呼び方",
+    "path": "「参照…」の欄に file:///C:/x/a%41 や file:///C:/x/%E5%AD を貼る",
+    "repro": "scratchpad/g3114/mut.sh の M7（i + 2 < b.len() → i + 3 < b.len()）→ ospath_cases は ok、fs_parity の folder_browse_matches_python だけが落ちた（mut_M7.log）",
+    "fix": "表の browse に file:///tmp/a%41・file:///tmp/a%4・file:///tmp/a%・file:///tmp/a%FFb・file:///tmp/%E5%AD を posix・nt で足す（want は urllib.parse.unquote の決まり: 置き換え字 U+FFFD）。%VAR% と $VAR は Env に環境変数を持たせて門が env.vars から読むようにし（windows_risks 3）、表に %USERPROFILE%\\x・$HOME/x・O'Brien\\%TEMP% を足す",
+    "reproduced": true
+   }
+  ],
+  "not_cracks": [
+   "任せる歩 5（全部 engine=python の口）と予算 5 は本物: delegate-count.py --check（計 5・予算と同じ・終了コード 0）を採点者が流して同じ。fs 3 → 1・release_place 7 → 3 の差は、~nobody／file://[::1]／名前 255 バイト超／NUL 3 と envExtra・envLess の閉じ",
+   "門の答えは窓と Python で同じ: 事例の表 103 件（Linux で 193 の列）に加え、乱択の 30,000 形 × posix・nt で食い違い 0・例外 0。file: の [IPv6] の書き直し（Rust の Ipv6Addr の表示と Python の compressed）・NFKC のサーバー名・~名前・長さ（UTF-8 255 バイト・UTF-16 255 単位・4096 バイト）・装置の道の書き直しと断りも一致",
+   "事例の表の want は実装の写しではない: py（版 3.113.0 の Python の答え・note）と want を並べ、~ の形は本物の ntpath／posixpath.expanduser と、win32 の dir は Windows の CI で nt._getfullpathname とも比べる作り（test_expanduser_is_pythons・test_win32_is_getfullpathname）。断る形は前の Python の 500・ValueError を書いて残している",
+   "日本語のフォルダ名・空白を含む名前（OneDrive - 会社 など）・共有の根（\\\\サーバー\\共有）・\\\\サーバー だけ（『この PC をそろえる』が切る上のフォルダ）は門を字のまま通る（trims は共有の根の 2 段を見ない・段の途中の空白は整えない）。長さの上限は Windows では 1 段 255 字で、今ある置き場の値には当たらない",
+   "保存済みの置き場の読み（束・master_share.json・引っ越しの印・using の dirs）には門を当てていない。places の app の行は門を通す（clean）が、断る形の行を出さないだけで、置き場そのものは変えない",
+   "Python の『上のフォルダを読めない』の try（release_place.plan・master_place.plan）は死んだ守りではない: Python 3.13.18 の Path.is_dir は ENAMETOOLONG・EACCES を投げる（採点者が確かめた）。窓の stat_e と ignorable の分け方（Windows の 53・67 を『無い』に読む CPython の読み替え）も同じ",
+   "probe の鍵ごと 1 本・終わった鍵の片付け・status を呼ぶたびに確かめる（memo を使わない）・上限と時間切れで null は試験どおり。変異 M3（status を queue で待たせる）は lib の a_slow_share_is_checking_not_down が落とす",
+   "2 台の PC（3.113.0 と 3.114.0）: 新しい版が書くのは絶対のふつうの道で、前の版は同じに読む（place_parity の FOLLOW の場面が通る）。前の版の PC は自分の Python に任せるだけで、共有に新しい形を書かない",
+   "配布の置き場の from（いまの置き場）にも門を当てるので、いまの置き場に NUL・装置の道（\\\\.\\）がある PC では check 全体が断られる。ただし from は窓が見つけた置き場の字で、そういう字の置き場は配った設定にも作れないので、割れとしない",
+   "Linux の root_key はどの道も「/」1 つで、POSIX の browse・places・online が 1 本ずつ並ぶ。開発用の PC だけの振る舞いで、製品（Windows）ではドライブと共有の根ごとに分かれる"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 7,
+    "effortless": 6,
+    "intuitive": 6,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "割れ 1（probe_tmp.log・zz_probe_repro.rs）: places で先の行（マスタの置き場の共有）が止まると、上限で待たされた後ろの行（Windows ではおおよそ J:〜Z: のドライブ）が締め切りの後に起こされて null になり、届くドライブ・共有が「よく使う場所」から消える"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（probe_tmp.log）: 上限 16 を止まる共有の鍵が塞ぐと、ローカルの C:\\ の「参照…」も『4 秒で読めませんでした…共有・BOX に届いているかを』と答え、何が詰まっているかが見えない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 3（Python の path_rules.apply を Windows の形で当てた測り）: マスタの置き場の上のフォルダに相対＋末尾の「.」や引用した空白を打つと、断らずにプログラムのフォルダの下の道として通す"
+    }
+   ],
+   "seen": "狙い（OS の珍しい形を道の頭の 1 か所で決め、窓と Python が同じ表を読み、OS の道の任せを 0 にして口だけ残す・裏の糸を 1 つの係に）は数で届いている: 任せる歩 5（口だけ）・route_reach 通過を採点者が流して同じ。first_fixes の 12 はおおむね入っている: 装置の道は書き直して通す（Windows の後戻りを作らない）・~名前 は Python 3.13 の expanduser のまま・C:x は断り C: は C:\\・長さは OS ごと・NUL の英語の文と Python の 500（長い上のフォルダ 4 歩）を閉じた・file: の [ ] は ipv6-literal.net・main.rs ほかと py_is_dir・os_error・settings_answer は触れていない・引っ越しの印を前の版の決めでたどる場面。門の答えは事例の表に加え乱択 30,000 形で窓と Python が同じ。足りないのは probe の待ち方と上限の数え方（割れ 1・2: 1 つの全体の上限と並びの順の待ちが、止まる共有 1 つで速い道の答えまで消す。前は無かった後戻り）と、Dir の Win32 の整えを相対の道にも当てた決め（割れ 3: 表の want がこの振る舞いを焼いている）。試験は stops の変異が生き残る穴（割れ 4）と file: の端の穴（割れ 5）がある。win32 の 13 件の want は Windows の CI で初めて確かめる（windows_risks 1）。どれも 1 版の中で直せる大きさ"
+  },
+  "windows_risks": [
+   "1. win32 の 13 件の want（Microsoft の文書と Wine から書いた）: GetFullPathNameW が途中の段の末尾の空白を残す（C:\\w\\a \\b → そのまま）・段の末尾の「.」を 1 つだけ外す（a..\\b → a.\\b・a...\\b → a..\\b）・区切りで終わる道の末尾の空白を残す（dir C:\\w\\a \\ → 字のまま）・C:\\work\\  → C:\\work\\（末尾の \\ が残るか）は、版によって振る舞いが違うと言われる所。Windows の CI（ospath_cases.rs の win32_cases_are_getfullpathname と test_ospath_cases.py の test_win32_is_getfullpathname）で外れれば表を直す。test_win32_is_getfullpathname は dir の事例しか nt._getfullpathname と比べない（browse の 7 件は門の答えとだけ比べる）",
+   "2. trims は共有の根（\\\\サーバー\\共有）の 2 段を見ない前提（\\\\srv\\share. \\x を整えない）。GetFullPathNameW が UNC の共有名の末尾の「.」・空白を削るなら、Windows では字のまま通した道が別の共有を指す。表の browse '\\\\srv\\share. \\x' と '\\\\?\\unc\\srv\\share. \\d' は win32 の印が無く、Windows の CI でも GetFullPathNameW と比べない",
+   "3. 門の %VAR%・$VAR の広げ方: 窓は crate::bundle::expandvars（cfg!(windows) とこのプロセスの環境変数。Env の vars・nt を見ない）、Python は ntpath.expandvars（os.environ）。ntpath.expandvars は '…' の中を広げない（採点者の測り: C:\\Users\\O'Brien\\%TEMP%\\x は字のまま）・$ の名前に '-' を含む（$TEMP-x は TEMP-x を引く）が、bundle::expandvars はどちらも違う。Windows の本物の PC で、利用者名に ' を含むプロファイル（O'Brien）の %VAR% や $名前- を含む道で窓と Python の答えが割れうる。表に事例が無く、Linux では比べられない",
+   "4. root_key は Windows では nt_splitroot の (ドライブ, 根) を normcase した鍵で、割り当てたネットワークドライブ（Z:\\）と、その実体の \\\\サーバー\\共有 は別の鍵になる（同じ止まるサーバーへ 2 本）。上限の数え方（割れ 2）と合わせて見る",
+   "5. clippy --target x86_64-pc-windows-msvc は作業用クレートでしか通していない（窓全体は libsqlite3-sys の build script で組めない）。full_path_name の GetFullPathNameW（windows 0.62.2: lpfilename P0: Param<PCWSTR>・lpbuffer Option<&mut [u16]>・lpfilepart Option<*mut PWSTR>）の呼び方は採点者が crate の型と照らして合っていた。cfg(windows) の Env::here の win32: true の道は Windows の CI の lot::tests・place_parity でしか通らない"
+  ]
+ }
+}
