@@ -47,7 +47,10 @@ const hm = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${p(
    1280 で切れた）と「設備」の段の見出しの要約に、表の要約の札と
    同じ形（.db-warnb・「⚠ 実績の設備の読めない行 n」）で出す。数は登録の一覧の skipped（開いた後）か、置き場の状態（帯と同じ /api/masters/status） */
 function wlSkipChip() {
-  const sk = (mstate.data.worklog && mstate.data.worklog.skipped) || (mstate.place && mstate.place.masters && (mstate.place.masters.work_log_files || {}).skipped) || [];
+  // 登録の一覧を読んだ後は、その答えだけで決める（skipped が無い＝0 件。サーバーは 0 件のとき鍵を入れない。版 3.113.0 の採点し直しの減点:
+  // 前は 0 件のとき古い置き場の状態に落ち、消し終えても段の見出しの札が残った）。読む前だけ置き場の状態（帯と同じ /api/masters/status）
+  const wl = mstate.data.worklog;
+  const sk = wl ? wl.skipped || [] : (mstate.place && mstate.place.masters && (mstate.place.masters.work_log_files || {}).skipped) || [];
   if (!sk.length) return "";
   const tip = `work_log_files.json の ${sk.slice(0, 3).map((x) => `${x.row} 行目（${x.why}）`).join("・")}${sk.length > 3 ? " ほか" : ""}が読めません。「設備」の段の札を押すと理由と消し方`;
   return ` <span class="db-warnb sr-skip" title="${escapeHtml(tip)}">⚠ ${escapeHtml(TPA.skipWhat("work_log_files"))}の読めない行 ${sk.length}</span>`;

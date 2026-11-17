@@ -220,6 +220,11 @@ class UiScore(unittest.TestCase):
         self.assertEqual(ui.decide(d)[0], "直す")
         d["rescore"] = {"fixes": ["札を一覧にも"], "images": "/tmp/x"}
         self.assertEqual(ui.decide(d)[0], "採点し直す")
+        # 採点し直した節（built_2）が付けば外れ、その節を直した後（after: built_2）にまた待つ
+        d["built_2"] = {"name": "採点し直し", "result": {"score": {k: 7 for k in ui.KEYS}, "minus": []}}
+        self.assertEqual(ui.decide(d)[0], "直す")
+        d["rescore"]["after"] = "built_2"
+        self.assertEqual(ui.decide(d)[0], "採点し直す")
 
 
 if __name__ == "__main__":

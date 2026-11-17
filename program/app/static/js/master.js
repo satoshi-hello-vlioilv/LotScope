@@ -779,7 +779,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   // 読めない行（版 3.113.0 の作った後の採点 B4）: 「直すこと」の囲みにも 1 行（札と同じ理由。押すと札の面を開く）
   const skipped = d.skipped || [];
   const skipLine = skipped.length ? [`<div><span class="m-chip c-off">読めない行</span><span>work_log_files.json の ${skipped.slice(0, 3).map((x) => `${x.row} 行目（${escapeHtml(x.why)}）`).join("・")}${skipped.length > 3 ? " ほか" : ""}。`
-    + `${skipped.some((x) => x.why === "表でない行") ? "表でない行がある間は、どの行も保存できません" : "その行の直す・並べ替え・探し直しを止めています"}</span>`
+    + `${skipped.some((x) => x.why === "表でない行") ? "表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止めています" : "この行に当たる直す・並べ替え・探し直しを止めています"}</span>`
     + '<button type="button" class="pz-btn" data-wl-skip>理由と消し方</button></div>'] : [];
   const todo = [...skipLine, ...(d.settingsWarn || []).map((w) => `<div><span class="m-chip c-warn">${escapeHtml(TPA.numWarnTag(w.label))}</span><span>${escapeHtml(w.text)}</span>`
     + (embed ? `<button type="button" class="pz-btn" data-wl-conn="${escapeHtml(w.field)}">接続の欄で直す</button>` : "") + "</div>"), ...(d.error ? [] : [
@@ -804,7 +804,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="wlNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
-    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}${TPA.skipNote(d, "work_log_files", { reload: async () => { await again(); if (typeof refreshPlace === "function") await refreshPlace(); } })}
+    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}${TPA.skipNote(d, "work_log_files", { reload: async () => { await again(); if (typeof refreshPlace === "function") await refreshPlace(); if (onRendered) onRendered(mstate.data.worklog); } })}
       ${embed ? "" : "<small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>"}
       ${embed && can ? '<button type="button" class="pz-btn wl-rescan" data-wl-scan title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します">↻ フォルダを探し直す</button>' : ""}
       ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。実績のタブも同じ並びになります</small>' : ""}</div>

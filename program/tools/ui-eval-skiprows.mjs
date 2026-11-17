@@ -496,7 +496,7 @@ async function worklogPart(p, tag) {
     && SHAPES.has(await chipShape(p, ".sr-card.is-open [data-sr-wl] .wl-sum")), c);
   const todo = await p.evaluate(() => [...document.querySelectorAll(".sr-card.is-open .wl-todo > div")].map((d) => d.textContent));
   check(`⑩ ${tag} 「直すこと」の囲みに読めない行の 1 行（何行目・理由・表でない行がある間は保存できない・理由と消し方）`,
-    todo.length >= 1 && /^読めない行work_log_files\.json の \d+ 行目（表でない行）・\d+ 行目（版（rev）が読めません/.test(todo[0]) && /どの行も保存できません/.test(todo[0]) && /理由と消し方/.test(todo[0]), todo);
+    todo.length >= 1 && /^読めない行work_log_files\.json の \d+ 行目（表でない行）・\d+ 行目（版（rev）が読めません/.test(todo[0]) && /表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止めています/.test(todo[0]) && /理由と消し方/.test(todo[0]), todo);
   if (!c || !c.button) return;
   const m = await openMenu(p, ".sr-card.is-open [data-sr-wl] .wl-sum");
   const tm = await menuText(p);
@@ -529,5 +529,20 @@ async function worklogPart(p, tag) {
     await shot(p, `skip-worklog-deleted-${tag}`);
     check(`⑩ ${tag} 消した後: 一言は「残り 1」・見える表の下の縁より上で下の段にまたがらない・段の見出しの要約と表の要約の札が「1」に替わる`,
       /読めない行は残り 1/.test(after.toast) && after.aboveFoot && after.inVisible && /⚠ 実績の設備の読めない行 1/.test(after.head) && after.wl === "⚠ 実績の設備の読めない行 1", after);
+    // 2 つ目も消す → 段の見出しの札・表の要約の札・「直すこと」の 1 行・一覧の名前の横の札がどれも無い（版 3.113.0 の採点し直しの減点）
+    await p.click(".sr-card.is-open .wl-sum .tpa-skip"); await sleep(400);
+    await openConfirm(p, /id 991/);
+    await p.click('.tpa-confirm [data-act="ok"]'); await sleep(2500);
+    const gone = await p.evaluate(() => ({
+      toast: document.querySelector(".tpa-toast")?.textContent || "",
+      head: !!document.querySelector('.sr-card.is-open .sr-sec[data-sec="equip"] .sr-skip'),
+      wl: !!document.querySelector(".sr-card.is-open .wl-sum .tpa-skip"),
+      todo: [...document.querySelectorAll(".sr-card.is-open .wl-todo > div")].some((d) => /読めない行/.test(d.textContent)) }));
+    await shot(p, `skip-worklog-deleted2-${tag}`);
+    await p.evaluate(() => document.querySelector(".sr-card.is-open [data-sr-close]")?.click()); await sleep(1200);
+    gone.list = await p.evaluate(() => !!document.querySelector('[data-sr-open="work"]')?.closest("tr")?.querySelector(".sr-skip"));
+    await shot(p, `skip-worklog-list-after-${tag}`);
+    check(`⑩ ${tag} 2 つ目も消した後: 段の見出しの札・表の要約の札・「直すこと」の読めない行・一覧の名前の横の札がどれも無い（一言は「もうありません」）`,
+      /読めない行はもうありません/.test(gone.toast) && !gone.head && !gone.wl && !gone.todo && !gone.list, gone);
   } else await closeMenu(p);
 }
