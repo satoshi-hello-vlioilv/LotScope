@@ -437,6 +437,10 @@ pub fn regex_risk(src: &[u16]) -> Option<String> {
 /// 画面の list-formula.js の lookbehindRisk・Python の formula.lookbehind_risk と同じ決まり（事例は formula_regex_cases.json）
 pub const LB_MSG: &str = "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）";
 
+static LB_QUANT: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^\{(\d+)(,(\d*))?\}").expect("決まった字"));
+static LB_NAMED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\(\?<[^=!]").expect("決まった字"));
+
 fn re_close(s: &[char], i: usize) -> Option<usize> {
     let (mut d, mut cls, mut j) = (0i32, false, i);
     while j < s.len() {
@@ -546,8 +550,7 @@ fn re_fixed(s: &[char], named: bool) -> Option<usize> {
             Some('*' | '+' | '?') => return None,
             Some('{') => {
                 let rest: String = s[i..].iter().collect();
-                let re = regex::Regex::new(r"^\{(\d+)(,(\d*))?\}").expect("決まった字");
-                if let Some(m) = re.captures(&rest) {
+                if let Some(m) = LB_QUANT.captures(&rest) {
                     if m.get(2).is_some() && m.get(3).map(|x| x.as_str()) != m.get(1).map(|x| x.as_str()) {
                         return None;
                     }
@@ -568,7 +571,7 @@ fn re_fixed(s: &[char], named: bool) -> Option<usize> {
 /// 後読みの中身がサーバーで計算できない形なら理由（LB_MSG）
 pub fn lookbehind_risk(src: &str) -> Option<String> {
     let s: Vec<char> = src.chars().collect();
-    let named = regex::Regex::new(r"\(\?<[^=!]").expect("決まった字").is_match(src);
+    let named = LB_NAMED.is_match(src);
     let (mut cls, mut i) = (false, 0usize);
     while i < s.len() {
         let c = s[i];

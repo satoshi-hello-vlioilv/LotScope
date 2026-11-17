@@ -451,6 +451,7 @@
       const what = TPA.skipWhat(it.file, s.source || "");
       await placeFresh();
       let how = "";
+      TPA.toastClear();   // 前に消した一言を確かめの窓の後ろに残さない（版 3.113.0 の作った後の採点の弱い所 6）
       const sure = await TPA.confirmBox({ title: `${what}の読めない行を消しますか`,
         rows: [["ファイル", `${it.file}.json の ${s.row} 行目`], ["中身", s.summary || "（要約なし）"], ["理由", s.why || ""]],
         note: `消すと元に戻せません。消さずに直すときは、${TPA.skipWhere(it.file)} を直します。`, ok: "× 消す", cancel: "やめる",

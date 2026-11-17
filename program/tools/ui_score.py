@@ -168,6 +168,10 @@ def applied_kind(data, t):
     # 画面に関係のない改良（決まり 2026-11-06）は作った後の採点も 1 回だけ: 割れを直して "built_fixed" に書いたら、採点し直さない記録（版 3.108.0）
     if rule_of(data).get("built_once") and latest_built_fixed(data):
         return "記録"
+    # 減点の所を直して、別のエージェントの採点し直しを待っている記録（版 3.113.0。"rescore": {fixes, images}。採点し直したら "built_<n>" の節が付く）
+    rescore = data.get("rescore")
+    if isinstance(rescore, dict) and rescore.get("fixes") and rescore.get("images") and not any(k.startswith("built_") and not k.endswith("fixed") for k in data):
+        return "採点し直す"
     accepted = data.get("accepted_by_user")
     if accepted and not (isinstance(accepted, dict) and str(accepted.get("date", "")).strip()):
         raise ValueError("利用者が受け入れた記録（accepted_by_user）には日付（date）が要る")
