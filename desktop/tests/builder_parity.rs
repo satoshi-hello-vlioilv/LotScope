@@ -70,7 +70,11 @@ fn fields_of(v: &Value) -> (Vec<String>, std::collections::HashMap<String, Value
 #[test]
 fn builder_reads_match_python_and_the_truth() {
     let base = common::work("builder");
-    let (mut live, o) = common::Live::start("builder_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("builder", &base);
+    // 同時に組む場面（shared）は Python を相手にする競い合いなので、宣言に持たない（Python で流すときだけ）
+    bk.exclude.push("shared");
+    bk.url_key = Some("cm3");
+    let (mut live, o) = bk.live("builder_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     // 決め（主のセッションの決め 1〜7）が Python と窓で同じ値
     if o["decisions"] != da_core::builder::decisions() {
@@ -94,18 +98,23 @@ fn builder_reads_match_python_and_the_truth() {
                 continue;
             };
             let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
-            let want = &st["json"];
-            if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want), &norm(&got), "").is_some() {
-                let d = common::diff(&norm(want), &norm(&got), "").unwrap_or_default();
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            bk.note_step(&key, st, status, &got, &w);
+            let want = &bk.s(&w.1);
+            let gs = bk.s(&got);
+            if status as i64 != w.0 || common::diff(&norm(want), &norm(&gs), "").is_some() {
+                let got = &gs;
+                let d = common::diff(&norm(want), &norm(got), "").unwrap_or_default();
                 bad.push(format!(
                     "{name} [{i}] {} {}?{} {}: Python {} / 窓 {status}: {d}\n  Python {}\n  窓     {}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["query"].as_str().unwrap(),
                     st["body"],
-                    st["status"],
+                    w.0,
                     norm(want).to_string().chars().take(600).collect::<String>(),
-                    norm(&got).to_string().chars().take(600).collect::<String>()
+                    norm(got).to_string().chars().take(600).collect::<String>()
                 ));
             }
             if first.is_empty() || name == o["scenarios"][0]["name"] {
@@ -176,54 +185,58 @@ fn builder_reads_match_python_and_the_truth() {
     if ans("GET /api/sources/m1/columns")["samples"] != t["m1Samples"] {
         bad.push(format!("独立の答え マスタの見本: {} / 窓 {}", t["m1Samples"], ans("GET /api/sources/m1/columns")["samples"]));
     }
-    // 窓と Python が同じ作業場所で同時に「試す」を組む（同じ try-work-<キー> の答えのファイル）
-    let sh = &o["shared"];
-    unsafe { std::env::set_var("TRANSFER_APP_CONFIG", sh["env"]["config"].as_str().unwrap()) };
-    let lot = lot_of(&sh["env"]);
-    let st = json!({"method": "POST", "path": "/api/sources/join/preview", "query": "", "body": sh["body"]});
-    let warm = call(&lot, &st).expect("窓が答える");
-    // 写しは窓が作った（Python は受け身で読む）。答えのファイルは消して、窓と Python が同じ名前を本当に同時に組む形にする
-    let joins = Path::new(sh["root"].as_str().unwrap()).join("local/db_cache/joins");
-    for e in std::fs::read_dir(&joins).into_iter().flatten().flatten() {
-        let _ = std::fs::remove_file(e.path());
-    }
-    std::thread::scope(|s| {
-        let h = s.spawn(|| (0..4).map(|_| call(&lot, &st)).collect::<Vec<_>>());
-        let py = live.ask(&json!({"cmd": "join", "root": sh["root"], "body": sh["body"], "n": 4}).to_string());
-        let rs = h.join().unwrap();
-        for (k, x) in py.as_array().unwrap().iter().enumerate() {
-            if x["status"] != 200 || common::diff(&x["json"], &warm.1, "").is_some() {
-                bad.push(format!("同時に組む: Python [{k}] {} / 窓の最初 {}", x["json"], warm.1));
+    // 窓と Python が同じ作業場所で同時に「試す」を組む（同じ try-work-<キー> の答えのファイル）。Python を相手にする競い合いなので、
+    // 段 ④ の配布の間だけ凍らせた最後の Python を相手に残す（焼いた表で流すときは見ない）
+    if let Some(live) = live.as_mut() {
+        let sh = &o["shared"];
+        unsafe { std::env::set_var("TRANSFER_APP_CONFIG", sh["env"]["config"].as_str().unwrap()) };
+        let lot = lot_of(&sh["env"]);
+        let st = json!({"method": "POST", "path": "/api/sources/join/preview", "query": "", "body": sh["body"]});
+        let warm = call(&lot, &st).expect("窓が答える");
+        // 写しは窓が作った（Python は受け身で読む）。答えのファイルは消して、窓と Python が同じ名前を本当に同時に組む形にする
+        let joins = Path::new(sh["root"].as_str().unwrap()).join("local/db_cache/joins");
+        for e in std::fs::read_dir(&joins).into_iter().flatten().flatten() {
+            let _ = std::fs::remove_file(e.path());
+        }
+        std::thread::scope(|s| {
+            let h = s.spawn(|| (0..4).map(|_| call(&lot, &st)).collect::<Vec<_>>());
+            let py = live.ask(&json!({"cmd": "join", "root": sh["root"], "body": sh["body"], "n": 4}).to_string());
+            let rs = h.join().unwrap();
+            for (k, x) in py.as_array().unwrap().iter().enumerate() {
+                if x["status"] != 200 || common::diff(&x["json"], &warm.1, "").is_some() {
+                    bad.push(format!("同時に組む: Python [{k}] {} / 窓の最初 {}", x["json"], warm.1));
+                }
+            }
+            for (k, x) in rs.iter().enumerate() {
+                match x {
+                    Some((200, v)) if common::diff(v, &warm.1, "").is_none() => {}
+                    other => bad.push(format!("同時に組む: 窓 [{k}] {other:?}")),
+                }
+            }
+        });
+        let mut files = 0;
+        for e in std::fs::read_dir(&joins).into_iter().flatten().flatten() {
+            let p = e.path();
+            let n = p.file_name().unwrap().to_string_lossy().into_owned();
+            if n.ends_with(".tmp") {
+                bad.push(format!("同時に組む: 書きかけの残り {n}"));
+            }
+            if n.ends_with(".sqlite3") {
+                files += 1;
+                let c = rusqlite::Connection::open_with_flags(&p, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+                let ok: Result<i64, _> = c.query_row("SELECT COUNT(*) FROM \"実績\"", [], |r| r.get(0));
+                if ok.is_err() {
+                    bad.push(format!("同時に組む: 読めない答えのファイル {n}"));
+                }
             }
         }
-        for (k, x) in rs.iter().enumerate() {
-            match x {
-                Some((200, v)) if common::diff(v, &warm.1, "").is_none() => {}
-                other => bad.push(format!("同時に組む: 窓 [{k}] {other:?}")),
-            }
+        if files != 14 {
+            bad.push(format!("同時に組む: 答えのファイルの数 {files}（設備 14 台）"));
         }
-    });
-    let mut files = 0;
-    for e in std::fs::read_dir(&joins).into_iter().flatten().flatten() {
-        let p = e.path();
-        let n = p.file_name().unwrap().to_string_lossy().into_owned();
-        if n.ends_with(".tmp") {
-            bad.push(format!("同時に組む: 書きかけの残り {n}"));
-        }
-        if n.ends_with(".sqlite3") {
-            files += 1;
-            let c = rusqlite::Connection::open_with_flags(&p, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-            let ok: Result<i64, _> = c.query_row("SELECT COUNT(*) FROM \"実績\"", [], |r| r.get(0));
-            if ok.is_err() {
-                bad.push(format!("同時に組む: 読めない答えのファイル {n}"));
-            }
-        }
-    }
-    if files != 14 {
-        bad.push(format!("同時に組む: 答えのファイルの数 {files}（設備 14 台）"));
     }
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     drop(live);
+    bk.finish(&bad);
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     assert!(steps >= 60, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);

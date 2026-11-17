@@ -46,7 +46,9 @@ fn set_age(p: &Path, hours: f64) {
 #[test]
 fn rust_mirrors_like_python() {
     let work = common::work("mirror");
-    let o = common::python_json("mirror_oracle.py", &["scenario", work.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("mirror", &work);
+    (bk.strip, bk.strip_in) = (vec!["results".into()], "steps");
+    let o = bk.oracle("mirror_oracle.py", &["scenario", work.to_str().unwrap()]);
     let base = work.join("rs");
     std::fs::create_dir_all(base.join("share")).unwrap();
     let assets = work.join("assets");
@@ -62,7 +64,7 @@ fn rust_mirrors_like_python() {
     let mut m: Option<Arc<DbMirror>> = None;
     let mut bad = vec![];
     let steps = o["steps"].as_array().unwrap();
-    for (i, (st, want)) in steps.iter().zip(o["results"].as_array().unwrap()).enumerate() {
+    for (i, st) in steps.iter().enumerate() {
         let s = |k: &str| st[k].as_str().unwrap_or("").to_string();
         let r: Value = match s("do").as_str() {
             "new" => {
@@ -146,12 +148,16 @@ fn rust_mirrors_like_python() {
             other => panic!("知らない歩: {other}"),
         };
         let mut got = normalize(&r, &base.display().to_string());
-        let want = &want["result"];
+        let key = format!("#{i:02}");
+        let w = bk.want(&key, || o["results"][i]["result"].clone());
+        let want = &w;
         align_age(want, &mut got);
+        bk.note(&key, st["do"].as_str().unwrap_or(""), &got, want);
         if let Some(d) = common::diff(want, &got, "") {
             bad.push(format!("#{i} {st}: {d}"));
         }
     }
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&work);
     assert!(bad.is_empty(), "{} / {} 歩が食い違いました:\n{}", bad.len(), steps.len(), bad.join("\n"));
 }

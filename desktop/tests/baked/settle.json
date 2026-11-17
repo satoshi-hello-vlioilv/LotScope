@@ -1,11 +1,52 @@
 {
  "about": "焼いた表と窓の答えをそろえる決まり（版 3.115.0。common/bake.rs の settle）。揺れたかどうかによらず常に当てる。鍵の名前の表（timeKeys: その鍵の字・時刻の数は @T）と字の形（forms: 正規表現 → 置き換え。上から順）。ほかに道の字（作業フォルダ @WORK・一時フォルダ @TMP・家 @HOME・大きな整数の印 @HELD:）と、今日から 3 日の内の日付（@DAY±n）をそろえる",
- "timeKeys": ["updated_at", "updatedAt", "at", "started", "until", "chosenAt", "checkedAt", "copiedAt", "mtime", "acquired_at", "expires_at", "modified", "savedAt", "lastSeen", "last_seen"],
+ "timeKeys": [
+  "updated_at",
+  "updatedAt",
+  "at",
+  "started",
+  "until",
+  "chosenAt",
+  "checkedAt",
+  "copiedAt",
+  "mtime",
+  "acquired_at",
+  "expires_at",
+  "modified",
+  "savedAt",
+  "lastSeen",
+  "last_seen"
+ ],
  "forms": [
-  {"why": "日時（ISO・空白の区切り・秒の小数・時差）", "re": "\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?([+-]\\d{2}:?\\d{2}|Z)?", "to": "@T"},
-  {"why": "文の中の時刻（「最後の更新 2026/11/17 21:15」）", "re": "\\d{4}/\\d{1,2}/\\d{1,2} \\d{1,2}:\\d{2}(:\\d{2})?", "to": "@T"},
-  {"why": "作り物のサーバーのポート（CM3・LotDsp。答えと要求の本文）", "re": "(127\\.0\\.0\\.1|localhost):\\d+", "to": "$1:@PORT"},
-  {"why": "開発用サーバー（ui_server）の一時フォルダ", "re": "(/tmp|@TMP)/tpa-ui-[^/\\s\"']*", "to": "@UI"},
-  {"why": "作業フォルダの名前のプロセス番号（da-名前-番号。作業フォルダより上の区切りに出る）", "re": "/da-([a-z0-9-]+?)-\\d+(/|$)", "to": "/da-$1-@PID$2"}
+  {
+   "why": "日時（ISO・空白の区切り・秒の小数・時差）",
+   "re": "\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?([+-]\\d{2}:?\\d{2}|Z)?",
+   "to": "@T"
+  },
+  {
+   "why": "文の中の時刻（「最後の更新 2026/11/17 21:15」）",
+   "re": "\\d{4}/\\d{1,2}/\\d{1,2} \\d{1,2}:\\d{2}(:\\d{2})?",
+   "to": "@T"
+  },
+  {
+   "why": "作り物のサーバーのポート（CM3・LotDsp。答えと要求の本文）",
+   "re": "(127\\.0\\.0\\.1|localhost):\\d+",
+   "to": "$1:@PORT"
+  },
+  {
+   "why": "開発用サーバー（ui_server）の一時フォルダ",
+   "re": "(/tmp|@TMP)/tpa-ui-[^/\\s\"']*",
+   "to": "@UI"
+  },
+  {
+   "why": "作業フォルダの名前のプロセス番号（da-名前-番号。作業フォルダより上の区切りに出る）",
+   "re": "/da-([a-z0-9-]+?)-\\d+(/|$)",
+   "to": "/da-$1-@PID$2"
+  },
+  {
+   "why": "かかった時間（「確かめる」の ms・「n 秒」）",
+   "re": "・\\d+ ms",
+   "to": "・@MS ms"
+  }
  ]
 }

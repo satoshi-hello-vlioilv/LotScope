@@ -77,7 +77,6 @@ impl Ctx {
                 subs.push((h, "@HOME".into()));
             }
         }
-        subs.push((da_core::held::mark().to_string(), "@HELD:".into()));
         Ctx { subs }
     }
     fn sub(&self, s: &str) -> String {
@@ -124,11 +123,13 @@ fn compiled() -> &'static (Vec<(regex::Regex, String)>, regex::Regex) {
 /// そろえる（鍵の名前の表＋字の形。tests/baked/settle.json）。extra_keys は本ごとに足す鍵
 pub fn settle(v: &Value, ctx: &Ctx, extra_keys: &[String]) -> Value {
     let r = rules();
-    let keys: Vec<&str> = r["timeKeys"].as_array().unwrap().iter().filter_map(Value::as_str).chain(extra_keys.iter().map(String::as_str)).collect();
+    let keys: Vec<&str> =
+        r["timeKeys"].as_array().unwrap().iter().filter_map(Value::as_str).chain(extra_keys.iter().map(String::as_str)).collect();
     let (forms, day_re) = compiled();
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
-        let mut t = ctx.sub(t);
+        // 大きな整数の印（起動ごとの乱数つき）は @HELD: に
+        let mut t = ctx.sub(t).replace(da_core::held::mark(), "@HELD:");
         for (re, to) in forms {
             if re.is_match(&t) {
                 t = re.replace_all(&t, to.as_str()).into_owned();
@@ -354,6 +355,30 @@ pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
     json!({"files": files, "dirs": dirs, "links": links, "blobs": blobs})
 }
 
+/// 何を尋ねられても 404 を答える作り物のサーバー（組む所の CM3。答え合わせ役 builder_oracle.py の _Cm3 と同じ）→ URL
+pub fn serve_404() -> String {
+    use std::io::{Read, Write};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
+    std::thread::spawn(move || {
+        for c in l.incoming().flatten() {
+            std::thread::spawn(move || {
+                let mut c = c;
+                let _ = c.set_read_timeout(Some(Duration::from_secs(5)));
+                let (mut buf, mut got) = ([0u8; 4096], vec![]);
+                while !got.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match c.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => got.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let _ = c.write_all(b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+            });
+        }
+    });
+    url
+}
+
 /// ファイルID（Python の work_log.file_id と同じ「装置:inode」の形。窓の same_fid で比べる）
 pub fn fid_of(p: &Path) -> String {
     #[cfg(unix)]
@@ -447,6 +472,8 @@ fn decl_cmp(v: &Value) -> Value {
 
 pub struct Bake {
     pub book: String,
+    /// 表のファイルの名前（本の名前か「本.部分」。1 つの試験のファイルに焼く試験が 2 つ以上あるとき）
+    file: String,
     pub mode: Mode,
     scope: Vec<String>,
     /// 焼いた表と比べるか（posix の表。Windows は比べない）
@@ -458,10 +485,14 @@ pub struct Bake {
     pub keys: Vec<String>,
     /// 答え合わせ役の答えの中で、歩の答え（焼かない欄。表は窓の答えを answers に持つ）
     pub strip: Vec<String>,
+    /// strip を当てる表の印の鍵（歩の表は method を持つ）
+    pub strip_in: &'static str,
     /// 場面の宣言から除く名前（Python だけの写し）
     pub exclude: Vec<&'static str>,
     /// 答え合わせ役の答えの中の「ファイルID → 名前」の表の鍵（作業実績）。場面と答え合わせ役の答えのファイルID を @FID(道) にする
     pub fid_key: Option<&'static str>,
+    /// 答え合わせ役が起こした作り物のサーバーの URL の鍵（組む所の CM3）。焼いた表では @URL にし、Python 無しでは窓の側で 404 を答える作り物を起こす
+    pub url_key: Option<&'static str>,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -475,6 +506,12 @@ fn env_on(k: &str) -> bool {
 
 impl Bake {
     pub fn open(book: &str, base: &Path) -> Bake {
+        Bake::open_part(book, "", base)
+    }
+
+    /// 本の部分（表は tests/baked/<本>.<部分>.json）
+    pub fn open_part(book: &str, part: &str, base: &Path) -> Bake {
+        let file = if part.is_empty() { book.to_string() } else { format!("{book}.{part}") };
         let bless = std::env::var("TPA_BLESS").unwrap_or_default();
         let no_py = env_on("TPA_NO_PYTHON");
         let mode = match (bless.as_str(), no_py) {
@@ -484,7 +521,7 @@ impl Bake {
             (_, true) => Mode::BlessScope,
         };
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
-        let path = baked_dir().join(format!("{book}.json"));
+        let path = baked_dir().join(format!("{file}.json"));
         let table = std::fs::read(&path).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display())));
         let check = cfg!(unix) && mode != Mode::Bless;
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
@@ -492,6 +529,7 @@ impl Bake {
         }
         Bake {
             book: book.into(),
+            file,
             mode,
             scope,
             check,
@@ -500,8 +538,10 @@ impl Bake {
             ctx: Ctx::new(base),
             keys: vec![],
             strip: vec!["status".into(), "json".into()],
+            strip_in: "method",
             exclude: vec!["py", "pd"],
             fid_key: None,
+            url_key: None,
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -527,7 +567,7 @@ impl Bake {
         match v {
             Value::Object(o) => Value::Object(
                 o.iter()
-                    .filter(|(k, _)| !(o.contains_key("method") && self.strip.contains(k)))
+                    .filter(|(k, _)| !(o.contains_key(self.strip_in) && self.strip.contains(k)))
                     .map(|(k, x)| (k.clone(), self.strip_answers(x)))
                     .collect(),
             ),
@@ -564,25 +604,37 @@ impl Bake {
         self.scene = snapshot(&self.base, &self.ctx, &ex);
         let ctx = self.ctx.clone();
         self.oracle = map_strings(&self.strip_answers(v), &|s| ctx.sub(s));
+        if let Some(url) = self.url_key.and_then(|k| v[k].as_str()).filter(|u| !u.is_empty()) {
+            let url = url.to_string();
+            self.oracle = map_strings(&self.oracle, &|s| s.replace(url.as_str(), "@URL"));
+        }
         if let Some(k) = self.fid_key {
             // ファイルID（装置の番号と inode）は作り直すと変わるので、場面の中身と答え合わせ役の答えでは @FID(場面の道) にする
             let mut pairs = vec![];
             for (fid, name) in v[k].as_object().cloned().unwrap_or_default() {
                 let name = name.as_str().unwrap_or("").to_string();
-                let rel = self.scene["files"].as_object().unwrap().keys().chain(self.scene["dirs"].as_object().unwrap().keys())
+                let rel = self.scene["files"]
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .chain(self.scene["dirs"].as_object().unwrap().keys())
                     .find(|r| r.rsplit('/').next() == Some(name.as_str()))
                     .cloned();
                 if let Some(rel) = rel {
                     pairs.push((fid, format!("@FID({rel})")));
                 }
             }
-            let f = |s: &str| pairs.iter().fold(s.to_string(), |t, (a, b)| if t == *a || t.contains(&format!("\"{a}\"")) { t.replace(a.as_str(), b) } else { t });
+            let f = |s: &str| {
+                pairs
+                    .iter()
+                    .fold(s.to_string(), |t, (a, b)| if t == *a || t.contains(&format!("\"{a}\"")) { t.replace(a.as_str(), b) } else { t })
+            };
             self.scene = map_strings(&self.scene, &f);
             self.oracle = map_strings(&self.oracle, &f);
         }
         if self.mode == Mode::Python && self.check {
             let Some(t) = &self.table else {
-                self.bad.push(format!("焼いた表 tests/baked/{}.json がありません（TPA_BLESS=1 で焼く）", self.book));
+                self.bad.push(format!("焼いた表 tests/baked/{}.json がありません（TPA_BLESS=1 で焼く）", self.file));
                 return;
             };
             let (a, b) = (settle(&t["oracle"], &self.ctx, &self.keys), settle(&self.oracle, &self.ctx, &self.keys));
@@ -604,7 +656,8 @@ impl Bake {
         self.oracle = t["oracle"].clone();
         let ctx = self.ctx.clone();
         let base = self.base.clone();
-        map_strings(&t["oracle"], &|s| fid_unsub(&ctx.unsub(s), &base))
+        let url = if self.url_key.is_some() { serve_404() } else { String::new() };
+        map_strings(&t["oracle"], &|s| fid_unsub(&ctx.unsub(s), &base).replace("@URL", &url))
     }
 
     /// 場面が置いた物か（作業フォルダの中の道）
@@ -701,7 +754,7 @@ impl Bake {
                 if !test_bad.is_empty() || !self.bad.is_empty() {
                     panic!(
                         "{}: Python との食い違いがあるので焼きません（試験 {} 件・そろえた後 {} 件）:\n{}",
-                        self.book,
+                        self.file,
                         test_bad.len(),
                         self.bad.len(),
                         self.bad.iter().chain(test_bad).take(20).cloned().collect::<Vec<_>>().join("\n")
@@ -715,13 +768,14 @@ impl Bake {
                 for (k, g) in &self.answers {
                     if old.get(k) != Some(g) {
                         let r = &self.routes[k];
-                        if !self.scope.iter().any(|s| s == "all" || r == s || r.starts_with(&format!("{s} ")) || k.starts_with(s.as_str())) {
+                        if !self.scope.iter().any(|s| s == "all" || r == s || r.starts_with(&format!("{s} ")) || k.starts_with(s.as_str()))
+                        {
                             out.push(format!("範囲の外の答えが変わった: {k}（{r}）"));
                         }
                     }
                 }
                 if !out.is_empty() {
-                    panic!("{}: 範囲（{}）の外が変わったので焼きません:\n{}", self.book, self.scope.join(","), out.join("\n"));
+                    panic!("{}: 範囲（{}）の外が変わったので焼きません:\n{}", self.file, self.scope.join(","), out.join("\n"));
                 }
                 self.write();
             }
@@ -730,9 +784,9 @@ impl Bake {
                     self.dump_diff();
                     panic!(
                         "{}: 焼いた表との食い違い {} 件（窓の今の答えは target/tmp/bless-diff/{}.json）:\n{}",
-                        self.book,
+                        self.file,
                         self.bad.len(),
-                        self.book,
+                        self.file,
                         self.bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
                     );
                 }
@@ -743,14 +797,14 @@ impl Bake {
     fn dump_diff(&self) {
         let d = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("bless-diff");
         let _ = std::fs::create_dir_all(&d);
-        let v = json!({"book": self.book, "bad": self.bad, "answers": self.answers});
-        let _ = std::fs::write(d.join(format!("{}.json", self.book)), serde_json::to_string_pretty(&v).unwrap());
+        let v = json!({"book": self.file, "bad": self.bad, "answers": self.answers});
+        let _ = std::fs::write(d.join(format!("{}.json", self.file)), serde_json::to_string_pretty(&v).unwrap());
     }
 
     fn write(&self) {
         let out_dir = std::env::var("TPA_BAKE_OUT").map(PathBuf::from).unwrap_or_else(|_| baked_dir());
         std::fs::create_dir_all(&out_dir).unwrap();
-        let path = out_dir.join(format!("{}.json", self.book));
+        let path = out_dir.join(format!("{}.json", self.file));
         let old = self.table.clone().unwrap_or(Value::Null);
         let answers: Map<String, Value> = self.answers.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         let routes: Map<String, Value> = self.routes.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
@@ -758,13 +812,15 @@ impl Bake {
             // root でない利用者: 本の答え（root で焼いた）は変えず、違う歩だけを variants.user に持つ
             let mut t = old.clone();
             let base = old["answers"].as_object().cloned().unwrap_or_default();
-            let user: Map<String, Value> = answers.iter().filter(|(k, v)| base.get(*k) != Some(*v)).map(|(k, v)| (k.clone(), v.clone())).collect();
+            let user: Map<String, Value> =
+                answers.iter().filter(|(k, v)| base.get(*k) != Some(*v)).map(|(k, v)| (k.clone(), v.clone())).collect();
             t["variants"]["user"] = Value::Object(user);
             t
         } else {
             let mut t = json!({
-                "about": format!("窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 {}。作り直すのは python program/tools/bless.py {}", self.book, self.book),
+                "about": format!("窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 {}。作り直すのは python program/tools/bless.py {}", self.file, self.file),
                 "book": self.book,
+                "file": self.file,
                 "os": "posix",
                 "variant": variant(),
                 "oracle": self.oracle,
@@ -781,7 +837,7 @@ impl Bake {
         let text = lines(&t, 0) + "\n";
         std::fs::write(&path, text).unwrap();
         // 変わった葉の要約（道の型ごとの数・鍵・前 → 後の見本 3）。PR の説明に貼る
-        eprintln!("{}", summary(&self.book, &old, &t).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
+        eprintln!("{}", summary(&self.file, &old, &t).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
         eprintln!("bless| {} に書きました", path.display());
     }
 }
@@ -807,13 +863,17 @@ pub fn lines(v: &Value, depth: usize) -> String {
                 let items: Vec<String> = a.iter().map(|x| format!("{}{}", pad(depth + 1), inner(x, depth + 1, max, pad))).collect();
                 format!("[\n{}\n{}]", items.join(",\n"), pad(depth))
             }
+            // 大きな整数（held の印の字）は桁のまま書く（読み戻すと common::json_keep が同じ印にする）
+            _ if da_core::held::has_held(v) || da_core::held::has_nonfinite(v) || da_core::held::has_lone(v) => da_core::held::to_text(v, None),
             _ => serde_json::to_string(v).unwrap(),
         }
     }
     match v {
         Value::Object(o) => {
-            let items: Vec<String> =
-                o.iter().map(|(k, x)| format!("{}{}: {}", pad(depth + 1), serde_json::to_string(k).unwrap(), inner(x, depth + 1, deep(k), &pad))).collect();
+            let items: Vec<String> = o
+                .iter()
+                .map(|(k, x)| format!("{}{}: {}", pad(depth + 1), serde_json::to_string(k).unwrap(), inner(x, depth + 1, deep(k), &pad)))
+                .collect();
             format!("{{\n{}\n}}", items.join(",\n"))
         }
         _ => serde_json::to_string(v).unwrap(),
@@ -882,7 +942,11 @@ pub fn summary(book: &str, old: &Value, new: &Value) -> String {
                 e.0 += 1;
                 e.1.insert(p.rsplit(['.', '[']).next().unwrap_or("").trim_end_matches(']').to_string());
                 if e.2.len() < 3 {
-                    e.2.push(format!("{k}{p}: {} → {}", a.get(p).map(|v| cut(&v.to_string())).unwrap_or("（無し）".into()), b.get(p).map(|v| cut(&v.to_string())).unwrap_or("（無し）".into())));
+                    e.2.push(format!(
+                        "{k}{p}: {} → {}",
+                        a.get(p).map(|v| cut(&v.to_string())).unwrap_or("（無し）".into()),
+                        b.get(p).map(|v| cut(&v.to_string())).unwrap_or("（無し）".into())
+                    ));
                 }
             }
         }
@@ -899,4 +963,3 @@ pub fn summary(book: &str, old: &Value, new: &Value) -> String {
     }
     s
 }
-
