@@ -200,6 +200,17 @@ fn master_place_matches_python() {
                 }
                 continue;
             }
+            // ほかの PC が引っ越しの印をたどる（版 3.114.0。窓が書いた印を、版 3.113.0 と同じ決め〈Python の follow_moved〉でたどる）
+            if let Some(old) = st["follow"].as_str() {
+                let got = common::python_json("place_oracle.py", &["--follow", rs, old]);
+                if norm(&st["json"], py) != norm(&got, rs) {
+                    bad.push(format!("{name} [{i}] 印をたどった置き場: Python {} / 窓が書いた印 {}", norm(&st["json"], py), norm(&got, rs)));
+                }
+                if got["dir"].as_str().is_none_or(|d| d.is_empty() || d.ends_with("share")) {
+                    bad.push(format!("{name} [{i}] 印をたどれない: {got}"));
+                }
+                continue;
+            }
             steps += 1;
             let Some((status, got)) = answer(&conf, &store, st, rs) else {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
@@ -264,7 +275,8 @@ fn master_place_matches_python() {
     eprintln!("歩 {steps}・写して切り替えた歩 {moved}・Python に任せた歩 {delegated}");
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     // 歩の下限は環境で違う（place_oracle.py の「空白だけ・ドライブだけ・共有の根」の 3 歩は POSIX だけ。Windows は 58。PR #105 の CI）
-    let min_steps = if cfg!(windows) { 58 } else { 61 };
+    // 版 3.114.0: 道の門の 7 歩と、引っ越しの印をたどる場面の 2 歩を足した
+    let min_steps = if cfg!(windows) { 67 } else { 70 };
     assert!(steps >= min_steps && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

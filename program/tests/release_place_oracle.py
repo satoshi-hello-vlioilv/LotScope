@@ -164,10 +164,22 @@ def scenarios():
             S(BOSS, "POST", C, A("@ROOT/new", "end.")),
             S(BOSS, "POST", C, A("@ROOT/new", "\x01x:\x1f<")),
             S(BOSS, "POST", C, A("@ROOT/new", "x" * 121)),
-            *([S(BOSS, "POST", C, A("@ROOT/new", "字" * 120))] if os.name == "nt" else []),
+            # 名前が 255 バイトを超える（Linux）: 道の門が断る（版 3.114.0。前は Python 3.13 の Path.exists が ENAMETOOLONG で落ち、窓は任せた）
+            S(BOSS, "POST", C, A("@ROOT/new", "字" * 120)),
             S(BOSS, "POST", C, A("", "x")),
-            # 空白だけの上のフォルダ: Windows（Win32）は段の末尾の空白を削るので、窓は答えず Python に任せる（release_place::win_trims）
-            *([] if os.name == "nt" else [S(BOSS, "POST", C, A(' " " ', "x"))]),
+            # 空白だけの上のフォルダ: Windows（Win32）は段の末尾の空白を削る。版 3.114.0 から道の門が GetFullPathNameW で整える（前は任せた）
+            S(BOSS, "POST", C, A(' " " ', "x")),
+            # 版 3.113.0 の probe_scenario の中の Windows の歩（流れない場面にあった）を、どの OS でも流れる場面へ
+            S(BOSS, "POST", C, A(' "  " ', "x")),
+            S(BOSS, "POST", C, A("@ROOT/new. ", "x")),
+            S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel/LotScope. ")),
+            # 道の門（版 3.114.0）: NUL（前は窓が任せた）・長い上のフォルダ（前は Python が 500）・装置の道
+            S(BOSS, "POST", C, A("@ROOT/new\u0000x", "x")),
+            S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel\u0000")),
+            S(BOSS, "POST", C, A("@ROOT/" + "字" * 90, "x")),
+            S(BOSS, "POST", C, A("@ROOT/" + "a" * 300, "x")),
+            S(BOSS, "POST", C, A("\\\\.\\C:\\x", "x")),
+            *([S(BOSS, "POST", C, A("\\\\?\\@ROOT\\new", "fresh"))] if os.name == "nt" else [S(BOSS, "POST", C, A("\\\\?\\C:\\x", "x"))]),
             S(BOSS, "POST", C, A("@ROOT/無い", "x")),
             S(BOSS, "POST", C, A(' "@ROOT/new" ', "fresh")),
             S(BOSS, "POST", C, A("@ROOT/new", "fresh", copy=False)),
@@ -209,9 +221,6 @@ def scenarios():
             S(BOSS, "POST", C, "{壊れた"),
             S(VIEW, "POST", C, A("@ROOT/new", "見るだけの人も確かめられる")),
         ], "delegates": [
-            *([S(BOSS, "POST", C, A(' " " ', "x"))] if os.name == "nt" else []),
-            # 名前が 255 バイトを超える（Linux）: Python 3.13 の Path.exists は ENAMETOOLONG で落ちる（500）。窓は答えない
-            *([] if os.name == "nt" else [S(BOSS, "POST", C, A("@ROOT/new", "字" * 120))]),
             S(BOSS, "POST", C, "[1]"),
             S(BOSS, "POST", C, '"x"'),
             S(BOSS, "POST", C, {"from": SRC, "parent": "@ROOT/new", "name": ["a"]}),
@@ -238,6 +247,7 @@ def scenarios():
             S(BOSS, "POST", M, A("@ROOT/new/fresh", "中には置けない", src="@ROOT/new/fresh")),
             S(BOSS, "POST", M, A("@ROOT/new", "fresh5", src="@ROOT/new/fresh"), wait=True),
             S(BOSS, "POST", M, ""),
+            S(BOSS, "POST", M, A("@ROOT/new\u0000x", "x")),     # 道の門が断る（400。版 3.114.0。前は窓が任せた）
         ], "delegates": [
             S(BOSS, "POST", M, {"from": SRC, "parent": "@ROOT/new", "name": ["a"]}),
             S(BOSS, "POST", M, "[1]"),
@@ -270,14 +280,14 @@ def scenarios():
     if os.name != "nt":
         out.append(perm_scenario())
     # 根の上のフォルダ（/・//・///）は POSIX の場面（Windows の / は今のドライブの根・// は UNC で、意味が違う。Windows の根・ドライブ・UNC の
-    # 字は事例の表 joined_paths_match_python で両方の決まりを突き合わせる）。ドライブだけの上のフォルダ（C:）は、Python がドライブごとの
-    # 今のフォルダで解くので窓は答えず任せる（Windows）。一時フォルダを作れない形（ファイルが邪魔をする）・上が無い形はどちらでも
+    # 字は事例の表 joined_paths_match_python で両方の決まりを突き合わせる）。ドライブだけの上のフォルダ（C:）は、版 3.114.0 から道の門が
+    # ドライブの根（C:\）にする（Windows。前は Python がドライブごとの今のフォルダで解き、窓は任せた）。一時フォルダを作れない形・上が無い形はどちらでも
     drive = os.path.splitdrive(str(Path.cwd()))[0]
     out.append({"name": "根の上のフォルダ・一時フォルダを作れない", "setup": setup_two_pcs, "steps": [
         S(BOSS, "POST", C, A(x, "relprobe-nonexist-q9")) for x in (("/", "//", "///", "//tmp", "/tmp/", " / ") if os.name != "nt" else ())] + [
         {"sync": {"src": SRC, "dest": "@ROOT/new/first/release.json/under"}},
         {"sync": {"src": SRC, "dest": "@ROOT/new/無い/上/置き場"}},
-    ], "delegates": [S(BOSS, "POST", C, A(drive, "relprobe-nonexist-q9"))] if os.name == "nt" and drive else []})
+    ] + ([S(BOSS, "POST", C, A(drive, "relprobe-nonexist-q9"))] if os.name == "nt" and drive else [])})
     if os.name != "nt":
         out.append(probe_scenario())
         out.append({"name": "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない）", "setup": setup_fifo, "steps": [
@@ -323,6 +333,8 @@ def lock_perm(r: Path):
 def perm_scenario():
     """権限の場面（POSIX）。root は権限を見ずに読み書きできるので、root で流すと読めない・書けない形にならず、写せる答えどうしを比べる。
     CI（root でない利用者）では Python の PermissionError の答えと、写しかけの片付けを突き合わせる（release_parity.rs が数を確かめる）"""
+    # 中を読めない置き場（root でない利用者: iterdir の PermissionError）は、版 3.114.0 から窓も「新しい場所を読めません」で答える（前は任せた）。
+    # 途中の段を読めない上のフォルダ（root でない利用者: Path.is_dir の PermissionError）は、Python も窓も「上のフォルダを読めません」（前は 500）
     noread = S(BOSS, "POST", C, A("@ROOT/new", "noread"))
     return {"name": "権限（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場）", "setup": setup_perm, "lock": lock_perm,
             "steps": [S(BOSS, "POST", C, A("@ROOT/new", "fresh")),
@@ -332,9 +344,9 @@ def perm_scenario():
                       S(BOSS, "POST", C, A("@ROOT/new/ro", "x", src="@ROOT/rel2/LotScope")),
                       S(BOSS, "POST", M, A("@ROOT/new/ro", "x", src="@ROOT/rel2/LotScope"), wait=True),
                       {"sync": {"src": "@ROOT/rel2/LotScope", "dest": "@ROOT/new/ro/y"}},
-                      *([noread] if ROOT else []),
-                      S(BOSS, "GET", P)],
-            "delegates": [] if ROOT else [noread]}
+                      noread,
+                      S(BOSS, "POST", C, A("@ROOT/new/noread/sub", "x")),
+                      S(BOSS, "GET", P)]}
 
 
 def probe_scenario():
@@ -373,12 +385,8 @@ def probe_scenario():
              S(BOSS, "POST", M, A("@ROOT/new", "x　"), wait=True),
              {"sync": {"src": SRC, "dest": "@ROOT/file.txt/under"}},
              {"sync": {"src": SRC, "dest": "@ROOT/new/occupied/x/y"}}]
-    nul = [S(BOSS, "POST", C, A("@ROOT/new\u0000x", "x")),
-           S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel\u0000")),
-           S(BOSS, "POST", M, A("@ROOT/new\u0000x", "x")),
-           *([S(BOSS, "POST", C, A(' "  " ', "x")), S(BOSS, "POST", C, A("@ROOT/new. ", "x")),
-              S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel/LotScope. "))] if os.name == "nt" else [])]
-    return {"name": "採点者: 確かめる・名乗り・写す", "setup": setup_probe, "revoke": CUT, "steps": steps, "delegates": nul}
+    # 前の任せる歩（NUL 3 歩と Windows の 3 歩）は、版 3.114.0 から道の門が答え、どの OS でも流れる最初の場面の歩へ移した
+    return {"name": "採点者: 確かめる・名乗り・写す", "setup": setup_probe, "revoke": CUT, "steps": steps}
 
 
 JOIN_PARENTS = ["/", "//", "///", "//tmp", "/tmp/", "/a//b/", "a", ".", "./a/..", "C:", "C:\\", "C:/x/", "C:x", "\\", "\\x",

@@ -75,6 +75,12 @@ def DO(op, **kw):
     return {"do": op, **kw}
 
 
+def FOLLOW(old):
+    """ほかの PC（配った設定の置き場が前の置き場のまま）が引っ越しの印をたどる。たどるのは版 3.113.0 と同じ決め（MasterStore.follow_moved。
+    この版で変えていない）。窓の試験は窓が書いた印を、同じ決めで（--follow で Python に）たどらせて、着いた置き場を比べる"""
+    return {"follow": old}
+
+
 def fill_share(share: Path, names=NAMES, beats=()):
     share.mkdir(parents=True, exist_ok=True)
     for n in names:
@@ -167,6 +173,13 @@ def scenarios():
             *([S(BOSS, "POST", CK, A("  \"  \"  ", "M")), S(BOSS, "POST", CK, A("C:", "M")), S(BOSS, "POST", CK, A("\\\\srv", "M"))]
               if os.name != "nt" else []),
             S(BOSS, "POST", CK, A("rel", "M")),
+            # 道の門（版 3.114.0）: NUL・長い上のフォルダ（前は Python が 500）・装置の道・長い名前（Linux）・move も同じ理由で 400
+            S(BOSS, "POST", CK, A("@ROOT/nas\u0000x", "M")),
+            S(BOSS, "POST", CK, A("@ROOT/" + "字" * 90, "M")),
+            S(BOSS, "POST", CK, A("@ROOT/" + "a" * 300, "M")),
+            S(BOSS, "POST", CK, A("\\\\.\\C:\\x", "M")),
+            S(BOSS, "POST", CK, A("@ROOT/nas", "字" * 100)),
+            S(BOSS, "POST", MV, A("@ROOT/nas\u0000x", "M")),
             S(BOSS, "POST", CK, A("@ROOT/無い", "M")),
             S(BOSS, "POST", CK, A("@ROOT/file.txt", "M")),
             S(BOSS, "POST", CK, A("@ROOT", "file.txt")),
@@ -235,6 +248,12 @@ def scenarios():
             S(BOSS, "POST", MV, A("@ROOT/nas", "New")),
             S(BOSS, "GET", ST),
         ]},
+        {"name": "新しい版が書いた引っ越しの印を前の版の決めでたどる（版 3.114.0。道の門が書き直した上のフォルダでも印の to は絶対の道）",
+         "setup": setup_shared, "shared": True, "steps": [
+            S(BOSS, "POST", MV, A("\\\\?\\@ROOT\\nas" if os.name == "nt" else "@ROOT//nas/./", "New")),
+            FOLLOW("@ROOT/share"),
+            S(BOSS, "GET", ST),
+        ]},
         {"name": "空の共有（版 3.105.0 から種まきは窓も）", "setup": setup_empty, "shared": True, "steps": [], "delegates": [
             oracle_gate.W(S(BOSS, "GET", ST)),
             oracle_gate.W(S(BOSS, "GET", PL)),
@@ -296,6 +315,18 @@ def do(st, root):
         Path(sub(st["path"], root)).write_bytes(st["text"].encode("utf-8"))
 
 
+def one_follow(root: Path, old: str) -> dict:
+    """--follow: 前の置き場（old）を配った設定に持つほかの PC が、引っ越しの印をたどって着いた置き場（この PC の覚えは別の一時フォルダ）"""
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="tpa-follow-"))
+    try:
+        st = MasterStore(root / "app", local_root=tmp, settings={"refresh_seconds": 0, "dir": sub(old, root)})
+        st.follow_moved(force=True)
+        return {"dir": str(st.share_dir or "")}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def one_status(folder, ready=None, go=None):
     """--status: その場面のフォルダの置き場で MasterStore.status（種まきを含む）。seededByPython は共有に最初の版を置いた名前（版 3.105.0）"""
     import time
@@ -322,6 +353,9 @@ def one_status(folder, ready=None, go=None):
 
 def main():
     logging.disable(logging.WARNING)
+    if sys.argv[1] == "--follow":
+        sys.stdout.write(json.dumps(one_follow(Path(sys.argv[2]), sys.argv[3]), ensure_ascii=False))
+        return
     if sys.argv[1] == "--status":
         opt = {k: sys.argv[i + 1] for i, k in enumerate(sys.argv) if k in ("--ready", "--go") and i + 1 < len(sys.argv)}
         one_status(sys.argv[2], opt.get("--ready"), opt.get("--go"))
@@ -365,6 +399,9 @@ def main():
                 if "do" in st:
                     do(st, root)
                     steps.append(st)
+                    continue
+                if "follow" in st:
+                    steps.append({**st, "json": one_follow(root, st["follow"])})
                     continue
                 store = app.config["MASTER_STORE"]
                 pdir = (store.share_dir / presence.SUBDIR) if store.share_dir else (root / "local" / "presence")
