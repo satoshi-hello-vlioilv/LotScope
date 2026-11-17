@@ -523,7 +523,10 @@ pub fn stops(kind: Kind, text: &str) -> bool {
 // ------------------------------------------------------------------ 欄の表（path_routes.json）
 
 /// 道 → [(欄, 種類)]（tools/path-routes.py が Python の path_rules.ROUTES から焼いた表）
-pub static ROUTES: LazyLock<Vec<(String, String, Vec<(String, Kind)>)>> = LazyLock::new(|| {
+/// (方法, 道の型, [(欄, 種類)])
+pub type Route = (String, String, Vec<(String, Kind)>);
+
+pub static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
     let v: serde_json::Value = serde_json::from_str(include_str!("path_routes.json")).expect("path_routes.json");
     v["routes"]
         .as_array()

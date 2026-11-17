@@ -126,7 +126,7 @@ fn sort_clean_sync_tabcounts_match_the_table() {
         assert_eq!(folder_browse::sorted(&want), want, "並び");
     }
     for cs in c["clean"].as_array().unwrap().iter().filter(|c| os_ok(c)) {
-        assert_eq!(folder_browse::clean(cs["text"].as_str().unwrap()).as_deref(), cs["want"].as_str(), "道の字 {}", cs["text"]);
+        assert_eq!(folder_browse::clean(cs["text"].as_str().unwrap()).ok().as_deref(), cs["want"].as_str(), "道の字 {}", cs["text"]);
     }
     for cs in c["sync"].as_array().unwrap() {
         assert_eq!(master_place::sync_folder(cs["path"].as_str().unwrap()), cs["kind"].as_str().unwrap(), "{}", cs["path"]);
@@ -152,9 +152,9 @@ fn marks_match_the_table() {
             std::fs::create_dir(d.join(n.as_str().unwrap())).unwrap();
         }
         let (purpose, pattern) = (cs["purpose"].as_str().unwrap(), cs["pattern"].as_str().unwrap_or(""));
-        let here = folder_browse::browse(&d.to_string_lossy(), purpose, pattern, 4.0).unwrap();
+        let here = folder_browse::browse(&d.to_string_lossy(), purpose, pattern, 4.0);
         assert_eq!(here["mark"].get("text").cloned().unwrap_or(Value::Null), cs["want"], "いまのフォルダの印: {}", cs["name"]);
-        let above = folder_browse::browse(&up.to_string_lossy(), purpose, pattern, 4.0).unwrap();
+        let above = folder_browse::browse(&up.to_string_lossy(), purpose, pattern, 4.0);
         let e = above["entries"].as_array().unwrap().iter().find(|e| e["name"] == "m").unwrap();
         assert_eq!(e["mark"].get("text").cloned().unwrap_or(Value::Null), cs["want"], "上のフォルダの並びの印: {}", cs["name"]);
     }
@@ -360,7 +360,7 @@ fn hidden_and_system_entries_are_not_listed() {
             assert!(st.success());
         }
     }
-    let got = folder_browse::browse(&d.to_string_lossy(), "folder", "", 4.0).unwrap();
+    let got = folder_browse::browse(&d.to_string_lossy(), "folder", "", 4.0);
     let names: Vec<&str> = got["entries"].as_array().unwrap().iter().map(|e| e["name"].as_str().unwrap()).collect();
     for cs in cases()["hidden"].as_array().unwrap() {
         if cs["file"] == true {

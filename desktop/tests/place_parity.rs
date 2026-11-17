@@ -204,7 +204,11 @@ fn master_place_matches_python() {
             if let Some(old) = st["follow"].as_str() {
                 let got = common::python_json("place_oracle.py", &["--follow", rs, old]);
                 if norm(&st["json"], py) != norm(&got, rs) {
-                    bad.push(format!("{name} [{i}] 印をたどった置き場: Python {} / 窓が書いた印 {}", norm(&st["json"], py), norm(&got, rs)));
+                    bad.push(format!(
+                        "{name} [{i}] 印をたどった置き場: Python {} / 窓が書いた印 {}",
+                        norm(&st["json"], py),
+                        norm(&got, rs)
+                    ));
                 }
                 if got["dir"].as_str().is_none_or(|d| d.is_empty() || d.ends_with("share")) {
                     bad.push(format!("{name} [{i}] 印をたどれない: {got}"));

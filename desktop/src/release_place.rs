@@ -1032,7 +1032,12 @@ fn gated(a: Args, rule: &str, cwd: &Path) -> Result<Args, String> {
         ("name".to_string(), a.name.clone()),
     ]);
     crate::path_gate::apply("POST", rule, &mut v, &crate::path_gate::Env::here(&cwd.to_string_lossy()))?;
-    Ok(Args { from: v.remove("from").unwrap_or_default(), parent: v.remove("parent").unwrap_or_default(), name: v.remove("name").unwrap_or_default(), copy: a.copy })
+    Ok(Args {
+        from: v.remove("from").unwrap_or_default(),
+        parent: v.remove("parent").unwrap_or_default(),
+        name: v.remove("name").unwrap_or_default(),
+        copy: a.copy,
+    })
 }
 
 /// 配布の置き場の 3 本（check・move・progress）。me は move の門番だけが読む。None は Python に任せる（?engine=python も。

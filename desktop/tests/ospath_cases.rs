@@ -23,10 +23,22 @@ fn env_of(t: &Value, case: &Value, col: &str) -> Env {
     }
     let base = Value::Object(base);
     if col == "nt" {
-        return Env { nt: true, vars: strs(&base["env"]), passwd: Passwd::Table(HashMap::new(), None), cwd: base["cwd"].as_str().unwrap().into(), win32: cfg!(windows) };
+        return Env {
+            nt: true,
+            vars: strs(&base["env"]),
+            passwd: Passwd::Table(HashMap::new(), None),
+            cwd: base["cwd"].as_str().unwrap().into(),
+            win32: cfg!(windows),
+        };
     }
     let uid = base["uid"].as_str().map(String::from);
-    Env { nt: false, vars: strs(&base["env"]), passwd: Passwd::Table(strs(&base["passwd"]), uid), cwd: base["cwd"].as_str().unwrap().into(), win32: false }
+    Env {
+        nt: false,
+        vars: strs(&base["env"]),
+        passwd: Passwd::Table(strs(&base["passwd"]), uid),
+        cwd: base["cwd"].as_str().unwrap().into(),
+        win32: false,
+    }
 }
 
 #[test]

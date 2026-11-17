@@ -533,9 +533,9 @@ pub fn browse_asked(asked: &str, purpose: &str, pattern: &str, timeout: f64) -> 
     }
     let (h, p, pat) = (here.clone(), purpose.to_string(), pattern.to_string());
     // Python は 2 回目も timeout 秒を待つ（_bounded を 2 度呼ぶ）
-    let listed = match probes.ask(&key, None, Duration::from_secs_f64(timeout), true, move || {
-        list(&h, &p, &pat).map_err(|e| crate::builder::strerror(&e))
-    }) {
+    let listed = match probes
+        .ask(&key, None, Duration::from_secs_f64(timeout), true, move || list(&h, &p, &pat).map_err(|e| crate::builder::strerror(&e)))
+    {
         None => {
             out["problem"] = json!(fail_time);
             return out;

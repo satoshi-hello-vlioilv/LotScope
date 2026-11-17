@@ -428,9 +428,7 @@ pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value
         Ok(true) => {}
         Ok(false) => return Some(fail(format!("置く場所に届きません: {par}（フォルダがあるか・つながっているかを確かめてください）"))),
         // 置く場所を読めない（権限で途中の段に入れない）: 理由を答える（版 3.114.0。Python も同じ言葉。前は Python が 500・窓は任せた）
-        Err(e) => {
-            return Some(fail(format!("置く場所を読めません: {par}（{}）。権限か、つながりを確かめてください。", strerror(&e))))
-        }
+        Err(e) => return Some(fail(format!("置く場所を読めません: {par}（{}）。権限か、つながりを確かめてください。", strerror(&e)))),
     }
     let dest = join_for(&p, &nm, cfg!(windows));
     if let Some(cur) = store.share_dir().map(|c| c.to_string_lossy().into_owned()) {
@@ -880,8 +878,7 @@ pub fn status(store: &Arc<Store>, local: &Local) -> Option<Value> {
     };
     let (st, lc) = (store.clone(), local.clone());
     let key = format!("status:{}", crate::release_place::normcase(&dir));
-    let answer =
-        crate::probe::PROBES.ask(&key, None, Duration::from_secs_f64(SHARE_PROBE_SEC), false, move || status_of(&st, &lc, false));
+    let answer = crate::probe::PROBES.ask(&key, None, Duration::from_secs_f64(SHARE_PROBE_SEC), false, move || status_of(&st, &lc, false));
     let mut st = match answer {
         Some(v) => v?,
         None => {
