@@ -192,7 +192,11 @@ def plan(store, parent, name) -> dict:
     p = Path(par)
     if not p.is_absolute() and not par.startswith("\\\\"):
         return {"ok": False, "problem": "置く場所は、ドライブ（C:\\…）か共有（\\\\サーバー\\…）から書いてください。"}
-    if not p.is_dir():
+    try:       # 置く場所を読めない（権限で途中の段に入れない）: 理由を答える（版 3.114.0。前は 500。窓も同じ言葉）
+        reach = p.is_dir()
+    except OSError as e:
+        return {"ok": False, "problem": f"置く場所を読めません: {par}（{getattr(e, 'strerror', None) or e}）。権限か、つながりを確かめてください。"}
+    if not reach:
         return {"ok": False, "problem": f"置く場所に届きません: {par}（フォルダがあるか・つながっているかを確かめてください）"}
     dest = p / nm
     cur = store.share_dir

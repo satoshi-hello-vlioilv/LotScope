@@ -109,13 +109,21 @@ def plan(src, parent, name, copy=True) -> dict:
     if not up:
         return {"ok": False, "problem": "置く場所（上のフォルダ）を入れてください。"}
     base = Path(up)
-    if not base.is_dir():
+    try:       # 上のフォルダを読めない（権限で途中の段に入れない）: 理由を答える（版 3.114.0。前は 500。窓も同じ言葉）
+        reach = base.is_dir()
+    except OSError as e:
+        return {"ok": False, "problem": f"上のフォルダを読めません: {up}（{getattr(e, 'strerror', None) or e}）。権限か、つながりを確かめてください。"}
+    if not reach:
         return {"ok": False, "problem": f"上のフォルダに届きません: {up}（場所・BOX の同期・権限を確かめてください）"}
     dest = base / name
     out = {"ok": True, "dest": str(dest), "name": name, "parent": str(base)}
     s = unquote_path(src)
     srcp = Path(s) if s else None
-    if srcp is not None and srcp.is_dir():
+    try:       # いまの置き場を読めない（権限）は届かないと同じ（版 3.114.0。前は 500）
+        src_dir = srcp is not None and srcp.is_dir()
+    except OSError:
+        src_dir = False
+    if src_dir:
         if _same(srcp, dest):
             return {**out, "ok": False, "problem": "いまの置き場と同じ場所・名前です。"}
         if _inside(dest, srcp):
@@ -136,7 +144,7 @@ def plan(src, parent, name, copy=True) -> dict:
         return {**out, "ok": False, "problem": "新しい場所に、配布と関係の無い物が入っています。空のフォルダか、まだ無い名前を選んでください。"}
     if not copy:
         return {**out, "mode": "empty", "note": "写さずに切り替えます。新しい置き場に版を置いて配るまで、各 PC はいまの版のまま開きます。"}
-    if srcp is None or not srcp.is_dir():
+    if not src_dir:
         return {**out, "ok": False, "problem": "いまの置き場に届かないので写せません。「写さずに切り替える」を選ぶか、届くときにやり直してください。"}
     files, size = _tree_size(srcp)
     return {**out, "mode": "copy", "src": str(srcp), "files": files, "bytes": size,

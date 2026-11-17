@@ -5,7 +5,7 @@ from ..web import current_app, jsonify
 import app_env
 
 from .. import effective_settings
-from ..services import access, folder_browse, master_place, path_settings, presence, release_place
+from ..services import access, folder_browse, master_place, path_rules, path_settings, presence, release_place
 from .common import base_rev, bp, error, master_call, master_repo, me, req_body
 from .lotlist import lot_mirror
 
@@ -102,15 +102,22 @@ def _release_place_gate():
     return None
 
 
-def _release_place_args():
+def _release_place_args(rule):
+    """本文の 4 つ。道の欄（name・parent・from）は道の門（services/path_rules.py。版 3.114.0）を通す: 断る形は PathRefused"""
     b = req_body()
-    return str(b.get("from") or ""), str(b.get("parent") or ""), str(b.get("name") or ""), b.get("copy", True) is not False
+    v = path_rules.apply("POST", rule, {"from": str(b.get("from") or ""), "parent": str(b.get("parent") or ""),
+                                         "name": str(b.get("name") or "")})
+    return v["from"], v["parent"], v["name"], b.get("copy", True) is not False
 
 
 @bp.post("/api/release/place/check")
 def release_place_check():
     """新しい置き場（上のフォルダ＋名前）へ変えられるか。写す量・写すか切り替えるだけか（release_place.plan）。"""
-    return jsonify(release_place.plan(*_release_place_args()))
+    try:
+        args = _release_place_args("/api/release/place/check")
+    except path_rules.PathRefused as e:
+        return jsonify(ok=False, problem=str(e))
+    return jsonify(release_place.plan(*args))
 
 
 @bp.post("/api/release/place/move")
@@ -124,7 +131,10 @@ def release_place_move():
     denied = _release_place_gate()
     if denied:
         return denied
-    pl = release_place.plan(*_release_place_args())
+    try:
+        pl = release_place.plan(*_release_place_args("/api/release/place/move"))
+    except path_rules.PathRefused as e:
+        pl = {"ok": False, "problem": str(e)}
     if not pl.get("ok"):
         return error(pl.get("problem") or "変えられません。", 400, "invalid", plan=pl)
     if pl["mode"] != "copy":
@@ -140,9 +150,11 @@ def release_place_progress():
 
 
 # ---- マスタの置き場（共有フォルダ）を変える（services/master_place.py）。変えてよい PC は配布の置き場と同じ
-def _master_place_args():
+def _master_place_args(rule):
+    """本文の parent・name（道の門〈services/path_rules.py。版 3.114.0〉を通す: 断る形は PathRefused）"""
     b = req_body()
-    return b.get("parent", ""), b.get("name", "")
+    v = path_rules.apply("POST", rule, {"parent": b.get("parent", ""), "name": b.get("name", "")})
+    return v["parent"], v["name"]
 
 
 def _master_using(st, pin):
@@ -167,7 +179,11 @@ def master_place_get():
 @bp.post("/api/masters/place/check")
 def master_place_check():
     """新しい置き場（上のフォルダ＋名前）へ変えられるか。写すか切り替えるだけか・写す量（master_place.plan）。"""
-    return jsonify(master_place.plan(current_app.config["MASTER_STORE"], *_master_place_args()))
+    try:
+        args = _master_place_args("/api/masters/place/check")
+    except path_rules.PathRefused as e:
+        return jsonify(ok=False, problem=str(e))
+    return jsonify(master_place.plan(current_app.config["MASTER_STORE"], *args))
 
 
 @bp.post("/api/masters/place/move")
@@ -184,7 +200,7 @@ def master_place_move():
     if denied:
         return denied
     try:
-        return jsonify(master_place.move(current_app.config["MASTER_STORE"], *_master_place_args()))
+        return jsonify(master_place.move(current_app.config["MASTER_STORE"], *_master_place_args("/api/masters/place/move")))
     except ValueError as e:
         return error(str(e), 400, "invalid")
     except MasterError as e:
@@ -212,7 +228,12 @@ def fs_browse():
     if denied:
         return denied
     b = req_body()
-    return jsonify(folder_browse.browse(b.get("path", ""), str(b.get("purpose") or "folder"), str(b.get("pattern") or "")))
+    purpose = str(b.get("purpose") or "folder")
+    try:     # 道の欄は道の門（services/path_rules.py。版 3.114.0）を通す。断る形は欄の知らせ（problem）に理由
+        asked = path_rules.apply("POST", "/api/fs/browse", {"path": b.get("path", "")})["path"]
+    except path_rules.PathRefused as e:
+        return jsonify(folder_browse.refused(b.get("path", ""), purpose, str(e)))
+    return jsonify(folder_browse.browse_asked(asked, purpose, str(b.get("pattern") or "")))
 
 
 @bp.get("/api/fs/places")

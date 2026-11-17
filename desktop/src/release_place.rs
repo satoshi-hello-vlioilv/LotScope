@@ -178,13 +178,6 @@ fn win_lower(s: &str) -> String {
     s.to_lowercase()
 }
 
-/// Windows（Win32）は道の各段の末尾の空白と「.」を黙って削る（「 」は空の名前・「a. 」は「a」になる）。Python は字のまま
-/// os.stat に渡し、窓は今のフォルダにつないでから見るので、削られた後の道が食い違う（版 3.95.0 の Windows の CI で、上のフォルダ
-/// 「" "」を Python は「届きません」、窓は今のフォルダとして通した）。そういう段を含む道は、窓は答えず Python に任せる
-pub(crate) fn win_trims(p: &str) -> bool {
-    p.split(['\\', '/']).any(|seg| seg != "." && seg != ".." && (seg.ends_with(' ') || seg.ends_with('.')))
-}
-
 /// 道を字のまま Python の今のフォルダ（cwd）から見た道にする（Path(相対).is_dir() は Python の今のフォルダから見る）
 pub(crate) fn at(cwd: &Path, p: &str) -> PathBuf {
     let q = Path::new(p);
@@ -434,6 +427,15 @@ pub(crate) fn py_stat(p: &Path) -> Result<Option<std::fs::Metadata>, ()> {
     }
 }
 
+/// Path.stat（記号リンクは先をたどる）: Ok(Some) 有る・Ok(None) 無い・Err は「無い」でない誤り（理由の字に使う。版 3.114.0）
+pub(crate) fn stat_e(p: &Path) -> io::Result<Option<std::fs::Metadata>> {
+    match std::fs::metadata(p) {
+        Ok(m) => Ok(Some(m)),
+        Err(e) if ignorable(&e) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// Path.is_dir()（Err は Python が落ちる形）
 pub(crate) fn py_is_dir(p: &Path) -> Result<bool, ()> {
     py_stat(p).map(|m| m.is_some_and(|m| m.is_dir()))
@@ -533,13 +535,21 @@ pub fn plan(src: &str, parent: &str, name: &str, copy: bool, cwd: &Path) -> Opti
         return Some(json!({"ok": false, "problem": "置く場所（上のフォルダ）を入れてください。"}));
     }
     let base = py_path(&up);
-    if cfg!(windows) && win_trims(&base) {
-        return None; // Win32 が段の末尾の空白・「.」を削る道（win_trims）。Python に任せる
-    }
-    if !py_is_dir(&at(cwd, &base)).ok()? {
-        return Some(
-            json!({"ok": false, "problem": format!("上のフォルダに届きません: {up}（場所・BOX の同期・権限を確かめてください）")}),
-        );
+    // Win32 の段の末尾の整え・装置の道・ドライブ相対・NUL・長すぎる名前は道の門（path_gate.rs。版 3.114.0）が先に決める（前は Python に任せた）
+    match stat_e(&at(cwd, &base)) {
+        Ok(m) if m.as_ref().is_some_and(|m| m.is_dir()) => {}
+        Ok(_) => {
+            return Some(
+                json!({"ok": false, "problem": format!("上のフォルダに届きません: {up}（場所・BOX の同期・権限を確かめてください）")}),
+            )
+        }
+        // 上のフォルダを読めない（権限で途中の段に入れない）: 理由を答える（版 3.114.0。Python も同じ言葉。前は Python が 500・窓は任せた）
+        Err(e) => {
+            return Some(json!({"ok": false, "problem": format!(
+                "上のフォルダを読めません: {up}（{}）。権限か、つながりを確かめてください。",
+                crate::builder::strerror(&e)
+            )}))
+        }
     }
     let dest = join_for(&base, &name, cfg!(windows));
     let mut out = Map::new();
@@ -549,41 +559,50 @@ pub fn plan(src: &str, parent: &str, name: &str, copy: bool, cwd: &Path) -> Opti
     out.insert("parent".into(), json!(base));
     let s = unquote(src);
     let srcp = (!s.is_empty()).then(|| py_path(&s));
-    if cfg!(windows) && srcp.as_deref().is_some_and(win_trims) {
-        return None;
-    }
+    // いまの置き場を読めない（権限）は届かないと同じ（版 3.114.0。Python も同じ。前は Python が 500・窓は任せた）
     let src_dir = match srcp.as_deref() {
-        Some(p) => py_is_dir(&at(cwd, p)).ok()?,
+        Some(p) => py_is_dir(&at(cwd, p)).unwrap_or(false),
         None => false,
     };
     if let (Some(sp), true) = (srcp.as_deref(), src_dir) {
-        if same(sp, &dest, cwd)? {
+        let (Some(sm), Some(d_in), Some(s_in)) = (same(sp, &dest, cwd), inside(&dest, sp, cwd), inside(sp, &dest, cwd)) else {
+            debug_assert!(false, "門の後ろで道を解けない: {sp} {dest}");
+            return Some(with(&out, json!({"ok": false, "problem": crate::master_place::UNRESOLVED})));
+        };
+        if sm {
             return Some(with(&out, json!({"ok": false, "problem": "いまの置き場と同じ場所・名前です。"})));
         }
-        if inside(&dest, sp, cwd)? {
+        if d_in {
             return Some(with(
                 &out,
                 json!({"ok": false, "problem": "いまの置き場の中には置けません（置き場の外のフォルダを選んでください）。"}),
             ));
         }
-        if inside(sp, &dest, cwd)? {
+        if s_in {
             return Some(with(&out, json!({"ok": false, "problem": "いまの置き場を含むフォルダは選べません。"})));
         }
     }
     let d = at(cwd, &dest);
-    let st = py_stat(&d).ok()?;
+    // dest.exists()・is_dir()・iterdir() の誤りは Python の try が受けて「新しい場所を読めません」（unreadable）
+    let unread = |e: &io::Error| Some(with(&out, json!({"ok": false, "problem": crate::master_place::unreadable(e)})));
+    let st = match stat_e(&d) {
+        Ok(st) => st,
+        Err(e) => return unread(&e),
+    };
     let exists = st.is_some();
     if st.is_some_and(|m| !m.is_dir()) {
         return Some(with(&out, json!({"ok": false, "problem": "同じ名前のファイルがあります。別の名前にしてください。"})));
     }
     let dest_release = exists && has_release(&d, MARKER_DEPTH);
-    // not any(dest.iterdir())（読めないフォルダは Python では例外）
+    // not any(dest.iterdir())（読めないフォルダ〈権限〉は Python の try が受ける: 版 3.114.0 から窓も同じ言葉。前は任せた）
     let dest_empty = if exists {
-        let mut r = std::fs::read_dir(&d).ok()?;
-        match r.next() {
-            None => true,
-            Some(Ok(_)) => false,
-            Some(Err(_)) => return None,
+        match std::fs::read_dir(&d) {
+            Err(e) => return unread(&e),
+            Ok(mut r) => match r.next() {
+                None => true,
+                Some(Ok(_)) => false,
+                Some(Err(e)) => return unread(&e),
+            },
         }
     } else {
         true
@@ -1005,6 +1024,22 @@ pub fn settings_answer(source: &str, me: &Result<Value, String>, share_dir: &str
     json!({"source": source, "who": who, "masters": {"dir": share_dir}})
 }
 
+/// 道の欄（name・parent・from）を道の門（path_gate.rs。版 3.114.0）へ通す。Err は断る理由
+fn gated(a: Args, rule: &str, cwd: &Path) -> Result<Args, String> {
+    let mut v = std::collections::HashMap::from([
+        ("from".to_string(), a.from.clone()),
+        ("parent".to_string(), a.parent.clone()),
+        ("name".to_string(), a.name.clone()),
+    ]);
+    crate::path_gate::apply("POST", rule, &mut v, &crate::path_gate::Env::here(&cwd.to_string_lossy()))?;
+    Ok(Args {
+        from: v.remove("from").unwrap_or_default(),
+        parent: v.remove("parent").unwrap_or_default(),
+        name: v.remove("name").unwrap_or_default(),
+        copy: a.copy,
+    })
+}
+
 /// 配布の置き場の 3 本（check・move・progress）。me は move の門番だけが読む。None は Python に任せる（?engine=python も。
 /// 製品では Python は move で写さずに断る: 写す係は窓の 1 つ）
 pub fn handle(
@@ -1022,15 +1057,20 @@ pub fn handle(
         Route::Settings => None,
         Route::Progress => Some((200, mover.progress())),
         Route::Check => {
-            let a = args_of(body)?;
+            let a = match gated(args_of(body)?, "/api/release/place/check", cwd) {
+                Ok(a) => a,
+                Err(why) => return Some((200, json!({"ok": false, "problem": why}))),
+            };
             Some((200, plan(&a.from, &a.parent, &a.name, a.copy, cwd)?))
         }
         Route::Move => {
             if let Some(no) = gate(&me()) {
                 return Some(no);
             }
-            let a = args_of(body)?;
-            let pl = plan(&a.from, &a.parent, &a.name, a.copy, cwd)?;
+            let pl = match gated(args_of(body)?, "/api/release/place/move", cwd) {
+                Ok(a) => plan(&a.from, &a.parent, &a.name, a.copy, cwd)?,
+                Err(why) => json!({"ok": false, "problem": why}),
+            };
             if pl["ok"] != json!(true) {
                 let msg = pl["problem"].as_str().filter(|s| !s.is_empty()).unwrap_or("変えられません。").to_string();
                 return Some((400, json!({"error": msg, "kind": "invalid", "plan": pl})));
@@ -1057,16 +1097,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
-    }
-
-    #[test]
-    fn win32_trimmed_parts_are_found() {
-        for p in [" ", "  ", "a ", "a.", "C:\\x\\ ", "\\\\srv\\share\\d.\\e", "x/y ./z"] {
-            assert!(win_trims(p), "{p:?}");
-        }
-        for p in ["", ".", "..", "a", "C:\\x\\y", "..\\a", "./a", "\\\\srv\\share\\d", "a b\\c"] {
-            assert!(!win_trims(p), "{p:?}");
-        }
     }
 
     #[test]

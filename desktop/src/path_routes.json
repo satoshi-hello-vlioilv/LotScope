@@ -1,0 +1,101 @@
+{
+ "about": "道の門を当てる欄（tools/path-routes.py が services/path_rules.py の ROUTES・SKIP から焼く。fields は見る順。種類 browse: 「参照…」の欄・dir: 上のフォルダ／いまの置き場・name: フォルダの名前）",
+ "routes": [
+  {
+   "method": "POST",
+   "rule": "/api/fs/browse",
+   "fields": [
+    [
+     "path",
+     "browse"
+    ]
+   ]
+  },
+  {
+   "method": "POST",
+   "rule": "/api/release/place/check",
+   "fields": [
+    [
+     "name",
+     "name"
+    ],
+    [
+     "parent",
+     "dir"
+    ],
+    [
+     "from",
+     "dir"
+    ]
+   ]
+  },
+  {
+   "method": "POST",
+   "rule": "/api/release/place/move",
+   "fields": [
+    [
+     "name",
+     "name"
+    ],
+    [
+     "parent",
+     "dir"
+    ],
+    [
+     "from",
+     "dir"
+    ]
+   ]
+  },
+  {
+   "method": "POST",
+   "rule": "/api/masters/place/check",
+   "fields": [
+    [
+     "name",
+     "name"
+    ],
+    [
+     "parent",
+     "dir"
+    ]
+   ]
+  },
+  {
+   "method": "POST",
+   "rule": "/api/masters/place/move",
+   "fields": [
+    [
+     "name",
+     "name"
+    ],
+    [
+     "parent",
+     "dir"
+    ]
+   ]
+  }
+ ],
+ "skip": [
+  {
+   "method": "POST",
+   "rule": "/api/settings/check",
+   "why": "参照先の値の読み方（空・既定・項目ごとの parse）と確かめる順を変えない（束と参照先の読みの順は page_parity・settings_write_parity が見る）。次の版で項目の種類ごとに決める"
+  },
+  {
+   "method": "PUT",
+   "rule": "/api/settings/<path:key>",
+   "why": "同上（保存する値は path_settings.parse が読む。保存済みの値の読みには門を当てない）"
+  },
+  {
+   "method": "PUT",
+   "rule": "/api/sources/<key>/conn",
+   "why": "データ元の接続の欄は参照先の項目と同じ読み（path_settings.parse）。参照先と一緒に決める"
+  },
+  {
+   "method": "POST",
+   "rule": "/api/sources/<key>/conn/check",
+   "why": "同上（確かめるは参照先の settings/check と同じ入口 check_entry）"
+  }
+ ]
+}

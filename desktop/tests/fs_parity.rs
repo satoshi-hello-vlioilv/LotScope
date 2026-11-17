@@ -28,7 +28,7 @@ fn tidy_and_crumbs_match_python() {
     for c in t["tidy"].as_array().unwrap() {
         let (s, win) = (c["text"].as_str().unwrap(), c["win"].as_bool().unwrap());
         let got = tidy_for(s, win);
-        if got.as_deref() != c["tidy"].as_str() {
+        if Some(got.as_str()) != c["tidy"].as_str() {
             bad.push(format!("tidy {s:?} win={win}: Python {} / 窓 {got:?}", c["tidy"]));
             continue;
         }

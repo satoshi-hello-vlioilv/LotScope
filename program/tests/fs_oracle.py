@@ -135,6 +135,17 @@ def steps():
         B("FILE://@ROOT/tree?q#f"),
         # 共有の道・ドライブの根・/ は POSIX だけ（Windows では本物の共有へ尋ねて時間が割れる・C:\ の中を読む）
         *([B("file://srv/share/d"), B("C:"), B("\\\\srv\\share\\d"), B("/")] if POSIX else []),
+        # 道の門（版 3.114.0。services/path_rules.py・path_gate.rs）: 版 3.113.0 で窓が任せた形と、予算外で見つけた形（前は Python が 500・
+        # 窓は Rust の英語の文）。届かない共有・利用者の家へ尋ねる形は POSIX だけ（Windows は本物の共有・C:\Users の中を読む）
+        *([B("~nobody/x"), B("~無い名前/x"), B("file://[::1]/x"), B("file://ｓｒｖ/x"), B("\\\\?\\C:\\x")] if POSIX
+          else [B("\\\\?\\@ROOT\\tree")]),
+        B("file://[::1/x"),
+        B("file://[zz]/x"),
+        B("file://a\u2100b/x"),
+        B("\\\\.\\C:\\x"),
+        B("@ROOT/tree/a\u0000b"),
+        B("@ROOT/tree/" + "字" * 90),
+        B("@ROOT/tree/" + "a" * 300),
         B("@ROOT/tree/locked"),
         B("@ROOT/tree/locked/in.txt"),
         S(BOSS, "POST", BR, {"path": 123}),
@@ -152,8 +163,6 @@ def delegates():
         S(BOSS, "POST", BR, {"path": ["@ROOT/tree"]}),
         S(BOSS, "POST", BR, "[1]"),
         B("@ROOT/tree", query="engine=python"),
-        B("~nobody/x"),
-        B("file://[::1]/x"),
     ]
 
 
