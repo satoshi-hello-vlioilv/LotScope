@@ -2041,8 +2041,8 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 |---|---|---|---|
 | S1 | 起動の初期値 | ② | 版 3.110.0 で窓へ（上の節） |
 | S6〜S8 | 束を Python に尋ねる口（lot_settings を呼ぶ所 5: heartbeat・access_read・handle_body・guard・warm）・更新の置き場・画面の任せ | ③ の最初 | 版 3.112.0 で閉じた（段 ③ の 1 歩目の節）。画面の任せは画面の控えの 4 形だけ残した |
-| S12b | folder_browse・master_place の裏の糸（「参照…」・置き場の確かめ） | ③ | OS の任せ 6 と一緒に消える |
-| S9 | スケジュールの係を降りる形（https・システムのプロキシ・数でない timeout・窓の持たない charset） | ③ の最後 | https とプロキシは窓が取る（TLS の crate を足すかは利用者と決める。足さないなら理由つきで断る）。charset・timeout は理由つきで断る |
+| S12b | folder_browse・master_place の裏の糸（「参照…」・置き場の確かめ） | ③ | 版 3.114.0 で窓の 1 つの係（probe.rs）に。Python の糸は ?engine=python のときだけ |
+| S9 | スケジュールの係を降りる形（https・システムのプロキシ・数でない timeout・窓の持たない charset） | ③ の最後（③-6） | https とプロキシは窓が取る（利用者の決め 2026-11-17: TLS の crate と Windows の証明書ストア・プロキシは Windows の設定から・認証なし。段 ③ の 3 歩目の節の ③-6）。charset・timeout は理由つきで断る |
 | S10・S11 | 窓の答えが Python の生死を見る所・Python の起動そのもの（版 3.111.0 で窓の準備へ。上の節） | ④ の下ごしらえ | 心拍・access_read の alive を窓の答えにし Python の様子は別に見せる。started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形は採らない |
 | S2〜S5・S12・S13 | 起動の参照先の読み・写しの取り直し・Python の種まき・印の読み直し・空の係・engine=python | ④ | Python ごと消す（作らない）。3.101.0 の観察 2 は今の 0.5 秒のやり直しで凌ぐ。起動の指紋（app.config["BUILD"]）は Python の画面の ?v= なので S8 と一緒 |
 
@@ -2218,6 +2218,66 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 | engine=python（自己診断・突き合わせの口） | 5 | fs 1・place 1・release_place 3 | ④ | Python と比べるための口そのもの。Python を外すと口も外す |
 | OS の道（~ユーザー・file:// の [ ]・NUL・255 バイトを超える名前） | 6 | fs 2・release_place 4 | ③ | OS によらない事例の表と独立の答えにしてから窓が答える（案 B。Windows の答えは CI で） |
 | 転送: GET /api/lotlist/settings | 135 当たり | settings_oracle と事例の表の全部の場面 | ④ | 比べる口（engine=python）。窓は呼ばない |
+
+### 段 ③ の 3 歩目: OS の道の字を道の門で決める（案 A を F の門の形で）・届くかを尋ねる係を 1 つに（S12b）— 版 3.114.0（任せる歩 11 → 5）
+
+案は `tools/ui-proposals/2026-11-stage3c.json`（8 案。決まり 2026-11-06。1 位 A「事例の表と OS の決まりで窓が組む」61.6 点で 80 に届かず、
+採点の指摘 first_fixes の 12 を全部入れ、A の決めを F の門の形で作った）。
+
+- 門（指摘 1）: 道を受ける欄（「参照…」の path・配布の置き場の name・parent・from・マスタの置き場の name・parent）の字を、道の頭で 1 回決める
+  （通す・整えて通す・理由つきで断る）。決めは窓 `src/path_gate.rs` と Python `services/path_rules.py` の 1 か所ずつで、同じ事例の表
+  `tests/fixtures/ospath_cases.json`（103 件。種類 browse・dir・name × posix・nt ごとに、人が仕様と OS の決まりから書いた want と、版 3.113.0 の
+  Python の答え py）を読む（`cargo test --test ospath_cases`・`tests/test_ospath_cases.py`。~ の事例は本物の ntpath・posixpath.expanduser とも比べる）。
+  欄の表は Python の `path_rules.ROUTES`・`SKIP` を `tools/path-routes.py` が `desktop/src/path_routes.json` に焼く（`tests/test_path_routes.py` が古い表と、
+  道の字を受ける部品〈`CONSUMERS`〉を呼ぶのに表に無い道を止める）。参照先の確かめ・保存（settings/check・PUT settings）とデータ元の接続の 2 本は
+  SKIP（束と参照先の読みの順を変えない）。門の後ろの部品の「任せる」は、道を解けない形だけ `debug_assert` と理由（`master_place::UNRESOLVED`）にした。
+  断る理由は既にある欄の知らせ（「参照…」の problem・置き場の確かめの problem・move の 400 invalid）に出る（画面の見た目は変えない）。
+- 装置の道（指摘 2）: `\\?\X:\…` は `X:\…`、`\\?\UNC\サーバー\共有\…` は `\\サーバー\共有\…` に書き直して通す（今 Windows で通る形を後戻りさせない）。
+  後ろに「.」「..」・最後が空白か「.」の名前があれば断る。`\\.\…`・Volume{…}・GLOBALROOT は断る。POSIX は \ の形だけを装置の道と読む。
+- ~名前（指摘 3）: Python 3.13 の expanduser のまま（Windows は USERNAME と basename(USERPROFILE) が同じときだけ隣の名前・違えば字のまま。
+  POSIX は窓が /etc/passwd を読む）。純粋な関数は環境変数と利用者の表を引数で受け、表は値を書く（CI の runneradmin に頼らない）。NSS だけの利用者は開発用の差。
+- Win32 の末尾の整え（指摘 4）: 手で書かず、段が空白か「.」で終わる道（共有の根の 2 段は除く）だけを GetFullPathNameW（Python の nt._getfullpathname と同じ
+  関数）で整える。相対の道は cwd につないでから。want は Microsoft の決まり（段の終わりの「.」1 つ・道の終わりの空白と「.」・区切りで終わる道は整えない）から
+  書き、Windows の CI で比べる（win32 の 18 件。手元の Linux では流れない）。予約名の段は門では断らない（作れないので「届きません」）。
+- ドライブ（指摘 5）: 上のフォルダ・いまの置き場の `C:` は `C:\`、`C:x` は「ドライブの根（C:\…）から書いてください。」（Windows。前の Python はドライブの今のフォルダ）。
+- 長さ（指摘 6）: 名前ごとに POSIX は UTF-8 の 255 バイト・Windows は UTF-16 の 255 単位。POSIX は道全体も 4096 バイト未満（前は Python の Path.is_dir が
+  ENAMETOOLONG で 500）。Windows の MAX_PATH（260）は決めない（表の note）。
+- 制御文字（指摘 7）: NUL はどの OS も・U+0001〜U+001F は Windows で「道に使えない字（制御文字）があります。」（「参照…」の窓の Rust の英語の文も閉じた）。
+- file: の [ ]（指摘 8）: ちょうど [IPv6] だけを ipv6-literal.net（`0--1.ipv6-literal.net`）に書き直し、閉じない [・IP でない [zz]・ゾーン ID・口の番号・
+  IPv4 の書き方・利用者の名前つきは断る。ASCII でないサーバー名は NFKC で区切りの字が出るときだけ断る（urlsplit の _checknetloc と同じ）。
+- 予算（指摘 9）: `delegates_budget.json` の total 11 → 5（fs 1・release_place 3・place 1。口だけ）、envExtra 1 → 0（root でない CI の「中を読めない置き場」は
+  窓も「新しい場所を読めません」）、envLess 2 → 0（Windows の段の末尾の空白・ドライブだけの C: は門が答える）。死んだ Windows の 3 歩は、どの OS でも流れる
+  最初の場面へ移した。予算外の形（fs 5 形・配布とマスタの置き場の長い上のフォルダ・3 本の NUL・装置の道・途中の段を読めない上のフォルダ）を答え合わせ役の歩に
+  足し、expect same にした（root でない利用者でも流して比べた）。
+- 触れない所（指摘 10）: `release_place::py_is_dir`・`os_error`・`settings_answer` と main.rs・update.rs・install.rs・distribute.rs は変えていない。門は欄の字だけに当て、
+  保存済みの置き場の読みには当てない。place_parity に「新しい版が書いた引っ越しの印を前の版の決めでたどる」場面（窓が書いた印を Python の follow_moved で
+  たどる。`place_oracle.py --follow`）を足した。
+- 尋ねる係（指摘 11・S12b）: `src/probe.rs`（鍵＝normcase した道の根＋尋ね方ごとに 1 本・全体 16 本・待ちは Condvar・終わった鍵は片付ける）に「参照…」・
+  よく使う場所・マスタの置き場の状態・使っている PC を載せた。上限と時間切れは null（確かめ中）で、false にしない（3.100.0 の決まり）。status は呼ぶたびに
+  確かめ、覚え（2 秒）は using・places の行で鍵が塞がっている・時間切れのときだけ使う。
+- 確かめ（指摘 12）: `cargo clippy --target x86_64-pc-windows-msvc`。変異（直しを 1 つ戻す）で落ちることを見た: 装置の道を断る・NUL を門で断らない・門を外す・
+  probe の鍵を外す・上限で false・~名前 を字のまま・[IPv6] を書き直さない・長さを見ない・読めない上のフォルダを任せる。GetFullPathNameW を手書きに替える
+  変異は Windows の CI だけが見る。
+
+#### 版 3.114.0 の後に残る任せる歩（5）と転送（比べる口 135）
+
+| 形 | 数 | 元 | 消える段 | 理由 |
+|---|---|---|---|---|
+| engine=python（自己診断・突き合わせの口） | 5 | fs 1・place 1・release_place 3 | ④ | Python と比べるための口そのもの。Python を外すと口も外す |
+| 転送: GET /api/lotlist/settings | 135 当たり | settings_oracle と事例の表の全部の場面 | ④ | 比べる口（engine=python）。窓は呼ばない |
+
+#### 段 ③ の残り（③-4〜③-6）
+
+- ③-4・③-5（版 3.115.0 から）: 答え合わせ役の置き換え。順は (i) fs_oracle（`tools/place-truth.py` を伸ばして独立の答えに。OS の形は ospath_cases が人の表で持つ）
+  (ii) release_place_oracle の 1 台の PC の部分（2 つの PC が同じ置き場を写す場面は Python を相手に残す）(iii) place_oracle は最後（種まきと引っ越しの
+  競い合いは段 ④ まで Python を相手に残す）。置き換えた元は delegate-count の ORACLES から外し、口の数は route_reach と並べて別に報告する。
+- ③-6（S9）: スケジュール（CM3）の https・プロキシ。**利用者の決め（2026-11-17）**:
+  - CM3 は https とプロキシ越しにつなぐ。
+  - プロキシの認証は無い。
+  - 使うのは VPN か社内 LAN からだけ。
+  - 方針: TLS の crate を足し、Windows の証明書ストアを使う。プロキシは Python の urllib と同じく Windows の設定（ProxyServer・ProxyOverride）から読む。
+    認証は作らない。届かないときは「VPN か社内 LAN につながっているか」を促す言葉にする。
+  - 作り物の CM3（https）とプロキシで、Python と突き合わせてから入れ替える。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
