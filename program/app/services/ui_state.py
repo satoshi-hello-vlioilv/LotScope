@@ -36,7 +36,8 @@ def load() -> dict:
             data = json.loads(f.read().decode("utf-8"))
         keys = {k: v for k, v in (data.get("keys") or {}).items() if k.startswith(PREFIX) and isinstance(v, str)}
         return {"rev": int(data.get("rev") or 0), "keys": keys}
-    except (OSError, ValueError, AttributeError, TypeError):
+    except (OSError, ValueError, AttributeError, TypeError, OverflowError, RecursionError):
+        # int(inf) の OverflowError・入れ子の深すぎる字も空（版 3.113.0。前は OverflowError で GET / と /api/ui-state が 500）
         return {"rev": 0, "keys": {}}
 
 
@@ -54,7 +55,10 @@ def merge(changed, removed=()) -> dict:
         for k in removed:
             if ok(k):
                 keys.pop(k, None)
-        if len(json.dumps(keys, ensure_ascii=False).encode("utf-8")) > MAX_BYTES:
+        # 大きさは書く字（write_json_atomic の errors="backslashreplace": 対の無い代用字は \\udXXX の 6 字）で数える（版 3.113.0。採点の指摘 3:
+        # 前は encode("utf-8") が控えの対の無い代用字で UnicodeEncodeError〈ValueError〉の 400 になり、以後どの画面の設定も控えに入らなかった。
+        # 窓の presence::ui_state::post と同じ）
+        if len(json.dumps(keys, ensure_ascii=False).encode("utf-8", "backslashreplace")) > MAX_BYTES:
             raise ValueError("画面の設定が大きすぎます。")
         rev = cur["rev"] + 1
         write_json_atomic(path(), {"rev": rev, "keys": keys}, indent=0)

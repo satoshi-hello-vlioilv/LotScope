@@ -42,8 +42,23 @@ OP_TABLES = {
 }
 
 
+# 後読みの式（版 3.113.0 の作った後の採点の割れ 4）: 枝の長さの違う後読みは 3 つの実装で同じ答え、長さの決まらない後読みは
+# 3 つとも「長さの決まる形だけ」の言葉で断る（前は画面だけが読み、一覧とダッシュボードの数が合わなかった）
+LOOKBEHIND = ["(?<=L|CR)\\d", "(?<!L|CR)\\d", "(?<=(L)|(CR))\\d", "(?<=(?:L|CR))\\d", "(?<=L+)\\d", "(?<=a{1,2})b", "(?<=(L)\\1)x"]
+
+
+def lookbehind_cases():
+    out = []
+    for pat in LOOKBEHIND:
+        lit = "'" + pat.replace("\\", "\\\\") + "'"
+        for expr in (f"extract([C], {lit})", f"match([C], {lit})", f"regcount([C], {lit})", f"regreplace([C], {lit}, '#')"):
+            for v in ("L1 CR2", "LL3 x4", "aab", "LLx"):
+                out.append({"expr": expr, "row": {"C": v}})
+    return out
+
+
 def cases():
-    out = test_formula_parity.corpus()
+    out = test_formula_parity.corpus() + lookbehind_cases()
     for name, vals, _ in test_conversions.cases()[::CONV_STEP]:
         out.append({"expr": f"conv('{name}', " + ", ".join(f"[v{i}]" for i in range(len(vals))) + ")",
                     "row": {f"v{i}": v for i, v in enumerate(vals)}})

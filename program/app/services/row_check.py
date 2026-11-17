@@ -50,6 +50,11 @@ STATUS = FILTERED | {"path_settings", "data_sources", "work_log_files"} | STRICT
 # 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。読めない値ではないので
 # 隔てると、前に使えた元が消える。窓の row_check::ID_FREE と同じ）
 ID_FREE = frozenset({"data_sources", "conversion_defaults"})
+# 中身の列の形（版 3.113.0。採点の指摘 2）: 読んだ値（JSON の字なら読んだ物）が決めた型でなければ隔てる。前は Python が表のまま
+# 一覧へ素通しで答え、画面（conversions.js の plan・master-conv.js の inputs.map）が TypeError で落ち、窓は道を全部中身へ回していた。
+# 空・null・JSON として読めない字は今どおり（既定の空として読む）。事例は tests/fixtures/rowshape_cases.json（窓は row_check::SHAPES）
+_CONV_SHAPES = {"入力": list, "判定": list, "当て方": dict}
+SHAPES = {"conversions": _CONV_SHAPES, "conversion_defaults": _CONV_SHAPES}
 DEEP = 128          # 中身の入れ子の段（窓の serde は 128 段で読むのをやめる。Python は読むが、同じ答えにするため隔てる）
 SHORT = 30          # 理由に添える値の字の長さ
 
@@ -143,6 +148,53 @@ def content_problem(col, text):
     return None
 
 
+def kind_of(v):
+    """値の型の言葉（理由に添える）"""
+    if isinstance(v, bool):
+        return "真偽"
+    if isinstance(v, (int, float)):
+        return "数"
+    if isinstance(v, str):
+        return "字"
+    if isinstance(v, list):
+        return "並び"
+    if isinstance(v, dict):
+        return "表"
+    return type(v).__name__
+
+
+def shape_problem(col, v, want):
+    """中身の列の形の理由（隔てないなら None。SHAPES）。版 3.113.0 の作った後の採点の割れ 1・3: JSON として読めない字（前の版の
+    「標準に戻す」が書いた repr の字〈[{'name': 'a'}]〉など。前は黙って空の表に読んだ）・入力の要素が表でない・要素の columns が並びでない・
+    当て方の column が字でない（画面の conversions.js・master-conv.js が TypeError で落ちる形）も隔てる"""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        if not v.strip():
+            return None
+        try:
+            x = json.loads(v)
+        except RecursionError:
+            return None
+        except ValueError:
+            return f"「{col}」が JSON として読めません（{short(v)}）"
+        if x is None:
+            return None
+    else:
+        x = v
+    if not isinstance(x, want):
+        return f"「{col}」が{'並び' if want is list else '表'}ではありません（{kind_of(x)}）"
+    if col == "入力":
+        for i, it in enumerate(x, 1):
+            if not isinstance(it, dict):
+                return f"「入力」の {i} つ目が表ではありません（{kind_of(it)}）"
+            if it.get("columns") is not None and not isinstance(it["columns"], list):
+                return f"「入力」の {i} つ目の columns が並びではありません（{kind_of(it['columns'])}）"
+    if col == "当て方" and x.get("column") is not None and not isinstance(x["column"], str):
+        return f"「当て方」の column が字ではありません（{kind_of(x['column'])}）"
+    return None
+
+
 def problem(name, r, fields):
     """行の理由（隔てないなら None）。fields はそのマスタの置く項目（master_repository の SPECS）。
     版 3.107.0 の作った後の採点の割れ 1（機能を減らさない）: 隔てるのは、値を読めない・書き戻すと壊れる形だけ（表でない行・数でない id・
@@ -166,6 +218,10 @@ def problem(name, r, fields):
             return f"「{k}」が字ではありません（{short(r[k])}）"
     for k in CONTENT_COLS.get(name, ()):
         why = content_problem(k, r.get(k))
+        if why:
+            return why
+    for k, want in SHAPES.get(name, {}).items():
+        why = shape_problem(k, r.get(k), want)
         if why:
             return why
     if lone(r):

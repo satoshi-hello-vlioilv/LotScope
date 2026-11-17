@@ -22,6 +22,7 @@
 //    焦点は同じマスタの新しい札。ダッシュボード・共有の書式の面でも同じ。直すファイルの言葉はサーバーの置き場の状態から（手元のみ「この PC のアプリの
 //    data/ の …json」〈帯と同じ言葉〉・共有「共有のフォルダの …json」・届かない「共有のフォルダ（いまは届きません）の …json」。開発用サーバーの
 //    TPA_UI_SHARE で撮る）。消した後の一言は中身つきのまま、タブを替えたとき（押す・キー・goTab）とマスタ管理を閉じたときに消える
+// ⑩ 版 3.113.0: 作業実績の登録（データ元の「実績」の欄の「設備」の段）の表の要約の段にも同じ札（表でない行・版の読めない行。押すと同じ面）
 // 撮る出力フォルダを渡すと、各所の画像（skip-<所>-<大きさ>.png。面を開いた所は skip-<所>-open-<大きさ>.png）を置く。全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 import fs from "node:fs";
@@ -457,4 +458,91 @@ async function masterPart(p, tag) {
   check(`⑧ ${tag} データ元の面の字が切れない・コントラスト 4.5 以上`, td && !td.cut.length && !td.low.length, td);
   await shot(p, `skip-sources-open-${tag}`);
   await closeMenu(p);
+  await worklogPart(p, tag);
+}
+
+// ⑩ 版 3.113.0（採点の指摘 6）: 作業実績の登録の一覧（データ元の「実績」の欄の「設備」の段）も、表でない行と触れる書きを断る行を
+// skipped で知らせ、表の要約の段に同じ札（.db-warnb・「⚠ 実績の設備の読めない行 2」・押すと同じ面）。前は表でない行を黙って飛ばした。
+// 作った後の採点の直し（B1〜B4・A8）: 欄を開く前の一覧の「実績」の状態と「設備」の段の見出しの要約にも同じ形の札・面の見出しは表でない行
+// 「一覧では飛ばしています」と使っている行「一覧・読みでは使っています」に分ける・止める範囲の言葉・「直すこと」の囲みに 1 行・
+// 消した後に段の見出しの要約を描き直す・1280 で一言が表の枠と下の段の境にまたがらない
+async function worklogPart(p, tag) {
+  await sleep(600);
+  const listChip = await p.evaluate(() => { const row = document.querySelector('[data-sr-open="work"]')?.closest("tr"); const c = row?.querySelector(".sr-skip");
+    if (!c) return null; const r = c.getBoundingClientRect(), k = getComputedStyle(c), td = c.closest("td"), tr = td.getBoundingClientRect();
+    return { text: c.textContent, h: Math.round(r.height), bg: k.backgroundColor, inRow: r.bottom <= row.getBoundingClientRect().bottom + 1,
+             inCell: r.left >= tr.left - 1 && r.right <= tr.right + 1, cut: td.scrollWidth > td.clientWidth + 1, pageX: document.documentElement.scrollWidth <= innerWidth + 1 }; });
+  await shot(p, `skip-worklog-list-${tag}`, await p.evaluate(() => { const r = (document.querySelector('[data-sr-open="work"]')?.closest("table") || document.body).getBoundingClientRect();
+    return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 120) }; }));
+  check(`⑩ ${tag} 欄を開く前のデータ元の一覧の「実績」の名前の横に同じ形の札（「⚠ 実績の設備の読めない行 2」・欄に収まり切れない・行に収まる・横に送らない）`,
+    listChip && listChip.text === "⚠ 実績の設備の読めない行 2" && listChip.h <= 22 && listChip.inRow && listChip.inCell && !listChip.cut && listChip.pageX, listChip);
+  await p.evaluate(() => document.querySelector('[data-sr-open="work"]')?.click()); await sleep(1500);
+  const head = await p.evaluate(() => { const h = document.querySelector('.sr-card.is-open .sr-sec[data-sec="equip"] .sr-sh'); const c = h?.querySelector(".sr-skip");
+    if (!c) return null; const r = c.getBoundingClientRect(), hr = h.getBoundingClientRect();
+    return { text: c.textContent, open: h.getAttribute("aria-expanded"), inHead: r.right <= hr.right + 1 && r.bottom <= hr.bottom + 1, visible: r.width > 0, tags: [...h.querySelectorAll(".sr-tag")].map((t) => t.textContent) }; });
+  check(`⑩ ${tag} 閉じたままの「設備」の段の見出しの要約に同じ札が「HOT 古い」などと並ぶ（開く前に分かる）`,
+    head && head.text === "⚠ 実績の設備の読めない行 2" && head.visible && head.inHead && head.tags.length >= 1, head);
+  await shot(p, `skip-worklog-head-${tag}`, await p.evaluate(() => { const r = (document.querySelector(".sr-card.is-open") || document.body).getBoundingClientRect();
+    return { x: 0, y: Math.max(0, r.top - 20), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 20), 360) }; }));
+  await p.evaluate(() => document.querySelector('.sr-card.is-open [data-sr-sec="equip"]')?.click());
+  await p.waitForSelector(".sr-card.is-open [data-sr-wl] .wl-sum", { timeout: 8000 }).catch(() => {});
+  await sleep(600);
+  const c = await chip(p, ".sr-card.is-open [data-sr-wl] .wl-sum");
+  const clip = await p.evaluate(() => { const r = (document.querySelector(".sr-card.is-open [data-sr-wl]") || document.body).getBoundingClientRect();
+    return { x: 0, y: Math.max(0, r.top - 80), width: innerWidth, height: Math.max(40, Math.min(innerHeight - Math.max(0, r.top - 80), r.height + 120)) }; });
+  await shot(p, `skip-worklog-${tag}`, clip);
+  check(`⑩ ${tag} 実績の設備の表の要約の段に札（押せるボタン・「⚠ 実績の設備の読めない行 2」・1 段・段からはみ出さない・重ならない・横に送らない）`,
+    c && c.button && c.visible && c.text === "⚠ 実績の設備の読めない行 2" && c.oneLine && c.inside && !c.overlap && c.pageX
+    && SHAPES.has(await chipShape(p, ".sr-card.is-open [data-sr-wl] .wl-sum")), c);
+  const todo = await p.evaluate(() => [...document.querySelectorAll(".sr-card.is-open .wl-todo > div")].map((d) => d.textContent));
+  check(`⑩ ${tag} 「直すこと」の囲みに読めない行の 1 行（何行目・理由・表でない行がある間は保存できない・理由と消し方）`,
+    todo.length >= 1 && /^読めない行work_log_files\.json の \d+ 行目（表でない行）・\d+ 行目（版（rev）が読めません/.test(todo[0]) && /表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止めています/.test(todo[0]) && /理由と消し方/.test(todo[0]), todo);
+  if (!c || !c.button) return;
+  const m = await openMenu(p, ".sr-card.is-open [data-sr-wl] .wl-sum");
+  const tm = await menuText(p);
+  const groups = await p.evaluate(() => [...document.querySelectorAll(".tpa-menu .tm-group")].map((g) => {
+    const rows = []; for (let n = g.nextElementSibling; n && !n.classList.contains("tm-group") && !n.classList.contains("tm-sep"); n = n.nextElementSibling) rows.push(n.textContent);
+    return { g: g.textContent, rows }; }));
+  const foot = await p.evaluate(() => document.querySelector(".tpa-menu .tm-foot")?.textContent || "");
+  check(`⑩ ${tag} 札を押すと同じ面（実績の設備の読めない行・× で消せる）。見出しは表でない行「一覧では飛ばしています」・版の読めない行「一覧・読みでは使っています」に分ける`, m
+    && /実績の設備の読めない行（work_log_files\.json）/.test(m.head) && m.items.some((x) => /表でない行/.test(x.title) && !x.disabled) && m.items.some((x) => /id 991/.test(x.text) && !x.disabled) && m.inView
+    && groups.some((x) => x.g === "この画面の行（一覧では飛ばしています）" && x.rows.length === 1 && /表でない行/.test(x.rows[0]))
+    && groups.some((x) => x.g === "この画面の行（一覧・読みでは使っています）" && x.rows.length === 1 && /id 991/.test(x.rows[0])), { m, groups });
+  check(`⑩ ${tag} 面の下の言葉は止める範囲どおり（表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止める）`,
+    /表でない行がある間は、どの行の直す・並べ替え・探し直し・登録を消すも止めています/.test(foot), foot);
+  check(`⑩ ${tag} 実績の設備の面の字が切れない・コントラスト 4.5 以上`, tm && !tm.cut.length && !tm.low.length, tm);
+  await shot(p, `skip-worklog-open-${tag}`);
+  if (tag === "1280x720") {
+    // 表でない行を消す → 一言は表の枠の中・下の段（保存・閉じる）の境にまたがらない・段の見出しの要約と表の要約の札が「1」に替わる
+    const cm = await openConfirm(p, /表でない行|13 行目/);
+    check(`⑩ ${tag} 表でない行の消す確かめは同じ窓（実績の設備の読めない行を消しますか）`, cm && cm.title === "実績の設備の読めない行を消しますか" && cm.inView, cm);
+    await p.click('.tpa-confirm [data-act="ok"]'); await sleep(2000);
+    const after = await p.evaluate(() => {
+      const t = document.querySelector(".tpa-toast"), foot = document.querySelector(".sr-card.is-open .sr-acts");
+      const tr = t?.getBoundingClientRect(), fr = foot?.getBoundingClientRect();
+      const wrap = document.querySelector(".sr-card.is-open [data-sr-wl] .master-table-wrap"), sc = document.querySelector("#masterSettings");
+      const wb = Math.min(wrap?.getBoundingClientRect().bottom ?? 1e9, sc?.getBoundingClientRect().bottom ?? 1e9);
+      return { toast: t?.textContent || "", aboveFoot: !!tr && (!fr || tr.bottom <= fr.top + 1), inVisible: !!tr && tr.bottom <= wb + 1,
+               head: document.querySelector('.sr-card.is-open .sr-sec[data-sec="equip"] .sr-sum')?.textContent || "",
+               wl: document.querySelector(".sr-card.is-open .wl-sum .tpa-skip")?.textContent || "" };
+    });
+    await shot(p, `skip-worklog-deleted-${tag}`);
+    check(`⑩ ${tag} 消した後: 一言は「残り 1」・見える表の下の縁より上で下の段にまたがらない・段の見出しの要約と表の要約の札が「1」に替わる`,
+      /読めない行は残り 1/.test(after.toast) && after.aboveFoot && after.inVisible && /⚠ 実績の設備の読めない行 1/.test(after.head) && after.wl === "⚠ 実績の設備の読めない行 1", after);
+    // 2 つ目も消す → 段の見出しの札・表の要約の札・「直すこと」の 1 行・一覧の名前の横の札がどれも無い（版 3.113.0 の採点し直しの減点）
+    await p.click(".sr-card.is-open .wl-sum .tpa-skip"); await sleep(400);
+    await openConfirm(p, /id 991/);
+    await p.click('.tpa-confirm [data-act="ok"]'); await sleep(2500);
+    const gone = await p.evaluate(() => ({
+      toast: document.querySelector(".tpa-toast")?.textContent || "",
+      head: !!document.querySelector('.sr-card.is-open .sr-sec[data-sec="equip"] .sr-skip'),
+      wl: !!document.querySelector(".sr-card.is-open .wl-sum .tpa-skip"),
+      todo: [...document.querySelectorAll(".sr-card.is-open .wl-todo > div")].some((d) => /読めない行/.test(d.textContent)) }));
+    await shot(p, `skip-worklog-deleted2-${tag}`);
+    await p.evaluate(() => document.querySelector(".sr-card.is-open [data-sr-close]")?.click()); await sleep(1200);
+    gone.list = await p.evaluate(() => !!document.querySelector('[data-sr-open="work"]')?.closest("tr")?.querySelector(".sr-skip"));
+    await shot(p, `skip-worklog-list-after-${tag}`);
+    check(`⑩ ${tag} 2 つ目も消した後: 段の見出しの札・表の要約の札・「直すこと」の読めない行・一覧の名前の横の札がどれも無い（一言は「もうありません」）`,
+      /読めない行はもうありません/.test(gone.toast) && !gone.head && !gone.wl && !gone.todo && !gone.list, gone);
+  } else await closeMenu(p);
 }

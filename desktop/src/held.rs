@@ -43,11 +43,102 @@ pub enum Bad {
 /// ファイルの字（BOM を外した物）→ 値。整数の -0 は J が int の 0 と読む（Python と同じ）。対の無い代用字は LONE_BASE からの字
 pub fn parse(text: &str) -> Result<Value, Bad> {
     let j = pyjson::loads_keep_lone(text).map_err(Bad::Broken)?;
+    note_order(&j);
     Ok(to_value(&j))
+}
+
+// ------------------------------------------------------------------ 表の鍵の順（版 3.113.0 の作った後の採点の割れ 2）
+// serde の Value の表は鍵を並べ替えて持つ（Cargo.toml に preserve_order が無い。入れると答えの字が広く変わる）。Python の str()（repr）・
+// json.dumps は書かれた順なので、置き場の行の値が鍵 2 つ以上の表のとき、窓の repr が Python と違う字になった。読んだファイルの表のうち
+// 鍵が並べ替えた順でない物を、中身（鍵を並べた字）→ 書かれた鍵の順で覚え、to_j（repr・to_text・to_pretty・reply_bytes の元）がその順で組む。
+static ORDER: std::sync::Mutex<Option<std::collections::HashMap<String, Vec<String>>>> = std::sync::Mutex::new(None);
+const ORDER_MAX: usize = 4096;
+
+fn canon(v: &Value) -> String {
+    crate::join::py_dumps(v)
+}
+
+/// 読んだ J の中の、鍵が並べ替えた順でない表（鍵 2 つ以上）の鍵の順を覚える
+pub fn note_order(j: &J) {
+    fn walk(j: &J, out: &mut Vec<(String, Vec<String>)>) {
+        match j {
+            J::Arr(a) => a.iter().for_each(|x| walk(x, out)),
+            J::Obj(m) => {
+                if m.len() > 1 && m.windows(2).any(|w| w[0].0 > w[1].0) {
+                    out.push((canon(&to_value(j)), m.iter().map(|(k, _)| k.clone()).collect()));
+                }
+                m.iter().for_each(|(_, x)| walk(x, out));
+            }
+            _ => {}
+        }
+    }
+    let mut found = vec![];
+    walk(j, &mut found);
+    if found.is_empty() {
+        return;
+    }
+    let mut g = ORDER.lock().unwrap_or_else(|e| e.into_inner());
+    let map = g.get_or_insert_with(Default::default);
+    if map.len() + found.len() > ORDER_MAX {
+        map.clear();
+    }
+    map.extend(found);
+}
+
+/// 置き場のファイルの字を serde で読んだ後: 行の値に表・並びがあれば J でも読み、表の鍵の順を覚える（無ければ何もしない。速さ）
+pub fn note_text_order(text: &str, v: &Value) {
+    let rows = match v {
+        Value::Array(a) => a,
+        Value::Object(o) => match o.get("rows") {
+            Some(Value::Array(a)) => a,
+            _ => return,
+        },
+        _ => return,
+    };
+    let nested = rows.iter().any(|r| r.as_object().is_some_and(|o| o.values().any(|x| x.is_object() || x.is_array())));
+    if nested {
+        if let Ok(j) = pyjson::loads_keep_lone(text) {
+            note_order(&j);
+        }
+    }
+}
+
+/// 表の鍵の書かれた順（覚えていれば）
+fn order_of(m: &serde_json::Map<String, Value>) -> Option<Vec<String>> {
+    if m.len() < 2 {
+        return None;
+    }
+    let g = ORDER.lock().unwrap_or_else(|e| e.into_inner());
+    let map = g.as_ref().filter(|m| !m.is_empty())?;
+    let keys = map.get(&canon(&Value::Object(m.clone())))?;
+    (keys.len() == m.len() && keys.iter().all(|k| m.contains_key(k))).then(|| keys.clone())
 }
 
 fn lone_char(c: char) -> bool {
     (pyjson::LONE_BASE..=pyjson::LONE_BASE + 0x7FF).contains(&(c as u32))
+}
+
+/// 持っている対の無い代用字なら、その代用字の番号（0xD800〜0xDFFF。版 3.113.0: 画面の型の tojson が \udXXX で書く）
+pub fn lone_unit(c: char) -> Option<u32> {
+    lone_char(c).then(|| c as u32 - pyjson::LONE_BASE + 0xD800)
+}
+
+/// 字の中の持っている対の無い代用字を \udXXX の字に戻す（Python の errors="backslashreplace"・ensure_ascii と同じ字）
+pub fn lone_escaped(t: &str) -> String {
+    if !t.as_bytes().contains(&0xF4) {
+        return t.to_string();
+    }
+    t.chars()
+        .map(|c| match lone_unit(c) {
+            Some(u) => format!("\\u{u:04x}"),
+            None => c.to_string(),
+        })
+        .collect()
+}
+
+/// Python の json.dumps(v, ensure_ascii=False, indent=indent) を書いた字（持っている値は元の字・対の無い代用字は \udXXX。版 3.113.0）
+pub fn to_text(v: &Value, indent: Option<usize>) -> String {
+    lone_escaped(&to_j(v).dumps(indent))
 }
 
 /// 値のどこか（字・鍵）に対の無い代用字があるか
@@ -115,7 +206,11 @@ pub fn to_j(v: &Value) -> J {
     match v {
         Value::String(_) => held(v).unwrap_or_else(|| J::from_value(v)),
         Value::Array(a) => J::Arr(a.iter().map(to_j).collect()),
-        Value::Object(m) => J::Obj(m.iter().map(|(k, x)| (k.clone(), to_j(x))).collect()),
+        // 読んだファイルの書かれた鍵の順（覚えていれば。版 3.113.0 の割れ 2）
+        Value::Object(m) => match order_of(m) {
+            Some(keys) => J::Obj(keys.into_iter().map(|k| (k.clone(), to_j(&m[&k]))).collect()),
+            None => J::Obj(m.iter().map(|(k, x)| (k.clone(), to_j(x))).collect()),
+        },
         _ => J::from_value(v),
     }
 }
@@ -126,10 +221,7 @@ pub fn to_pretty(v: &Value) -> std::io::Result<Vec<u8>> {
         return serde_json::to_vec_pretty(v).map_err(std::io::Error::other);
     }
     // 対の無い代用字は \udXXX の字に戻す（Python の errors="backslashreplace" と同じ字）
-    let t = to_j(v).dumps(Some(2));
-    let out: String =
-        t.chars().map(|c| if lone_char(c) { format!("\\u{:04x}", c as u32 - pyjson::LONE_BASE + 0xD800) } else { c.to_string() }).collect();
-    Ok(out.into_bytes())
+    Ok(to_text(v, Some(2)).into_bytes())
 }
 
 /// Python の repr(値)（持っている値は元の値の repr: nan・inf）
@@ -186,7 +278,7 @@ pub fn text_value(t: &str) -> Option<Value> {
 /// 画面へ返す答えの字（版 3.108.0。Flask の jsonify と同じく大きな整数は桁のまま。NaN・Infinity は null〈答えは allow_nan=False〉）。
 /// 持っている値が無ければ前と同じ serde の字
 pub fn reply_bytes(v: &Value) -> Vec<u8> {
-    if !has_held(v) {
+    if !has_held(v) && !has_lone(v) {
         return serde_json::to_vec(v).unwrap_or_default();
     }
     fn plain(j: J) -> J {
@@ -197,7 +289,8 @@ pub fn reply_bytes(v: &Value) -> Vec<u8> {
             x => x,
         }
     }
-    plain(to_j(v)).dumps(None).into_bytes()
+    // 対の無い代用字は \udXXX（Flask の jsonify〈ensure_ascii〉と同じ。版 3.113.0: 画面の控えの字。前は持つ字のまま書いた）
+    lone_escaped(&plain(to_j(v)).dumps(None)).into_bytes()
 }
 
 #[cfg(test)]

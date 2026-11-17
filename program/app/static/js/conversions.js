@@ -75,6 +75,8 @@
     const x = byName.get(name);
     if (!x) return { name, ok: false, targets: [], inputs: [], missing: [], done: false, gone: true };
     const a = x.apply || {}, mode = a.mode === "replace" ? "replace" : "add", targets = [];
+    // 入力の無い表（置き場の行の入力が空・null・読めない字。版 3.113.0: 前は「作り替える」で inputs[0].columns の TypeError）は当てられない
+    if (!Array.isArray(x.inputs) || !x.inputs.length) return { name, mode, ok: false, targets: [], inputs: [], missing: [], done: false, noInputs: true };
     const firstCols = (a.column || "").includes("{列}") || mode === "replace"
       ? (mode === "replace" ? [matchColumn(x.inputs[0].columns || [x.inputs[0].name], columns)].filter(Boolean) : matchAll(x.inputs[0].columns || [x.inputs[0].name], columns))
       : [""];

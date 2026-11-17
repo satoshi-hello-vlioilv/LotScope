@@ -164,8 +164,12 @@ SCENARIOS = [
         W(S("POST", C, T("もっと大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e30", "max": 1e25}]}}]))),
         W(S("POST", C, '{"name": "大きな整数の範囲", "inputs": [{"name": "b", "type": "num"}], "rows": [{"when": {"b": [{"op": "range", "min": 100000000000000000000}]}, "out": 7}]}')),
         W(S("POST", C, T("正規表現", other="=extract([a], '(')"))),       # 版 3.106.0: re の言葉（位置）を出さない
-        # 作った後の採点の割れ 4: 長さの決まらない後読みは Python の re が読めず窓の fancy-regex は読む（formula_regex_cases）。窓は任せる
-        S("POST", C, T("長さの決まらない後読みの正規表現", other="=extract([a], '(?<=L|CR)\\d')")),
+        # 版 3.113.0（採点の指摘 5）: 枝の長さの違う後読みは Python も枝ごとの後読みに書き替えて読む（窓の fancy-regex と画面も読む）。
+        # 長さの決まらない後読みは画面の JavaScript だけが読み、サーバーで計算できないので Python も窓も同じ言葉で断る（formula_regex_cases の want）
+        W(S("POST", C, T("長さの決まらない後読みの正規表現", other="=extract([a], '(?<=L|CR)\\d')"))),
+        W(S("POST", C, T("否定の後読みの枝", rows=[{"when": {}, "out": "=match([a], '(?<!L|CR)\\d')"}]))),
+        W(S("POST", C, T("サーバーで計算できない後読み", other="=extract([a], '(?<=L+)\\d')"))),
+        W(S("POST", C, T("サーバーで計算できない後読み（組の引き）", other="=regreplace([a], '(?<=(L)\\1)x', 'y')"))),
         S("POST", C, T(["名前が並び"])),
         W(S("POST", C, T("順が大きい", order="1" + "0" * 40))),
         W(S("POST", C, T("順の後ろへ足す"))), W(S("GET", C)), W(S("GET", f"{C}/export")),
@@ -356,12 +360,64 @@ SCENARIOS = [
     {"name": "置き場の行の版が読めない（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 16, "名前": "版が字", "rev": "abc"}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("POST", C, T("x")), S("DELETE", f"{C}/16"), S("POST", f"{C}/16/preset"),
                                   S("POST", f"{C}/import", {"items": [T("版が字")]}), S("GET", f"{C}/export")]]},
-    # 版 3.112.0（採点の指摘 8）: 予算外で見つけた任せ。置き場の行の「入力」が JSON の字でなく表（手で直した共有の行）。窓の 8 本はまだ
-    # 行の形を Python と同じに読めない（conversions_write::read の plain）ので任せる。数えて予算に足す（閉じるのは次の版）
-    {"name": "置き場の行の入力が表（予算外の任せ）", "mode": "shared", "extra_rows": [{"id": 18, "名前": "入力が表", "入力": {"a": 1}, "判定": "[]", "rev": 1}],
-     "steps": [], "delegates": [S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("足す")), S("PUT", f"{C}/1", {"name": "直す"}),
-                                S("DELETE", f"{C}/1"), S("POST", f"{C}/1/preset"), S("POST", f"{C}/defaults", {"from": "current"}),
-                                S("POST", f"{C}/import", {"items": [T("取り込む")]})]},
+    # 版 3.113.0（採点の指摘 2・事例の表 tests/fixtures/rowshape_cases.json）: 置き場の行の「入力」「判定」が並びでない・「当て方」が表でない
+    # （手で直した共有の行。表・字・数・真偽。JSON の字でも）は Python も窓も読めない行として隔てる（前の Python は表のまま素通しで答え、
+    # 画面の conversions.js の plan・master-conv.js の inputs.map が TypeError で落ちた。窓は 8 本とも中身へ回した＝版 3.112.0 の任せる歩 8）。
+    # 並び・表そのものの値でも型が合えば読む（入力・判定が並び・当て方が表）。名前・その他の並びは str()（repr）・表示順の並びは 0
+    {"name": "置き場の行の入力が表（隔てて答える）", "mode": "shared", "extra_rows": [
+        {"id": 18, "名前": "入力が表", "入力": {"a": 1}, "判定": "[]", "rev": 1},
+        {"id": 19, "名前": "入力が字の表", "入力": '{"a": 1}', "判定": "[]", "rev": 1},
+        {"id": 20, "名前": "入力が数", "入力": 5, "rev": 1},
+        {"id": 21, "名前": "入力が JSON の字", "入力": '"abc"', "rev": 1},
+        {"id": 22, "名前": "判定が表", "入力": "[]", "判定": {"when": {}}, "rev": 1},
+        {"id": 23, "名前": "当て方が並び", "入力": "[]", "当て方": [{"mode": "add"}], "rev": 1},
+        {"id": 24, "名前": "当て方が真偽", "入力": "[]", "当て方": "true", "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("足す")), S("PUT", f"{C}/1", {"name": "直す"}),
+               S("PUT", f"{C}/18", {"name": "隔てた行を直す"}), S("POST", f"{C}/20/preset"), S("POST", f"{C}/import", {"items": [T("入力が数")]}),
+               S("POST", f"{C}/import", {"items": [T("取り込む")]}), S("DELETE", f"{C}/1"), S("POST", f"{C}/1/preset"),
+               S("POST", f"{C}/defaults", {"from": "current"}), S("DELETE", f"{C}/22"), S("GET", C)]},
+    {"name": "置き場の行の値が並び・表（型が合えば読む）", "mode": "shared", "extra_rows": [
+        {"id": 25, "名前": "並びの入力", "入力": [{"name": "a", "type": "text", "columns": ["列A"]}], "判定": [{"when": {"a": [{"op": "filled"}]}, "out": "有"}],
+         "その他": ["x", 1], "当て方": {"mode": "add", "column": "{列}_並び", "place": "end"}, "表示順": [3], "rev": 1},
+        {"id": 26, "名前": ["名前が並び"], "入力": "[]", "その他": {"a": [1, 2]}, "表示順": {"x": 1}, "rev": 2},
+        {"id": 27, "名前": "入力が null", "入力": None, "判定": "null", "当て方": "", "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("PUT", f"{C}/25", {"name": "並びの入力を直す", "base_rev": 1}),
+               S("PUT", f"{C}/26", {"order": 5}), S("POST", C, T("足す")), S("POST", f"{C}/defaults", {"from": "current"}),
+               S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/import", {"items": [T("並びの入力を直す")]}),
+               S("PUT", f"{C}/27", {"other": "=[a]", "inputs": [{"name": "a"}]}), S("DELETE", f"{C}/26"), S("GET", C)]},
+    {"name": "標準の行の入力が表（隔てて答える）", "mode": "shared", "own_shape": True,
+     "steps": [S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/2/preset"), S("POST", f"{C}/1/preset"),
+               # 版 3.113.0 の作った後の採点の割れ 1: 標準の並び・表そのもの（課名）から戻すと、画面が書くのと同じ JSON の字で置く（前は repr の字で表が空）
+               S("POST", f"{C}/8/preset"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 1: 並び・表の値の表を「標準にする」→「標準に戻す」しても表が空にならない（標準は JSON の字で置く）。
+    # 前の版の「標準に戻す」が書いた repr の字の行・標準は読めない行として隔てて知らせる（黙って空の表に読まない）
+    {"name": "並びの表を標準にして標準に戻す", "mode": "shared", "extra_rows": [
+        {"id": 50, "名前": "並びの標準", "入力": [{"type": "text", "name": "a", "columns": ["列A"]}], "判定": [{"out": "有", "when": {}}],
+         "当て方": {"mode": "add", "column": "{列}_x"}, "その他": "", "rev": 1},
+        {"id": 51, "名前": "前の版の repr の字", "入力": "[{'name': 'a', 'type': 'text', 'columns': ['列A']}]", "判定": "[]", "当て方": "{'mode': 'add'}", "rev": 1}],
+     "steps": [S("POST", f"{C}/defaults", {"from": "current"}), S("GET", f"{C}/export", query="which=defaults"), S("PUT", f"{C}/50", {"name": "並びの標準"}),
+               S("POST", f"{C}/50/preset"), S("GET", C), S("GET", f"{C}/export"), S("POST", f"{C}/51/preset"), S("DELETE", f"{C}/51")]},
+    {"name": "前の版が repr の字で置いた標準（隔てて答える）", "mode": "shared", "own_repr": True,
+     "steps": [S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/8/preset"), S("POST", f"{C}/2/preset"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 2: 表の鍵が 2 つ以上の値の str()（repr）は書かれた順（Python と同じ字）
+    {"name": "その他・名前が鍵 2 つ以上の表", "mode": "shared", "extra_rows": [
+        {"id": 52, "名前": "二つの鍵", "入力": "[]", "その他": {"b": 1, "a": 2, "c": [{"z": 1, "y": 2}]}, "rev": 1},
+        {"id": 53, "名前": {"y": "名前", "x": 1}, "入力": "[]", "表示順": "7", "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("PUT", f"{C}/52", {"order": 3}), S("POST", f"{C}/defaults", {"from": "current"}),
+               S("GET", f"{C}/export", query="which=defaults"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 3: 画面が落ちる要素の形（入力の要素が表でない・columns が並びでない・当て方の column が字でない）は隔てる
+    {"name": "入力の要素・columns・当て方の column の形（隔てて答える）", "mode": "shared", "extra_rows": [
+        {"id": 54, "名前": "入力の要素が null", "入力": [None], "rev": 1},
+        {"id": 55, "名前": "columns が数", "入力": '[{"name": "a", "columns": 5}]', "rev": 1},
+        {"id": 56, "名前": "column が数", "入力": "[]", "当て方": {"mode": "add", "column": 5}, "rev": 1},
+        {"id": 57, "名前": "column が表", "入力": "[]", "当て方": '{"mode": "add", "column": {"a": 1}}', "rev": 1},
+        {"id": 58, "名前": "columns が字", "入力": [{"name": "a", "columns": "列A"}], "rev": 1}],
+     "steps": [S("GET", C), S("PUT", f"{C}/54", {"name": "x"}), S("DELETE", f"{C}/55"), S("POST", f"{C}/defaults", {"from": "current"}), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 6: 小数の大きな整数（1e19）の表示順・その他も窓が答える（前は 8 本を中身へ回した）
+    {"name": "表示順・その他が小数の 1e19", "mode": "shared", "extra_rows": [{"id": 45, "名前": "小数の大きな数", "入力": "[]", "表示順": 1e19, "その他": 2.5e19, "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("PUT", f"{C}/1", {"name": "直す"}), S("PUT", f"{C}/45", {"name": "小数の行を直す"}),
+               S("POST", C, T("足す")), S("POST", f"{C}/import", {"items": [T("取り込む")]}), S("POST", f"{C}/defaults", {"from": "current"}),
+               S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/1/preset"), S("DELETE", f"{C}/45"), S("GET", C)]},
     {"name": "置き場の判定の字が NaN（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 17, "名前": "NaN の判定", "判定": '[{"when": {}, "out": NaN}]',
                                                                        "rev": 1}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("PUT", f"{C}/1", {"name": "x"}), S("PUT", f"{C}/17", {"name": "y"}),
@@ -408,6 +464,13 @@ def place(root, sc):
     if sc.get("own_bad"):     # 版 3.108.0: 標準の読めない行（id が字・判定の NaN）は隔てる
         own += [{"id": "x", "名前": "版が字", "入力": "[]", "判定": "[]", "rev": "abc"},
                 {"id": 7, "名前": "工程", "入力": "[]", "判定": '[{"when": {}, "out": NaN}]', "rev": 1}]
+    if sc.get("own_shape"):   # 版 3.113.0: 標準の行の形（入力が表は隔てる・並びそのものは読む）
+        own += [{"id": 1, "名前": "地取区分", "入力": {"a": 1}, "判定": "[]", "rev": 1},
+                {"id": 2, "名前": "課名", "入力": [{"name": "設備", "type": "text", "columns": ["設備"]}], "判定": [{"when": {}, "out": "並びの標準"}],
+                 "その他": "", "当て方": {"mode": "replace"}, "rev": 1}]
+    if sc.get("own_repr"):    # 版 3.113.0: 前の版の「標準にする」が並び・表の値を repr の字にして置いた標準（読めない行として隔てる）
+        own += [{"id": 1, "名前": "課名", "入力": "[{'name': '設備', 'type': 'text', 'columns': ['設備']}]", "判定": "[]", "その他": "", "当て方": "{'mode': 'replace'}", "rev": 1},
+                {"id": 2, "名前": "地取区分", "入力": j([{"name": "地取", "type": "text", "columns": ["地取区分"]}]), "判定": "[]", "その他": "", "当て方": j({"mode": "replace"}), "rev": 1}]
     masters = {"access_permissions": sc.get("perm") or perm(), "conversions": conv, "conversion_defaults": own}
     for n in ("path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns"):
         masters[n] = []

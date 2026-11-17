@@ -316,18 +316,6 @@ pub(crate) fn num_plain(v: &Value) -> bool {
     }
 }
 
-/// 置き場の行（そろえる前）の隔てる行（row_check の決まり。形をそろえた写しで見る）
-pub(crate) fn isolated_of(name: &str, rows: &[Value]) -> Iso {
-    let mut norm = rows.to_vec();
-    crate::row_check::normalize_like_specs(name, &mut norm);
-    crate::row_check::check(name, &norm, crate::row_check::fields_of(name))
-}
-
-/// 置き場の行の id・版が読め（row_readable）、決めた項目の値がどれも value_plain か
-pub(crate) fn rows_plain(name: &str, rows: &[Value], fields: &[&str]) -> bool {
-    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(name, o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
-}
-
 /// 行の版を確かめる（_check_rev）
 pub(crate) fn check_rev(row: &Value, base: Option<Rev>) -> Result<(), MasterError> {
     if let Some(b) = base {

@@ -426,7 +426,176 @@ pub fn regex_risk(src: &[u16]) -> Option<String> {
         }
         i += 1;
     }
-    (dots > DOT_REPEAT_MAX).then(|| format!("「.*」「.+」は {DOT_REPEAT_MAX} つまでです（とても重くなるため）"))
+    if dots > DOT_REPEAT_MAX {
+        return Some(format!("「.*」「.+」は {DOT_REPEAT_MAX} つまでです（とても重くなるため）"));
+    }
+    lookbehind_risk(&String::from_utf16_lossy(src))
+}
+
+/// ③ 後読み（版 3.113.0 の作った後の採点の割れ 4）: サーバーが計算できる形だけ。後読みの中身（中身全部を包むだけの (?: ) は外す）を | で分けた
+/// 枝ごとに長さが決まること（* + ? {n,m} {n,} と \1 などの引き直しが無い・かっこの中の | は同じ長さ）。枝どうしの長さは違ってよい。
+/// 画面の list-formula.js の lookbehindRisk・Python の formula.lookbehind_risk と同じ決まり（事例は formula_regex_cases.json）
+pub const LB_MSG: &str = "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）";
+
+static LB_QUANT: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^\{(\d+)(,(\d*))?\}").expect("決まった字"));
+static LB_NAMED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\(\?<[^=!]").expect("決まった字"));
+
+fn re_close(s: &[char], i: usize) -> Option<usize> {
+    let (mut d, mut cls, mut j) = (0i32, false, i);
+    while j < s.len() {
+        let c = s[j];
+        if c == '\\' {
+            j += 2;
+            continue;
+        }
+        if cls {
+            cls = c != ']';
+        } else if c == '[' {
+            cls = true;
+        } else if c == '(' {
+            d += 1;
+        } else if c == ')' {
+            d -= 1;
+            if d == 0 {
+                return Some(j);
+            }
+        }
+        j += 1;
+    }
+    None
+}
+
+fn re_alts(s: &[char]) -> Vec<Vec<char>> {
+    let (mut out, mut d, mut cls, mut st, mut j) = (vec![], 0i32, false, 0usize, 0usize);
+    while j < s.len() {
+        let c = s[j];
+        if c == '\\' {
+            j += 2;
+            continue;
+        }
+        if cls {
+            cls = c != ']';
+        } else if c == '[' {
+            cls = true;
+        } else if c == '(' {
+            d += 1;
+        } else if c == ')' {
+            d -= 1;
+        } else if c == '|' && d == 0 {
+            out.push(s[st..j].to_vec());
+            st = j + 1;
+        }
+        j += 1;
+    }
+    out.push(s[st.min(s.len())..].to_vec());
+    out
+}
+
+fn re_fixed(s: &[char], named: bool) -> Option<usize> {
+    let (mut n, mut i) = (0usize, 0usize);
+    let at = |k: usize| s.get(k).copied();
+    while i < s.len() {
+        let c = s[i];
+        let mut t;
+        if c == '\\' {
+            let d = at(i + 1);
+            if d.is_some_and(|d| ('1'..='9').contains(&d)) || (d == Some('k') && at(i + 2) == Some('<') && named) {
+                return None;
+            }
+            t = if matches!(d, Some('b' | 'B')) { 0 } else { 1 };
+            i += 2;
+        } else if c == '[' {
+            let mut j = i + 1;
+            if at(j) == Some('^') {
+                j += 1;
+            }
+            if at(j) == Some(']') {
+                j += 1;
+            }
+            while j < s.len() && s[j] != ']' {
+                if s[j] == '\\' {
+                    j += 1;
+                }
+                j += 1;
+            }
+            t = 1;
+            i = j + 1;
+        } else if c == '(' {
+            let e = re_close(s, i)?;
+            let mut inner: Vec<char> = s[i + 1..e].to_vec();
+            i = e + 1;
+            let starts = |p: &str, v: &[char]| v.iter().take(p.chars().count()).copied().eq(p.chars());
+            if starts("?=", &inner) || starts("?!", &inner) || starts("?<=", &inner) || starts("?<!", &inner) {
+                t = 0;
+            } else {
+                if starts("?:", &inner) {
+                    inner.drain(..2);
+                } else if starts("?<", &inner) {
+                    if let Some(g) = inner.iter().position(|&x| x == '>') {
+                        inner.drain(..=g);
+                    }
+                }
+                let ls: Vec<Option<usize>> = re_alts(&inner).iter().map(|a| re_fixed(a, named)).collect();
+                if ls.iter().any(|x| x.is_none() || *x != ls[0]) {
+                    return None;
+                }
+                t = ls[0]?;
+            }
+        } else {
+            t = if c == '^' || c == '$' { 0 } else { 1 };
+            i += 1;
+        }
+        match at(i) {
+            Some('*' | '+' | '?') => return None,
+            Some('{') => {
+                let rest: String = s[i..].iter().collect();
+                if let Some(m) = LB_QUANT.captures(&rest) {
+                    if m.get(2).is_some() && m.get(3).map(|x| x.as_str()) != m.get(1).map(|x| x.as_str()) {
+                        return None;
+                    }
+                    t *= m[1].parse::<usize>().ok()?;
+                    i += m[0].chars().count();
+                    if at(i) == Some('?') {
+                        i += 1;
+                    }
+                }
+            }
+            _ => {}
+        }
+        n += t;
+    }
+    Some(n)
+}
+
+/// 後読みの中身がサーバーで計算できない形なら理由（LB_MSG）
+pub fn lookbehind_risk(src: &str) -> Option<String> {
+    let s: Vec<char> = src.chars().collect();
+    let named = LB_NAMED.is_match(src);
+    let (mut cls, mut i) = (false, 0usize);
+    while i < s.len() {
+        let c = s[i];
+        if c == '\\' {
+            i += 2;
+            continue;
+        }
+        if cls {
+            cls = c != ']';
+        } else if c == '[' {
+            cls = true;
+        } else if s[i..].starts_with(&['(', '?', '<', '=']) || s[i..].starts_with(&['(', '?', '<', '!']) {
+            let e = re_close(&s, i)?;
+            let mut body: Vec<char> = s[i + 4..e].to_vec();
+            while body.starts_with(&['(', '?', ':']) && re_close(&body, 0) == Some(body.len() - 1) {
+                body = body[3..body.len() - 1].to_vec();
+            }
+            if re_alts(&body).iter().any(|b| re_fixed(b, named).is_none()) {
+                return Some(LB_MSG.to_string());
+            }
+        }
+        i += 1;
+    }
+    None
 }
 
 const WORD: &str = "A-Za-z0-9_";
@@ -961,13 +1130,6 @@ enum Tok {
     RParen,
     Comma,
     Name(String),
-}
-
-/// 窓の js_regex と Python の re で「読めるか」が割れうる式か（版 3.106.0。作った後の採点の割れ 4）: 後読み（(?<= ・(?<! ）。
-/// Python の re は長さの決まらない後読み（(?<=L|CR) など）を読めず、窓の fancy-regex は読む。事例は tests/fixtures/formula_regex_cases.json
-/// （cargo test --test formula_regex_cases が、割れる形はみなこれに当たることを確かめる）。変換表の道はこの式を Python に任せる
-pub fn regex_split(src: &str) -> bool {
-    src.contains("(?<=") || src.contains("(?<!")
 }
 
 /// 式の入れ子の数え方（版 3.106.0。Python の formula.nest_count と同じ。変換表の式の上限 conversions_write::NEST_MAX）: 式の字を lex で分け、

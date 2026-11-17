@@ -190,7 +190,8 @@ pub fn json_keep(b: &[u8]) -> Option<serde_json::Value> {
     if da_core::master_store::has_wide_int(b) {
         return da_core::held::parse(std::str::from_utf8(b).ok()?.trim_end()).ok();
     }
-    serde_json::from_slice(b).ok()
+    // 対の無い代用字の \udXXX（画面の控えの字。版 3.113.0）は serde が読めないので J で読む（窓と同じ持ち方）
+    serde_json::from_slice(b).ok().or_else(|| da_core::held::parse(std::str::from_utf8(b).ok()?.trim_end()).ok())
 }
 
 /// 起動の初期値の試験の置き場（版 3.110.0。seeds_cases・seeds_parity）: root に base/data・local（作業場所）を作り、共有 share の書く係を作る

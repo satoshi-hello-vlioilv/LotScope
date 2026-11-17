@@ -156,9 +156,10 @@ fn check(c: &Value, root: &Path) -> Vec<String> {
                 bad.push(format!("{name}: /api/config を窓が答えた（残りは中身へ回す）: {st} {v}"));
             }
         }
+        // 版 3.113.0: @status は答えの状態（lotdsp_import が表でない形は理由つきの 503。前は中身へ回した）
         Value::Object(o) => match lot.handle_body("GET", "/api/config", "", b"") {
-            Some((200, v)) => {
-                for (k, w) in o {
+            Some((st, v)) if Some(st as u64) == o.get("@status").map_or(Some(200), Value::as_u64) => {
+                for (k, w) in o.iter().filter(|(k, _)| *k != "@status") {
                     if !same(w, &v[k], &share) {
                         bad.push(format!("{name}: /api/config の {k} = {}（表 {w}）", v[k]));
                     }

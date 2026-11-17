@@ -141,6 +141,12 @@ def scenarios(work):
     # （前は共有のふつうのマスタにこの 2 行があり、ほとんどの場面で回して許していた）
     sc("変換表の行の入力が表（予算外の任せ）", lambda r: (masters(share=r / "share"), add_row(r, "conversions", {"id": 8, "名前": "入力が表", "入力": {"a": 1}, "判定": "{}", "表示順": "3"}),
                                            config(r))[2])
+    # 版 3.113.0 の作った後の採点の割れ 6: 変換表の行に小数の大きな整数（表示順 1e19・その他 2.5e19）・鍵 2 つの表のその他。窓は 8 本とも答える
+    # （route_reach が中身へ回さないことを数える。前は read の plain で 8 本を中身へ回し、場面が無いので数に出なかった）
+    sc("変換表の行に小数の 1e19 と鍵 2 つの表", lambda r: (masters(share=r / "share"),
+                                                 add_row(r, "conversions", {"id": 8, "名前": "小数の大きな数", "入力": "[]", "判定": "[]", "表示順": 1e19, "その他": 2.5e19}),
+                                                 add_row(r, "conversions", {"id": 9, "名前": "二つの鍵", "入力": "[]", "判定": "[]", "その他": {"b": 1, "a": 2}}),
+                                                 config(r))[3])
     sc("データ元の行の結合が並び（予算外の任せ）", lambda r: (masters(share=r / "share"), add_row(r, "data_sources", {"id": 13, "キー": "s7", "表示名": "並びの結合", "元": "wip",
                                                                                               "結合": [{"with": "s1", "on": [["a", "b"]]}]}), config(r))[2])
     sc("手元だけ（同梱の data/）", lambda r: (masters(data=r / "base" / "data"), config(r, master_share={}))[1])

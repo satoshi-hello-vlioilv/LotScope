@@ -90,7 +90,7 @@ impl Cfg {
     pub fn from(li: &Value, local_root: &Path) -> Result<Cfg, String> {
         let d = crate::lotdsp::section(li, "direct");
         let url = crate::pyfmt::strip(&crate::lotdsp::py_text(li.get("url"))).to_string();
-        let num = |k: &str, def: f64| crate::lotdsp::py_float_of(d.get(k), def).map_err(|e| format!("lotdsp_import.direct.{k}: {e}"));
+        let num = |k: &str, def: f64| -> Result<f64, String> { Ok(crate::lotdsp::py_float_of(d.get(k), def)) };
         let flag = |k: &str| d.get(k).map(|v| crate::lotdsp::truthy(Some(v))).unwrap_or(true);
         let search = crate::lotdsp::py_text(d.get("search_url"));
         let extra = match d.get("extra_args") {
@@ -98,8 +98,8 @@ impl Cfg {
             Some(Value::Array(a)) => a.iter().map(crate::lotdsp::py_str_value).collect(),
             Some(Value::String(s)) => s.chars().map(String::from).collect(),
             Some(Value::Object(o)) => o.keys().cloned().collect(),
-            Some(x) if !crate::lotdsp::truthy(Some(x)) => vec![],
-            Some(_) => return Err("lotdsp_import.direct.extra_args が並びでない".into()),
+            // 数・真偽は足す引数なし（版 3.113.0。Python の lotdsp_direct._extra_args と同じ。前は設定の誤りにした）
+            Some(_) => vec![],
         };
         let profile = unquote_path(d.get("window_profile"));
         Ok(Cfg {

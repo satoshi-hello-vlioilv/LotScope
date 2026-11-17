@@ -189,6 +189,25 @@ SCENARIOS = [
         S("PUT", f"{M}/1", {"備考": "x"}),
         S("DELETE", f"{M}/1"),
     ]},
+    # 版 3.113.0（採点の指摘 6）: 登録に表でない行・値が並び・読めない行（字の版・数でない値・字の id）。Python も窓も、一覧は表でない行を
+    # 飛ばして skipped・unreadable で知らせ（前の Python は黙って飛ばした）、値の並びは str()、触れる書きは理由つきで断る。
+    # 前の版の窓は 6 本とも中身へ回した（route_reach の転送 12）
+    {"name": "登録に表でない行（読みは飛ばして知らせる）", "mode": "shared", "extra": [7, "x", None], "steps": READS + [
+        S("PUT", f"{M}/1", {"備考": "直す"}), S("DELETE", f"{M}/5"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan"),
+        S("GET", M)]},
+    {"name": "登録の行の値が並び・表（str() で読む）", "mode": "shared",
+     "extra": [{"id": 9, "キー": "f9", "設備名": ["並びの設備"], "ファイル名": "実績_並び.sqlite3", "表": ["t"], "備考": {"b": 1, "a": 2}, "並び": [5], "rev": 1},
+               {"id": 13, "キー": "f13", "設備名": "大きな並び", "ファイル名": "実績_大.sqlite3", "並び": 10 ** 20, "rev": 1}],
+     "steps": READS + [S("PUT", f"{M}/9", {"備考": "直す", "base_rev": 1}), S("PUT", f"{M}/13", {"備考": "大きな並びの行"}),
+                       S("PUT", f"{M}/order", {"keys": ["f9", "a1"]}), S("POST", f"{M}/scan"),
+                       S("GET", M), S("DELETE", f"{M}/9"), S("GET", F, query="all=1")]},
+    {"name": "登録の読めない行（字の版・数でない値・字の id。触れる書きだけ断る）", "mode": "shared",
+     "extra": [{"id": 10, "キー": "g1", "設備名": "版が字", "ファイル名": "実績_g1.sqlite3", "rev": "二"},
+               {"id": 11, "キー": "g2", "設備名": "NaN の表", "ファイル名": "実績_g2.sqlite3", "表": float("nan"), "rev": 1},
+               {"id": "x", "キー": "g3", "設備名": "字の id", "ファイル名": "実績_g3.sqlite3", "rev": 1}],
+     "steps": READS + [S("PUT", f"{M}/10", {"備考": "直す"}), S("PUT", f"{M}/1", {"備考": "読める行は直せる", "base_rev": 3}),
+                       S("PUT", f"{M}/order", {"keys": ["g1", "c3", "a1"]}), S("POST", f"{M}/scan"), S("DELETE", f"{M}/11"),
+                       S("GET", M), S("GET", F, query="all=1")]},
     {"name": "登録がまだ無い", "mode": "empty", "steps": READS + [
         S("POST", f"{M}/scan"),
         S("PUT", f"{M}/order", {"keys": ["k002", "k001"]}),
@@ -211,6 +230,7 @@ def place(root, sc, folder, fid):
     wl = [] if sc["mode"] == "empty" else rows_of(fid)
     if sc.get("big"):
         wl[0]["並び"], wl[1]["並び"] = "2" + "0" * 40, "1" + "0" * 40
+    wl += sc.get("extra", [])
     if sc.get("dup"):
         wl.append({"id": 9, "キー": "e9", "設備名": "CR1 の 2 つ目", "ファイル名": "実績_cr1.sqlite3", "並び": "0", "rev": 1})
     masters = {"access_permissions": sc.get("perm") or perm(), "work_log_files": wl,

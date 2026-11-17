@@ -79,6 +79,19 @@ def _cell(v):
     return _clean(v)
 
 
+def _conv_cell(k, v):
+    """変換表の行・標準へ置く字（_clean）。中身の列（入力・判定・当て方）の並び・表そのもの（手で直した共有の行）は、画面が書くのと同じ
+    JSON の字（json.dumps(ensure_ascii=False)）にして置く（版 3.113.0 の作った後の採点の割れ 1。前は str() の repr の字〈'name' の一重引用符〉
+    にして、標準・標準に戻した表が JSON として読めず黙って入力の無い表になった。版 3.112.0 の PC も JSON の字の標準は今どおり戻せる。
+    「標準にする」〈conversion_defaults_set〉と「標準に戻す」〈routes/conversions.conversions_reset〉の 2 か所。窓の conversions_write::conv_cell と同じ）"""
+    if k in ("入力", "判定", "当て方") and isinstance(v, (list, dict)):
+        return json.dumps(v, ensure_ascii=False)
+    return _clean(v)
+
+
+conv_cell = _conv_cell
+
+
 def _normalize(row, spec):
     """読むときの形をそろえる（旧い列名の読み替え・版が無い行は1）。"""
     for old, new in spec["renamed"].items():
@@ -823,6 +836,15 @@ class MasterRepository:
         own = self._list("conversion_defaults")
         return own if own else self.conversion_bundled()
 
+    def conversion_default_blocked(self, name):
+        """その名前の標準の行が読めない行（隔てた行）なら (何行目, 理由)、無ければ None（版 3.113.0 の作った後の採点の割れ 1: 前の版が
+        repr の字で置いた標準から「標準に戻す」と、黙って同梱にあるか無いかで答えた。窓の conversions_write の own_blocked と同じ）"""
+        rows, iso = self._viewed("conversion_defaults")
+        for r in rows:
+            if id(r) in iso and isinstance(r, dict) and str(r.get("名前") or "") == name:
+                return iso[id(r)]
+        return None
+
     def conversion_defaults_custom(self):
         return bool(self._list("conversion_defaults"))
 
@@ -833,7 +855,7 @@ class MasterRepository:
         def mutate(cur, stamp):
             cur.clear()
             for i, data in enumerate(rows, 1):
-                cur.append({"id": i, **{k: _clean(data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp})
+                cur.append({"id": i, **{k: _conv_cell(k, data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp})
             return len(cur)
         return self.store.write("conversion_defaults", mutate)
 

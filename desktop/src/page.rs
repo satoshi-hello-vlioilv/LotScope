@@ -29,7 +29,10 @@ pub fn dumps_ascii(v: &Value) -> String {
     let mut out = String::new();
     for c in crate::join::py_dumps(v).chars() {
         // 字の外は ASCII だけなので、~ より上の字（0x7f も）を \u で書けば ensure_ascii と同じ
-        if (c as u32) > 0x7e {
+        if let Some(u) = crate::held::lone_unit(c) {
+            // 持っている対の無い代用字（画面の控えの字。版 3.113.0）は Python の ensure_ascii と同じ 1 つの \udXXX
+            out.push_str(&format!("\\u{u:04x}"));
+        } else if (c as u32) > 0x7e {
             let mut buf = [0u16; 2];
             for u in c.encode_utf16(&mut buf) {
                 out.push_str(&format!("\\u{u:04x}"));

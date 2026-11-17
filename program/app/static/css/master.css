@@ -821,3 +821,8 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .master-place .place-dir.is-tail{word-break:normal;white-space:nowrap}
 /* 配布の画面の「中身（Python）の起きない PC」（版 3.111.0。見出しの下の知らせの段と同じ色の 1 行） */
 .dz-nopy{display:inline-block;margin:6px 0;padding:3px 10px;border-radius:6px;background:#fff3d6;color:#4a3700;border:1px solid #e9c46a;font-weight:700}
+/* 作業実績の登録の読めない行の札（版 3.113.0 の作った後の採点 B1）: データ元の一覧の「実績」の状態と「設備」の段の見出しの要約。形は .db-warnb のまま */
+.sr-skip{flex:none;margin-left:6px;vertical-align:1px;cursor:default}
+.sr-sum .sr-skip{margin-left:0}
+/* 「直すこと」の札と釦は 1 段（版 3.113.0 の作った後の直し: 読めない行の 1 行で「読めない行」「理由と消し方」が 2 段に折れた） */
+.wl-todo .m-chip,.wl-todo .pz-btn{white-space:nowrap;flex:none}

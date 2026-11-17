@@ -211,7 +211,20 @@ class UiScore(unittest.TestCase):
         for path in (Path(__file__).resolve().parents[1] / "tools" / "ui-proposals").glob("*.json"):
             d = json.loads(path.read_text(encoding="utf-8"))
             kind, _, _ = ui.decide(d)
-            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた", "利用者が選んだ", "利用者が受け入れた"), path.name)
+            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた", "利用者が選んだ", "利用者が受け入れた", "採点し直す"), path.name)
+
+    def test_rescore_pending(self):
+        """減点を直して別のエージェントの採点し直しを待つ記録（rescore に fixes と images）は「採点し直す」（版 3.113.0）。無ければ「直す」"""
+        d = {"rule": "2026-10-17", "applies": "x.json", "evaluator": "別のエージェント",
+             "built": {"name": "作った後", "result": {"score": {k: 6 for k in ui.KEYS}, "minus": []}}}
+        self.assertEqual(ui.decide(d)[0], "直す")
+        d["rescore"] = {"fixes": ["札を一覧にも"], "images": "/tmp/x"}
+        self.assertEqual(ui.decide(d)[0], "採点し直す")
+        # 採点し直した節（built_2）が付けば外れ、その節を直した後（after: built_2）にまた待つ
+        d["built_2"] = {"name": "採点し直し", "result": {"score": {k: 7 for k in ui.KEYS}, "minus": []}}
+        self.assertEqual(ui.decide(d)[0], "直す")
+        d["rescore"]["after"] = "built_2"
+        self.assertEqual(ui.decide(d)[0], "採点し直す")
 
 
 if __name__ == "__main__":

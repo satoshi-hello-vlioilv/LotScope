@@ -261,6 +261,134 @@ def regex_risk(src):
         i += 1
     if dots > DOT_REPEAT_MAX:
         return f"「.*」「.+」は {DOT_REPEAT_MAX} つまでです（とても重くなるため）"
+    return lookbehind_risk(src)
+
+
+# ③ 後読み（版 3.113.0 の作った後の採点の割れ 4）: サーバーが計算できる形だけ。後読みの中身（中身全部を包むだけの (?: ) は外す）を | で分けた枝ごとに
+# 長さが決まること（* + ? {n,m} {n,} と \1 などの引き直しが無い・かっこの中の | は同じ長さ）。枝どうしの長さは違ってよい（split_lookbehind で読む）。
+# 前は re の英語の言葉（look-behind requires fixed-width pattern）だった。画面の list-formula.js の lookbehindRisk・窓の formula::lookbehind_risk と同じ
+LB_MSG = "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）"
+_LB_QUANT = re.compile(r"\{(\d+)(,(\d*))?\}")
+
+
+def _re_close(s, i):
+    d, cls, j = 0, False, i
+    while j < len(s):
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif c == "(":
+            d += 1
+        elif c == ")":
+            d -= 1
+            if d == 0:
+                return j
+        j += 1
+    return -1
+
+
+def _re_alts(s):
+    out, d, cls, st, j = [], 0, False, 0, 0
+    while j < len(s):
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif c == "(":
+            d += 1
+        elif c == ")":
+            d -= 1
+        elif c == "|" and d == 0:
+            out.append(s[st:j])
+            st = j + 1
+        j += 1
+    out.append(s[st:])
+    return out
+
+
+def _re_fixed(s, named):
+    n = i = 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            d = s[i + 1:i + 2]
+            if d in "123456789" and d or (d == "k" and s[i + 2:i + 3] == "<" and named):
+                return None
+            t = 0 if d in ("b", "B") and d else 1
+            i += 2
+        elif c == "[":
+            j = i + 1
+            if s[j:j + 1] == "^":
+                j += 1
+            if s[j:j + 1] == "]":
+                j += 1
+            while j < len(s) and s[j] != "]":
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            t, i = 1, j + 1
+        elif c == "(":
+            e = _re_close(s, i)
+            if e < 0:
+                return None
+            inner, i = s[i + 1:e], e + 1
+            if re.match(r"\?(=|!|<=|<!)", inner):
+                t = 0
+            else:
+                inner = inner[2:] if inner.startswith("?:") else re.sub(r"^\?<[^>]*>", "", inner)
+                ls = [_re_fixed(a, named) for a in _re_alts(inner)]
+                if any(x is None or x != ls[0] for x in ls):
+                    return None
+                t = ls[0]
+        else:
+            t = 0 if c in "^$" else 1
+            i += 1
+        q = s[i:i + 1]
+        if q in ("*", "+", "?") and q:
+            return None
+        m = _LB_QUANT.match(s, i) if q == "{" else None
+        if m:
+            if m.group(2) and m.group(3) != m.group(1):
+                return None
+            t *= int(m.group(1))
+            i = m.end()
+            if s[i:i + 1] == "?":
+                i += 1
+        n += t
+    return n
+
+
+def lookbehind_risk(src):
+    named = re.search(r"\(\?<(?![=!])", src) is not None
+    cls, i = False, 0
+    while i < len(src):
+        c = src[i]
+        if c == "\\":
+            i += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif src.startswith("(?<=", i) or src.startswith("(?<!", i):
+            e = _re_close(src, i)
+            if e < 0:
+                return ""
+            body = src[i + 4:e]
+            while body.startswith("(?:") and _re_close(body, 0) == len(body) - 1:
+                body = body[3:-1]
+            if any(_re_fixed(b, named) is None for b in _re_alts(body)):
+                return LB_MSG
+        i += 1
     return ""
 
 
@@ -278,13 +406,111 @@ def js_regex(src, flags=""):
     try:
         rx = re.compile(pattern, re.ASCII)
     except re.error as e:
-        raise FormulaError(str(e)) from None
+        rx = _lookbehind_branches(pattern, e)
+        if rx is None:
+            raise FormulaError(str(e)) from None
     if len(_RE_CACHE) > 200:
         _RE_CACHE.clear()
         _RE_NAMES.clear()
     _RE_CACHE[k] = rx
     _RE_NAMES[rx] = named
     return rx
+
+
+def _class_end(p, i):
+    """p[i] の [ から始まる字の組の、閉じる ] の次の位置（閉じなければ len(p)）"""
+    j = i + 1
+    if p[j:j + 1] == "^":
+        j += 1
+    if p[j:j + 1] == "]":
+        j += 1
+    while j < len(p):
+        if p[j] == "\\":
+            j += 2
+            continue
+        if p[j] == "]":
+            return j + 1
+        j += 1
+    return len(p)
+
+
+def _branches(p, i):
+    """p[i:] を、閉じるかっこまで段 0 の | で分ける → (閉じるかっこの位置, 枝の並び)。閉じなければ (-1, [])"""
+    depth, start, out, j = 0, i, [], i
+    while j < len(p):
+        c = p[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "[":
+            j = _class_end(p, j)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth == 0:
+                out.append(p[start:j])
+                return j, out
+            depth -= 1
+        elif c == "|" and depth == 0:
+            out.append(p[start:j])
+            start = j + 1
+        j += 1
+    return -1, []
+
+
+def split_lookbehind(p):
+    """枝の長さの違う後読みを、枝ごとの後読みに書き替えた式（版 3.113.0。採点の指摘 5）: (?<=L|CR) → (?:(?<=L)|(?<=CR))・
+    (?<!L|CR) → (?<!L)(?<!CR)。意味は同じで、Python の re は枝ごとに長さが決まれば読める（窓の fancy-regex と画面の JavaScript は
+    元の形を読む）。枝の中の長さが決まらない後読み（(?<=L+)・(?<=a{1,2})・(?<=(L)\1)）は書き替えても読めない（窓も断る）。
+    事例は tests/fixtures/formula_regex_cases.json の want。閉じない式は None"""
+    out, i = [], 0
+    while i < len(p):
+        if p.startswith("(?<=", i) or p.startswith("(?<!", i):
+            end, parts = _branches(p, i + 4)
+            if end < 0:
+                return None
+            # 中身全部を包むだけの (?: ) は外して枝に分ける（(?<=(?:L|CR)) も枝ごとに。窓の fancy-regex と同じ。捕まえる組は外さない）
+            body = p[i + 4:end]
+            while len(parts) == 1 and body.startswith("(?:") and _branches(body, 3)[0] == len(body) - 1:
+                body = body[3:-1]
+                parts = _branches(body + ")", 0)[1]
+            inner = [split_lookbehind(b) for b in parts]
+            if any(x is None for x in inner):
+                return None
+            if len(inner) == 1:
+                out.append(p[i:i + 4] + inner[0] + ")")
+            elif p[i + 3] == "!":
+                out.append("".join(f"(?<!{b})" for b in inner))
+            else:
+                out.append("(?:" + "|".join(f"(?<={b})" for b in inner) + ")")
+            i = end + 1
+            continue
+        if p[i] == "\\":
+            out.append(p[i:i + 2])
+            i += 2
+            continue
+        if p[i] == "[":
+            j = _class_end(p, i)
+            out.append(p[i:j])
+            i = j
+            continue
+        out.append(p[i])
+        i += 1
+    return "".join(out)
+
+
+def _lookbehind_branches(pattern, err):
+    """re が長さの決まらない後読みで断った式を、枝ごとの後読みに書き替えて読む（読めなければ None）"""
+    if "look-behind requires fixed-width" not in str(err):
+        return None
+    alt = split_lookbehind(pattern)
+    if not alt or alt == pattern:
+        return None
+    try:
+        return re.compile(alt, re.ASCII)
+    except re.error:
+        return None
 
 
 _RE_NAMES = {}          # 読み替えた正規表現 → 組の名前 → 番号（組は番号だけで持つ。置き換えの $<名前> が引く）

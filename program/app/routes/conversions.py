@@ -58,9 +58,16 @@ def conversions_reset(item_id):
     if not row:
         return error("その変換表はもうありません（ほかの PC が消した可能性があります）。", 404, "not_found")
     preset = conversions.preset_of(repo.conversion_presets(), row.get("名前"))
+    blocked = None if preset else repo.conversion_default_blocked(str(row.get("名前") or ""))
+    if blocked:       # 標準のその表が読めない行（前の版が repr の字で置いた標準など。版 3.113.0）: 黙って「プリセットに無い」と言わない
+        e = MasterUnreadable(f"conversion_defaults.json の {blocked[0]} 行目が読めません（{blocked[1]}）。標準に戻すには、ファイルを直すか、"
+                             "「今の表をすべて標準にする」で標準を置き直してください。")
+        return jsonify(e.payload()), e.status
     if not preset:
         return error(f"「{row.get('名前')}」は同梱のプリセットにありません（標準に戻せるのはプリセットの表だけです）。", 400)
-    data = {k: preset[k] for k in ("入力", "判定", "その他", "当て方")}
+    # 中身の列の並び・表そのもの（手で直した標準）は画面が書くのと同じ JSON の字にして戻す（版 3.113.0 の作った後の採点の割れ 1。前は repr の字）
+    from ..repositories.master_repository import conv_cell
+    data = {k: conv_cell(k, preset[k]) for k in ("入力", "判定", "その他", "当て方")}
     return master_call(lambda: repo.conversion_update(item_id, data, base) and _listing())
 
 
