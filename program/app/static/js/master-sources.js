@@ -43,7 +43,8 @@ const fullPath = (p) => {
 const when = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const hm = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${p(d.getHours())}:${p(d.getMinutes())}`; };
 /* 状態: 行の数（言葉で）と写した時刻（淡く。日付は題に）。点の色だけに頼らない */
-/* 作業実績の登録の読めない行の札（版 3.113.0 の作った後の採点 B1）: 欄を開く前の一覧の「実績」の状態と「設備」の段の見出しの要約に、表の要約の札と
+/* 作業実績の登録の読めない行の札（版 3.113.0 の作った後の採点 B1）: 欄を開く前の一覧の「実績」の名前の横（役割の札と同じ置き場。状態の欄は狭く
+   1280 で切れた）と「設備」の段の見出しの要約に、表の要約の札と
    同じ形（.db-warnb・「⚠ 実績の設備の読めない行 n」）で出す。数は登録の一覧の skipped（開いた後）か、置き場の状態（帯と同じ /api/masters/status） */
 function wlSkipChip() {
   const sk = (mstate.data.worklog && mstate.data.worklog.skipped) || (mstate.place && mstate.place.masters && (mstate.place.masters.work_log_files || {}).skipped) || [];
@@ -53,7 +54,7 @@ function wlSkipChip() {
 }
 function stateOf(s) {
   const m = s.mirror;
-  if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>${wlSkipChip()}`;
+  if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>`;
   if (s.kind === "cm3") return m && m.mirrored ? `<span class="sr-state ${m.unreachable ? "ng" : "ok"}" title="CM3 から最後に取った ${when(m.checkedAt || m.copiedAt)}"><i></i>${s.equipCount != null ? `${s.equipCount} 設備` : "取った"} <small>${hm(m.checkedAt || m.copiedAt)}</small></span>`
     : '<span class="sr-state" title="開くと CM3 から取ります"><i></i>まだ取っていない</span>';
   if (s.kind === "view" && s.broken) return '<span class="sr-state ng"><i></i>元がありません</span>';
@@ -134,7 +135,7 @@ function paintSources(notice = null) {
     const file = s.kind === "view" ? `元: ${escapeHtml(s.baseName || "（ありません）")}` : escapeHtml(fileOf(whereOf(s)) || "（決まっていません）");
     return `<tr class="sr-row${s.listed ? "" : " is-off"}" data-key="${escapeHtml(s.key)}" data-group="${escapeHtml(s.group || "")}"${can && canHide(s) ? ' draggable="true"' : ""}>
       <td class="sr-gp">${can && canHide(s) ? '<span class="sr-grip" title="つかんで並べ替え・グループへ移す（選んで Alt＋↑↓ でも）" tabindex="0" data-sr-grip>⠿</span>' : ""}</td>
-      <td class="sr-nm" data-sr-open="${escapeHtml(s.key)}" title="${escapeHtml(`表 ${s.table || "自動"}・${s.equipColumn ? `設備の列 ${s.equipColumn}（${s.equipMode}）` : "設備は見分けない"}\n押すと直す欄になります`)}">${nested ? '<span class="sr-tree" aria-hidden="true">└</span>' : ""}<b>${escapeHtml(s.name)}</b>${roleChip(s)}</td>
+      <td class="sr-nm" data-sr-open="${escapeHtml(s.key)}" title="${escapeHtml(`表 ${s.table || "自動"}・${s.equipColumn ? `設備の列 ${s.equipColumn}（${s.equipMode}）` : "設備は見分けない"}\n押すと直す欄になります`)}">${nested ? '<span class="sr-tree" aria-hidden="true">└</span>' : ""}<b>${escapeHtml(s.name)}</b>${roleChip(s)}${s.kind === "folder" ? wlSkipChip() : ""}</td>
       <td class="sr-file" title="${escapeHtml(s.kind === "view" ? `${s.baseName || ""} の写しに結合を当てた表` : whereOf(s))}"><span class="sr-fname">${file}</span></td>
       <td>${stateOf(s)}</td><td>${sw(s)}</td><td class="sr-jc">${joinCell(s)}</td>
       <td class="sr-ac"><button type="button" class="pz-btn sr-edit" data-sr-edit="${escapeHtml(s.key)}">${can ? "変える…" : "見る"}</button></td></tr>`;

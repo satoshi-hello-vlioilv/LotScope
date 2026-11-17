@@ -469,12 +469,13 @@ async function masterPart(p, tag) {
 async function worklogPart(p, tag) {
   await sleep(600);
   const listChip = await p.evaluate(() => { const row = document.querySelector('[data-sr-open="work"]')?.closest("tr"); const c = row?.querySelector(".sr-skip");
-    if (!c) return null; const r = c.getBoundingClientRect(), k = getComputedStyle(c);
-    return { text: c.textContent, h: Math.round(r.height), bg: k.backgroundColor, inRow: r.bottom <= row.getBoundingClientRect().bottom + 1, pageX: document.documentElement.scrollWidth <= innerWidth + 1 }; });
+    if (!c) return null; const r = c.getBoundingClientRect(), k = getComputedStyle(c), td = c.closest("td"), tr = td.getBoundingClientRect();
+    return { text: c.textContent, h: Math.round(r.height), bg: k.backgroundColor, inRow: r.bottom <= row.getBoundingClientRect().bottom + 1,
+             inCell: r.left >= tr.left - 1 && r.right <= tr.right + 1, cut: td.scrollWidth > td.clientWidth + 1, pageX: document.documentElement.scrollWidth <= innerWidth + 1 }; });
   await shot(p, `skip-worklog-list-${tag}`, await p.evaluate(() => { const r = (document.querySelector('[data-sr-open="work"]')?.closest("table") || document.body).getBoundingClientRect();
     return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 120) }; }));
-  check(`⑩ ${tag} 欄を開く前のデータ元の一覧の「実績」の状態に同じ形の札（「⚠ 実績の設備の読めない行 2」・行に収まる・横に送らない）`,
-    listChip && listChip.text === "⚠ 実績の設備の読めない行 2" && listChip.h <= 22 && listChip.inRow && listChip.pageX, listChip);
+  check(`⑩ ${tag} 欄を開く前のデータ元の一覧の「実績」の名前の横に同じ形の札（「⚠ 実績の設備の読めない行 2」・欄に収まり切れない・行に収まる・横に送らない）`,
+    listChip && listChip.text === "⚠ 実績の設備の読めない行 2" && listChip.h <= 22 && listChip.inRow && listChip.inCell && !listChip.cut && listChip.pageX, listChip);
   await p.evaluate(() => document.querySelector('[data-sr-open="work"]')?.click()); await sleep(1500);
   const head = await p.evaluate(() => { const h = document.querySelector('.sr-card.is-open .sr-sec[data-sec="equip"] .sr-sh'); const c = h?.querySelector(".sr-skip");
     if (!c) return null; const r = c.getBoundingClientRect(), hr = h.getBoundingClientRect();
