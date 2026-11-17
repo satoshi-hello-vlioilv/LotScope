@@ -253,7 +253,13 @@ pub fn parse_master(raw: &[u8], _path: &Path) -> Result<Value, ReadErr> {
     // 深い入れ子は J で読む（serde は大きな整数を小数に丸める・NaN を読めない）
     let wide = has_wide_int(b);
     let v = match (wide, serde_json::from_slice::<Value>(b)) {
-        (false, Ok(v)) => v,
+        (false, Ok(v)) => {
+            // 行の値の表の鍵の順を覚える（repr を Python と同じ字に。版 3.113.0 の割れ 2）
+            if let Ok(t) = std::str::from_utf8(b) {
+                crate::held::note_text_order(t, &v);
+            }
+            v
+        }
         (_, r) => {
             let Ok(text) = std::str::from_utf8(b) else { return Err(ReadErr::Broken(r.err())) };
             match crate::held::parse(text) {

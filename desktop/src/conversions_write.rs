@@ -517,6 +517,8 @@ struct Read {
     iso: master_rows::Iso,
     unreadable: Option<String>,
     own: Vec<Value>,
+    /// 標準の読めない行（名前・何行目・理由。版 3.113.0 の作った後の採点の割れ 1: 標準に戻すで黙って「プリセットに無い」と言わない）
+    own_blocked: Vec<(String, usize, String)>,
     bundled: Vec<Value>,
 }
 
@@ -567,31 +569,38 @@ fn read(place: &Place) -> Option<Read> {
     let mut all = place.rows_peek(NAME).ok()?;
     let own_all = place.rows_peek(DEFAULTS).ok()?;
     // 標準の読めない行も版 3.108.0 から隔てる（Python の _list と同じ row_check::FILTERED。前は Python に任せた）
-    let mut own: Vec<Value> = {
+    let (mut own, own_blocked): (Vec<Value>, Vec<(String, usize, String)>) = {
         let mut norm = own_all.clone();
         crate::row_check::normalize_like_specs(DEFAULTS, &mut norm);
         let iso = crate::row_check::check(DEFAULTS, &norm, crate::row_check::fields_of(DEFAULTS));
-        own_all.into_iter().enumerate().filter(|(i, r)| r.is_object() && !crate::row_check::is_isolated(&iso, *i)).map(|(_, r)| r).collect()
+        let blocked =
+            iso.iter().filter_map(|(i, n, why)| own_all[*i].as_object().map(|o| (s_or(o.get("名前")), *n, why.clone()))).collect();
+        (
+            own_all
+                .into_iter()
+                .enumerate()
+                .filter(|(i, r)| r.is_object() && !crate::row_check::is_isolated(&iso, *i))
+                .map(|(_, r)| r)
+                .collect(),
+            blocked,
+        )
     };
     master_rows::normalize_all(&mut all, &SPEC);
     // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値は版 3.108.0 から桁のまま
     // （中身の字も bundle::conv_views が src/held.rs で読む）。標準の読めない行も隔てる（上の own。row_check::FILTERED）
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
     let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
-    // 行の値が並び・表（手で直した共有の行）も版 3.113.0 から窓が読む（中身の列の形が違う行は row_check::SHAPES で隔てた。名前・その他の
-    // 並びは Python の str()〈repr〉・表示順は int() が読めなければ 0。前は道を全部中身へ回した: 採点の指摘 2）
-    let plain = |rows: &[Value]| {
-        rows.iter()
-            .all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
-    };
-    if !plain(&rows) || !plain(&own) || !own.iter().all(|r| r.as_object().is_some_and(|o| master_rows::row_readable(DEFAULTS, o))) {
+    // 行の値が並び・表（手で直した共有の行）・小数の大きな整数（1e19 など）も版 3.113.0 から窓が読む（中身の列の形が違う行は
+    // row_check::SHAPES で隔てた。名前・その他の並び・表は Python の str()〈repr。鍵は書かれた順〉・小数は float の repr・表示順は int()）。
+    // 前は道を全部中身へ回した（採点の指摘 2・作った後の採点の割れ 6）。標準の行は id・版が読める物だけ（隔てた後）
+    if !own.iter().all(|r| r.as_object().is_some_and(|o| master_rows::row_readable(DEFAULTS, o))) {
         return None;
     }
     master_rows::normalize_all(&mut own, &SPEC_D);
     crate::bundle::conv_views(&rows).ok()?;
     // 標準は名前で引く・名前の集まりにするだけ（Python も並べない）。並べる道（書き出し・標準にする）は export_items が確かめて任せる
     // （版 3.108.0 の作った後の採点の割れ 3: 前は標準の字の id の行で、並べない道まで全部 Python に任せた）
-    let r = Read { rows, all, iso, unreadable: place.share_problem(NAME), own, bundled: bundled(place)? };
+    let r = Read { rows, all, iso, unreadable: place.share_problem(NAME), own, own_blocked, bundled: bundled(place)? };
     // 標準の名前の集まり（{r["名前"]}・sorted）: 名前の無い・字でない行は Python が落ちる
     if !r.presets().iter().all(|p| p.get("名前").is_some_and(crate::held::is_text)) {
         return None;
@@ -685,6 +694,18 @@ pub fn set_between_writes(f: Option<Between>) {
     *BETWEEN.lock().unwrap_or_else(|e| e.into_inner()) = f;
 }
 
+/// 変換表の行・標準へ置く値（Python の master_repository._conv_cell。版 3.113.0 の作った後の採点の割れ 1）: 中身の列（入力・判定・当て方）の
+/// 並び・表そのものは、画面が書くのと同じ JSON の字（json.dumps(ensure_ascii=False)。表の鍵は書かれた順: held::to_j）。ほかは _clean の字。
+/// 前は「標準にする」で並び・表のまま置き、「標準に戻す」で repr の字にして、戻した表が黙って空になった
+fn conv_cell(k: &str, v: Option<&Value>) -> Value {
+    match v {
+        Some(x @ (Value::Array(_) | Value::Object(_))) if matches!(k, "入力" | "判定" | "当て方") => {
+            json!(crate::held::to_j(x).dumps(None))
+        }
+        v => json!(master_rows::clean(v)),
+    }
+}
+
 /// conversion_defaults_set: 標準をこの並びに置き換える（id は 1 から・版 1・書いた人と時刻。空なら同梱のプリセットに戻る）
 fn defaults_set(store: &Store, rows: &[Map<String, Value>]) -> Result<usize, MasterError> {
     store.write(DEFAULTS, |cur, stamp| {
@@ -693,12 +714,7 @@ fn defaults_set(store: &Store, rows: &[Map<String, Value>]) -> Result<usize, Mas
             let mut row = Map::new();
             row.insert("id".into(), json!(i + 1));
             for k in FIELDS {
-                // 中身の列の並び・表そのもの（手で直した共有の行）はそのまま置く（版 3.113.0。Python の _conv_cell と同じ。前は repr の字にした）
-                let v = match data.get(k) {
-                    Some(v @ (Value::Array(_) | Value::Object(_))) if matches!(k, "入力" | "判定" | "当て方") => v.clone(),
-                    v => json!(master_rows::clean(v)),
-                };
-                row.insert(k.into(), v);
+                row.insert(k.into(), conv_cell(k, data.get(k)));
             }
             row.insert("rev".into(), json!(1));
             master_rows::stamped(&mut row, stamp);
@@ -846,6 +862,14 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Value::String(n) => r.presets().iter().find(|p| s_or(p.get("名前")) == *n),
                 _ => None,
             };
+            if preset.is_none() {
+                let name = s_or(Some(&raw));
+                if let Some((_, n, why)) = r.own_blocked.iter().find(|(nm, _, _)| *nm == name) {
+                    return Some(of_master(MasterError::Unreadable(format!(
+                        "conversion_defaults.json の {n} 行目が読めません（{why}）。標準に戻すには、ファイルを直すか、「今の表をすべて標準にする」で標準を置き直してください。"
+                    ))));
+                }
+            }
             let Some(preset) = preset else {
                 return Some((
                     400,
@@ -855,10 +879,7 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
             let mut data = Map::new();
             for k in ["入力", "判定", "その他", "当て方"] {
                 let v = preset.get(k)?; // 列の無い標準は Python が道の外で落ちる（KeyError）
-                if !master_rows::value_plain_or_container(v) {
-                    return None;
-                }
-                data.insert(k.into(), v.clone());
+                data.insert(k.into(), conv_cell(k, Some(v)));
             }
             match master_rows::update(store, &SPEC, &id, &data, base, &check) {
                 Ok(_) => done(200, json!({})),

@@ -1,5 +1,5 @@
 {
- "about": "式の正規表現の事例（tools/formula-regex-cases.py が Python の formula.js_regex と画面の JavaScript から焼く。版 3.106.0・3.113.0）。正しい答え want は js かつ ok（画面が読み、サーバーも計算できる）。窓は cargo test --test formula_regex_cases で want と同じに読めるかを確かめる。古い表は tests/test_formula_regex_cases.py が止める",
+ "about": "式の正規表現の事例（tools/formula-regex-cases.py が Python の formula.js_regex と画面の JavaScript から焼く。版 3.106.0・3.113.0）。正しい答え want は画面の JavaScript の答え js（版 3.113.0 の作った後の直しから。後読みは人が決めた SPEC_LOOKBEHIND とも同じ）。窓は cargo test --test formula_regex_cases で want と同じに読めるかを確かめる。古い表は tests/test_formula_regex_cases.py が止める",
  "cases": [
   {
    "pattern": "^L-",
@@ -732,17 +732,17 @@
   {
    "pattern": "(?<=L+)\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
    "pattern": "(?<=(L)\\1)",
    "ok": false,
-   "why": "cannot refer to group defined in the same lookbehind subpattern at position 12",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -1636,9 +1636,9 @@
   {
    "pattern": "(?<=a{1,2})b",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2060,9 +2060,9 @@
   {
    "pattern": "(?<=x(?:L|CR))\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2132,9 +2132,9 @@
   {
    "pattern": "(?<!a+|b)c",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2148,9 +2148,9 @@
   {
    "pattern": "(?<=(L|CR))\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2164,17 +2164,17 @@
   {
    "pattern": "(?<=(?:L|CR)|x)\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
    "pattern": "(?<=(?<n>L|CR))\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2188,9 +2188,9 @@
   {
    "pattern": "(?<=(?:L|CR)+)\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
@@ -2204,26 +2204,90 @@
   {
    "pattern": "(?<=(?:L|(?:C|DE)))\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
    "pattern": "(?<=a(?:b|cd)e)f",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
-   "js": true,
-   "jsWhy": "",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
   },
   {
    "pattern": "(?<=[AB]|(?:C|DE))\\d",
    "ok": false,
-   "why": "look-behind requires fixed-width pattern",
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "want": false
+  },
+  {
+   "pattern": "(?<=x(?:L|C))y",
+   "ok": true,
+   "why": "",
    "js": true,
    "jsWhy": "",
+   "want": true
+  },
+  {
+   "pattern": "(?<=a{2,2})b",
+   "ok": true,
+   "why": "",
+   "js": true,
+   "jsWhy": "",
+   "want": true
+  },
+  {
+   "pattern": "(?<=a{2,})b",
+   "ok": false,
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
    "want": false
+  },
+  {
+   "pattern": "(?<=a?)b",
+   "ok": false,
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "want": false
+  },
+  {
+   "pattern": "(?<=(?:ab){2})x",
+   "ok": true,
+   "why": "",
+   "js": true,
+   "jsWhy": "",
+   "want": true
+  },
+  {
+   "pattern": "(?<=(?:a|bc){2})x",
+   "ok": false,
+   "why": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "js": false,
+   "jsWhy": "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）",
+   "want": false
+  },
+  {
+   "pattern": "(?<=\\k<n>)x",
+   "ok": true,
+   "why": "",
+   "js": true,
+   "jsWhy": "",
+   "want": true
+  },
+  {
+   "pattern": "(?<=(?<=a|bc)b)c",
+   "ok": true,
+   "why": "",
+   "js": true,
+   "jsWhy": "",
+   "want": true
   }
  ]
 }

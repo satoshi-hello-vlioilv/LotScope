@@ -20,9 +20,20 @@ fn regexes_read_like_the_table() {
         }
     }
     assert!(bad.is_empty(), "{} 形が正しい答えと割れる:\n{}", bad.len(), bad.join("\n"));
-    // 画面だけが読む形（長さの決まらない後読み）が表にあり、窓は断る
-    let js_only = cases.iter().filter(|c| c["js"] == true && c["want"] == false).count();
-    assert!(js_only >= 3, "画面だけが読む後読みの形が表にある: {js_only}");
+    // 長さの決まらない後読みは画面も窓も断る（版 3.113.0 の作った後の直し: 前は画面だけが読んだ）。断る言葉は画面と同じ日本語の 1 つ
+    let lb_no: Vec<&Value> = cases
+        .iter()
+        .filter(|c| {
+            c["pattern"].as_str().is_some_and(|p| p.contains("(?<"))
+                && c["want"] == false
+                && c["jsWhy"].as_str().is_some_and(|w| w.contains("長さの決まる形だけ"))
+        })
+        .collect();
+    assert!(lb_no.len() >= 10, "断る後読みの形が表にある: {}", lb_no.len());
+    for c in lb_no {
+        let src: Vec<u16> = c["pattern"].as_str().unwrap().encode_utf16().collect();
+        assert_eq!(da_core::formula::regex_risk(&src).as_deref(), c["jsWhy"].as_str(), "{}", c["pattern"]);
+    }
     let split =
         cases.iter().filter(|c| c["pattern"].as_str().is_some_and(|p| p.contains("(?<=") && p.contains('|')) && c["want"] == true).count();
     assert!(split >= 3, "枝の長さの違う後読みが読める形で表にある: {split}");

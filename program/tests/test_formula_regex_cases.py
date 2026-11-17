@@ -20,7 +20,11 @@ class Table(unittest.TestCase):
         cases = json.loads(tool.OUT.read_text(encoding="utf-8"))["cases"]
         bad = [c["pattern"] for c in cases if c["ok"] != c["want"]]
         self.assertEqual(bad, [], "Python が正しい答えと割れる形")
-        self.assertGreaterEqual(sum(1 for c in cases if c["js"] and not c["want"]), 3, "画面だけが読む後読みの形")
+        # 版 3.113.0 の作った後の直し: 画面も後読みの決まりで断る（画面だけが読む形は無い）。後読みの断る形は人の決め SPEC_LOOKBEHIND にある
+        self.assertEqual([c["pattern"] for c in cases if c["js"] != c["want"]], [])
+        self.assertGreaterEqual(sum(1 for v in tool.SPEC_LOOKBEHIND.values() if not v), 10, "断る後読みの形")
+        lb = [c for c in cases if "(?<" in c["pattern"] and not c["want"] and c["pattern"] in tool.SPEC_LOOKBEHIND]
+        self.assertTrue(all("長さの決まる形だけ" in c["why"] and "長さの決まる形だけ" in c["jsWhy"] for c in lb), "断る言葉は日本語の 1 つ")
 
 
 class SplitLookbehind(unittest.TestCase):

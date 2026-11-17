@@ -2058,7 +2058,8 @@ impl Builder {
         };
         let sub = |k: &str| -> Map<String, Value> { li.get(k).and_then(Value::as_object).cloned().unwrap_or_default() };
         let (a, d) = (sub("api"), sub("direct"));
-        let url = s(li.get("url"))?;
+        // str(li.get("url") or "").strip()（偽の値〈0・false・[]・{}〉は空。版 3.113.0 の作った後の採点の割れ 5: 前は「0」「False」と読み LotDsp を有効と答えた）
+        let url = if truthy(li.get("url")) { s(li.get("url"))? } else { String::new() };
         let flag = |m: &Map<String, Value>, k: &str| m.get(k).map(|v| truthy(Some(v))).unwrap_or(true);
         let api_on = flag(&a, "enabled") && (!url.is_empty() || truthy(a.get("search_url")));
         let direct_on = flag(&d, "enabled") && !url.is_empty();

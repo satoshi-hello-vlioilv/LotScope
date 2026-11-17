@@ -261,6 +261,134 @@ def regex_risk(src):
         i += 1
     if dots > DOT_REPEAT_MAX:
         return f"「.*」「.+」は {DOT_REPEAT_MAX} つまでです（とても重くなるため）"
+    return lookbehind_risk(src)
+
+
+# ③ 後読み（版 3.113.0 の作った後の採点の割れ 4）: サーバーが計算できる形だけ。後読みの中身（中身全部を包むだけの (?: ) は外す）を | で分けた枝ごとに
+# 長さが決まること（* + ? {n,m} {n,} と \1 などの引き直しが無い・かっこの中の | は同じ長さ）。枝どうしの長さは違ってよい（split_lookbehind で読む）。
+# 前は re の英語の言葉（look-behind requires fixed-width pattern）だった。画面の list-formula.js の lookbehindRisk・窓の formula::lookbehind_risk と同じ
+LB_MSG = "後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）"
+_LB_QUANT = re.compile(r"\{(\d+)(,(\d*))?\}")
+
+
+def _re_close(s, i):
+    d, cls, j = 0, False, i
+    while j < len(s):
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif c == "(":
+            d += 1
+        elif c == ")":
+            d -= 1
+            if d == 0:
+                return j
+        j += 1
+    return -1
+
+
+def _re_alts(s):
+    out, d, cls, st, j = [], 0, False, 0, 0
+    while j < len(s):
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif c == "(":
+            d += 1
+        elif c == ")":
+            d -= 1
+        elif c == "|" and d == 0:
+            out.append(s[st:j])
+            st = j + 1
+        j += 1
+    out.append(s[st:])
+    return out
+
+
+def _re_fixed(s, named):
+    n = i = 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            d = s[i + 1:i + 2]
+            if d in "123456789" and d or (d == "k" and s[i + 2:i + 3] == "<" and named):
+                return None
+            t = 0 if d in ("b", "B") and d else 1
+            i += 2
+        elif c == "[":
+            j = i + 1
+            if s[j:j + 1] == "^":
+                j += 1
+            if s[j:j + 1] == "]":
+                j += 1
+            while j < len(s) and s[j] != "]":
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            t, i = 1, j + 1
+        elif c == "(":
+            e = _re_close(s, i)
+            if e < 0:
+                return None
+            inner, i = s[i + 1:e], e + 1
+            if re.match(r"\?(=|!|<=|<!)", inner):
+                t = 0
+            else:
+                inner = inner[2:] if inner.startswith("?:") else re.sub(r"^\?<[^>]*>", "", inner)
+                ls = [_re_fixed(a, named) for a in _re_alts(inner)]
+                if any(x is None or x != ls[0] for x in ls):
+                    return None
+                t = ls[0]
+        else:
+            t = 0 if c in "^$" else 1
+            i += 1
+        q = s[i:i + 1]
+        if q in ("*", "+", "?") and q:
+            return None
+        m = _LB_QUANT.match(s, i) if q == "{" else None
+        if m:
+            if m.group(2) and m.group(3) != m.group(1):
+                return None
+            t *= int(m.group(1))
+            i = m.end()
+            if s[i:i + 1] == "?":
+                i += 1
+        n += t
+    return n
+
+
+def lookbehind_risk(src):
+    named = re.search(r"\(\?<(?![=!])", src) is not None
+    cls, i = False, 0
+    while i < len(src):
+        c = src[i]
+        if c == "\\":
+            i += 2
+            continue
+        if cls:
+            cls = c != "]"
+        elif c == "[":
+            cls = True
+        elif src.startswith("(?<=", i) or src.startswith("(?<!", i):
+            e = _re_close(src, i)
+            if e < 0:
+                return ""
+            body = src[i + 4:e]
+            while body.startswith("(?:") and _re_close(body, 0) == len(body) - 1:
+                body = body[3:-1]
+            if any(_re_fixed(b, named) is None for b in _re_alts(body)):
+                return LB_MSG
+        i += 1
     return ""
 
 

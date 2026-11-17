@@ -386,7 +386,38 @@ SCENARIOS = [
                S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/import", {"items": [T("並びの入力を直す")]}),
                S("PUT", f"{C}/27", {"other": "=[a]", "inputs": [{"name": "a"}]}), S("DELETE", f"{C}/26"), S("GET", C)]},
     {"name": "標準の行の入力が表（隔てて答える）", "mode": "shared", "own_shape": True,
-     "steps": [S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/2/preset"), S("POST", f"{C}/1/preset"), S("GET", C)]},
+     "steps": [S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/2/preset"), S("POST", f"{C}/1/preset"),
+               # 版 3.113.0 の作った後の採点の割れ 1: 標準の並び・表そのもの（課名）から戻すと、画面が書くのと同じ JSON の字で置く（前は repr の字で表が空）
+               S("POST", f"{C}/8/preset"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 1: 並び・表の値の表を「標準にする」→「標準に戻す」しても表が空にならない（標準は JSON の字で置く）。
+    # 前の版の「標準に戻す」が書いた repr の字の行・標準は読めない行として隔てて知らせる（黙って空の表に読まない）
+    {"name": "並びの表を標準にして標準に戻す", "mode": "shared", "extra_rows": [
+        {"id": 50, "名前": "並びの標準", "入力": [{"type": "text", "name": "a", "columns": ["列A"]}], "判定": [{"out": "有", "when": {}}],
+         "当て方": {"mode": "add", "column": "{列}_x"}, "その他": "", "rev": 1},
+        {"id": 51, "名前": "前の版の repr の字", "入力": "[{'name': 'a', 'type': 'text', 'columns': ['列A']}]", "判定": "[]", "当て方": "{'mode': 'add'}", "rev": 1}],
+     "steps": [S("POST", f"{C}/defaults", {"from": "current"}), S("GET", f"{C}/export", query="which=defaults"), S("PUT", f"{C}/50", {"name": "並びの標準"}),
+               S("POST", f"{C}/50/preset"), S("GET", C), S("GET", f"{C}/export"), S("POST", f"{C}/51/preset"), S("DELETE", f"{C}/51")]},
+    {"name": "前の版が repr の字で置いた標準（隔てて答える）", "mode": "shared", "own_repr": True,
+     "steps": [S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/8/preset"), S("POST", f"{C}/2/preset"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 2: 表の鍵が 2 つ以上の値の str()（repr）は書かれた順（Python と同じ字）
+    {"name": "その他・名前が鍵 2 つ以上の表", "mode": "shared", "extra_rows": [
+        {"id": 52, "名前": "二つの鍵", "入力": "[]", "その他": {"b": 1, "a": 2, "c": [{"z": 1, "y": 2}]}, "rev": 1},
+        {"id": 53, "名前": {"y": "名前", "x": 1}, "入力": "[]", "表示順": "7", "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("PUT", f"{C}/52", {"order": 3}), S("POST", f"{C}/defaults", {"from": "current"}),
+               S("GET", f"{C}/export", query="which=defaults"), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 3: 画面が落ちる要素の形（入力の要素が表でない・columns が並びでない・当て方の column が字でない）は隔てる
+    {"name": "入力の要素・columns・当て方の column の形（隔てて答える）", "mode": "shared", "extra_rows": [
+        {"id": 54, "名前": "入力の要素が null", "入力": [None], "rev": 1},
+        {"id": 55, "名前": "columns が数", "入力": '[{"name": "a", "columns": 5}]', "rev": 1},
+        {"id": 56, "名前": "column が数", "入力": "[]", "当て方": {"mode": "add", "column": 5}, "rev": 1},
+        {"id": 57, "名前": "column が表", "入力": "[]", "当て方": '{"mode": "add", "column": {"a": 1}}', "rev": 1},
+        {"id": 58, "名前": "columns が字", "入力": [{"name": "a", "columns": "列A"}], "rev": 1}],
+     "steps": [S("GET", C), S("PUT", f"{C}/54", {"name": "x"}), S("DELETE", f"{C}/55"), S("POST", f"{C}/defaults", {"from": "current"}), S("GET", C)]},
+    # 版 3.113.0 の作った後の採点の割れ 6: 小数の大きな整数（1e19）の表示順・その他も窓が答える（前は 8 本を中身へ回した）
+    {"name": "表示順・その他が小数の 1e19", "mode": "shared", "extra_rows": [{"id": 45, "名前": "小数の大きな数", "入力": "[]", "表示順": 1e19, "その他": 2.5e19, "rev": 1}],
+     "steps": [S("GET", C), S("GET", f"{C}/export"), S("PUT", f"{C}/1", {"name": "直す"}), S("PUT", f"{C}/45", {"name": "小数の行を直す"}),
+               S("POST", C, T("足す")), S("POST", f"{C}/import", {"items": [T("取り込む")]}), S("POST", f"{C}/defaults", {"from": "current"}),
+               S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/1/preset"), S("DELETE", f"{C}/45"), S("GET", C)]},
     {"name": "置き場の判定の字が NaN（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 17, "名前": "NaN の判定", "判定": '[{"when": {}, "out": NaN}]',
                                                                        "rev": 1}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("PUT", f"{C}/1", {"name": "x"}), S("PUT", f"{C}/17", {"name": "y"}),
@@ -437,6 +468,9 @@ def place(root, sc):
         own += [{"id": 1, "名前": "地取区分", "入力": {"a": 1}, "判定": "[]", "rev": 1},
                 {"id": 2, "名前": "課名", "入力": [{"name": "設備", "type": "text", "columns": ["設備"]}], "判定": [{"when": {}, "out": "並びの標準"}],
                  "その他": "", "当て方": {"mode": "replace"}, "rev": 1}]
+    if sc.get("own_repr"):    # 版 3.113.0: 前の版の「標準にする」が並び・表の値を repr の字にして置いた標準（読めない行として隔てる）
+        own += [{"id": 1, "名前": "課名", "入力": "[{'name': '設備', 'type': 'text', 'columns': ['設備']}]", "判定": "[]", "その他": "", "当て方": "{'mode': 'replace'}", "rev": 1},
+                {"id": 2, "名前": "地取区分", "入力": j([{"name": "地取", "type": "text", "columns": ["地取区分"]}]), "判定": "[]", "その他": "", "当て方": j({"mode": "replace"}), "rev": 1}]
     masters = {"access_permissions": sc.get("perm") or perm(), "conversions": conv, "conversion_defaults": own}
     for n in ("path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns"):
         masters[n] = []

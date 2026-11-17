@@ -80,11 +80,16 @@ def _cell(v):
 
 
 def _conv_cell(k, v):
-    """変換表の標準へ置く字（_clean）。中身の列（入力・判定・当て方）の並び・表そのもの（手で直した共有の行）はそのまま置く（版 3.113.0。
-    前は str() の repr の字〈'name' の一重引用符〉にして、標準の表が JSON として読めず入力の無い表になった。窓の conversions_write::defaults_set と同じ）"""
+    """変換表の行・標準へ置く字（_clean）。中身の列（入力・判定・当て方）の並び・表そのもの（手で直した共有の行）は、画面が書くのと同じ
+    JSON の字（json.dumps(ensure_ascii=False)）にして置く（版 3.113.0 の作った後の採点の割れ 1。前は str() の repr の字〈'name' の一重引用符〉
+    にして、標準・標準に戻した表が JSON として読めず黙って入力の無い表になった。版 3.112.0 の PC も JSON の字の標準は今どおり戻せる。
+    「標準にする」〈conversion_defaults_set〉と「標準に戻す」〈routes/conversions.conversions_reset〉の 2 か所。窓の conversions_write::conv_cell と同じ）"""
     if k in ("入力", "判定", "当て方") and isinstance(v, (list, dict)):
-        return v
+        return json.dumps(v, ensure_ascii=False)
     return _clean(v)
+
+
+conv_cell = _conv_cell
 
 
 def _normalize(row, spec):
@@ -830,6 +835,15 @@ class MasterRepository:
         """標準（「標準に戻す」で戻る中身）。取り込んで標準にした表があればそれ、無ければ同梱のプリセット（版 3.43.0）"""
         own = self._list("conversion_defaults")
         return own if own else self.conversion_bundled()
+
+    def conversion_default_blocked(self, name):
+        """その名前の標準の行が読めない行（隔てた行）なら (何行目, 理由)、無ければ None（版 3.113.0 の作った後の採点の割れ 1: 前の版が
+        repr の字で置いた標準から「標準に戻す」と、黙って同梱にあるか無いかで答えた。窓の conversions_write の own_blocked と同じ）"""
+        rows, iso = self._viewed("conversion_defaults")
+        for r in rows:
+            if id(r) in iso and isinstance(r, dict) and str(r.get("名前") or "") == name:
+                return iso[id(r)]
+        return None
 
     def conversion_defaults_custom(self):
         return bool(self._list("conversion_defaults"))

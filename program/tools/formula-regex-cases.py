@@ -6,8 +6,9 @@
 形は設備グループの正規表現の事例（tests/fixtures/equip_regex_cases.json）の全部と、JavaScript の書き方・危うい形・長さの境を足した物。
 答えは Python の formula.js_regex（JavaScript の正規表現を Python の re へ写して読む）が読めるか（ok）と、読めないときの理由の言葉（why）、
 画面の JavaScript（list-formula.js の reOf: 長さ・regexRisk・new RegExp。tools/formula-regex-js.mjs を node で）が読めるか（js。版 3.113.0）。
-正しい答え（want。版 3.113.0 の採点の指摘 5）は「画面の JavaScript が読み、サーバー（窓の fancy-regex・Python の re）も計算できる」:
-js かつ ok。JavaScript だけが読む形（長さの決まらない後読み (?<=L+)・(?<=a{1,2})・(?<=(L)\1)）はサーバーで計算できないので断る（want false）。
+正しい答え（want）は画面の JavaScript の答え js（版 3.113.0 の作った後の採点の割れ 4・7 (d) から: 画面の regexRisk が後読みの決まり
+〈後読みの中身の枝ごとに長さが決まる〉も見るので、画面が読む形はサーバーも計算できる形）。Python の答え ok からは作らない。
+後読みの形は、人が仕様から決めた答え（SPEC_LOOKBEHIND）と js が同じことを焼くときに確かめる（違えば焼かない）。
 Python は枝の長さの違う後読み (?<=L|CR) を枝ごとの後読みに書き替えて読む（formula.split_lookbehind。前は re が断り、窓は Python に任せた）。
 窓（desktop/src/formula.rs の js_regex）は cargo test --test formula_regex_cases で、どの形も want と同じに「読める・読めない」と答えるかを確かめる。
 node が無いときは js を今の表から読む（表に無い形があれば作り直せない）。
@@ -32,7 +33,20 @@ EXTRA = [
     "(?<=[AB]|CD)\\d", "(?<=[|]|ab)c", "(?<=a\\|b|cd)e", "(?<=L|CR", "(?<=(?<=a|bc)x|y)z", "(?<!a+|b)c", "(?<=L|)\\d",
     "(?<=(L|CR))\\d", "(?<=(?:(?:L|CR)))\\d", "(?<=(?:L|CR)|x)\\d", "(?<=(?<n>L|CR))\\d", "(?<!(?:L|CR))\\d", "(?<=(?:L|CR)+)\\d",
     "(?<=(?:L)|CR)\\d", "(?<=(?:L|(?:C|DE)))\\d", "(?<=a(?:b|cd)e)f", "(?<=[AB]|(?:C|DE))\\d",
+    "(?<=x(?:L|C))y", "(?<=a{2,2})b", "(?<=a{2,})b", "(?<=a?)b", "(?<=(?:ab){2})x", "(?<=(?:a|bc){2})x", "(?<=\\k<n>)x", "(?<=(?<=a|bc)b)c",
 ]
+
+
+# 後読みの形の決め（人が仕様から書いた: 中身全部を包むだけの (?: ) を外し、| で分けた枝ごとに長さが決まる〈* + ? {n,m} {n,}・\1 などの
+# 引き直しが無い・かっこの中の | は同じ長さ〉なら読む。枝どうしの長さは違ってよい）
+SPEC_LOOKBEHIND = {
+    "(?<=L)S": True, "(?<=L|CR)\\d": True, "(?<!L|CR)\\d": True, "(?<=L|CR|ABC)\\d": True, "(?<=(L)|(CR))\\d": True, "(?<=L|C{2})\\d": True,
+    "(?<=[AB]|CD)\\d": True, "(?<=(?:L|CR))\\d": True, "(?<=(?:(?:L|CR)))\\d": True, "(?<!(?:L|CR))\\d": True, "(?<=(?:L)|CR)\\d": True,
+    "(?<=x(?:L|C))y": True, "(?<=a{2,2})b": True, "(?<=(?:ab){2})x": True, "(?<=\\k<n>)x": True, "(?<=(?<=a|bc)b)c": True, "(?<=L|)\\d": True,
+    "(?<=L+)\\d": False, "(?<=a{1,2})b": False, "(?<=(L)\\1)": False, "(?<=x(?:L|CR))\\d": False, "(?<=(L|CR))\\d": False,
+    "(?<=(?:L|CR)|x)\\d": False, "(?<=(?<n>L|CR))\\d": False, "(?<!a+|b)c": False, "(?<=(?:L|CR)+)\\d": False, "(?<=(?:L|(?:C|DE)))\\d": False,
+    "(?<=a(?:b|cd)e)f": False, "(?<=[AB]|(?:C|DE))\\d": False, "(?<=a{2,})b": False, "(?<=a?)b": False, "(?<=(?:a|bc){2})x": False,
+}
 
 
 def patterns():
@@ -73,10 +87,15 @@ def build():
         except FormulaError as e:
             c = {"pattern": p, "ok": False, "why": str(e)}
         c["js"], c["jsWhy"] = js[p]
-        c["want"] = c["ok"] and c["js"]
+        c["want"] = c["js"]
+        if p in SPEC_LOOKBEHIND and SPEC_LOOKBEHIND[p] != c["want"]:
+            raise SystemExit(f"後読みの決め（SPEC_LOOKBEHIND）と画面の答えが違います: {p} 決め {SPEC_LOOKBEHIND[p]} / 画面 {c['js']}")
         cases.append(c)
+    missing = [p for p in SPEC_LOOKBEHIND if p not in pats]
+    if missing:
+        raise SystemExit(f"後読みの決めの形が表にありません: {missing}")
     return {"about": "式の正規表現の事例（tools/formula-regex-cases.py が Python の formula.js_regex と画面の JavaScript から焼く。版 3.106.0・3.113.0）。"
-                     "正しい答え want は js かつ ok（画面が読み、サーバーも計算できる）。窓は cargo test --test formula_regex_cases で want と同じに"
+                     "正しい答え want は画面の JavaScript の答え js（版 3.113.0 の作った後の直しから。後読みは人が決めた SPEC_LOOKBEHIND とも同じ）。窓は cargo test --test formula_regex_cases で want と同じに"
                      "読めるかを確かめる。古い表は tests/test_formula_regex_cases.py が止める",
             "cases": cases}
 

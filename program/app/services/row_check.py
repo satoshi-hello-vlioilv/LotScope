@@ -164,7 +164,9 @@ def kind_of(v):
 
 
 def shape_problem(col, v, want):
-    """中身の列の形の理由（隔てないなら None。SHAPES）"""
+    """中身の列の形の理由（隔てないなら None。SHAPES）。版 3.113.0 の作った後の採点の割れ 1・3: JSON として読めない字（前の版の
+    「標準に戻す」が書いた repr の字〈[{'name': 'a'}]〉など。前は黙って空の表に読んだ）・入力の要素が表でない・要素の columns が並びでない・
+    当て方の column が字でない（画面の conversions.js・master-conv.js が TypeError で落ちる形）も隔てる"""
     if v is None:
         return None
     if isinstance(v, str):
@@ -172,15 +174,25 @@ def shape_problem(col, v, want):
             return None
         try:
             x = json.loads(v)
-        except (ValueError, RecursionError):
+        except RecursionError:
             return None
+        except ValueError:
+            return f"「{col}」が JSON として読めません（{short(v)}）"
         if x is None:
             return None
     else:
         x = v
-    if isinstance(x, want):
-        return None
-    return f"「{col}」が{'並び' if want is list else '表'}ではありません（{kind_of(x)}）"
+    if not isinstance(x, want):
+        return f"「{col}」が{'並び' if want is list else '表'}ではありません（{kind_of(x)}）"
+    if col == "入力":
+        for i, it in enumerate(x, 1):
+            if not isinstance(it, dict):
+                return f"「入力」の {i} つ目が表ではありません（{kind_of(it)}）"
+            if it.get("columns") is not None and not isinstance(it["columns"], list):
+                return f"「入力」の {i} つ目の columns が並びではありません（{kind_of(it['columns'])}）"
+    if col == "当て方" and x.get("column") is not None and not isinstance(x["column"], str):
+        return f"「当て方」の column が字ではありません（{kind_of(x['column'])}）"
+    return None
 
 
 def problem(name, r, fields):

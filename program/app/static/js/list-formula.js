@@ -220,7 +220,49 @@
    if(q>=0){st[st.length-1]=true;if(i>0&&src[i-1]==='.'&&(i<2||src[i-2]!=='\\'))dots++;i=q;continue}
    i++;
   }
-  return dots>DOT_REPEAT_MAX?`「.*」「.+」は ${DOT_REPEAT_MAX} つまでです（とても重くなるため）`:'';
+  return dots>DOT_REPEAT_MAX?`「.*」「.+」は ${DOT_REPEAT_MAX} つまでです（とても重くなるため）`:lookbehindRisk(src);
+ }
+ /* ③ 後読み（版 3.113.0 の作った後の採点の割れ 4）: サーバー（窓の fancy-regex・Python の re）が計算できる形だけ。後読みの中身（中身全部を包むだけの
+    (?: ) は外す）を | で分けた枝ごとに長さが決まること（* + ? {n,m} {n,} と \1 などの引き直しが無い・かっこの中の | は同じ長さ）。枝どうしの長さは
+    違ってよい（(?<=L|CR)）。前は画面だけが読み、一覧に値を出し、サーバーは空で一覧とダッシュボードの数が合わなかった。
+    Python の services/formula.lookbehind_risk・窓の formula::lookbehind_risk と同じ決まり。事例は tests/fixtures/formula_regex_cases.json */
+ const LB_MSG='後読み（(?<=…)・(?<!…)）の中は長さの決まる形だけ使えます（* + ? {n,m} と \\1 などの引き直しは使えません）';
+ function reClose(s,i){let d=0,cls=false;for(let j=i;j<s.length;j++){const c=s[j];if(c==='\\'){j++;continue}if(cls){if(c===']')cls=false;continue}if(c==='['){cls=true;continue}if(c==='(')d++;else if(c===')'&&--d===0)return j}return -1}
+ function reAlts(s){const out=[];let d=0,cls=false,st=0;for(let j=0;j<s.length;j++){const c=s[j];if(c==='\\'){j++;continue}if(cls){if(c===']')cls=false;continue}if(c==='['){cls=true;continue}if(c==='(')d++;else if(c===')')d--;else if(c==='|'&&d===0){out.push(s.slice(st,j));st=j+1}}out.push(s.slice(st));return out}
+ function reFixed(s,named){
+  let n=0,i=0;
+  while(i<s.length){
+   const c=s[i];let t=1;
+   if(c==='\\'){const d=s[i+1]||'';if(/[1-9]/.test(d)||(d==='k'&&s[i+2]==='<'&&named))return null;t=d==='b'||d==='B'?0:1;i+=2}
+   else if(c==='['){let j=i+1;if(s[j]==='^')j++;if(s[j]===']')j++;while(j<s.length&&s[j]!==']'){if(s[j]==='\\')j++;j++}t=1;i=j+1}
+   else if(c==='('){const e=reClose(s,i);if(e<0)return null;let inner=s.slice(i+1,e);i=e+1;
+    if(/^\?(=|!|<=|<!)/.test(inner))t=0;
+    else{inner=inner.startsWith('?:')?inner.slice(2):inner.replace(/^\?<[^>]*>/,'');const ls=reAlts(inner).map((a)=>reFixed(a,named));if(ls.some((x)=>x===null||x!==ls[0]))return null;t=ls[0]}}
+   else{t=c==='^'||c==='$'?0:1;i++}
+   const q=s[i];
+   if(q==='*'||q==='+'||q==='?')return null;
+   const m=q==='{'?/^\{(\d+)(,(\d*))?\}/.exec(s.slice(i)):null;
+   if(m){if(m[2]&&m[3]!==m[1])return null;t*=Number(m[1]);i+=m[0].length;if(s[i]==='?')i++}
+   n+=t;
+  }
+  return n;
+ }
+ function lookbehindRisk(src){
+  const named=/\(\?<(?![=!])/.test(src);
+  let cls=false;
+  for(let i=0;i<src.length;i++){
+   const c=src[i];
+   if(c==='\\'){i++;continue}
+   if(cls){if(c===']')cls=false;continue}
+   if(c==='['){cls=true;continue}
+   if(src.startsWith('(?<=',i)||src.startsWith('(?<!',i)){
+    const e=reClose(src,i);if(e<0)return '';
+    let body=src.slice(i+4,e);
+    while(body.startsWith('(?:')&&reClose(body,0)===body.length-1)body=body.slice(3,-1);
+    if(reAlts(body).some((b)=>reFixed(b,named)===null))return LB_MSG;
+   }
+  }
+  return '';
  }
  const tooLong=()=>Error(`答えが長すぎます（${STR_MAX}文字まで）`);
  function reText(v){const t=textOf(v);if(t.length>RE_TEXT_MAX)throw Error(`正規表現で調べる字は${RE_TEXT_MAX}文字までです`);return t}

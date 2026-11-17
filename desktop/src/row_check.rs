@@ -209,14 +209,36 @@ pub fn shape_problem(col: &str, v: Option<&Value>, list: bool) -> Option<String>
                 return None;
             }
             match crate::pyjson::loads(t) {
-                Ok(J::Null) | Err(_) => return None,
+                Ok(J::Null) => return None,
+                // 入れ子が深すぎる字は content_problem が先に隔てる（Python の RecursionError）
+                Err(_) if crate::master_rows::json_depth(t.as_bytes()) >= crate::master_rows::SERDE_DEPTH => return None,
+                Err(_) => return Some(format!("「{col}」が JSON として読めません（{}）", short(v))),
                 Ok(x) => x,
             }
         }
         v => held::to_j(v),
     };
     let ok = if list { matches!(x, J::Arr(_)) } else { matches!(x, J::Obj(_)) };
-    (!ok).then(|| format!("「{col}」が{}ではありません（{}）", if list { "並び" } else { "表" }, kind_of(&x)))
+    if !ok {
+        return Some(format!("「{col}」が{}ではありません（{}）", if list { "並び" } else { "表" }, kind_of(&x)));
+    }
+    // 画面が落ちる要素の形（版 3.113.0 の作った後の採点の割れ 3。Python の row_check.shape_problem と同じ）
+    if col == "入力" {
+        for (i, it) in x.items().iter().enumerate() {
+            let J::Obj(_) = it else {
+                return Some(format!("「入力」の {} つ目が表ではありません（{}）", i + 1, kind_of(it)));
+            };
+            if let Some(c) = it.get("columns").filter(|c| !matches!(c, J::Null | J::Arr(_))) {
+                return Some(format!("「入力」の {} つ目の columns が並びではありません（{}）", i + 1, kind_of(c)));
+            }
+        }
+    }
+    if col == "当て方" {
+        if let Some(c) = x.get("column").filter(|c| !matches!(c, J::Null | J::Str(_))) {
+            return Some(format!("「当て方」の column が字ではありません（{}）", kind_of(c)));
+        }
+    }
+    None
 }
 
 /// 行の理由（隔てないなら None。Python の row_check.problem と同じ順に見る）。fields はそのマスタの置く項目。
