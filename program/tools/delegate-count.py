@@ -30,9 +30,18 @@ from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
 BUDGET = PROGRAM / "tests" / "fixtures" / "delegates_budget.json"
-# 作業フォルダを 1 つ渡して流す答えの元（標準入力を待つ・係を起こしたままにする元は除く）
-ORACLES = ["access_write", "calc", "cards", "conversions", "dashboards", "equip_rows", "equipgroups", "formats", "fs", "place", "presets",
-           "release_place", "sets", "settings", "settings_write", "shifts", "sources_write", "ui_defaults", "worklog_write"]
+# 答え合わせ役 36 本の全部（版 3.115.0。採点の first_fixes 1。前は作業フォルダを 1 つ渡す 19 本だけで、組む所・スケジュール・利用状況の
+# 予算外の任せる歩 22 を数えていなかった）。名前 → 引数（{w} は作業フォルダ）。起こしたままにする元（builder・schedule・lotdsp・
+# equipgroups）は標準入力を閉じると最初の答えを書いて終わる。share_reader は前の版の読み手そのもの（場面の答えを持たない）
+ORACLES = {
+    "access": ["--keep", "{w}"], "access_write": ["{w}"], "builder": ["{w}"], "calc": ["{w}"], "cards": ["{w}"], "conversions": ["{w}"],
+    "dashboard": [], "dashboards": ["{w}"], "equip_rows": ["{w}"], "equipgroups": ["{w}"], "formats": ["{w}"], "fs": ["{w}"],
+    "lists": ["{w}"], "lotdsp": ["serve", "{w}"], "lotlist": ["{w}"], "masters": ["{w}"], "mirror": ["scenario", "{w}"],
+    "name_key": [], "ops": [], "pivot": [], "place": ["{w}"], "presence": ["{w}"], "presets": ["{w}"], "release_place": ["{w}"],
+    "routes": [], "schedule": ["serve", "{w}"], "seed_reads": ["{w}"], "seeds": ["{w}"], "sets": ["{w}"], "settings": ["{w}"],
+    "settings_write": ["{w}"], "shifts": ["{w}"], "share_reader": None, "sources_write": ["{w}"], "ui_defaults": ["{w}"],
+    "worklog_write": ["{w}"],
+}
 I64 = 2 ** 63
 
 # 置き場の層の形（場面の名前に当てる。上から先に当たった物）
@@ -59,6 +68,15 @@ def load(p):
         return json.loads(t)
     except ValueError:
         return json.loads(t.split("\n", 1)[0])
+
+
+def windows_only(v):
+    """Windows でだけ窓が任せる歩（"windowsOnly": true の印。Linux の数には入らない）の数"""
+    if isinstance(v, dict):
+        return int(v.get("windowsOnly") is True and v.get("delegate") is not True) + sum(windows_only(x) for x in v.values())
+    if isinstance(v, list):
+        return sum(windows_only(x) for x in v)
+    return 0
 
 
 def walk(v, out, scene=None):
@@ -286,6 +304,9 @@ def kind_of(scene, s, prof, oracle=""):
         return "種まき", "種まき: 数える材料のマスタが共有に無い（設備グループ）"
     if re.search(PLACE_SCENE, name) and oracle not in ("release_place_oracle", "fs_oracle"):
         return "置き場", next(k for k, rx in PLACE_RULES if re.search(rx, name))
+    if oracle == "schedule_oracle":
+        # 版 3.115.0: スケジュールで残る任せは段 ③-6 の 3 つ（https 2・システムのプロキシ 1。窓は http だけを取る）
+        return "③-6", "③-6: CM3 の https・システムのプロキシ（窓は http だけを取る。段 ③-6 で扱う）"
     if re.search(r"/[^/]*%[0-9A-Fa-f]{2}[^/]*$", path) or re.search(r"/[０-９١-٩]+$", path):
         return "道", "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）"
     k = body_kind(s, name, prof)
@@ -340,8 +361,11 @@ def run(work):
     work = Path(work)
     work.mkdir(parents=True, exist_ok=True)
     got = {}
-    for name in ORACLES:
-        r = subprocess.run([sys.executable, str(PROGRAM / "tests" / f"{name}_oracle.py"), str(work / name)], capture_output=True,
+    for name, args in ORACLES.items():
+        if args is None:
+            continue
+        args = [a.replace("{w}", str(work / name)) for a in args]
+        r = subprocess.run([sys.executable, str(PROGRAM / "tests" / f"{name}_oracle.py"), *args], capture_output=True,
                            text=True, encoding="utf-8", stdin=subprocess.DEVNULL, cwd=PROGRAM, timeout=1800, check=False)
         if r.returncode != 0:
             raise SystemExit(f"{name}_oracle.py が失敗しました:\n{r.stderr[-2000:]}")
@@ -354,8 +378,9 @@ def run(work):
 
 def count(answers):
     """{per: 元→形→数, layers: 層→数, kinds: 形→数, status: 形→Python の答えの状態の頭→数, others: [そのほかの歩]}"""
-    per, layers, kinds, status, others = {}, Counter(), Counter(), defaultdict(Counter), []
+    per, layers, kinds, status, others, win = {}, Counter(), Counter(), defaultdict(Counter), [], {}
     for name, d in answers.items():
+        win[name] = windows_only(d)
         prof, c = profile(d), Counter()
         for scene, s in walk_count(d):
             layer, k = kind_of(scene, s, prof, name)
@@ -368,7 +393,7 @@ def count(answers):
                               f"{s.get('path', '') if isinstance(s, dict) else ''} {str(s.get('body') if isinstance(s, dict) else s)[:120]}")
         per[name] = c
         kinds.update(c)
-    return {"per": per, "layers": layers, "kinds": kinds, "status": status, "others": others}
+    return {"per": per, "layers": layers, "kinds": kinds, "status": status, "others": others, "windows": win}
 
 
 def check(per, budget=None):
@@ -409,7 +434,12 @@ def main():
         for k, n in c.most_common():
             print(f"   {n:3d}  {k}")
     total = sum(got["kinds"].values())
-    print("== 計", total)
+    print("== 計", total, f"（答え合わせ役 {len(answers)} 本）")
+    # 採点の first_fixes 11: 口（?engine=python）・Windows だけの任せ・道ごとに中身へ回す当たりを別の行で並べる（本を外して口が見かけで減らないように）
+    mouths = sum(n for c in got["per"].values() for k, n in c.items() if k.startswith("engine=python"))
+    print("== うち比べる口（?engine=python。段 ④ で口ごと消す）", mouths)
+    print("== 形（口でない任せ）", total - mouths)
+    print("== Windows だけの任せ（Linux の数に入らない）", sum(got["windows"].values()), {k: v for k, v in got["windows"].items() if v})
     # 道ごとに中身へ回す当たり（場面 × 型。版 3.112.0 の作った後の採点の割れ 2）: 窓の試験 route_reach が数え、予算 routerForwardTotal と比べる
     # （この道具は Rust を流さないので、予算の数を並べて出す）
     rf = json.loads(BUDGET.read_text(encoding="utf-8")).get("routerForwardTotal")
@@ -424,7 +454,8 @@ def main():
         Path(out_json).write_text(json.dumps({
             "total": total, "layers": dict(got["layers"].most_common()), "kinds": dict(got["kinds"].most_common()),
             "pythonStatus": {k: dict(v) for k, v in got["status"].items()},
-            "per": {k: dict(v.most_common()) for k, v in sorted(got["per"].items())}, "others": got["others"]},
+            "per": {k: dict(v.most_common()) for k, v in sorted(got["per"].items())}, "others": got["others"],
+            "windowsOnly": {k: v for k, v in sorted(got["windows"].items()) if v}},
             ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         print(f"{out_json} に書きました")
     if out_props:
@@ -443,8 +474,10 @@ def main():
     if "--budget" in args:
         # 環境で増える・減る歩（envExtra・envLess と理由の envWhy・envLessWhy）は手で書く物なので、書き直しても残す
         # （窓の試験は per＋envExtra を上限にする。check は per−envLess より少なければ予算を下げる）
+        # 版 3.115.0: 手で書く欄（envExtra・理由・道ごとに中身へ回す当たり routerForward など）は全部残す（前は total と per のほかを消し、
+        # route_reach が読む routerForward を落とした）
         old = json.loads(BUDGET.read_text(encoding="utf-8")) if BUDGET.exists() else {}
-        keep = {k: old[k] for k in ("envExtra", "envWhy", "envLess", "envLessWhy") if k in old}
+        keep = {k: v for k, v in old.items() if k not in ("about", "total", "per")}
         BUDGET.write_text(json.dumps({"about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
                                       "total": total, "per": {k: sum(v.values()) for k, v in sorted(got["per"].items())}, **keep},
                                      ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")

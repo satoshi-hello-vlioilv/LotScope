@@ -1,19 +1,35 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 5,
+ "total": 10,
  "per": {
+  "access_oracle": 0,
   "access_write_oracle": 0,
+  "builder_oracle": 2,
   "calc_oracle": 0,
   "cards_oracle": 0,
   "conversions_oracle": 0,
+  "dashboard_oracle": 0,
   "dashboards_oracle": 0,
   "equip_rows_oracle": 0,
   "equipgroups_oracle": 0,
   "formats_oracle": 0,
   "fs_oracle": 1,
+  "lists_oracle": 0,
+  "lotdsp_oracle": 0,
+  "lotlist_oracle": 0,
+  "masters_oracle": 0,
+  "mirror_oracle": 0,
+  "name_key_oracle": 0,
+  "ops_oracle": 0,
+  "pivot_oracle": 0,
   "place_oracle": 1,
+  "presence_oracle": 0,
   "presets_oracle": 0,
   "release_place_oracle": 3,
+  "routes_oracle": 0,
+  "schedule_oracle": 3,
+  "seed_reads_oracle": 0,
+  "seeds_oracle": 0,
   "sets_oracle": 0,
   "settings_oracle": 0,
   "settings_write_oracle": 0,
@@ -22,15 +38,22 @@
   "ui_defaults_oracle": 0,
   "worklog_write_oracle": 0
  },
- "envExtra": {},
- "envWhy": {},
+ "envExtra": {
+  "schedule_oracle": 2
+ },
+ "envWhy": {
+  "schedule_oracle": "版 3.115.0（採点の first_fixes 2）: Windows でだけ窓が任せる 2 歩（更新時刻が 1970 年より前・3000 年から後。Windows の gmtime_s〈UCRT〉が受けるかを CPython のソースで決められない）。印は windowsOnly、delegate-count.py の「Windows だけ」の欄が Linux でも数える。残す（段 ③-6 と一緒に、窓が受ける範囲を決めて答える）"
+ },
  "envLess": {},
  "envLessWhy": {},
  "raisedWhy": {
   "settings_oracle": "版 3.109.0（17 → 19）: 窓がまだ組めない束の節を場面にして数えた。版 3.112.0（7 → 0）: 窓は束を Python に尋ねない（配った設定を J で読む・2 つの節も組む・Python も落ちた 3 形は事例の表 appsettings_cases.json で決める）",
   "conversions_oracle": "版 3.112.0（1 → 9。採点の指摘 8）: 予算外で見つけた任せ（置き場の行の「入力」が表）を場面「置き場の行の入力が表（予算外の任せ）」にして数えた。前から Python に任せていたが数に出ていなかった。閉じるのは次の版。版 3.113.0（9 → 0。採点の指摘 2・5）: 置き場の行の入力・判定が並びでない・当て方が表でない行は Python も窓も隔てる（rowshape_cases.json）・後読みの枝の式は Python も読み、窓が答える（formula_regex_cases の want）",
   "sources_write_oracle": "版 3.112.0（0 → 7。採点の指摘 8）: 予算外で見つけた任せ（置き場の行の「結合」が並び）を場面「置き場の行の結合が並び（予算外の任せ）」にして数えた。閉じるのは次の版。版 3.113.0（7 → 0。採点の指摘 7）: 結合が並びの行も窓が J のまま持ち、触れる書きは Python と同じく data_join.clean の字に書き直す",
-  "os_paths": "版 3.114.0（11 → 5。採点の指摘 9）: OS の道の 6 歩（~nobody/x・file://[::1]/x・名前が 255 バイトを超える・NUL 3）は道の門（services/path_rules.py・path_gate.rs。事例の表 ospath_cases.json）が答える。環境の幅も 0: root でない CI の「中を読めない置き場」は窓も「新しい場所を読めません」で答え（envExtra 1 → 0）、Windows だけの 2 歩（段の末尾の空白・ドライブだけの C:）は門が GetFullPathNameW・ドライブの根で答える（envLess 2 → 0）。残る 5 は比べる口（?engine=python）だけ"
+  "os_paths": "版 3.114.0（11 → 5。採点の指摘 9）: OS の道の 6 歩（~nobody/x・file://[::1]/x・名前が 255 バイトを超える・NUL 3）は道の門（services/path_rules.py・path_gate.rs。事例の表 ospath_cases.json）が答える。環境の幅も 0: root でない CI の「中を読めない置き場」は窓も「新しい場所を読めません」で答え（envExtra 1 → 0）、Windows だけの 2 歩（段の末尾の空白・ドライブだけの C:）は門が GetFullPathNameW・ドライブの根で答える（envLess 2 → 0）。残る 5 は比べる口（?engine=python）だけ",
+  "all_oracles": "版 3.115.0（採点の first_fixes 1・11）: 数える答え合わせ役を 19 本から 36 本の全部にした（share_reader は場面の答えを持たないので流さない）。予算外で見つけた任せる歩 Linux 24（口 7・形 17）のうち形 14（組む所 9・スケジュール 3・利用状況の掃除 2）を窓と Python が同じ版で答える（本文の門の表 ROUTES・TYPES、字の欄の str(値 or \"\")、百分率符号を戻した元のキー、窓の持たない codec は飛ばす、CM3 の NaN は「JSON ではありません」、数でない timeout は 15 秒、datetime の外の月は読めない名前）。残りは 10 = 比べる口 7（段 ④ で口ごと消す）＋ 段 ③-6 の 3（https 2・システムのプロキシ 1）。ほかに Windows だけの 2（envExtra）",
+  "builder_oracle": "版 3.115.0: 0 → 2。前から任せていた比べる口 2（?engine=python）を数えた（前は ORACLES の外）。本文の形の 9 は窓が答える",
+  "schedule_oracle": "版 3.115.0: 0 → 3。前から任せていた段 ③-6 の 3（https 2・システムのプロキシ 1）を数えた（前は ORACLES の外）。EUC-JP・NaN・数でない timeout の 3 は窓が答える"
  },
  "routerForward": [
   {
@@ -42,5 +65,11 @@
   }
  ],
  "routerForwardTotal": 135,
- "routerForwardWhy": "routerForward の当たり（場面 × 型）の数（版 3.112.0 の作った後の採点の割れ 2）。desktop/tests/route_reach.rs が settings_oracle の全部の場面と appsettings_cases.json の全件で数え、この数と同じかを見る（増えても減っても落とす）。delegate-count.py の任せる歩（total）とは別に並べて報告する。版 3.113.0 で 183 → 129（比べる口 GET /api/lotlist/settings の場面 129 だけ。変換表の行の入力が表 8・データ元の書く道 21・/api/config の LotDsp 5・画面の控え 8・作業実績の登録 12 を窓が答える）。版 3.113.0 の作った後の直しで 135（場面が 6 増えた: 事例の表に LotDsp の URL が偽の値の 5 件・settings_oracle に「変換表の行に小数の 1e19 と鍵 2 つの表」。どれも比べる口だけで、変換表の 8 本は中身へ回さない）"
+ "routerForwardWhy": "routerForward の当たり（場面 × 型）の数（版 3.112.0 の作った後の採点の割れ 2）。desktop/tests/route_reach.rs が settings_oracle の全部の場面と appsettings_cases.json の全件で数え、この数と同じかを見る（増えても減っても落とす）。delegate-count.py の任せる歩（total）とは別に並べて報告する。版 3.113.0 で 183 → 129（比べる口 GET /api/lotlist/settings の場面 129 だけ。変換表の行の入力が表 8・データ元の書く道 21・/api/config の LotDsp 5・画面の控え 8・作業実績の登録 12 を窓が答える）。版 3.113.0 の作った後の直しで 135（場面が 6 増えた: 事例の表に LotDsp の URL が偽の値の 5 件・settings_oracle に「変換表の行に小数の 1e19 と鍵 2 つの表」。どれも比べる口だけで、変換表の 8 本は中身へ回さない）",
+ "remain": {
+  "mouths": 7,
+  "stage3_6": 3,
+  "windowsOnly": 2,
+  "why": "版 3.115.0 の残り（delegate-count.py の報告の行と同じ）: 比べる口（?engine=python）7・段 ③-6 の 3・Windows だけ 2。道ごとに中身へ回す当たりは routerForwardTotal（route_reach）"
+ }
 }

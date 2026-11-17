@@ -41,8 +41,12 @@ WINDOWS = os.name == "nt"           # Windows でだけ窓が Python に任せ�
 SCH = "/api/src/sch"
 
 
-def S(path, query="", method="GET", body="", delegate=False):
-    return {"method": method, "path": path, "query": query, "body": body, "delegate": delegate}
+def S(path, query="", method="GET", body="", delegate=False, windows_only=False):
+    """windows_only: Windows でだけ窓が任せる歩の印（版 3.115.0。tools/delegate-count.py が Linux でも「Windows だけ」の欄に数える）"""
+    st = {"method": method, "path": path, "query": query, "body": body, "delegate": delegate or (windows_only and WINDOWS)}
+    if windows_only:
+        st["windowsOnly"] = True
+    return st
 
 
 def small_rows(update):
@@ -289,7 +293,7 @@ def scenes(world_port, blackhole):
         # 1970 年より前・3000 年から後の更新時刻: Windows の gmtime_s（UCRT）が受けるかは CPython のソースで決まらない（CI で −1 秒を受けた）ので、
         # Windows では窓が答えず Python に任せる。1 年より前（どの OS でも None）は窓が答える
         ("1970 年より前・3000 年から後の更新時刻", {**base, "equipments": "SC SD SE", "cm3_base_url": u("shapes")},
-         [S(SCH, "equip=SC", delegate=WINDOWS), S(SCH, "equip=SD", delegate=WINDOWS), S(SCH, "equip=SE")], None),
+         [S(SCH, "equip=SC", windows_only=True), S(SCH, "equip=SD", windows_only=True), S(SCH, "equip=SE")], None),
         ("URL に種類が無い", {**base, "cm3_base_url": "nlmfangyweb1a:9085"}, ONE[:1], None),
         ("URL が決まっていない", {**base, "cm3_base_url": "", "init_path": "", "client_ip": 0}, ONE[:1], None),
         ("設備が無い", {**base, "equipments": "、", "cm3_base_url": u("ok")}, [S(SCH), S("/api/schedule"), S("/api/schedule/card")], None),

@@ -3,7 +3,7 @@
 
 突き合わせの試験の「任せた歩の下限」（delegated >= N）は外した（任せる歩は 0 へ減らしていく数で、減らすたびに落ちたため）。上限は窓の試験
 （desktop/tests/common.rs の check_budget）が見るが、減らした版で予算を下げ忘れても上限なので通る。ここで tools/delegate-count.py の数え方で
-19 の答えの元を流し、予算を超えた・予算より減った（下げ忘れ）を止める。環境で増える幅 envExtra・減る幅 envLess は同じとみなす。"""
+答え合わせ役 36 本（版 3.115.0 から全部。前は 19）を流し、予算を超えた・予算より減った（下げ忘れ）を止める。環境で増える幅 envExtra・減る幅 envLess は同じとみなす。"""
 import importlib.util
 import shutil
 import tempfile
