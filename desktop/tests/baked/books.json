@@ -1,0 +1,356 @@
+{
+ "about": "答え合わせ役 36 本の行き先（版 3.115.0）。phase: 3.115.0 は窓が焼いた表で比べる本・3.116.0 は次の版で焼く本・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）",
+ "books": {
+  "name_key": {
+   "phase": "3.115.0",
+   "tests": [
+    "name_key_cases"
+   ],
+   "sources": [
+    "tests/name_key_oracle.py"
+   ]
+  },
+  "share_reader": {
+   "phase": "keep",
+   "tests": [
+    "appsettings_cases"
+   ],
+   "sources": [
+    "tests/share_reader_oracle.py"
+   ],
+   "why": "前の版の Python の読み手そのもの（共有のファイルの形）。段 ④ の配布の間は前の版の PC が同じ共有を読むので、凍らせた最後の Python を相手に残し、配布が終わった版で消す"
+  },
+  "seeds": {
+   "phase": "3.115.0",
+   "tests": [
+    "seeds_parity"
+   ],
+   "sources": [
+    "tests/seeds_oracle.py"
+   ],
+   "why": "場面の答え 2 試験を焼く。錠の取り合い 3 試験（窓と Python・前の版の Python）は配布の間だけ凍らせた Python を相手に残す。人の表 seeds_cases.json は第 2 の線"
+  },
+  "mirror": {
+   "phase": "3.115.0",
+   "tests": [
+    "mirror_parity"
+   ],
+   "sources": [
+    "tests/mirror_oracle.py"
+   ],
+   "why": "場面の 41 歩を焼く。受け身の読み手・台帳の 2 試験は配布の間だけ凍らせた Python"
+  },
+  "builder": {
+   "phase": "3.115.0",
+   "tests": [
+    "builder_parity"
+   ],
+   "sources": [
+    "tests/builder_oracle.py",
+    "tests/oracle_gate.py",
+    "tests/schedule_fixture.py"
+   ],
+   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）"
+  },
+  "settings_write": {
+   "phase": "3.115.0",
+   "tests": [
+    "settings_write_parity"
+   ],
+   "sources": [
+    "tests/settings_write_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "access_write": {
+   "phase": "3.115.0",
+   "tests": [
+    "access_write_parity"
+   ],
+   "sources": [
+    "tests/access_write_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "equip_rows": {
+   "phase": "3.115.0",
+   "tests": [
+    "equip_rows_parity"
+   ],
+   "sources": [
+    "tests/equip_rows_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "sources_write": {
+   "phase": "3.115.0",
+   "tests": [
+    "sources_write_parity"
+   ],
+   "sources": [
+    "tests/sources_write_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "shifts": {
+   "phase": "3.115.0",
+   "tests": [
+    "shifts_parity"
+   ],
+   "sources": [
+    "tests/shifts_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "sets": {
+   "phase": "3.115.0",
+   "tests": [
+    "sets_parity"
+   ],
+   "sources": [
+    "tests/sets_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "cards": {
+   "phase": "3.115.0",
+   "tests": [
+    "cards_parity"
+   ],
+   "sources": [
+    "tests/cards_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "dashboards": {
+   "phase": "3.115.0",
+   "tests": [
+    "dashboards_parity"
+   ],
+   "sources": [
+    "tests/dashboards_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "presets": {
+   "phase": "3.115.0",
+   "tests": [
+    "presets_parity"
+   ],
+   "sources": [
+    "tests/presets_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "worklog_write": {
+   "phase": "3.115.0",
+   "tests": [
+    "worklog_write_parity"
+   ],
+   "sources": [
+    "tests/worklog_write_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "formats": {
+   "phase": "3.115.0",
+   "tests": [
+    "formats_parity"
+   ],
+   "sources": [
+    "tests/formats_oracle.py",
+    "tests/oracle_gate.py"
+   ]
+  },
+  "seed_reads": {
+   "phase": "3.115.0",
+   "tests": [
+    "seed_reads_parity"
+   ],
+   "sources": [
+    "tests/seed_reads_oracle.py"
+   ]
+  },
+  "fs": {
+   "phase": "3.115.0",
+   "tests": [
+    "fs_parity"
+   ],
+   "sources": [
+    "tests/fs_oracle.py",
+    "tests/oracle_gate.py"
+   ],
+   "why": "root でない利用者で違う歩は variants.user。OS で決まる歩（/ の中身・~nobody）は焼かず ospath_cases に任せる。Windows は 2 版目の nt の上書き"
+  },
+  "release_place": {
+   "phase": "3.115.0",
+   "tests": [
+    "release_parity"
+   ],
+   "sources": [
+    "tests/release_place_oracle.py",
+    "tests/oracle_gate.py"
+   ],
+   "why": "1 台の PC の場面を焼く。2 つの PC が同じ置き場を写す場面は配布の間だけ凍らせた Python"
+  },
+  "place": {
+   "phase": "3.115.0",
+   "tests": [
+    "place_parity"
+   ],
+   "sources": [
+    "tests/place_oracle.py",
+    "tests/oracle_gate.py"
+   ],
+   "why": "場面の 77 歩を焼く（独立の答え place-truth.py・事例の表 place_cases.json が第 2 の線）。種まきの競い合いと --follow は配布の間だけ凍らせた Python"
+  },
+  "masters": {
+   "phase": "3.115.0",
+   "tests": [
+    "masters_parity"
+   ],
+   "sources": [
+    "tests/masters_oracle.py"
+   ],
+   "why": "場面の 25 を焼く。py と rs の同時書き・前の版の Python との錠の取り合いは配布の間だけ凍らせた Python"
+  },
+  "access": {
+   "phase": "3.115.0",
+   "tests": [
+    "access_parity"
+   ],
+   "sources": [
+    "tests/access_oracle.py"
+   ],
+   "why": "41 組 × 25 道と切断の指示 69 組を焼く（場面の置き場は同じ中身を 1 つに）"
+  },
+  "equipgroups": {
+   "phase": "3.116.0",
+   "tests": [
+    "equipgroups_write_parity"
+   ],
+   "sources": [
+    "tests/equipgroups_oracle.py"
+   ]
+  },
+  "routes": {
+   "phase": "3.116.0",
+   "tests": [
+    "routes_parity"
+   ],
+   "sources": [
+    "tests/routes_oracle.py"
+   ]
+  },
+  "pivot": {
+   "phase": "3.116.0",
+   "tests": [
+    "pivot_parity"
+   ],
+   "sources": [
+    "tests/pivot_oracle.py"
+   ]
+  },
+  "schedule": {
+   "phase": "3.116.0",
+   "tests": [
+    "schedule_parity"
+   ],
+   "sources": [
+    "tests/schedule_oracle.py"
+   ]
+  },
+  "conversions": {
+   "phase": "3.116.0",
+   "tests": [
+    "conversions_write_parity"
+   ],
+   "sources": [
+    "tests/conversions_oracle.py"
+   ]
+  },
+  "presence": {
+   "phase": "3.116.0",
+   "tests": [
+    "presence_parity"
+   ],
+   "sources": [
+    "tests/presence_oracle.py"
+   ]
+  },
+  "ui_defaults": {
+   "phase": "3.116.0",
+   "tests": [
+    "ui_defaults_parity"
+   ],
+   "sources": [
+    "tests/ui_defaults_oracle.py"
+   ]
+  },
+  "ops": {
+   "phase": "3.116.0",
+   "tests": [
+    "ops_parity"
+   ],
+   "sources": [
+    "tests/ops_oracle.py"
+   ]
+  },
+  "dashboard": {
+   "phase": "3.116.0",
+   "tests": [
+    "dash_parity"
+   ],
+   "sources": [
+    "tests/dashboard_oracle.py"
+   ]
+  },
+  "settings": {
+   "phase": "3.116.0",
+   "tests": [
+    "bundle_parity",
+    "page_parity",
+    "route_reach"
+   ],
+   "sources": [
+    "tests/settings_oracle.py"
+   ]
+  },
+  "calc": {
+   "phase": "3.116.0",
+   "tests": [
+    "calc_parity"
+   ],
+   "sources": [
+    "tests/calc_oracle.py"
+   ]
+  },
+  "lists": {
+   "phase": "3.116.0",
+   "tests": [
+    "lists_parity"
+   ],
+   "sources": [
+    "tests/lists_oracle.py"
+   ]
+  },
+  "lotlist": {
+   "phase": "3.116.0",
+   "tests": [
+    "lotlist_parity"
+   ],
+   "sources": [
+    "tests/lotlist_oracle.py"
+   ]
+  },
+  "lotdsp": {
+   "phase": "3.116.0",
+   "tests": [
+    "lotdsp_parity"
+   ],
+   "sources": [
+    "tests/lotdsp_oracle.py"
+   ]
+  }
+ }
+}

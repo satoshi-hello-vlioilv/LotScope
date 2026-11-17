@@ -50,7 +50,8 @@ fn files(root: &Path) -> Map<String, Value> {
 #[test]
 fn data_source_writes_match_python() {
     let base = common::work("sources-write");
-    let oracle = common::python_json("sources_write_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("sources_write", &base);
+    let oracle = bk.oracle("sources_write_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -87,15 +88,19 @@ fn data_source_writes_match_python() {
                 t[1..t.len() - 1].to_string()
             };
             let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
-            let want = &st["json"];
-            if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want), &norm(&got), "").is_some() {
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            bk.note_step(&key, st, status, &got, &w);
+            let got = bk.s(&got);
+            let want = &bk.s(&w.1);
+            if status as i64 != w.0 || common::diff(&norm(want), &norm(&got), "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {}?{} {}: Python {} {} / 窓 {status} {}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["query"].as_str().unwrap(),
                     st["body"],
-                    st["status"],
+                    w.0,
                     norm(want),
                     norm(&got)
                 ));
@@ -111,7 +116,12 @@ fn data_source_writes_match_python() {
                 ));
             }
         }
-        let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap())), files(Path::new(sc["rs"].as_str().unwrap())));
+        let fr = files(Path::new(sc["rs"].as_str().unwrap()));
+        let fkey = format!("{name} ファイル");
+        let fp = bk.want(&fkey, || Value::Object(files(Path::new(sc["py"].as_str().unwrap()))));
+        bk.note_files(&fkey, &Value::Object(fr.clone()), &fp);
+        let fp = bk.s(&fp).as_object().cloned().unwrap_or_default();
+        let fr: Map<String, Value> = bk.s(&Value::Object(fr)).as_object().cloned().unwrap();
         for (k, v) in &fp {
             if let Some(d) = common::diff(v, fr.get(k).unwrap_or(&Value::Null), k) {
                 bad.push(format!("{name}: ファイル {d}"));
@@ -124,7 +134,11 @@ fn data_source_writes_match_python() {
             for e in std::fs::read_dir(Path::new(sc["rs"].as_str().unwrap()).join(d)).into_iter().flatten().flatten() {
                 let f = e.file_name().to_string_lossy().into_owned();
                 // 場面が置いたほかの PC の錠（Python の側にも同じ物がある）は窓が残した物ではない
-                let placed = Path::new(sc["py"].as_str().unwrap()).join(d).join(&f).exists();
+                let placed = if bk.python() {
+                    Path::new(sc["py"].as_str().unwrap()).join(d).join(&f).exists()
+                } else {
+                    bk.in_scene(&Path::new(sc["rs"].as_str().unwrap()).join(d).join(&f))
+                };
                 if !placed && (f.ends_with(".lock.json") || f.contains(".tmp") || f.contains(".gone")) {
                     bad.push(format!("{name}: 窓が残した {d}/{f}"));
                 }
@@ -134,6 +148,7 @@ fn data_source_writes_match_python() {
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     assert!(steps >= 92, "歩が少ない: {steps}・{delegated}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

@@ -4,6 +4,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+pub mod bake;
+
 pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }
