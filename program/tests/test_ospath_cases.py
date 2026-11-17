@@ -27,6 +27,16 @@ def env_of(col, case):
     return path_rules.Env(nt=False, env=base["env"], passwd=lambda n: base["uid"] if n is None else pw.get(n), cwd=base["cwd"])
 
 
+def os_answer(c):
+    """want が os の事例（Microsoft の文書が決めていない形）の正しい答え: nt._getfullpathname そのもの（門の前段と tidy だけを足す）。Windows だけ"""
+    import nt
+    from app.fsio import unquote_path
+    pre = path_rules.device(unquote_path(c["text"]).strip().strip("'"), True)
+    if c["kind"] == "browse":
+        return path_rules.tidy(nt._getfullpathname(path_rules.tidy(pre, True)), True)
+    return nt._getfullpathname(pre)
+
+
 class Cases(unittest.TestCase):
     def test_messages_are_the_gates(self):
         for k, v in TABLE["messages"].items():
@@ -46,6 +56,8 @@ class Cases(unittest.TestCase):
                     got = {"no": str(e)}
                 if "no" in want:
                     exp = {"no": TABLE["messages"][want["no"]]}
+                elif want.get("os"):
+                    exp = {"ok": os_answer(c)}
                 else:
                     exp = {"ok": c["text"] if want["ok"] is None else want["ok"]}
                 if got != exp:
@@ -54,8 +66,12 @@ class Cases(unittest.TestCase):
         self.assertEqual(bad, [], "\n".join(bad))
 
     def test_expanduser_is_pythons(self):
-        """~ の事例は本物の ntpath.expanduser・posixpath.expanduser（環境変数・pwd を差し替え）とも同じ"""
-        import pwd
+        """~ の事例は本物の ntpath.expanduser・posixpath.expanduser（環境変数・pwd を差し替え）とも同じ。pwd の無い PC（Windows）では
+        posixpath の利用者の表を差し替えられないので POSIX の列は比べない（門の答えは test_cases が表と比べる）"""
+        try:
+            import pwd
+        except ImportError:
+            pwd = None
 
         class P:
             def __init__(self, d):
@@ -65,6 +81,8 @@ class Cases(unittest.TestCase):
             if not c["text"].startswith("~"):
                 continue
             for col in ("posix", "nt"):
+                if col == "posix" and pwd is None:
+                    continue
                 base = dict(TABLE["env"][col])
                 base.update(c[col].get("env", {}))
                 e = env_of(col, c)
@@ -86,7 +104,7 @@ class Cases(unittest.TestCase):
                         want = posixpath.expanduser(c["text"])
                 self.assertEqual(path_rules.expanduser(c["text"], col == "nt", e.env, e.passwd), want, f"{c['text']!r} {col}")
                 n += 1
-        self.assertGreaterEqual(n, 20)
+        self.assertGreaterEqual(n, 10 if pwd is None else 20)
 
     def test_routes(self):
         """欄の並びごとの門（apply）: 名前が check_name で断られる・上のフォルダが空なら後ろの欄を見ない（作った後の採点の割れ 4）"""
@@ -133,8 +151,8 @@ class Cases(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "GetFullPathNameW は Windows だけ")
     def test_win32_is_getfullpathname(self):
-        """win32 の事例は nt._getfullpathname（ntpath.abspath が呼ぶ関数）の答えと同じ（want を人が書き違えていないか。browse も dir も）。
-        共有の根（uncRoot）は GetFullPathNameW も整えないこと（門は整えない前提）"""
+        """win32 の事例のうち want を字で書いた物は nt._getfullpathname（ntpath.abspath が呼ぶ関数）の答えと同じ（want を人が書き違えていないか。
+        browse も dir も）。os の事例は test_cases が nt._getfullpathname の答えと比べる"""
         import nt
         from app.fsio import unquote_path
         n = 0
@@ -148,11 +166,7 @@ class Cases(unittest.TestCase):
                     t = path_rules.tidy(s.strip("'"), True)
                     self.assertEqual(path_rules.tidy(nt._getfullpathname(t), True), w["ok"], c["text"])
                 n += 1
-            if c.get("uncRoot"):
-                t = path_rules.tidy(path_rules.device(unquote_path(c["text"]), True), True)
-                self.assertEqual(nt._getfullpathname(t), t, f"共有の根は整えない: {c['text']}")
-                n += 1
-        self.assertGreaterEqual(n, 10)
+        self.assertGreaterEqual(n, 6)
 
 
 if __name__ == "__main__":

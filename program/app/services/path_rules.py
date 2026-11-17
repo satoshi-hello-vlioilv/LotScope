@@ -150,11 +150,9 @@ def _lengths(s: str, nt: bool, name_only=False):
 
 
 def trims(s: str) -> bool:
-    """Win32 が整える段がある（段が空白か「.」で終わる。「.」「..」と、共有の根〈\\\\サーバー\\共有〉の 2 段は除く: Win32 も整えない）"""
-    parts = re.split(r"[\\/]", s)
-    if s[:2] in ("\\\\", "//"):
-        parts = parts[4:]
-    return any(p not in (".", "..") and p[-1:] in (" ", ".") for p in parts)
+    """Win32 が整えうる段がある（段が空白か「.」で終わる。「.」「..」は除く）。共有の根〈\\\\サーバー\\共有〉の段も含め、整えるかどうかは
+    GetFullPathNameW に任せる（版 3.114.0 の Windows の CI の直し: 共有の根を Win32 が整えるかを門が決めつけない）"""
+    return any(p not in (".", "..") and p[-1:] in (" ", ".") for p in re.split(r"[\\/]", s))
 
 
 def _full(s: str, full) -> str:

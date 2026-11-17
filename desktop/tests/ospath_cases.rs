@@ -78,6 +78,7 @@ fn gate_answers_like_the_table() {
             let want = &c[col]["want"];
             let exp: Result<String, String> = match want.get("no") {
                 Some(k) => Err(t["messages"][k.as_str().unwrap()].as_str().unwrap().into()),
+                None if want["os"] == true => Ok(os_answer(kind, text)),
                 None => Ok(want["ok"].as_str().unwrap_or(text).to_string()),
             };
             let got = gate(kind, text, &env_of(&t, c, col));
@@ -117,18 +118,18 @@ fn apply_answers_like_the_routes() {
     assert!(bad.is_empty(), "{} 件:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// Windows の CI: 共有の根（uncRoot）は GetFullPathNameW も整えない（門は整えない前提。windows_risks 2）
-#[cfg(windows)]
-#[test]
-fn unc_roots_are_not_trimmed_by_win32() {
-    let t = table();
-    let mut n = 0;
-    for c in t["cases"].as_array().unwrap().iter().filter(|c| c["uncRoot"] == true) {
-        let p = c["nt"]["want"]["ok"].as_str().unwrap();
-        assert_eq!(da_core::path_gate::full_path_name(p).as_deref(), Some(p), "{}", c["text"]);
-        n += 1;
+/// want が os の事例（Microsoft の文書が決めていない形）の正しい答え: Windows の GetFullPathNameW そのもの（門の前段〈前後の空白と引用符・
+/// 装置の道〉と「参照…」の整え〈tidy〉だけを足す）。Windows でだけ呼ぶ
+fn os_answer(kind: Kind, text: &str) -> String {
+    let pre = da_core::path_gate::device(da_core::pyfmt::strip(&da_core::lists::unquote_path(text)).trim_matches('\''), true).unwrap();
+    let full = |p: &str| da_core::path_gate::full_path_name(p).expect("GetFullPathNameW");
+    match kind {
+        Kind::Browse => {
+            let t = da_core::folder_browse::tidy_for(&pre, true);
+            da_core::folder_browse::tidy_for(&full(&t), true)
+        }
+        _ => full(&pre),
     }
-    assert!(n >= 2);
 }
 
 /// Windows の CI: win32 の事例は、門が呼ぶ GetFullPathNameW の答えが表の want と同じ（人が書いた want が Win32 の決まりと合う）
@@ -144,5 +145,5 @@ fn win32_cases_are_getfullpathname() {
             assert_eq!(got.as_deref(), Ok(w), "{}", c["text"]);
         }
     }
-    assert!(n >= 10);
+    assert!(n >= 6);
 }

@@ -2,7 +2,7 @@
  "about": "道の字の門（版 3.114.0。services/path_rules.py・desktop/src/path_gate.rs）の事例の表。種類（browse: 「参照…」の欄・dir: 上のフォルダといまの置き場・name: フォルダの名前）× OS（posix・nt）ごとに、人が仕様と OS の決まりから書いた答え want （ok: 門を通った字〈null は字のまま〉・no: 断る理由の名前）と、版 3.113.0 の Python の答え py（browse は前の clean の字、dir・name は前の道の部品の振る舞い）を並べる。窓（desktop/tests/ospath_cases.rs）と Python（tests/test_ospath_cases.py）が同じ表を読む",
  "note": [
   "routes: 欄の並びごとの門（path_rules.apply・path_gate::apply）。ok が null は欄の字が全部そのまま、表は書き直した欄だけ（ほかはそのまま）。名前が check_name で断られる・上のフォルダが空のときは、後ろの欄を門へ通さない（plan が先に自分の言葉で答える）",
-  "uncRoot: 共有の根（\\\\サーバー\\共有）の段の末尾の空白・「.」。門は整えない。Windows の CI で GetFullPathNameW も共有の根を整えないかを比べる",
+  "os: Windows の want を字で書かず、GetFullPathNameW（窓の path_gate::full_path_name・Python の nt._getfullpathname）の答えを正しい答えにする形（Microsoft の文書が決めていない形: 途中の段の「..」で終わる名前・共有の根の段の末尾の空白と「.」。版 3.114.0 の Windows の CI の直し）",
   "環境変数: env の表だけを門が読む（このプロセスの環境変数を見ない）。Windows は名前の大文字小文字を見ない",
   "env: 列ごとの PC の様子（POSIX は HOME・利用者の表 passwd・今の利用者の家 uid・cwd、Windows は環境変数と cwd）。事例の env は差し替える項目だけ",
   "win32: Windows の GetFullPathNameW（Python の nt._getfullpathname と同じ関数）で整える事例。Windows でだけ流す（Windows の CI）",
@@ -1259,7 +1259,7 @@
    "kind": "browse",
    "text": "\\\\?\\unc\\srv\\share. \\d",
    "why": "UNC の字は大文字小文字を見ない。サーバー・共有の名前は見ない（Win32 も整えない）",
-   "uncRoot": true,
+   "win32": true,
    "posix": {
     "want": {
      "ok": "\\\\srv\\share. \\d"
@@ -1270,10 +1270,10 @@
    },
    "nt": {
     "want": {
-     "ok": "\\\\srv\\share. \\d"
+     "os": true
     },
     "py": {
-     "ok": "\\\\?\\unc\\srv\\share. \\d"
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
     }
    }
   },
@@ -1680,7 +1680,7 @@
   {
    "kind": "browse",
    "text": "C:\\w\\a..\\b",
-   "why": "外すのは「.」1 つだけ",
+   "why": "途中の段の終わりの「..」（Microsoft の文書は「.」1 つの段しか決めていない。表に字を書かず GetFullPathNameW の答え）",
    "win32": true,
    "posix": {
     "want": {
@@ -1692,7 +1692,7 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\w\\a.\\b"
+     "os": true
     },
     "py": {
      "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
@@ -1702,7 +1702,7 @@
   {
    "kind": "browse",
    "text": "C:\\w\\a...\\b",
-   "why": "外すのは「.」1 つだけ",
+   "why": "同上",
    "win32": true,
    "posix": {
     "want": {
@@ -1714,7 +1714,7 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\w\\a..\\b"
+     "os": true
     },
     "py": {
      "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
@@ -1724,7 +1724,7 @@
   {
    "kind": "browse",
    "text": "C:\\w\\a \\b",
-   "why": "途中の段の空白は外さない",
+   "why": "途中の段の終わりの空白（Microsoft の文書は道の終わりの空白しか決めていない。GetFullPathNameW の答え）",
    "win32": true,
    "posix": {
     "want": {
@@ -1736,7 +1736,7 @@
    },
    "nt": {
     "want": {
-     "ok": "C:\\w\\a \\b"
+     "os": true
     },
     "py": {
      "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
@@ -1813,7 +1813,7 @@
    "kind": "browse",
    "text": "\\\\srv\\share. \\x",
    "why": "共有の名前（サーバー・共有の段）は整えない（GetFullPathNameW も共有の根を整えない。門は呼ばない）",
-   "uncRoot": true,
+   "win32": true,
    "posix": {
     "want": {
      "ok": "\\\\srv\\share. \\x"
@@ -1824,10 +1824,10 @@
    },
    "nt": {
     "want": {
-     "ok": "\\\\srv\\share. \\x"
+     "os": true
     },
     "py": {
-     "ok": "\\\\srv\\share. \\x"
+     "note": "Windows の Path は Win32 が段を整えた所を見る（字は ntpath.normpath のまま）"
     }
    }
   },
