@@ -94,7 +94,7 @@ def cargo(tests, env, filt=None):
 def comparable(t):
     """2 回の焼きを比べる形（場面の今からのずれは流すたびに変わる。中身は指紋でなく中身で比べる）"""
     sc = t["scene"]
-    files = {rel: {**e, "blob": sc["blobs"].get(e["blob"])} for rel, e in sc["files"].items()}
+    files = {rel: {**e, "blob": sc["blobs"].get(e.get("blob"))} for rel, e in sc["files"].items()}
     s = json.dumps({"oracle": t["oracle"], "answers": t["answers"], "files": files, "dirs": sc["dirs"], "links": sc["links"],
                     "variants": t.get("variants")}, ensure_ascii=False, sort_keys=True)
     # 今からのずれと、Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない

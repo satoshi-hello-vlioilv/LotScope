@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+#[path = "common/bake.rs"]
 pub mod bake;
 
 pub fn program() -> PathBuf {

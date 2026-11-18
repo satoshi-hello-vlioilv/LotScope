@@ -32,7 +32,7 @@ fn same_me_and_guard_as_python() {
             let guards: Vec<Value> = c["guards"].as_array().unwrap().iter().map(|g| json!([g["status"], g["body"]])).collect();
             json!({"me": c["me"], "reads": c["reads"], "guards": guards})
         });
-        let mut mine_all = json!({"me": got.as_ref().map(|m| m.clone()).unwrap_or(Value::Null), "reads": {}, "guards": []});
+        let mut mine_all = json!({"me": got.clone().unwrap_or(Value::Null), "reads": {}, "guards": []});
         let (wme, got_s) = (bk.s(&w["me"]), got.as_ref().map(|m| bk.s(m)));
         match (&wme, &got_s) {
             (Value::Null, Err(_)) => {}

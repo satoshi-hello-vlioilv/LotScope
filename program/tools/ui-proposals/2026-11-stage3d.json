@@ -728,5 +728,37 @@
    "口の数を並べて報告する: ORACLES から外した本の口（?engine=python）が見かけで減らないよう、delegate-count の報告に口の数・route_reach の転送 135・Windows だけの任せを別の行で並べる"
   ],
   "estimates": "量の見込み（採点者）: G の 1 版目は案の Rust 1,300〜1,900・Python 1,500〜2,000 に、bless の守り（範囲の宣言・止める・要約）100〜150、そろえる形の追加（文の中の時刻・ポート・境をまたぐ 2 回流し）50〜80、Windows だけの任せ 2 の決め 30〜80、場面の置き場を宣言から作る台本 200〜300（本ごとの切り出しが減るので相殺の見込み）を足して、Rust 1,500〜2,200 行・Python 1,700〜2,300 行。2 版目は案の Rust 900〜1,400・Python 1,800〜2,400 に、ui_server を同じ台本へ載せる 150〜300 を足す。閉じる形が 17 → 14 に減るので予算外の分は 30〜60 行少ない。合計の手間は C と同じくらいで、A より bless の書き手の分だけ多いが、④ の後の焼き直しの手間（JSON 列の展開で変わる 6〜10 本）が A・F より小さい。どの案の量にも入っていない ④ の前提の仕事として、ui-eval-*.mjs の開発用サーバー（ui_server.py。app を import）を窓に替える仕事 300〜600 行がある。JSON 列の展開をいちばん少ない手間で入れられるのは G と C（範囲を宣言した bless で焼き直す）、次に F（その時に凍らせた Python を直すか焼く係を作る）、A・D・E は表か独立の答えを手で直す、B は直す試験が無い"
+ },
+ "frozen_python": {
+  "what": "競い合い・受け身・前の版の読み手の試験の相手（採点の first_fixes 7。版 3.115.0 で決めた。写すのは段 ④ の直前）",
+  "tests": [
+   "masters_parity::python_and_window_writing_together_lose_nothing",
+   "seeds_parity の錠の取り合い 3（窓と今の版の Python・前の版の Python・create_app）",
+   "place_parity::an_empty_share_is_seeded_once_by_whoever_comes_first と master_place_matches_python の --follow の歩",
+   "mirror_parity::passive_python_reads_the_copy_the_window_shares・python_and_rust_share_the_ledger",
+   "schedule_parity の受け身の Python（passive）",
+   "appsettings_cases::a_broken_config_writes_nothing_new_to_the_share（share_reader_oracle）",
+   "builder_parity の同時に組む場面（shared）"
+  ],
+  "copy": "段 ④ の直前の版の program/app を program/tests/legacy/<版>/ へ写し、指紋（sha256）を CI が見て直していないことを確かめる。Python と標準の部品の版は requirements の写しで固定する",
+  "mark": "試験は desktop/tests/common/bake.rs の frozen_python の印を持ち、TPA_NO_PYTHON=1（④ の後の形）では流さない",
+  "remove_when": "配布が終わった版（利用状況〈presence〉の版がすべて ④ 以後になった版）で試験ごと消す"
+ },
+ "built_plan": {
+  "what": "1 位 G の 1 版目に first_fixes の 1 版目の分を入れた形（版 3.115.0）",
+  "first_fixes": {
+   "1": "予算外の任せる歩を数え直した（builder 11〈口 2・形 9〉・schedule 6〈③-6 の 3＋形 3〉・presence 2）。形 14 を窓と Python が同じ版で答え、数えた数は Linux 24 → 10（口 7・③-6 の 3）",
+   "2": "Windows だけの 2（schedule の 1970 年より前・3000 年から後）は windowsOnly の印で Linux でも数え、残す数として envExtra に書いた（③-6 で窓が受ける範囲を決める）",
+   "3": "そろえる決まりは鍵の名前の表＋字の形（tests/baked/settle.json）で常に当てる。bless.py は時刻の境（次の分）をまたいで 2 回焼いて比べ、焼いた表は CI が毎回比べる（3 回目）",
+   "4": "bless は Python と同じとき（試験の食い違い 0・そろえた後の答えが同じ）だけ書く。④ の後は TPA_BLESS=道の型 で範囲を宣言し、外が変わったら止める。変わった葉の要約を出す。独立の答えと事例の表は書き換えない",
+   "5": "割れたら target/tmp/bless-diff/<本>.json に窓の今の答えと最初に違う葉の道。大きい本の指紋＋要約は 2 版目",
+   "6": "calc の例外の字を Python と窓が同じ言葉の決まり（services/calc_errors・calc::error_message）と人の事例の表 calc_error_cases.json で。type の欄は今のまま",
+   "7": "上の frozen_python に書いた",
+   "8": "場面は答え合わせ役が作ったフォルダを 1 つの形の宣言に写し（bake::snapshot）、1 つの係（bake::materialize）で作り直す。本ごとに場面の作りを写さない。ui_server の試験データは 2 版目",
+   "9": "app に頼る道具 17 本の表と ④ での行き先を RUST_PORT_PLAN.md に書いた",
+   "10": "posix を正・OS で違う歩は variants.<os>（root でない利用者は variants.user を作った）。nt は desktop.yml の手で起こす仕事で焼く（2 版目）。Windows の CI は ④ まで Windows の Python と比べる",
+   "11": "delegate-count の報告に計・比べる口・形・Windows だけ・道ごとに中身へ回す当たりを別の行で並べる"
+  },
+  "books": "order の 1〜22 位（21 本を焼き、share_reader は keep）"
  }
 }

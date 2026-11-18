@@ -58,11 +58,35 @@ pub fn variant() -> &'static str {
     "root"
 }
 
+/// アプリの版（心拍と同じ元の program/app/version.py）
+pub fn app_version() -> &'static str {
+    static V: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    V.get_or_init(|| da_core::update::program_version(&super::program()).unwrap_or_else(|| "?".into()))
+}
+
 /// OS の利用者の名前（Python の getpass.getuser と同じ順: LOGNAME・USER・LNAME・USERNAME）
 pub fn os_user() -> Option<&'static str> {
     static U: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    U.get_or_init(|| ["LOGNAME", "USER", "LNAME", "USERNAME"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty())))
-        .as_deref()
+    U.get_or_init(|| {
+        ["LOGNAME", "USER", "LNAME", "USERNAME"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty())).or_else(passwd_name)
+    })
+    .as_deref()
+}
+
+/// 環境変数が無いときの名前（getpass.getuser の pwd.getpwuid(os.getuid())）
+fn passwd_name() -> Option<String> {
+    #[cfg(unix)]
+    {
+        let s = std::fs::read_to_string("/proc/self/status").ok()?;
+        let uid = s.lines().find_map(|l| l.strip_prefix("Uid:"))?.split_whitespace().next()?.to_string();
+        let pw = std::fs::read_to_string("/etc/passwd").ok()?;
+        return pw.lines().find_map(|l| {
+            let f: Vec<&str> = l.split(':').collect();
+            (f.len() > 2 && f[2] == uid).then(|| f[0].to_string())
+        });
+    }
+    #[allow(unreachable_code)]
+    None
 }
 
 /// 置き換える道の字（作業フォルダ・一時フォルダ・家）。長い物から
@@ -170,9 +194,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。OS の利用者の名前（書いた人の login）は @USER に（root と CI の利用者で同じ表）
         let mut t = ctx.sub(t).replace(da_core::held::mark(), "@HELD:");
         if let Some(u) = os_user() {
-            if t == u {
-                t = "@USER".into();
-            } else if t.contains(&format!("／{u} ")) {
+            if t.contains(&format!("／{u} ")) {
                 t = t.replace(&format!("／{u} "), "／@USER ");
             }
         }
@@ -194,6 +216,9 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     };
     fn go(v: &Value, keys: &[&str], s: &dyn Fn(&str) -> String) -> Value {
         match v {
+            // 値の字だけ（鍵は替えない）: アプリの版は @VERSION（版を上げるたびに表が古くならないように）・OS の利用者の名前は @USER
+            Value::String(t) if t == app_version() => json!("@VERSION"),
+            Value::String(t) if os_user() == Some(t.as_str()) || t == "@USER@" => json!("@USER"),
             Value::String(t) => Value::String(s(t)),
             Value::Array(a) => Value::Array(a.iter().map(|x| go(x, keys, s)).collect()),
             Value::Object(o) => Value::Object(
@@ -287,9 +312,28 @@ fn dt_re() -> regex::Regex {
 }
 
 /// 中身の字の今に近い日時を「@NOW(ずれ ms,区切り,桁)」にする（作る時に今からのずれで書き戻す。ほかの PC の錠の時刻など）
+/// 中身の字の OS の利用者の名前（JSON の値の "名前"。鍵〈後ろに「:」〉は替えない）を "@USER@" に（場面の権限の行・書いた人は流した利用者の名前）
+fn user_decl(t: &str) -> String {
+    let Some(u) = os_user() else { return t.to_string() };
+    let q = format!("\"{u}\"");
+    if !t.contains(&q) {
+        return t.to_string();
+    }
+    let mut out = String::with_capacity(t.len());
+    let mut rest = t;
+    while let Some(i) = rest.find(&q) {
+        out.push_str(&rest[..i]);
+        let after = rest[i + q.len()..].trim_start();
+        out.push_str(if after.starts_with(':') { &q } else { "\"@USER@\"" });
+        rest = &rest[i + q.len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn text_decl(t: &str, ctx: &Ctx) -> String {
     let now = chrono::Local::now().naive_local();
-    let t = ctx.sub(t);
+    let t = user_decl(&ctx.sub(t));
     dt_re()
         .replace_all(&t, |c: &regex::Captures| {
             let p = |i: usize| c.get(i).map(|m| m.as_str().parse::<u32>().unwrap_or(0));
@@ -331,7 +375,21 @@ fn text_of_decl(t: &str, ctx: &Ctx) -> String {
             }
         }
     });
+    let t = match os_user() {
+        Some(u) if t.contains("\"@USER@\"") => t.replace("\"@USER@\"", &format!("\"{u}\"")),
+        _ => t.into_owned(),
+    };
     ctx.unsub(&t)
+}
+
+/// 値の字だけを替える（鍵は替えない）
+fn map_values(v: &Value, f: &dyn Fn(&str) -> String) -> Value {
+    match v {
+        Value::String(s) => Value::String(f(s)),
+        Value::Array(a) => Value::Array(a.iter().map(|x| map_values(x, f)).collect()),
+        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), map_values(x, f))).collect()),
+        _ => v.clone(),
+    }
 }
 
 #[cfg(unix)]
@@ -671,7 +729,7 @@ impl Bake {
             self.took(&v);
             v
         } else {
-            self.from_table()
+            self.rebuild_from_table()
         }
     }
 
@@ -682,7 +740,7 @@ impl Bake {
             self.took(&v);
             (Some(l), v)
         } else {
-            (None, self.from_table())
+            (None, self.rebuild_from_table())
         }
     }
 
@@ -693,6 +751,8 @@ impl Bake {
         let ctx = self.ctx.clone();
         // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
         self.oracle = map_strings(&self.strip_answers(v), &|s| text_decl(s, &ctx));
+        // 答え合わせ役の答えの値の字で OS の利用者の名前（Python の書いた人・名乗り）は @USER@（作り直す時に今の利用者へ）
+        self.oracle = map_values(&self.oracle, &|s| if os_user() == Some(s) { "@USER@".into() } else { s.to_string() });
         if let Some(o) = self.oracle.as_object_mut() {
             o.retain(|k, _| !self.drop.contains(&k.as_str()));
         }
@@ -745,7 +805,7 @@ impl Bake {
         }
     }
 
-    fn from_table(&mut self) -> Value {
+    fn rebuild_from_table(&mut self) -> Value {
         let t = self.table.clone().unwrap();
         materialize(&t["scene"], &self.base, &self.ctx);
         self.scene = t["scene"].clone();
@@ -753,7 +813,8 @@ impl Bake {
         let ctx = self.ctx.clone();
         let base = self.base.clone();
         let url = if self.url_key.is_some() { serve_404() } else { String::new() };
-        map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url))
+        let o = map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url));
+        map_values(&o, &|s| if s == "@USER@" { os_user().unwrap_or("").to_string() } else { s.to_string() })
     }
 
     /// 場面が置いた物か（作業フォルダの中の道）

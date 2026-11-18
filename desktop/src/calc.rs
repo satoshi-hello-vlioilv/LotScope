@@ -820,7 +820,7 @@ pub fn error_message(type_name: &str, text: &str) -> String {
             format!("計算の入力に「{key}」がありません。")
         }
         "ValueError" => match text.rfind(": '").filter(|_| text.ends_with('\'')) {
-            Some(i) if i + 3 <= text.len() - 1 => {
+            Some(i) if i + 3 < text.len() => {
                 format!("計算の入力に数で読めない値「{}」があります（整数で書いてください）。", &text[i + 3..text.len() - 1])
             }
             _ => "計算の入力に数で読めない値があります。".into(),

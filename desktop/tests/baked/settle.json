@@ -1,5 +1,5 @@
 {
- "about": "焼いた表と窓の答えをそろえる決まり（版 3.115.0。common/bake.rs の settle）。揺れたかどうかによらず常に当てる。鍵の名前の表（timeKeys: その鍵の字・時刻の数は @T）と字の形（forms: 正規表現 → 置き換え。上から順）。ほかに道の字（作業フォルダ @WORK・一時フォルダ @TMP・家 @HOME・大きな整数の印 @HELD:・OS の利用者の名前 @USER）と、今日から 3 日の内の日付（@DAY±n）をそろえる",
+ "about": "焼いた表と窓の答えをそろえる決まり（版 3.115.0。common/bake.rs の settle）。揺れたかどうかによらず常に当てる。鍵の名前の表（timeKeys: その鍵の字・時刻の数は @T）と字の形（forms: 正規表現 → 置き換え。上から順）。ほかに道の字（作業フォルダ @WORK・一時フォルダ @TMP・家 @HOME・大きな整数の印 @HELD:・OS の利用者の名前 @USER・アプリの版 @VERSION）と、今日から 3 日の内の日付（@DAY±n）をそろえる",
  "timeKeys": [
   "updated_at",
   "updatedAt",
