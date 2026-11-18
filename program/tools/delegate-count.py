@@ -287,6 +287,9 @@ def body_kind(s, scene_name, prof):
 def kind_of(scene, s, prof, oracle=""):
     """(層, 形)"""
     name = scene.get("name", "") if isinstance(scene, dict) else ""
+    if oracle == "calc_oracle":
+        # 版 3.115.0 の作った後の直し: 計算の must でない形（窓は任せてよい。Python は例外の言葉か範囲外の扱いで答える）。2 版目で窓が答える
+        return "計算", "計算: must でない形（Python の例外の言葉・範囲外の番号。窓は任せてよい。2 版目で窓が答える）"
     if not isinstance(s, dict) or "method" not in s:          # 設定の束の場面（settings_oracle）
         if isinstance(s, dict) and s.get("window"):          # 版 3.109.0: 窓がまだ組めない節（Python は組む）。束を Python に尋ねる
             return "束", "束: 窓がまだ組めない節（中身の字の NaN・式が引く変換表の大きな整数。bundle_window）"
@@ -307,6 +310,8 @@ def kind_of(scene, s, prof, oracle=""):
     if oracle == "schedule_oracle":
         # 版 3.115.0: スケジュールで残る任せは段 ③-6 の 3 つ（https 2・システムのプロキシ 1。窓は http だけを取る）
         return "③-6", "③-6: CM3 の https・システムのプロキシ（窓は http だけを取る。段 ③-6 で扱う）"
+    if re.search(r"%2[Ff]", path):
+        return "道", "道: 戻したキーに / がある（道の型に当たらない。Python は道なしの 404。段 ④ で窓の道なしの 404）"
     if re.search(r"/[^/]*%[0-9A-Fa-f]{2}[^/]*$", path) or re.search(r"/[０-９١-٩]+$", path):
         return "道", "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）"
     k = body_kind(s, name, prof)

@@ -2337,13 +2337,30 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   - 利用状況の掃除 2: 年が datetime の外の月の名前は読めない名前（`presence._month_after`・`presence::month_after`）。prune_all は 500 にならない
 - 数え方（first_fixes 1・2・11）: `tools/delegate-count.py` の ORACLES を 36 本の全部にした（起こしたままにする元は標準入力を閉じて最初の答えを読む）。
   報告は計・比べる口・形・Windows だけ（`"windowsOnly": true` の印。Linux でも数える）・道ごとに中身へ回す当たりを別の行で並べる。予算 `delegates_budget.json`
-  は total 10（口 7・③-6 の 3）・envExtra に schedule の Windows だけ 2（残す。③-6 と一緒に窓が受ける範囲を決める）。`--budget` は手で書く欄を全部残す
+  は total 10（口 7・③-6 の 3。作った後の直しで計算 48・道 1 を数えて 59）・envExtra に schedule の Windows だけ 2（残す。③-6 と一緒に窓が受ける範囲を決める）。`--budget` は手で書く欄を全部残す
 - calc の名残（first_fixes 6）: 例外の字を日本語の言葉に（`services/calc_errors.py`・`calc::error_message`。人が書いた事例の表 `tests/fixtures/calc_error_cases.json`
   〈欄が無い・数でない・並びが短い・字でない の 4 種〉を Python の `tests/test_calc_errors.py` と `cargo test --test calc_error_cases` が読む）。calc_parity は
   Python の例外の答え 33 がどれも表の種類で日本語の言葉かを見る。type の欄（例外のクラスの名前）は API の名残で画面は読まない（今のまま）。窓は Python が例外で
   答える形をまだ任せている（calc は 2 版目の本。そこで窓が答える）
 - 変異（試験の作り）: `cargo test --test bake_selftest`（窓の答えを 1 字変える・範囲の外を変える・そろえる決まりを 1 つ外す・Python と違うのに焼く が落ちる／
   場面の宣言の写しと作り直し）・`tests/test_baked_tables.py`（元を 1 字変えると古い）。本物の本でも `TPA_SETTLE_DROP` と答えを 1 字変える流しで落ちることを見た
+
+#### 作った後の採点（27.5 点。`2026-11-stage3d-built.json`）の割れ 9 つを直した（built_fixed）
+
+1. そろえる決まりを狭めた: 時刻は今から 2 日の内の日時の字と、時刻の鍵の今に近い数だけを「@T(形|今からの秒)」にし、形が同じで秒の差が 1800 秒の内なら同じ
+   （`bake::diff_tol`）。遠い日時・日時でない字・遠い数・ポートはそのまま比べる。作り物のサーバーの URL だけを @URL に。答え合わせ役の元に今日から
+   3 日の内の固定の日付があれば bless.py は焼かずに止める（時限の爆弾にしない）。変異 M1（切断の指示の at の書き直し）・M2（見本の日時の年）は焼いた表との比べでも
+   Python 無しでも落ちる
+2. 予算外の任せる歩: 計算の must でない 48 歩（今任せるのは 39）を数え（2 版目で窓が答える）、組む所の字の欄の大きな整数 6 形と /api/%73ources/… を窓が答え、
+   戻したキーに / がある道 1 を数えた。CM3 の timeout の端（0・負・nan・inf・1 年超）は Python と窓が 15 秒
+3. 一時フォルダの置き換えをやめ、作業フォルダ・家・作り物の URL だけを段の境の前後で置き換える。区切りの作業フォルダより上は @ABOVE 1 つ
+4. 焼く・比べるときの時差は UTC（`Bake::open_part`）
+5. bless.py --check は tests/baked の表を全部（部分の表も）確かめる
+6. 範囲を宣言した焼き直しは、範囲の外の歩が消えても止める
+7. TPA_NO_PYTHON は「program/app を使わない」形。独立の答え（tools/*-truth.py）の標準の Python は残し、無ければ分かる言葉で落とす（`bake::stdlib_python`）。
+   凍らせた試験の流さなかった名前は target/tmp/frozen-skipped.txt に書き、bless.py --no-python が別の行で出す
+8. 場面の宣言の古さはどの利用者でも比べる（root でない利用者が写せない段の中・中身とフォルダの更新時刻は除く）
+9. 利用者の名前は名前を書く欄（login・holder_login・ログインID）だけを置き換え、--user は一時の利用者 tpabless で流す
 
 #### 凍らせる Python の決め（first_fixes 7。写すのは段 ④ の直前）
 
@@ -2370,12 +2387,14 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 手で起こす仕事（workflow_dispatch）が TPA_BLESS=1 で焼いて artifact に書き、人が差分を見て取り込む。それまで Windows の CI は焼いた表と比べず、Windows の Python と
 比べ続ける（④ まで）。
 
-#### 版 3.115.0 の後に残る任せる歩（10）と転送（比べる口 135）
+#### 版 3.115.0 の後に残る任せる歩（59。作った後の直しで計算の 48 と道の 1 を数えた）と転送（比べる口 135）
 
 | 形 | 数 | 元 | 消える段 | 理由 |
 |---|---|---|---|---|
 | engine=python（自己診断・突き合わせの口） | 7 | fs 1・place 1・release_place 3・builder 2 | ④ | Python と比べるための口そのもの |
 | CM3 の https・システムのプロキシ | 3 | schedule | ③-6 | 窓は http だけを取る（利用者の決め 2026-11-17） |
+| 計算の must でない形（Python の例外の言葉・範囲外の番号） | 48（今任せるのは 39） | calc | 3.116.0 | 言葉の決まり calc::error_message は作った。窓が例外の形を答える |
+| 戻したキーに / がある道（/api/sources/a%2Fb/columns） | 1 | builder | ④ | 道の型に当たらない（Python は道なしの 404）。④ で窓の道なしの 404 |
 | Windows だけ: 更新時刻が 1970 年より前・3000 年から後 | 2（Linux の数の外） | schedule | ③-6 | Windows の gmtime_s が受けるかを決められない |
 | 転送: GET /api/lotlist/settings | 135 当たり | settings_oracle と事例の表の全部の場面 | ④ | 比べる口 |
 

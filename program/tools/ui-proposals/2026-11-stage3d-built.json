@@ -1,0 +1,207 @@
+{
+ "title": "Rust 化の段 ③ の 4 つ目: 窓が自分の答えを焼く係（bless）と 21 本の焼いた表・予算外の任せる歩 14 形を閉じる。版 3.115.0 の作った後の採点",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3d.json",
+ "applies_note": "版 3.115.0 は 2026-11-stage3d.json の回の 1 位 G（65.9 点・80 に届かず）を、採点の指摘 first_fixes の 11 を入れて作った物（commit 3780b5d。main は 805751a）",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-18。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff 805751a 3780b5d を読み、試験を自分で流し（Python 無し・時差・TMPDIR・root でない利用者）、窓の答えと焼く係・答え合わせ役に変異を当てて確かめた。画面は変えていないので画像は撮らない",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.115.0・commit 3780b5d）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3d-built（画像は撮っていない。測りの記録だけ）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "no_python": "偽の python（呼ぶと記録して 127 で落ちる）を PATH の先に置き TPA_NO_PYTHON=1 で 21 本: 20/21。place_parity が place-truth.py を呼んで落ちた（nopy-summary.txt・python-calls.log）",
+   "tz": "TZ=Asia/Tokyo: Python 無し 21/21・Python と比べる形 20/21（fs の場面の古さ。tz-summary.txt）",
+   "tmpdir": "TMPDIR を scratchpad の下に替えた fs_parity: 両方の形で落ちる（fs-tmpdir.log・fs-tmpdir-py.log）",
+   "nonroot": "runuser -u daemon（USER=runner・HOME=/tmp/home-runner）で 11 本（worklog_write・sources_write・seed_reads・access_write・fs・place・release・seeds・masters・access・builder）: Python 無し 11/11、Python と比べる形 10/11（fs の『/』の歩の /tmp の更新時刻の揺れ。焼きの割れではない）（runner-summary.txt）",
+   "mutations": "M1（切断の指示の at を正規の字に）・M2（組む所の見本の日時の年）: Python と比べる形は落ち、焼いた表との比べは 0 件・Python 無しは通る（m1-*.log・m2-*.log）。一時の試験で settle の消す違いと範囲の焼き直しの消えた歩。終わった後に src・答え合わせ役を git checkout で戻し、一時の試験を消した",
+   "probe": "builder_oracle.py に端の 10 歩を一時に足して builder_parity（TPA_BLESS=1・TPA_BAKE_OUT は scratchpad）: 窓が答えない 8 件（probe-builder2.log）。戻した",
+   "delegates": "python program/tools/delegate-count.py /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3d-built/dc --check --json → 計 10・予算と同じ（dc.log）。calc の任せ 39 は 0 と数えた（calc-oracle.json）",
+   "tables": "bless.py --check・test_baked_tables・test_calc_errors: 通る。部分の表を壊しても --check は通る",
+   "untouched": "git status は空（変異・一時の試験・答え合わせ役の足しはすべて戻した）"
+  },
+  "cracks": [
+   {
+    "name": "1. そろえる決まり（settle.json）が広く、焼いた表が時刻の値を守らない。時刻の鍵（at・until・started・modified・mtime ほか 16）は空でない字ならどんな字でも、数は 1e8 を超えれば何でも @T にし、字の形の決まりは今から遠い固定の日時（場面の作業実績の 2020-01-01 08:00 など）まで @T にする。ポートも全部 @PORT",
+    "where": "desktop/tests/common/bake.rs の settle_with（timed の判定・forms の当て方）と desktop/tests/baked/settle.json の timeKeys・forms",
+    "repro": "変異 M1: src/access.rs の revocation で \"at\" を字のまま返さず at.format(\"%Y-%m-%dT%H:%M:%S\") にする → Python と比べる形の revocation_reads_like_python は 14 件の食い違い（m1-py.log。ただし『焼いた表と違う』は 0 件）、TPA_NO_PYTHON=1 は ok（m1-nopy.log）。変異 M2: src/builder.rs の src_columns で見本の日時の年を 20→19 にする → Python と比べる形は [14] GET /api/sources/work/columns・[18] lot/columns で落ちる（m2-py.log。焼いた表との比べは 0 件）、TPA_NO_PYTHON=1 は ok（m2-nopy.log）。一時の試験（settle を直に呼ぶ）でも {\"v\":\"2020-01-01 08:00\"} と 09:00、{\"at\":\"2026-11-03T09:58\"} と {\"at\":\"壊れた字\"}、mtime 1.7e9 と 1.8e9、127.0.0.1:8080 と :9 がそろえた後に同じ",
+    "effect": "段 ④ の後（Python 無し）は、窓の時刻の読み書き・作業実績の日時の見本・切断の指示の時刻の誤りを試験が見ない。Python と比べる形の 3 回目の比べも同じ穴を持つ。焼いた表のうち builder（samples・作業開始の日付・日時）・access.revoke（at 69 件）などが中身を持たない",
+    "fix": "時刻の鍵の決まりは『今から NEAR の内の日時の字か、今に近い数』だけを @T にし、遠い日時と日時でない字はそのまま比べる（場面の宣言の text_decl と同じ決め方）。字の中の日時も今に近い物だけ。ポートは作り物のサーバーの起こしたポートだけ（Bake が知る URL を @URL に）。そろえた結果に『消した値の形（日時の字の形・桁）』を残す（例 @T(YYYY-MM-DDTHH:MM) ）。変異 M1・M2 を bake_selftest か本の試験に足す",
+    "reproduced": true,
+    "kind": "lost"
+   },
+   {
+    "name": "2. 予算外の任せる歩がまだ残る（delegate-count の計 10 は数え方の届く範囲だけ）: (a) calc_oracle の must:false の 39 歩（窓は答えず Python に任せる。Python が例外の言葉で答える 33 歩を含む）を delegate-count は数えない（delegate の印を持たないため calc 0）。calc::error_message は作ったが窓の道は使っていない。(b) 組む所で、字の欄に i64・u64 を超える整数（{\"source\": 10^19}・10^20・equip・equips の要素・sources/check の place・settings/check の value）と、百分率符号の道（/api/%73ources/wip/columns・/api/sources/a%2Fb/columns）の 8 形を窓が答えない。(c) CM3 の timeout_sec が 0・負・nan・inf・1e6 超は窓が Fail::Python で任せる（Python は \"0\" で接続の誤り、-1・nan で ValueError、inf で OverflowError の 500、1e7 は答える）",
+    "where": "(a) program/tests/calc_oracle.py の must・program/tools/delegate-count.py の walk（delegate・expect・delegates だけを数える）・desktop/tests/calc_parity.rs の handed。(b) desktop/src/builder.rs の text_or_num（u64 は as_f64 で 1e+19 の字、10^20 は held の印の字）ほか。(c) desktop/src/schedule.rs の fetch_plan",
+    "repro": "(a) calc_parity を流すと『窓が答えた 693・Python に任せた 39』、同じ答えの元を delegate-count の walk_count に通すと 0（calc-oracle.json）。(b) builder_oracle.py の closed_of に 10 歩を一時に足して builder_parity を TPA_BLESS=1 で流すと『窓が答えない』8 件（probe-builder2.log。1.0・-0.0 は同じに答える）。(c) Python の fetch_raw を timeout_sec の 12 形で当てた",
+    "fix": "calc の must:false の歩に delegate:true の印（か delegate-count が must:false を数える）を付けて予算に入れ、error_message を窓の道で使って閉じる。組む所の大きな整数は Python の str(int) と同じ桁の字（held の桁）で答える。百分率符号の道は道の全体を 1 回戻してから道の型を当てる（Python の handle と同じ）。timeout の数の端は場面にし、Python の答え（接続の誤り・500）を決めてから窓が答える",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "3. 道の置き換え（@TMP）が、答え合わせ役の固定の字「/tmp/x/../y」「//tmp/x」と流した PC の一時フォルダを混ぜ、作業フォルダの深さ（crumbs の数）も焼く。TMPDIR が /tmp でない PC では fs が Python と比べる形でも Python 無しでも落ちる",
+    "where": "desktop/tests/common/bake.rs の Ctx::new（std::env::temp_dir を @TMP）・Ctx::sub（前の字の境を見ない）・fs.tables.json と fs.json",
+    "repro": "TMPDIR=scratchpad/tmpdir で fs_parity: TPA_NO_PYTHON=1 は tidy_and_crumbs 11 件・folder_browse の crumbs『長さ 5 / 11』で落ち（fs-tmpdir.log）、Python と比べる形も『表が古い oracle.ntpath[12][0]: \"@TMP/x/../y\" / \"/tmp/x/../y\"』で落ちる（fs-tmpdir-py.log）",
+    "fix": "作業フォルダ（@WORK）だけを置き換え、一時フォルダの字は置き換えない（答え合わせ役が一時フォルダを使う所は作業フォルダの下に作らせる）。置き換えは段の境の前後を見る。crumbs は @WORK の上を数えない形で記す",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "4. 焼いた表が流した PC の時差に頼る。TZ=Asia/Tokyo で Python と比べる形を流すと fs が『表が古い（場面のフォルダが表の宣言と違う）: scene.dirs.fs/tree/$RECYCLE.BIN.mtime: 1767323045000000000 / 1767290645000000000』で落ちる（答え合わせ役の 2026-01-01 は地方時で、表は UTC で焼いた）",
+    "where": "desktop/tests/common/bake.rs の mtime_decl（遠い更新時刻は ns のまま）・program/tests/fs_oracle.py の場面",
+    "repro": "TZ=Asia/Tokyo で 21 本を両方の形で流した（tz-summary.txt）: Python 無しは 21/21、Python と比べる形は fs_parity だけ落ちる",
+    "fix": "焼く・比べるときは TZ を UTC に決める（Bake::open で TZ を見て違えば知らせる）か、場面の遠い更新時刻を地方時の字で持ち作り直すときに同じ地方時へ戻す。CI と手元の Linux で時差が違っても同じに通ること（日本の PC の WSL など）を試験にする",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "5. 古さの確かめ（bless.py --check・tests/test_baked_tables.py）が本の部分の表 5 つ（access.revoke・fs.tables・masters.shared・release_place.tables・seeds.cfg）を見ない。答えを消し指紋を 0000… にしても『焼いた表は古くありません（21 本）』",
+    "where": "program/tools/bless.py の check（BAKED / f\"{book}.json\" だけを読む）",
+    "repro": "access.revoke.json の answers を消し sources を壊して --check → rc=0（git checkout で戻した）",
+    "fix": "check は tests/baked の *.json を全部読み、本の名前の頭（本.部分）で books.json に当て、知らない表・部分の表の形・指紋・answers と routes の鍵の一致を同じに確かめる",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "6. 範囲を宣言した焼き直し（TPA_BLESS=道の型＋TPA_NO_PYTHON=1。④ の後の形）が、範囲の外の歩が消えても止まらない（書いた表からその歩が落ちる）",
+    "where": "desktop/tests/common/bake.rs の finish の Mode::BlessScope（self.answers の歩だけを前の表と比べる。消えた歩は見ない）",
+    "repro": "一時の試験: 表に a（GET /api/x）と b（POST /api/y）、範囲 POST /api/y で b だけを記して finish → ok、書いた表に a が無い",
+    "fix": "前の表にあって今回の答えに無い歩も『範囲の外が変わった』に数える（範囲の中の歩が消えるときだけ書く）。bake_selftest に足す",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "7. TPA_NO_PYTHON=1 でも Python が要る所が残り、知らせが分かりにくい: place_parity の master_place_matches_python は独立の答え place-truth.py を python3 で呼ぶので、PATH に Python が無いと『Python を起こせない』等で落ちる。凍らせた Python を相手にする試験（seeds 3・mirror 2・masters・place ほか）は中身を流さずに ok と出る",
+    "where": "desktop/tests/place_parity.rs の truth・common::bake::frozen_python",
+    "repro": "呼ぶと記録して落ちる偽の python を PATH の先に置き TPA_NO_PYTHON=1 で 21 本: 20 本は通り、place_parity が落ちる（python-calls.log に place-truth.py --copied）",
+    "fix": "④ でも独立の答え（*-truth.py）に Python を残すなら、TPA_NO_PYTHON の意味を『program/app を使わない』と決めて書き、Python が無いときは『独立の答えに python3 が要る』と言って落とす。凍らせた試験は #[ignore] の印か『流さなかった』の行を test result の数と別に出す",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "8. root でない CI（GitHub の runner）では場面の宣言の古さを比べない（took の scene の比べは variant()==\"root\" のときだけ）。CI では答え合わせ役の場面が変わって答えが同じなら表の場面が古いまま通り、④ でその古い場面から作り直す",
+    "where": "desktop/tests/common/bake.rs の took（if variant() == \"root\"）",
+    "repro": "コードを読んで確かめた（daemon で名前を runner に見せて 11 本を流すと両方の形で通る。fs の『/』の歩の /tmp の更新時刻の揺れは前からの形）",
+    "fix": "root でない利用者で違う場面の項目（権限・所有者）だけを variants.user に持ち、ほかは利用者によらず比べる",
+    "reproduced": false,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "9. 利用者の名前の置き換えが値の一致で当たる: OS の利用者の名前と同じ字の値は場面の人でも @USER になる。bless.py --user は nobody で流すので、access_write の答えの login「nobody」24 か所と重なる（作った者が認めた残り）。OS の利用者の名前が boss・u1・p1 など場面の名前と同じ PC でも同じ",
+    "where": "desktop/tests/common/bake.rs の settle_with の go（os_user() == t）・user_decl・took の map_values",
+    "repro": "表の値を数えた（access_write.json の nobody 24）",
+    "fix": "--user は場面に出ない名前の一時の利用者で流す。置き換えは答え合わせ役が名前を書いた所（印の付いた欄）だけに当てる",
+    "reproduced": false,
+    "kind": "hidden_state"
+   }
+  ],
+  "not_cracks": [
+   "TPA_NO_PYTHON=1 で 21 本（Python を PATH に残す）: root・TZ=UTC と TZ=Asia/Tokyo で 21/21（nopy-jst）。root でない daemon（名前 runner）で 11 本を両方の形で通る（Python と比べる形の fs の『/』の歩は /tmp の更新時刻が分の境で揺れた前からの形）",
+   "閉じた 14 形: presence_parity・schedule_parity・calc_error_cases・builder_parity を Python と比べる形で流して通る。1.0・-0.0・真偽の字の欄は Python の str(値 or \"\") と同じ答え",
+   "delegate-count --check: 計 10（口 7・③-6 の 3）・Windows だけ 2・予算と同じ（dc.log）",
+   "bless.py --check と test_baked_tables・test_calc_errors は通る",
+   "版の字: 表に版の字が残るのは about だけ（@VERSION は答えの値の字だけ）"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 6,
+    "steps": 7,
+    "effortless": 5,
+    "intuitive": 5,
+    "form": 6,
+    "place": 6,
+    "layout": 7,
+    "tone": 6
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "1. そろえる決まり（settle.json）が広く、焼いた表が時刻の値を守らない。時刻の鍵（at・until・started・modified・mtime ほか 16）は空でない字ならどんな字でも、数は 1e8 を超えれば何でも @T にし、字の形の決まりは今から遠い固定の日時（場面の作業実績の 2020-01-01"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "2. 予算外の任せる歩がまだ残る（delegate-count の計 10 は数え方の届く範囲だけ）: (a) calc_oracle の must:false の 39 歩（窓は答えず Python に任せる。Python が例外の言葉で答える 33 歩を含む）を delegate-count は数えない（deleg"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "3. 道の置き換え（@TMP）が、答え合わせ役の固定の字「/tmp/x/../y」「//tmp/x」と流した PC の一時フォルダを混ぜ、作業フォルダの深さ（crumbs の数）も焼く。TMPDIR が /tmp でない PC では fs が Python と比べる形でも Python 無しでも落ちる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "4. 焼いた表が流した PC の時差に頼る。TZ=Asia/Tokyo で Python と比べる形を流すと fs が『表が古い（場面のフォルダが表の宣言と違う）: scene.dirs.fs/tree/$RECYCLE.BIN.mtime: 1767323045000000000 / 1767290645000000"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "5. 古さの確かめ（bless.py --check・tests/test_baked_tables.py）が本の部分の表 5 つ（access.revoke・fs.tables・masters.shared・release_place.tables・seeds.cfg）を見ない。答えを消し指紋を 0000… にしても"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "6. 範囲を宣言した焼き直し（TPA_BLESS=道の型＋TPA_NO_PYTHON=1。④ の後の形）が、範囲の外の歩が消えても止まらない（書いた表からその歩が落ちる）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "7. TPA_NO_PYTHON=1 でも Python が要る所が残り、知らせが分かりにくい: place_parity の master_place_matches_python は独立の答え place-truth.py を python3 で呼ぶので、PATH に Python が無いと『Python を起こせ"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "8. root でない CI（GitHub の runner）では場面の宣言の古さを比べない（took の scene の比べは variant()==\"root\" のときだけ）。CI では答え合わせ役の場面が変わって答えが同じなら表の場面が古いまま通り、④ でその古い場面から作り直す"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "9. 利用者の名前の置き換えが値の一致で当たる: OS の利用者の名前と同じ字の値は場面の人でも @USER になる。bless.py --user は nobody で流すので、access_write の答えの login「nobody」24 か所と重なる（作った者が認めた残り）。OS の利用者の名前が boss"
+    }
+   ],
+   "seen": "狙い（段 ④ で答えの元を失わないよう、窓の答えを焼いた表に持ち、Python と比べる形・Python 無し・焼き直しの 3 つの流し方を 1 つの係にまとめる）は形として入っている: 21 本が Python 無しで通り（Python の台本の独立の答えを除く）、Python と同じときだけ焼く・時刻の境をまたぐ 2 回の焼き・範囲の宣言・変わった葉の要約・凍らせた試験の印がそろう。予算外の任せる歩の 14 形は場面のとおり窓と Python が同じに答える。足りないのは、焼いた表が守る範囲: そろえる決まりが時刻の値を中身ごと消すので、M1・M2 のような窓の時刻の誤りは焼いた表でも Python 無しでも見えない（割れ 1）。数え方の外の任せ（calc 39・組む所 8・timeout の端）が計 10 の外に残る（割れ 2）。表が流した PC の一時フォルダと時差に頼る（割れ 3・4）。古さの確かめと範囲の焼き直しに穴がある（割れ 5・6）。凍らせた試験と独立の答えの Python が『Python 無し』の意味をぼかす（割れ 7）。CI では場面の古さを比べない（割れ 8）"
+  },
+  "built_fixed": [
+   {
+    "crack": 1,
+    "fixed": "そろえる決まりを狭めた（desktop/tests/common/bake.rs の settle_with・tests/baked/settle.json）。時刻は今から NEAR（2 日）の内の日時の字と、時刻の鍵（timeKeys）の今に近い数（1970 年からの秒・ミリ秒）だけを「@T(形|今からの秒)」にし、比べるときは形が同じで秒の差が TOL（1800 秒）の内なら同じ（diff_tol）。遠い日時・日時でない字・遠い数はそのまま比べる。ポートの形を外し、作り物のサーバーの URL（組む所の CM3）だけを @URL にした（Ctx::url）。時限の爆弾は、焼くとき（bless.py）に答え合わせ役の元へ今日から 3 日の内の固定の日付があれば焼かずに止める形で塞いだ（near_dates）",
+    "tests": "bake_selftest の only_times_near_now_are_settled_and_their_shape_and_value_are_kept（遠い 08:00 と 09:00・年の 20→19〈M2〉・時刻の鍵の壊れた字・遠い mtime・ポート・今に近い時刻の形の書き直し〈M1〉・2 時間のずれ・TOL の内）・dropping_a_settle_rule_lets_the_wobble_through（near・ms・時刻の鍵を外すと揺れが残る）・test_baked_tables の test_near_dates_in_the_sources_stop_the_bless。本物の本で M1（src/access.rs の revocation の at を書き直す）と M2（src/builder.rs の見本の年）を当て、Python と比べる形も TPA_NO_PYTHON=1 も落ちることを見た（記録は下の checks）"
+   },
+   {
+    "crack": 2,
+    "fixed": "(a) calc_oracle の must でない歩に delegate の印を付け、delegate-count が数える（計算: 48。今任せるのは 39・9 は窓も同じに答える。言葉の決まり calc::error_message は作ってあり、窓が例外の形を答えるのは 2 版目）。(b) 組む所: 字の欄の i64・u64 を超える整数は Python の str(int) の桁（builder::text_or_num・body_of が大きな整数を読む）、道は全体の百分率符号を 1 回戻してから当てる（builder::route_of。/api/%73ources/wip/columns を窓が答える）。戻したキーに / がある /api/sources/a%2Fb/columns は数える（道の型に当たらない。段 ④ で窓の道なしの 404）。builder_oracle の closed_of に 7 歩・delegates_of に 1 歩。(c) CM3 の timeout が 0・\"0\"・負・nan・inf・-inf・1 年を超える数は 15 秒（Python cm3_schedule.timeout_of・窓 schedule.rs の fetch_plan）。1e7 は答える。schedule_oracle に 8 場面",
+    "tests": "builder_parity（7 歩を窓が Python と同じに答える）・schedule_parity（timeout の端の 8 場面）・calc_parity（印の歩）・builder::tests::routes_are_the_seven_reads・delegate-count --check（予算 total 59 = 口 7・③-6 の 3・計算 48・道 1）"
+   },
+   {
+    "crack": 3,
+    "fixed": "一時フォルダの置き換え（@TMP）をやめ、作業フォルダ（@WORK）と家（@HOME）と作り物の URL（@URL）だけを、段の境の前後（前の字・後ろの字が道の続きでない）を見て置き換える（Ctx::sub・path_edge）。区切り（crumbs）の作業フォルダより上の段は @ABOVE 1 つにまとめる（above_crumbs）",
+    "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（/tmp/x/../y はそのまま・前後の境・深さに頼らない区切り）。TMPDIR を作業用のフォルダに替えて fs_parity を両方の形で流して通ることを見た（checks）"
+   },
+   {
+    "crack": 4,
+    "fixed": "焼く・比べるときの時差を UTC に決めた（Bake::open_part が TZ=UTC にしてから窓と答え合わせ役を起こす）。答え合わせ役の地方時の日時（fs の 2026-01-01）が PC の時差で違う更新時刻にならない",
+    "tests": "bake_selftest の baking_fixes_the_time_zone。TZ=Asia/Tokyo で 21 本を両方の形で流して通ることを見た（checks）"
+   },
+   {
+    "crack": 5,
+    "fixed": "bless.py の check（--check・tests/test_baked_tables.py）は tests/baked の *.json を全部読み（tables・files_of）、名前の頭で本に当て、知らない表・形・指紋・answers と routes の鍵・答えが 0 の表を確かめる。焼く 2 回の比べ・元に戻す・root でない利用者の写しも部分の表を含めた",
+    "tests": "test_baked_tables の test_every_table_is_checked_even_the_parts（部分の表 5 つの答えを消す・指紋を壊す・知らない本の表で落ちる）"
+   },
+   {
+    "crack": 6,
+    "fixed": "範囲を宣言した焼き直しは、前の表にあって今回の答えに無い歩も、範囲の外なら「範囲の外の歩が消えた」で止める（finish の BlessScope）。変わったかの比べも秒の差を許す形（diff_tol）",
+    "tests": "bake_selftest の a_scoped_bless_refuses_steps_vanishing_outside_the_scope"
+   },
+   {
+    "crack": 7,
+    "fixed": "TPA_NO_PYTHON は「program/app を使わない」形と決めて書いた（bake.rs の冒頭・RUST_PORT_PLAN.md・CLAUDE.md）。独立の答え（tools/*-truth.py）の標準の Python は残し、起こせなければ「独立の答えに標準の Python が要ります」で落とす（bake::stdlib_python。place_parity の truth）。凍らせた Python を相手にする試験は流さなかった名前を target/tmp/frozen-skipped.txt に書き、bless.py --no-python が「流さなかった試験 n 本」を test result の数と別に出す",
+    "tests": "偽の python を PATH の先に置いた TPA_NO_PYTHON=1 の 21 本で、place_parity が分かる言葉で落ち、ほかの 20 本が通ることを見た。bless.py --no-python の流さなかった試験の行（checks）"
+   },
+   {
+    "crack": 8,
+    "fixed": "場面の宣言の古さはどの利用者でも比べる（took の variant の条件を外した）。root でない利用者が写せない所（権限に読む印の無い段の中・読めないファイルの中身）とフォルダの更新時刻は decl_cmp が除く",
+    "tests": "root でない利用者（daemon・名前 runner）で 21 本を Python と比べる形で流して通ることを見た（checks）"
+   },
+   {
+    "crack": 9,
+    "fixed": "利用者の名前の置き換えは、名前を書く欄（settle.json の nameKeys: login・holder_login・ログインID）の値だけに当てる（settle・user_decl・named_users）。bless.py --user は場面に出ない名前の一時の利用者 tpabless（無ければ作り、終わったら消す。場面の元にその名前があれば止める）で流す",
+    "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（名前の欄だけ）。access_write の表に @USER は名前の欄だけ（checks）"
+   }
+  ]
+ }
+}

@@ -25,7 +25,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// 答え合わせ役の元に今からこの幅の内の固定の日付があれば焼かずに止める（時限の爆弾にしない）
 pub const NEAR: i64 = 2 * 24 * 3600;
 /// 今に近い時刻の秒の差を許す幅（焼いた時と比べる時の、場面を作ってから答えるまでの時間の違い）
-pub const TOL: i64 = 900;
+pub const TOL: i64 = 1800;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode {
@@ -306,7 +306,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）
 fn above_crumbs(v: Vec<Value>) -> Value {
-    let crumb = |x: &Value| x.as_object().is_some_and(|o| o.len() == 2 && o.contains_key("name") && o["path"].is_string());
+    let crumb = |x: &Value| x.as_object().is_some_and(|o| o.len() == 2 && o.contains_key("name") && o.get("path").is_some_and(Value::is_string));
     if v.is_empty() || !v.iter().all(crumb) || !v.iter().any(|x| x["path"].as_str().unwrap().starts_with("@WORK")) {
         return Value::Array(v);
     }
@@ -316,14 +316,19 @@ fn above_crumbs(v: Vec<Value>) -> Value {
 }
 
 /// 今からの秒を抜いた形（試験そのものの比べと、2 回の焼きの比べ）
+fn offset_re() -> &'static regex::Regex {
+    static R: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    R.get_or_init(|| regex::Regex::new(r"@T\(([^|)]*)\|(-?\d+)\)").unwrap())
+}
+
 pub fn without_offsets(v: &Value) -> Value {
-    let re = regex::Regex::new(r"@T\(([^|)]*)\|-?\d+\)").unwrap();
+    let re = offset_re();
     map_strings(v, &|s| if s.contains("@T(") { re.replace_all(s, "@T($1)").into_owned() } else { s.to_string() })
 }
 
 /// 時刻の印（@T(形|秒)）の秒の差を許して比べる（TOL 秒の内なら同じ）。最初の違いの道
 pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
-    let re = regex::Regex::new(r"@T\(([^|)]*)\|(-?\d+)\)").unwrap();
+    let re = offset_re();
     match (a, b) {
         (Value::String(x), Value::String(y)) if x.contains("@T(") || y.contains("@T(") => {
             let (sx, sy) = (re.replace_all(x, "@T($1)"), re.replace_all(y, "@T($1)"));

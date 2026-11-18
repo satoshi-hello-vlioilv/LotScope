@@ -7,10 +7,10 @@
   "join #03": {"posix":"//名前.v","posixBase":"//","win":"\\\\名前.v","winBase":"\\\\"},
   "join #04": {"posix":"/n","posixBase":"/","win":"\\\\\\n","winBase":"\\\\\\"},
   "join #05": {"posix":"/名前.v","posixBase":"/","win":"\\\\\\名前.v","winBase":"\\\\\\"},
-  "join #06": {"posix":"/@TMP/n","posixBase":"/@TMP","win":"\\\\tmp\\n\\","winBase":"\\\\tmp"},
-  "join #07": {"posix":"/@TMP/名前.v","posixBase":"/@TMP","win":"\\\\tmp\\名前.v\\","winBase":"\\\\tmp"},
-  "join #08": {"posix":"@TMP/n","posixBase":"@TMP","win":"\\tmp\\n","winBase":"\\tmp"},
-  "join #09": {"posix":"@TMP/名前.v","posixBase":"@TMP","win":"\\tmp\\名前.v","winBase":"\\tmp"},
+  "join #06": {"posix":"//tmp/n","posixBase":"//tmp","win":"\\\\tmp\\n\\","winBase":"\\\\tmp"},
+  "join #07": {"posix":"//tmp/名前.v","posixBase":"//tmp","win":"\\\\tmp\\名前.v\\","winBase":"\\\\tmp"},
+  "join #08": {"posix":"/tmp/n","posixBase":"/tmp","win":"\\tmp\\n","winBase":"\\tmp"},
+  "join #09": {"posix":"/tmp/名前.v","posixBase":"/tmp","win":"\\tmp\\名前.v","winBase":"\\tmp"},
   "join #10": {"posix":"/a/b/n","posixBase":"/a/b","win":"\\a\\b\\n","winBase":"\\a\\b"},
   "join #11": {"posix":"/a/b/名前.v","posixBase":"/a/b","win":"\\a\\b\\名前.v","winBase":"\\a\\b"},
   "join #12": {"posix":"a/n","posixBase":"a","win":"a\\n","winBase":"a"},
@@ -160,19 +160,19 @@
    },
    {
     "name": "n",
-    "parent": "/@TMP"
+    "parent": "//tmp"
    },
    {
     "name": "名前.v",
-    "parent": "/@TMP"
+    "parent": "//tmp"
    },
    {
     "name": "n",
-    "parent": "@TMP/"
+    "parent": "/tmp/"
    },
    {
     "name": "名前.v",
-    "parent": "@TMP/"
+    "parent": "/tmp/"
    },
    {
     "name": "n",
@@ -875,5 +875,8 @@
   "tests/oracle_gate.py": "74d8effb19f3211d",
   "tests/release_place_oracle.py": "aece687ca37b7e07"
  },
- "variant": "root"
+ "variant": "root",
+ "variants": {
+  "user": {}
+ }
 }
