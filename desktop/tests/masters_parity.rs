@@ -431,6 +431,43 @@ fn numbers_the_window_cannot_keep_are_refused() {
     let _ = std::fs::remove_dir_all(&work);
 }
 
+/// 錠の「あと約 n 秒」は、錠を置いた時刻の秒の端数で決まる（版 3.115.0 の PR #115 の CI の直しの再現）。期限は秒まで書き
+/// （master_store::iso）、残りは「期限 − 今」を切って 1 を足す（wait）。錠の長さ 20 秒なら、秒の頭の方で置いた錠は 20、秒の終わりぎわ
+/// （端数＋置いてから断られるまでの時間が 1 秒を超える所）で置いた錠は 19 になる。手元で焼いた表の 20 が CI で 19 になったのはこの形で、
+/// 焼いた表との比べは差 1 までを同じとみなす（bake::diff_tol の WAIT_TOL。Python と比べる所は前から same_remaining）。
+/// ここでは、秒の頭の方では必ず 20・秒の終わりぎわでも 19 か 20 のどちらかで、ほかの数にならないことを見る
+/// （TPA_PHASE_TRIES=回数・TPA_PHASE_FRAC=端数 で終わりぎわの回数と端数を変えると、19 の出る割合が見える）
+#[test]
+fn the_seconds_left_on_a_lock_depend_on_the_fraction_of_the_second() {
+    let dir = common::work("masters-phase");
+    setup(&dir, &json!({"shared": true, "files": {}}));
+    let (a, b) = (plain_store(&dir, true, 20.0), plain_store(&dir, true, 20.0));
+    // 秒の端数が frac になるまで待ってから、A が丸ごと扱う間に B が書く（B は A の生きた錠で断られる）
+    let left_at = |frac: f64| -> i64 {
+        loop {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64().fract();
+            if now >= frac && now < frac + 0.0002 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_micros(if (frac - now).rem_euclid(1.0) > 0.01 { 2000 } else { 50 }));
+        }
+        match a.exclusive(|| Ok(append(&b, "equipment_master"))).unwrap() {
+            Err(MasterError::Locked { remaining, .. }) => remaining,
+            other => panic!("錠で断られるはず: {other:?}"),
+        }
+    };
+    for _ in 0..2 {
+        assert_eq!(left_at(0.30), 20, "秒の頭の方で置いた錠は 20");
+    }
+    let tries: usize = std::env::var("TPA_PHASE_TRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let frac: f64 = std::env::var("TPA_PHASE_FRAC").ok().and_then(|v| v.parse().ok()).unwrap_or(0.9996);
+    let late: Vec<i64> = (0..tries).map(|_| left_at(frac)).collect();
+    let (n19, n20) = (late.iter().filter(|x| **x == 19).count(), late.iter().filter(|x| **x == 20).count());
+    eprintln!("秒の終わりぎわ（端数 {frac}）で置いた錠 {tries} 回: 19 が {n19} 回・20 が {n20} 回");
+    assert_eq!(n19 + n20, tries, "19 か 20 のどちらか: {late:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// 2 つの置き場の Store を同じ糸で使っても、錠の置き場が混ざらない（Python の _where は MasterStore ごと）。
 /// panic しても錠の置き場と錠は元へ戻る
 #[test]

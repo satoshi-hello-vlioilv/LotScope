@@ -172,6 +172,34 @@ fn sqlite_files_in_a_scene_are_compared_by_content_not_by_the_library_version() 
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// 錠の「あと約 n 秒」は、焼いた表との比べでも差 1 までを同じとみなす（版 3.115.0 の PR #115 の CI の直し: 期限は秒まで・今は小数なので、
+/// 錠を置いた時刻の秒の端数で同じ錠が 20 にも 19 にもなる）。差 2・持ち主の名前・ほかの数・ほかの言葉の数は許さない
+#[test]
+fn the_seconds_left_on_a_lock_may_differ_by_one_and_nothing_else() {
+    let ans = |who: &str, n: i64| json!({"err": {"error": format!("{who} がマスタを保存中です（あと約{n}秒）。少し待つと保存できます。"), "holder_pc": "PC1", "kind": "locked", "remaining": n}, "status": 409});
+    assert!(diff_tol(&ans("PC1／u1", 20), &ans("PC1／u1", 19), "k").is_none(), "20 と 19 は同じ");
+    assert!(diff_tol(&ans("PC1／u1", 14), &ans("PC1／u1", 15), "k").is_none(), "14 と 15 は同じ");
+    assert!(diff_tol(&ans("PC1／u1", 20), &ans("PC1／u1", 18), "k").is_some(), "差 2 は違う");
+    assert!(diff_tol(&ans("PC1／u1", 20), &ans("PC1／u1", 5), "k").is_some());
+    assert!(diff_tol(&ans("PC1／u1", 20), &ans("PC2／u1", 20), "k").is_some(), "持ち主が違えば違う");
+    assert!(diff_tol(&ans("PC1／u1", 20), &ans("PC2／u1", 19), "k").is_some());
+    // 言葉は同じで数だけ・数は同じで言葉だけが違う形も、それぞれ見る
+    let mut only_num = ans("PC1／u1", 20);
+    only_num["err"]["remaining"] = json!(17);
+    assert!(diff_tol(&ans("PC1／u1", 20), &only_num, "k").is_some(), "鍵 remaining の差 3");
+    only_num["err"]["remaining"] = json!(19);
+    assert!(diff_tol(&ans("PC1／u1", 20), &only_num, "k").is_none());
+    // ほかの鍵の数・ほかの言葉の数は 1 つ違っても違う
+    assert!(diff_tol(&json!({"status": 409, "left": 20}), &json!({"status": 409, "left": 19}), "k").is_some());
+    assert!(diff_tol(&json!({"n": {"remaining2": 20}}), &json!({"n": {"remaining2": 19}}), "k").is_some());
+    assert!(diff_tol(&json!("あと 20 秒で閉じます"), &json!("あと 19 秒で閉じます"), "k").is_some());
+    assert!(diff_tol(&json!("写した 5/11（あと約20秒）"), &json!("写した 6/11（あと約20秒）"), "k").is_some(), "ほかの数は比べる");
+    // 「あと約 n 秒」が片方にしか無い・数が 2 つあって片方が離れている
+    assert!(diff_tol(&json!("保存中です（あと約20秒）。"), &json!("保存中です。"), "k").is_some());
+    assert!(diff_tol(&json!("あと約20秒・あと約3秒"), &json!("あと約19秒・あと約3秒"), "k").is_none());
+    assert!(diff_tol(&json!("あと約20秒・あと約3秒"), &json!("あと約19秒・あと約9秒"), "k").is_some());
+}
+
 /// 今から secs 秒ずれた地方時の日時の字（fmt の形）
 fn at(secs: i64, fmt: &str) -> String {
     (chrono::Local::now().naive_local() + chrono::Duration::seconds(secs)).format(fmt).to_string()

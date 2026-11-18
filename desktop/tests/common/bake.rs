@@ -392,16 +392,35 @@ pub fn without_offsets(v: &Value) -> Value {
     map_strings(v, &|s| if s.contains("@T(") { re.replace_all(s, "@T($1)").into_owned() } else { s.to_string() })
 }
 
-/// 時刻の印（@T(形|秒)）の秒の差を許して比べる（TOL 秒の内なら同じ）。最初の違いの道
+/// 錠の「あと約 n 秒」（言葉の「あと約n秒」と鍵 remaining の数）で許す差。錠の残りは「期限 − 今」の秒を切って 1 を足した数（窓の
+/// master_store::wait・Python の MasterLocked）で、期限は秒まで・今は小数なので、錠を置いた時刻の秒の端数と、置いてから断られるまでの
+/// わずかな時間で、同じ錠が 20 にも 19 にもなる（版 3.115.0 の PR #115 の CI の直し: masters の「丸ごと扱う間の中の書き込み」が
+/// 手元で焼いた 20 に対し CI で 19 になって落ちた。Python と比べる試験は前から ±1 を許している〈masters_parity の same_remaining〉。
+/// 焼いた表との比べだけが 1 字まで比べていた）。2 より大きい差・持ち主の名前・ほかの数は許さない
+const WAIT_TOL: i64 = 1;
+
+fn wait_re() -> &'static regex::Regex {
+    super::re(r"あと約(\d+)秒")
+}
+
+/// 時刻の印（@T(形|秒)）の秒の差（TOL 秒の内）と、錠の「あと約 n 秒」の差（WAIT_TOL の内）を許して比べる。最初の違いの道
 pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
     let re = offset_re();
     match (a, b) {
-        (Value::String(x), Value::String(y)) if x.contains("@T(") || y.contains("@T(") => {
-            let (sx, sy) = (re.replace_all(x, "@T($1)"), re.replace_all(y, "@T($1)"));
-            let ox: Vec<i64> = re.captures_iter(x).map(|c| c[2].parse().unwrap()).collect();
-            let oy: Vec<i64> = re.captures_iter(y).map(|c| c[2].parse().unwrap()).collect();
-            let close = ox.len() == oy.len() && ox.iter().zip(&oy).all(|(p, q)| (p - q).abs() <= TOL);
-            (sx != sy || !close).then(|| format!("{path}: {x} / {y}"))
+        (Value::String(x), Value::String(y))
+            if x != y && (x.contains("@T(") || y.contains("@T(") || (x.contains("あと約") && y.contains("あと約"))) =>
+        {
+            let w = wait_re();
+            let shape = |t: &str| w.replace_all(&re.replace_all(t, "@T($1)"), "あと約#秒").into_owned();
+            let nums = |t: &str, r: &regex::Regex, i: usize| -> Vec<i64> { r.captures_iter(t).filter_map(|c| c[i].parse().ok()).collect() };
+            let near = |p: Vec<i64>, q: Vec<i64>, tol: i64| p.len() == q.len() && p.iter().zip(&q).all(|(m, n)| (m - n).abs() <= tol);
+            let close = near(nums(x, re, 2), nums(y, re, 2), TOL) && near(nums(x, w, 1), nums(y, w, 1), WAIT_TOL);
+            (shape(x) != shape(y) || !close).then(|| format!("{path}: {x} / {y}"))
+        }
+        // 錠の残りの数（鍵 remaining）
+        (Value::Number(x), Value::Number(y)) if x != y && path.ends_with(".remaining") => {
+            let close = matches!((x.as_i64(), y.as_i64()), (Some(p), Some(q)) if (p - q).abs() <= WAIT_TOL);
+            (!close).then(|| format!("{path}: {x} / {y}"))
         }
         (Value::Object(x), Value::Object(y)) => {
             for k in x.keys().chain(y.keys()) {
