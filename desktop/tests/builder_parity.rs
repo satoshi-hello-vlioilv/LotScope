@@ -19,9 +19,9 @@ use std::path::{Path, PathBuf};
 fn norm(v: &Value) -> Value {
     match v {
         Value::String(s) => {
-            let re = regex::Regex::new(r"・\d+ ms").unwrap();
+            let re = common::re(r"・\d+ ms");
             let s = re.replace_all(s, "・<ms> ms").to_string();
-            let re = regex::Regex::new(r"SQLite のファイルとして開けません（.*?）。").unwrap();
+            let re = common::re(r"SQLite のファイルとして開けません（.*?）。");
             json!(re.replace_all(&s, "SQLite のファイルとして開けません（<e>）。"))
         }
         Value::Object(o) => Value::Object(

@@ -21,8 +21,7 @@ const FILES: [&str; 1] = ["equipment_groups.json"];
 fn norm(v: &Value) -> Value {
     match v {
         Value::String(s) => {
-            static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-            let re = RE.get_or_init(|| regex::Regex::new(r"（[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}）").unwrap());
+            let re = common::re(r"（[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}）");
             json!(re.replace_all(s, "（<t>）"))
         }
         Value::Object(o) => Value::Object(

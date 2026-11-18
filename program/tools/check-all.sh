@@ -73,7 +73,8 @@ step fmt-clippy bash -c "cd desktop && cargo fmt --check && cargo clippy --all-t
 # 4) 試験
 step py-tests bash -c "cd program && python -m unittest discover -s tests -t ."
 step bundle-tests python -m unittest discover -s desktop/bundle -t desktop/bundle
-step cargo-test bash -c "cd desktop && cargo test --locked"
+# --no-fail-fast: 落ちた本で止めず、全部の本を流す（CI と同じ。落ちた本があれば終了コードは 0 でない）
+step cargo-test bash -c "cd desktop && cargo test --locked --no-fail-fast"
 # 5) 窓の通し（起動・更新・配布の流れを変えたとき）
 if [ $VERIFY -eq 1 ]; then
   echo "空き（窓の通しの前）: $(free_gb) GB" | tee -a "$OUT/summary.txt"

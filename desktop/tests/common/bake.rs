@@ -497,8 +497,8 @@ fn mtime_of_decl(v: &Value) -> Option<SystemTime> {
     Some(time_of_ns(((now_secs() * 1000.0) as i64 + ms) * 1_000_000))
 }
 
-fn dt_re() -> regex::Regex {
-    regex::Regex::new(r"(\d{4})-(\d{2})-(\d{2})([T ])(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?").unwrap()
+fn dt_re() -> &'static regex::Regex {
+    super::re(r"(\d{4})-(\d{2})-(\d{2})([T ])(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?")
 }
 
 /// 中身の字の今に近い日時を「@NOW(ずれ ms,区切り,桁)」にする（作る時に今からのずれで書き戻す。ほかの PC の錠の時刻など）
@@ -510,7 +510,8 @@ fn user_decl(t: &str) -> String {
         return t.to_string();
     }
     let keys: Vec<String> = name_keys().iter().map(|k| regex::escape(k)).collect();
-    let re = regex::Regex::new(&format!(r#"("(?:{})"\s*:\s*)"{}""#, keys.join("|"), regex::escape(u))).unwrap();
+    // 利用者の名前で形が変わるので、形の字ごとに覚える（super::re）
+    let re = super::re(&format!(r#"("(?:{})"\s*:\s*)"{}""#, keys.join("|"), regex::escape(u)));
     re.replace_all(t, "${1}\"@USER@\"").into_owned()
 }
 
@@ -553,7 +554,7 @@ fn text_decl(t: &str, ctx: &Ctx) -> String {
 }
 
 fn text_of_decl(t: &str, ctx: &Ctx) -> String {
-    let re = regex::Regex::new(r"@NOW\((-?\d+)ms,([T ]),(m|s|f\d)\)").unwrap();
+    let re = super::re(r"@NOW\((-?\d+)ms,([T ]),(m|s|f\d)\)");
     let now = chrono::Local::now().naive_local();
     let t = re.replace_all(t, |c: &regex::Captures| {
         let d = now + chrono::Duration::milliseconds(c[1].parse().unwrap());
@@ -709,7 +710,7 @@ fn fid_unsub(s: &str, base: &Path) -> String {
     if !s.contains("@FID(") {
         return s.to_string();
     }
-    let re = regex::Regex::new(r"@FID\(([^)]*)\)").unwrap();
+    let re = super::re(r"@FID\(([^)]*)\)");
     re.replace_all(s, |c: &regex::Captures| fid_of(&base.join(&c[1]))).into_owned()
 }
 
@@ -771,7 +772,7 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
 
 /// 宣言を比べられる形に（今からのずれは流すたびに変わるので形だけ残す）
 fn decl_cmp(v: &Value) -> Value {
-    let re = regex::Regex::new(r"@NOW\(-?\d+ms").unwrap();
+    let re = super::re(r"@NOW\(-?\d+ms");
     // 中身は指紋（blobs の鍵）でなく中身そのもので比べる（指紋は今からのずれを含む）
     let mut files = v["files"].clone();
     if let Some(o) = files.as_object_mut() {
@@ -806,7 +807,7 @@ fn decl_cmp(v: &Value) -> Value {
     }
     let w = json!({"files": files, "dirs": dirs, "links": v["links"]});
     // Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
-    let hex = regex::Regex::new(r"\b[0-9a-f]{32}\b").unwrap();
+    let hex = super::re(r"\b[0-9a-f]{32}\b");
     map_strings(&w, &|s| hex.replace_all(&re.replace_all(s, "@NOW(~"), "@HEX32").into_owned())
 }
 
@@ -1040,7 +1041,7 @@ impl Bake {
                 return;
             };
             let now_free = |v: &Value| {
-                let re = regex::Regex::new(r"@NOW\(-?\d+ms").unwrap();
+                let re = super::re(r"@NOW\(-?\d+ms");
                 settle(&map_strings(v, &|s| re.replace_all(s, "@NOW(~").into_owned()), &self.ctx, &self.keys)
             };
             let (a, b) = (now_free(&t["oracle"]), now_free(&self.oracle));
@@ -1330,7 +1331,7 @@ pub fn sources_of(book: &str) -> Value {
 pub fn route_of(st: &Value) -> String {
     let m = st["method"].as_str().unwrap_or("");
     let p = st["path"].as_str().unwrap_or("");
-    let re = regex::Regex::new(r"/[0-9０-９]+$").unwrap();
+    let re = super::re(r"/[0-9０-９]+$");
     format!("{m} {}", re.replace(p, "/{n}"))
 }
 

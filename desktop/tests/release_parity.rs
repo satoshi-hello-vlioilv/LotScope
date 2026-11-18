@@ -24,9 +24,8 @@ fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
             let s = s.replace(root, "@ROOT");
-            let s = regex::Regex::new(r"\.copying-\d+-\d+").unwrap().replace_all(&s, ".copying-<pid>-<t>").into_owned();
-            let s = regex::Regex::new(r"権限を読めないので、置き場を変えられません（.*）。")
-                .unwrap()
+            let s = common::re(r"\.copying-\d+-\d+").replace_all(&s, ".copying-<pid>-<t>").into_owned();
+            let s = common::re(r"権限を読めないので、置き場を変えられません（.*）。")
                 .replace_all(&s, "権限を読めないので、置き場を変えられません（<理由>）。")
                 .into_owned();
             if cfg!(windows) && s.starts_with("写せませんでした: ") && !s.ends_with("is a named pipe") {

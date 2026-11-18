@@ -39,9 +39,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop
+      # --no-fail-fast: 落ちた本で止めず、全部の本を流す（ci.yml と同じ。落ちた本があれば終了コードは 0 でない）
       - name: test（Rust・Windows）
         working-directory: desktop
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
       # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
       - name: 写しと公開の干渉（Python・Windows）

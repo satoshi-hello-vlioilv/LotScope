@@ -19,7 +19,7 @@ use std::sync::Arc;
 /// 時刻を伏せる（比べるのは形と中身）。断る言葉の中の「（年-月-日 時:分）」も伏せる（Python と窓が分の境をまたぐと字が違う）
 fn norm(v: &Value, fids: &Map<String, Value>) -> Value {
     if let Value::String(s) = v {
-        let re = regex::Regex::new(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）").unwrap();
+        let re = common::re(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）");
         return json!(re.replace_all(s, "（<t>）"));
     }
     match v {

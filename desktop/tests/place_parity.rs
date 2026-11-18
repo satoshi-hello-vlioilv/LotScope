@@ -26,8 +26,8 @@ fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
             let s = s.replace(root, "@ROOT");
-            let s = regex::Regex::new(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d").unwrap().replace_all(&s, "<時刻>").into_owned();
-            let s = regex::Regex::new(r"\.(tmp|probe)-[0-9a-f]{8}").unwrap().replace_all(&s, ".$1-<印>").into_owned();
+            let s = common::re(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d").replace_all(&s, "<時刻>").into_owned();
+            let s = common::re(r"\.(tmp|probe)-[0-9a-f]{8}").replace_all(&s, ".$1-<印>").into_owned();
             json!(s)
         }
         Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.replace(root, "@ROOT"), norm(x, root))).collect()),
@@ -39,7 +39,7 @@ fn norm(v: &Value, root: &str) -> Value {
 /// 錠の「あと何秒」（remaining と「あと約 n 秒」）。錠を最初に見てからの経過で数えるので、Python と窓で歩の間の時間が
 /// 違えば 1 秒ほどずれる（Windows の CI で 20 / 19）。両方の秒を取り出して返し、答えからは伏せる
 fn lock_secs(v: &Value, out: &mut Vec<i64>) -> Value {
-    let re = regex::Regex::new(r"あと約(\d+)秒").unwrap();
+    let re = common::re(r"あと約(\d+)秒");
     match v {
         Value::String(s) => {
             out.extend(re.captures_iter(s).filter_map(|c| c[1].parse::<i64>().ok()));

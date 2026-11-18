@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 /// 分の境をまたぐと字が違う。CI で 02:58 と 02:59 に分かれて落ちた）
 fn norm(v: &Value) -> Value {
     if let Value::String(s) = v {
-        let re = regex::Regex::new(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）").unwrap();
+        let re = common::re(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）");
         return json!(re.replace_all(s, "（<t>）"));
     }
     match v {
