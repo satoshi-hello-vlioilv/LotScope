@@ -155,60 +155,60 @@
     }
    ],
    "seen": "狙い（段 ④ で答えの元を失わないよう、窓の答えを焼いた表に持ち、Python と比べる形・Python 無し・焼き直しの 3 つの流し方を 1 つの係にまとめる）は形として入っている: 21 本が Python 無しで通り（Python の台本の独立の答えを除く）、Python と同じときだけ焼く・時刻の境をまたぐ 2 回の焼き・範囲の宣言・変わった葉の要約・凍らせた試験の印がそろう。予算外の任せる歩の 14 形は場面のとおり窓と Python が同じに答える。足りないのは、焼いた表が守る範囲: そろえる決まりが時刻の値を中身ごと消すので、M1・M2 のような窓の時刻の誤りは焼いた表でも Python 無しでも見えない（割れ 1）。数え方の外の任せ（calc 39・組む所 8・timeout の端）が計 10 の外に残る（割れ 2）。表が流した PC の一時フォルダと時差に頼る（割れ 3・4）。古さの確かめと範囲の焼き直しに穴がある（割れ 5・6）。凍らせた試験と独立の答えの Python が『Python 無し』の意味をぼかす（割れ 7）。CI では場面の古さを比べない（割れ 8）"
-  },
-  "built_fixed": [
-   {
-    "crack": 1,
-    "fixed": "そろえる決まりを狭めた（desktop/tests/common/bake.rs の settle_with・tests/baked/settle.json）。時刻は今から NEAR（2 日）の内の日時の字と、時刻の鍵（timeKeys）の今に近い数（1970 年からの秒・ミリ秒）だけを「@T(形|今からの秒)」にし、比べるときは形が同じで秒の差が TOL（1800 秒）の内なら同じ（diff_tol）。遠い日時・日時でない字・遠い数はそのまま比べる。ポートの形を外し、作り物のサーバーの URL（組む所の CM3）だけを @URL にした（Ctx::url）。時限の爆弾は、焼くとき（bless.py）に答え合わせ役の元へ今日から 3 日の内の固定の日付があれば焼かずに止める形で塞いだ（near_dates）",
-    "tests": "bake_selftest の only_times_near_now_are_settled_and_their_shape_and_value_are_kept（遠い 08:00 と 09:00・年の 20→19〈M2〉・時刻の鍵の壊れた字・遠い mtime・ポート・今に近い時刻の形の書き直し〈M1〉・2 時間のずれ・TOL の内）・dropping_a_settle_rule_lets_the_wobble_through（near・ms・時刻の鍵を外すと揺れが残る）・test_baked_tables の test_near_dates_in_the_sources_stop_the_bless。本物の本で M1（src/access.rs の revocation の at を書き直す）と M2（src/builder.rs の見本の年）を当て、Python と比べる形も TPA_NO_PYTHON=1 も落ちることを見た（記録は下の checks）"
-   },
-   {
-    "crack": 2,
-    "fixed": "(a) calc_oracle の must でない歩に delegate の印を付け、delegate-count が数える（計算: 48。今任せるのは 39・9 は窓も同じに答える。言葉の決まり calc::error_message は作ってあり、窓が例外の形を答えるのは 2 版目）。(b) 組む所: 字の欄の i64・u64 を超える整数は Python の str(int) の桁（builder::text_or_num・body_of が大きな整数を読む）、道は全体の百分率符号を 1 回戻してから当てる（builder::route_of。/api/%73ources/wip/columns を窓が答える）。戻したキーに / がある /api/sources/a%2Fb/columns は数える（道の型に当たらない。段 ④ で窓の道なしの 404）。builder_oracle の closed_of に 7 歩・delegates_of に 1 歩。(c) CM3 の timeout が 0・\"0\"・負・nan・inf・-inf・1 年を超える数は 15 秒（Python cm3_schedule.timeout_of・窓 schedule.rs の fetch_plan）。1e7 は答える。schedule_oracle に 8 場面",
-    "tests": "builder_parity（7 歩を窓が Python と同じに答える）・schedule_parity（timeout の端の 8 場面）・calc_parity（印の歩）・builder::tests::routes_are_the_seven_reads・delegate-count --check（予算 total 59 = 口 7・③-6 の 3・計算 48・道 1）"
-   },
-   {
-    "crack": 3,
-    "fixed": "一時フォルダの置き換え（@TMP）をやめ、作業フォルダ（@WORK）と家（@HOME）と作り物の URL（@URL）だけを、段の境の前後（前の字・後ろの字が道の続きでない）を見て置き換える（Ctx::sub・path_edge）。区切り（crumbs）の作業フォルダより上の段は @ABOVE 1 つにまとめる（above_crumbs）",
-    "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（/tmp/x/../y はそのまま・前後の境・深さに頼らない区切り）。TMPDIR を作業用のフォルダに替えて fs_parity を両方の形で流して通ることを見た（checks）"
-   },
-   {
-    "crack": 4,
-    "fixed": "焼く・比べるときの時差を UTC に決めた（Bake::open_part が TZ=UTC にしてから窓と答え合わせ役を起こす）。答え合わせ役の地方時の日時（fs の 2026-01-01）が PC の時差で違う更新時刻にならない",
-    "tests": "bake_selftest の baking_fixes_the_time_zone。TZ=Asia/Tokyo で 21 本を両方の形で流して通ることを見た（checks）"
-   },
-   {
-    "crack": 5,
-    "fixed": "bless.py の check（--check・tests/test_baked_tables.py）は tests/baked の *.json を全部読み（tables・files_of）、名前の頭で本に当て、知らない表・形・指紋・answers と routes の鍵・答えが 0 の表を確かめる。焼く 2 回の比べ・元に戻す・root でない利用者の写しも部分の表を含めた",
-    "tests": "test_baked_tables の test_every_table_is_checked_even_the_parts（部分の表 5 つの答えを消す・指紋を壊す・知らない本の表で落ちる）"
-   },
-   {
-    "crack": 6,
-    "fixed": "範囲を宣言した焼き直しは、前の表にあって今回の答えに無い歩も、範囲の外なら「範囲の外の歩が消えた」で止める（finish の BlessScope）。変わったかの比べも秒の差を許す形（diff_tol）",
-    "tests": "bake_selftest の a_scoped_bless_refuses_steps_vanishing_outside_the_scope"
-   },
-   {
-    "crack": 7,
-    "fixed": "TPA_NO_PYTHON は「program/app を使わない」形と決めて書いた（bake.rs の冒頭・RUST_PORT_PLAN.md・CLAUDE.md）。独立の答え（tools/*-truth.py）の標準の Python は残し、起こせなければ「独立の答えに標準の Python が要ります」で落とす（bake::stdlib_python。place_parity の truth）。凍らせた Python を相手にする試験は流さなかった名前を target/tmp/frozen-skipped.txt に書き、bless.py --no-python が「流さなかった試験 n 本」を test result の数と別に出す",
-    "tests": "偽の python を PATH の先に置いた TPA_NO_PYTHON=1 の 21 本で、place_parity が分かる言葉で落ち、ほかの 20 本が通ることを見た。bless.py --no-python の流さなかった試験の行（checks）"
-   },
-   {
-    "crack": 8,
-    "fixed": "場面の宣言の古さはどの利用者でも比べる（took の variant の条件を外した）。root でない利用者が写せない所（権限に読む印の無い段の中・読めないファイルの中身）とフォルダの更新時刻は decl_cmp が除く",
-    "tests": "root でない利用者（daemon・名前 runner）で 21 本を Python と比べる形で流して通ることを見た（checks）"
-   },
-   {
-    "crack": 9,
-    "fixed": "利用者の名前の置き換えは、名前を書く欄（settle.json の nameKeys: login・holder_login・ログインID）の値だけに当てる（settle・user_decl・named_users）。bless.py --user は場面に出ない名前の一時の利用者 tpabless（無ければ作り、終わったら消す。場面の元にその名前があれば止める）で流す",
-    "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（名前の欄だけ）。access_write の表に @USER は名前の欄だけ（checks）"
-   }
-  ],
-  "built_fixed_checks": {
-   "bless": "python program/tools/bless.py --all: 時刻の境をまたぐ 2 回の焼きが 21 本・26 ファイルで同じ。--user（一時の利用者 tpabless。終わった後に消えた）: fs 2・release_place 16・place 0・部分の表 0",
-   "runs": "記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115f/sum-*.txt: root でない利用者（daemon・名前 runner）で Python と比べる形 21/21・Python 無し 21/21、TZ=Asia/Tokyo で両方 21/21、TMPDIR を作業用のフォルダに替えて両方 21/21、偽の python を PATH の先に置いた Python 無しで 20/21（place_parity だけが「独立の答え（program/tools/*-truth.py）に標準の Python が要ります」で落ちる＝決めた形）",
-   "mutations": "変異 M1（src/access.rs の revocation の at を書き直す）: Python と比べる形も Python 無しも access.revoke の焼いた表との食い違い 14 件で落ちる。変異 M2（src/builder.rs の見本の日時の年を 20→19）: 両方の形で builder の焼いた表との食い違い 3 件で落ちる（m1-*.log・m2-*.log。src は git checkout で戻した）",
-   "frozen": "bless.py --no-python seeds mirror masters place: 流さなかった試験 7 本を test result と別の行に出す",
-   "delegates": "delegate-count 36 本: 計 59（比べる口 7・③-6 の 3・計算の must でない形 48・戻したキーに / がある道 1）・Windows だけ 2・予算と同じ"
   }
+ },
+ "built_fixed": [
+  {
+   "crack": 1,
+   "fixed": "そろえる決まりを狭めた（desktop/tests/common/bake.rs の settle_with・tests/baked/settle.json）。時刻は今から NEAR（2 日）の内の日時の字と、時刻の鍵（timeKeys）の今に近い数（1970 年からの秒・ミリ秒）だけを「@T(形|今からの秒)」にし、比べるときは形が同じで秒の差が TOL（1800 秒）の内なら同じ（diff_tol）。遠い日時・日時でない字・遠い数はそのまま比べる。ポートの形を外し、作り物のサーバーの URL（組む所の CM3）だけを @URL にした（Ctx::url）。時限の爆弾は、焼くとき（bless.py）に答え合わせ役の元へ今日から 3 日の内の固定の日付があれば焼かずに止める形で塞いだ（near_dates）",
+   "tests": "bake_selftest の only_times_near_now_are_settled_and_their_shape_and_value_are_kept（遠い 08:00 と 09:00・年の 20→19〈M2〉・時刻の鍵の壊れた字・遠い mtime・ポート・今に近い時刻の形の書き直し〈M1〉・2 時間のずれ・TOL の内）・dropping_a_settle_rule_lets_the_wobble_through（near・ms・時刻の鍵を外すと揺れが残る）・test_baked_tables の test_near_dates_in_the_sources_stop_the_bless。本物の本で M1（src/access.rs の revocation の at を書き直す）と M2（src/builder.rs の見本の年）を当て、Python と比べる形も TPA_NO_PYTHON=1 も落ちることを見た（記録は下の checks）"
+  },
+  {
+   "crack": 2,
+   "fixed": "(a) calc_oracle の must でない歩に delegate の印を付け、delegate-count が数える（計算: 48。今任せるのは 39・9 は窓も同じに答える。言葉の決まり calc::error_message は作ってあり、窓が例外の形を答えるのは 2 版目）。(b) 組む所: 字の欄の i64・u64 を超える整数は Python の str(int) の桁（builder::text_or_num・body_of が大きな整数を読む）、道は全体の百分率符号を 1 回戻してから当てる（builder::route_of。/api/%73ources/wip/columns を窓が答える）。戻したキーに / がある /api/sources/a%2Fb/columns は数える（道の型に当たらない。段 ④ で窓の道なしの 404）。builder_oracle の closed_of に 7 歩・delegates_of に 1 歩。(c) CM3 の timeout が 0・\"0\"・負・nan・inf・-inf・1 年を超える数は 15 秒（Python cm3_schedule.timeout_of・窓 schedule.rs の fetch_plan）。1e7 は答える。schedule_oracle に 8 場面",
+   "tests": "builder_parity（7 歩を窓が Python と同じに答える）・schedule_parity（timeout の端の 8 場面）・calc_parity（印の歩）・builder::tests::routes_are_the_seven_reads・delegate-count --check（予算 total 59 = 口 7・③-6 の 3・計算 48・道 1）"
+  },
+  {
+   "crack": 3,
+   "fixed": "一時フォルダの置き換え（@TMP）をやめ、作業フォルダ（@WORK）と家（@HOME）と作り物の URL（@URL）だけを、段の境の前後（前の字・後ろの字が道の続きでない）を見て置き換える（Ctx::sub・path_edge）。区切り（crumbs）の作業フォルダより上の段は @ABOVE 1 つにまとめる（above_crumbs）",
+   "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（/tmp/x/../y はそのまま・前後の境・深さに頼らない区切り）。TMPDIR を作業用のフォルダに替えて fs_parity を両方の形で流して通ることを見た（checks）"
+  },
+  {
+   "crack": 4,
+   "fixed": "焼く・比べるときの時差を UTC に決めた（Bake::open_part が TZ=UTC にしてから窓と答え合わせ役を起こす）。答え合わせ役の地方時の日時（fs の 2026-01-01）が PC の時差で違う更新時刻にならない",
+   "tests": "bake_selftest の baking_fixes_the_time_zone。TZ=Asia/Tokyo で 21 本を両方の形で流して通ることを見た（checks）"
+  },
+  {
+   "crack": 5,
+   "fixed": "bless.py の check（--check・tests/test_baked_tables.py）は tests/baked の *.json を全部読み（tables・files_of）、名前の頭で本に当て、知らない表・形・指紋・answers と routes の鍵・答えが 0 の表を確かめる。焼く 2 回の比べ・元に戻す・root でない利用者の写しも部分の表を含めた",
+   "tests": "test_baked_tables の test_every_table_is_checked_even_the_parts（部分の表 5 つの答えを消す・指紋を壊す・知らない本の表で落ちる）"
+  },
+  {
+   "crack": 6,
+   "fixed": "範囲を宣言した焼き直しは、前の表にあって今回の答えに無い歩も、範囲の外なら「範囲の外の歩が消えた」で止める（finish の BlessScope）。変わったかの比べも秒の差を許す形（diff_tol）",
+   "tests": "bake_selftest の a_scoped_bless_refuses_steps_vanishing_outside_the_scope"
+  },
+  {
+   "crack": 7,
+   "fixed": "TPA_NO_PYTHON は「program/app を使わない」形と決めて書いた（bake.rs の冒頭・RUST_PORT_PLAN.md・CLAUDE.md）。独立の答え（tools/*-truth.py）の標準の Python は残し、起こせなければ「独立の答えに標準の Python が要ります」で落とす（bake::stdlib_python。place_parity の truth）。凍らせた Python を相手にする試験は流さなかった名前を target/tmp/frozen-skipped.txt に書き、bless.py --no-python が「流さなかった試験 n 本」を test result の数と別に出す",
+   "tests": "偽の python を PATH の先に置いた TPA_NO_PYTHON=1 の 21 本で、place_parity が分かる言葉で落ち、ほかの 20 本が通ることを見た。bless.py --no-python の流さなかった試験の行（checks）"
+  },
+  {
+   "crack": 8,
+   "fixed": "場面の宣言の古さはどの利用者でも比べる（took の variant の条件を外した）。root でない利用者が写せない所（権限に読む印の無い段の中・読めないファイルの中身）とフォルダの更新時刻は decl_cmp が除く",
+   "tests": "root でない利用者（daemon・名前 runner）で 21 本を Python と比べる形で流して通ることを見た（checks）"
+  },
+  {
+   "crack": 9,
+   "fixed": "利用者の名前の置き換えは、名前を書く欄（settle.json の nameKeys: login・holder_login・ログインID）の値だけに当てる（settle・user_decl・named_users）。bless.py --user は場面に出ない名前の一時の利用者 tpabless（無ければ作り、終わったら消す。場面の元にその名前があれば止める）で流す",
+   "tests": "bake_selftest の only_the_work_folder_and_named_users_are_replaced（名前の欄だけ）。access_write の表に @USER は名前の欄だけ（checks）"
+  }
+ ],
+ "checks_after_fix": {
+  "bless": "python program/tools/bless.py --all: 時刻の境をまたぐ 2 回の焼きが 21 本・26 ファイルで同じ。--user（一時の利用者 tpabless。終わった後に消えた）: fs 2・release_place 16・place 0・部分の表 0",
+  "runs": "記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115f/sum-*.txt: root でない利用者（daemon・名前 runner）で Python と比べる形 21/21・Python 無し 21/21、TZ=Asia/Tokyo で両方 21/21、TMPDIR を作業用のフォルダに替えて両方 21/21、偽の python を PATH の先に置いた Python 無しで 20/21（place_parity だけが「独立の答え（program/tools/*-truth.py）に標準の Python が要ります」で落ちる＝決めた形）",
+  "mutations": "変異 M1（src/access.rs の revocation の at を書き直す）: Python と比べる形も Python 無しも access.revoke の焼いた表との食い違い 14 件で落ちる。変異 M2（src/builder.rs の見本の日時の年を 20→19）: 両方の形で builder の焼いた表との食い違い 3 件で落ちる（m1-*.log・m2-*.log。src は git checkout で戻した）",
+  "frozen": "bless.py --no-python seeds mirror masters place: 流さなかった試験 7 本を test result と別の行に出す",
+  "delegates": "delegate-count 36 本: 計 59（比べる口 7・③-6 の 3・計算の must でない形 48・戻したキーに / がある道 1）・Windows だけ 2・予算と同じ"
  }
 }

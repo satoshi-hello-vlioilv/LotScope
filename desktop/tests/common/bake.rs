@@ -306,7 +306,8 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）
 fn above_crumbs(v: Vec<Value>) -> Value {
-    let crumb = |x: &Value| x.as_object().is_some_and(|o| o.len() == 2 && o.contains_key("name") && o.get("path").is_some_and(Value::is_string));
+    let crumb =
+        |x: &Value| x.as_object().is_some_and(|o| o.len() == 2 && o.contains_key("name") && o.get("path").is_some_and(Value::is_string));
     if v.is_empty() || !v.iter().all(crumb) || !v.iter().any(|x| x["path"].as_str().unwrap().starts_with("@WORK")) {
         return Value::Array(v);
     }
