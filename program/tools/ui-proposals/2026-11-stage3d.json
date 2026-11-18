@@ -759,6 +759,14 @@
    "10": "posix を正・OS で違う歩は variants.<os>（root でない利用者は variants.user を作った）。nt は desktop.yml の手で起こす仕事で焼く（2 版目）。Windows の CI は ④ まで Windows の Python と比べる",
    "11": "delegate-count の報告に計・比べる口・形・Windows だけ・道ごとに中身へ回す当たりを別の行で並べる"
   },
-  "books": "order の 1〜22 位（21 本を焼き、share_reader は keep）"
+  "books": "order の 1〜22 位（21 本を焼き、share_reader は keep）",
+  "checks": {
+   "check_all": "check-all --verify（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115/check2/summary.txt）: js-check・compileall・cargo-build・ruff・fmt-clippy・py-tests（Ran 933）・bundle-tests（Ran 5）・cargo-test・verify（update。コンテナの再起動で切られた所を流し直した）・verify-local がすべて終了コード 0",
+   "bless": "python program/tools/bless.py --all（時刻の境をまたぐ 2 回が同じ・21 本）と --user（fs 2 歩・release_place 16 歩・place 0 歩）",
+   "nonroot": "21 本の試験の実行ファイルを root でない利用者（daemon）で、Python と比べる形・TPA_NO_PYTHON=1 の両方で流して 21/21 が通った",
+   "no_python": "root で TPA_NO_PYTHON=1（bless.py --no-python）も 21/21",
+   "mutations": "本物の本 settings_write で TPA_SETTLE_DROP=@T・焼いた表の答えを 1 字変える（Python と比べる形・Python 無しの両方）が落ちる。cargo test --test bake_selftest の 5 つ（1 字・範囲の外・Python と違うのに焼く・決まりを外す・場面の写しと作り直し）",
+   "delegates": "delegate-count 36 本: 計 10（比べる口 7・③-6 の 3）・Windows だけ 2・道ごとに中身へ回す当たり 135"
+  }
  }
 }
