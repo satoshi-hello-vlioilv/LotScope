@@ -2352,7 +2352,7 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
    3 日の内の固定の日付があれば bless.py は焼かずに止める（時限の爆弾にしない）。変異 M1（切断の指示の at の書き直し）・M2（見本の日時の年）は焼いた表との比べでも
    Python 無しでも落ちる
 2. 予算外の任せる歩: 計算の must でない 48 歩（今任せるのは 39）を数え（2 版目で窓が答える）、組む所の字の欄の大きな整数 6 形と /api/%73ources/… を窓が答え、
-   戻したキーに / がある道 1 を数えた。CM3 の timeout の端（0・負・nan・inf・1 年超）は Python と窓が 15 秒
+   戻したキーに / がある道 1 を数えた。CM3 の timeout の端（0・負・nan・inf・1 ミリ秒未満・1 日超）は Python と窓が 15 秒
 3. 一時フォルダの置き換えをやめ、作業フォルダ・家・作り物の URL だけを段の境の前後で置き換える。区切りの作業フォルダより上は @ABOVE 1 つ
 4. 焼く・比べるときの時差は UTC（`Bake::open_part`）
 5. bless.py --check は tests/baked の表を全部（部分の表も）確かめる
@@ -2365,6 +2365,14 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   場面を作り直すときに今の根へ戻す。bless.py --check は焼いた PC のリポジトリの根・家・cargo の作業フォルダの字が表に残っていれば落とす
   Windows の CI の直し: 答えをそろえるときは置き換えた後の道の区切りを「/」にそろえ、道は書いたままの字と長い名前（8.3 の短い名前も）の両方を置き換える。
   1 字変える変異の試験は焼いた表と比べる形を明示する（Windows は表と比べない決め）
+  Linux の CI の直し（2 回目）: 表のどの答え（本の答え・root でない利用者の variants.user）を読み書きするかを、流している利用者を直に見ず
+  Bake の欄 variant で決める（open_part は流している利用者から・試験の変異の with は root）。root でない CI の runner では、範囲を決めた焼き直しの
+  試験が本の答えを変えず variants.user にだけ書いて落ちた
+  Windows の CI の直し（2 回目）: CM3 の timeout の上限を「1 年」から 1 日にし、下限 1 ミリ秒を足した（`cm3_schedule.TIMEOUT_MIN`・`TIMEOUT_MAX`・
+  窓の `schedule::timeout_secs`。事例の表 `tests/fixtures/cm3_timeout_cases.json`）。前の上限は OS で答えが変わった: poll の無い Python（Windows）は
+  timeout をミリ秒にして INT_MAX（≒ 24.8 日）を超えると socket.settimeout が OverflowError で落ち、1e7 秒で Python 500・窓 200 に割れた。
+  決めの試験 `tests/test_cm3_timeout.py` は、何を書いても答えが 1 ミリ秒〜1 日で、Windows の決まりを写した socket でも落ちないことを見る
+  （Linux の手元でも Windows の決まりで確かめられる。上限を 1 年に戻す変異で CI と同じ落ち方になる）
 
 #### 凍らせる Python の決め（first_fixes 7。写すのは段 ④ の直前）
 

@@ -226,20 +226,7 @@ impl Cfg {
         }
         let iv = &self.m["init_path"];
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
-        let t = &self.m["timeout_sec"];
-        let secs = if !truthy(t) {
-            15.0
-        } else {
-            match t {
-                Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
-                Value::Bool(b) => f64::from(u8::from(*b)),
-                // 数でない timeout（「abc」・並び・表）は既定の 15 秒（版 3.115.0。Python の num_setting.read と同じ。前は Python が ValueError）
-                Value::String(s) => crate::pyfmt::py_float(s).unwrap_or(15.0),
-                _ => 15.0,
-            }
-        };
-        // 0・負・nan・inf・1 年を超える数は既定の 15 秒（版 3.115.0 の作った後の直し。Python の cm3_schedule.timeout_of と同じ決め。前は任せた）
-        let secs = if secs.is_finite() && secs > 0.0 && secs <= TIMEOUT_MAX { secs } else { 15.0 };
+        let secs = timeout_secs(&self.m["timeout_sec"]);
         let url = format!("{base}{init}");
         crate::cm3_http::target(&url)?;
         Ok((url, base, Duration::from_secs_f64(secs)))
@@ -1150,8 +1137,33 @@ pub fn missing_lots(path: &Path, table: &str, brought: &[String]) -> Result<Opti
     Ok(Some(if nums.is_empty() { texts.into_iter().map(Value::String).collect() } else { nums.into_iter().map(|x| x.1).collect() }))
 }
 
-/// timeout の上限（1 年。Python の cm3_schedule.TIMEOUT_MAX）
-const TIMEOUT_MAX: f64 = 365.0 * 24.0 * 3600.0;
+/// timeout の範囲（Python の cm3_schedule.TIMEOUT_MIN・TIMEOUT_MAX と同じ決め。事例の表は program/tests/fixtures/cm3_timeout_cases.json）:
+/// 1 ミリ秒から 1 日まで。上限は、poll の無い Python（Windows）がミリ秒で INT_MAX（≒ 24.8 日）を超える timeout を OverflowError で断るので、
+/// どの OS の Python も受ける値に決めた（PR #115 の Windows の CI の直し。前の「1 年」は 1e7 秒で Python 500・窓 200 に割れた）。
+/// 下限は、それより小さい数が Duration で 0 に丸まり接続の誤りになるので決めた
+pub const TIMEOUT_MIN: f64 = 0.001;
+pub const TIMEOUT_MAX: f64 = 24.0 * 3600.0;
+pub const TIMEOUT_DEFAULT: f64 = 15.0;
+
+/// CM3 への 1 回の接続・読み・書きの秒（Python の cm3_schedule.timeout_of）: 偽の値〈null・0・空の字・空の並び〉と、数でない値〈「abc」・並び・表・
+/// 桁のまま持つ大きな整数・NaN〉は既定の 15 秒（num_setting.read と同じ）。0・負・nan・inf・1 ミリ秒未満・1 日を超える数も 15 秒
+pub fn timeout_secs(t: &Value) -> f64 {
+    let secs = if !truthy(t) {
+        TIMEOUT_DEFAULT
+    } else {
+        match t {
+            Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
+            Value::Bool(b) => f64::from(u8::from(*b)),
+            Value::String(s) => crate::pyfmt::py_float(s).unwrap_or(TIMEOUT_DEFAULT),
+            _ => TIMEOUT_DEFAULT,
+        }
+    };
+    if (TIMEOUT_MIN..=TIMEOUT_MAX).contains(&secs) {
+        secs
+    } else {
+        TIMEOUT_DEFAULT
+    }
+}
 
 /// JSON の字の外に NaN・Infinity・-Infinity があるか（Python の json.loads が parse_constant を呼ぶ字）
 fn json_constant(text: &str) -> bool {
@@ -1190,6 +1202,47 @@ mod tests {
         assert!(Cfg::from_section(Some(&json!({"hot": [1]}))).is_err());
         assert_eq!(safe("L-1"), format!("L-1-{}", &crate::bundle::sha1_hex(b"L-1")[..6]));
         assert_eq!(safe("ライン1"), format!("___1-{}", &crate::bundle::sha1_hex("ライン1".as_bytes())[..6]));
+    }
+
+    /// timeout の決め（版 3.115.0 の PR #115 の Windows の CI の直し）: 人が書いた事例の表 program/tests/fixtures/cm3_timeout_cases.json
+    /// （Python は tests/test_cm3_timeout.py）と同じ秒か。答えは必ず 1 ミリ秒〜1 日で、Duration が 0 にならない
+    #[test]
+    fn timeout_like_the_table() {
+        let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/cm3_timeout_cases.json")).unwrap();
+        assert_eq!(
+            (json!(TIMEOUT_MIN), json!(TIMEOUT_MAX), json!(TIMEOUT_DEFAULT)),
+            (table["min"].clone(), json!(table["max"].as_f64()), json!(table["default"].as_f64()))
+        );
+        // Windows の Python（poll なし）が断る境（ミリ秒で INT_MAX）の十分手前
+        assert!(TIMEOUT_MAX * 1000.0 * 20.0 < table["intMaxMs"].as_f64().unwrap());
+        let mut bad = vec![];
+        for c in table["cases"].as_array().unwrap() {
+            // 設定の字は Python の json.loads と同じく読む（NaN・Infinity・大きな整数は持っている値）
+            let v = crate::held::parse(c["j"].as_str().unwrap()).unwrap_or_else(|_| panic!("{} が読めない", c["name"]));
+            let got = timeout_secs(&v);
+            if Some(got) != c["want"].as_f64() {
+                bad.push(format!("{}: 表 {} / 窓 {got}", c["name"], c["want"]));
+            }
+            if !(TIMEOUT_MIN..=TIMEOUT_MAX).contains(&got) || Duration::from_secs_f64(got).is_zero() {
+                bad.push(format!("{}: 範囲の外 {got}", c["name"]));
+            }
+            // 設定から組んだ形（fetch_plan）でも同じ秒
+            let cfg = Cfg::from_section(Some(&json!({"cm3_base_url": "http://127.0.0.1:9", "timeout_sec": v}))).unwrap();
+            match cfg.fetch_plan() {
+                Ok((_, _, d)) if Some(d.as_secs_f64()) == Duration::try_from_secs_f64(got).ok().map(|x| x.as_secs_f64()) => {}
+                other => bad.push(format!("{}: fetch_plan {:?}", c["name"], other.map(|x| x.2).ok())),
+            }
+        }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+        // 小数のどのビットの形でも範囲の内（nan・inf・非正規の数・負の数）
+        let mut x = 0x9E37_79B9_7F4A_7C15u64;
+        for _ in 0..200_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let got = timeout_secs(&serde_json::Number::from_f64(f64::from_bits(x)).map_or(Value::Null, Value::Number));
+            assert!((TIMEOUT_MIN..=TIMEOUT_MAX).contains(&got), "{} → {got}", f64::from_bits(x));
+        }
     }
 
     #[test]

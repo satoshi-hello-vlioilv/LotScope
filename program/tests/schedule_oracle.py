@@ -306,9 +306,13 @@ def scenes(world_port, blackhole):
         ("システムのプロキシ", {**base, "use_system_proxy": True, "cm3_base_url": u("ok")}, [S(SCH, "equip=L-1", delegate=True)], None),
         # 場面の名前を分ける（版 3.115.0。CM3 が受けた要求は場面ごとに比べる。「ok」はシステムのプロキシの場面〈Python だけが取る〉と共にする）
         ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("timeout")}, [S(SCH, "equip=__HOT__")], None),
-        # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 年を超える数）は 15 秒（cm3_schedule.timeout_of）。1e7 は答える
+        # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 ミリ秒未満・1 日を超える数）は 15 秒（cm3_schedule.timeout_of）。
+        # PR #115 の Windows の CI の直し: 前の上限「1 年」は 1e7 秒で割れた（poll の無い Windows の Python はミリ秒が INT_MAX を超える
+        # timeout を OverflowError で断る。Linux の Python と窓は受けた）。上限を 1 日にし、境の値（下限・上限ちょうどと外・INT_MAX ミリ秒の前後）を
+        # どの OS でも Python と窓が同じに答える形で見る。秒そのものは事例の表 tests/fixtures/cm3_timeout_cases.json が両方で見る
         *[(f"timeout が {t!r}", {**base, "timeout_sec": t, "cm3_base_url": u("timeout")}, [S(SCH, "equip=L-1")], None)
-          for t in (0, "0", -1, "nan", "inf", "-inf", 1e7, 1e300)],
+          for t in (0, "0", -1, "nan", "inf", "-inf", 1e-9, 0.0009, 86400, "86400", 86401, 86400.001, 2147483, 2147484, 1e7, 1e300,
+                    2 ** 63, 10 ** 20)],
     ]
     return out
 

@@ -64,16 +64,26 @@ def _no_constant(name):
     raise ValueError(name)
 
 
-# timeout の上限（版 3.115.0 の作った後の直し: 1 年。これを超える数・0・負・nan・inf は既定の 15 秒。窓の schedule.rs の fetch_plan と同じ決め）
-TIMEOUT_MAX = 365 * 24 * 3600
+# timeout の範囲（版 3.115.0 の作った後の直し。窓の schedule.rs の timeout_secs と同じ決め。事例の表は tests/fixtures/cm3_timeout_cases.json）:
+# 1 ミリ秒から 1 日まで。外の数・0・負・nan・inf・数でない値は既定の 15 秒。
+# 上限を 1 日にした訳（PR #115 の Windows の CI の直し）: 前の「1 年」は OS で答えが変わった。poll の無い Python（Windows）は、timeout を
+# ミリ秒にして INT_MAX（2,147,483,647 ms ≒ 24.8 日）を超えると socket.settimeout が OverflowError（timeout doesn't fit into C timeval）で
+# 落ち、Linux の Python と窓は受けた（1e7 秒で 500 と 200 に割れた）。CM3 の待ち時間として意味のある範囲で、どの OS の Python も受ける値にする。
+# 下限を 1 ミリ秒にした訳: それより小さい数は窓の Duration で 0 に丸まり（0 の timeout は接続の誤り）、Python は 1 ナノ秒に切り上げて待つ
+TIMEOUT_MIN = 0.001
+TIMEOUT_MAX = 24 * 3600
+TIMEOUT_DEFAULT = 15.0
 
 
 def timeout_of(cfg):
-    """CM3 への 1 回の接続・読み・書きの秒（数でない「abc」・並び・0・負・nan・inf・1 年を超える数は 15 秒。前は 0 で接続の誤り、
-    -1・nan で ValueError、inf で OverflowError の 500）"""
-    secs, ok = num_setting.read(cfg.get("timeout_sec") or 15, 15)
-    f = float(secs) if ok else 15.0
-    return f if 0 < f <= TIMEOUT_MAX else 15.0
+    """CM3 への 1 回の接続・読み・書きの秒（数でない「abc」・並び・0・負・nan・inf・1 ミリ秒未満・1 日を超える数は 15 秒。前は 0 で接続の誤り、
+    -1・nan で ValueError、inf と Windows の 24.8 日を超える数で OverflowError の 500）。答えは必ず TIMEOUT_MIN〜TIMEOUT_MAX の float"""
+    try:
+        secs, ok = num_setting.read(cfg.get("timeout_sec") or TIMEOUT_DEFAULT, TIMEOUT_DEFAULT)
+        f = float(secs) if ok else TIMEOUT_DEFAULT
+    except OverflowError:    # float に入らない整数（10^400）
+        f = TIMEOUT_DEFAULT
+    return f if TIMEOUT_MIN <= f <= TIMEOUT_MAX else TIMEOUT_DEFAULT
 
 
 def fetch_raw(cfg, setsubi, term_kbn):
