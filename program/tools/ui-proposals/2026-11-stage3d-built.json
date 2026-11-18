@@ -209,6 +209,7 @@
   "runs": "記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115f/sum-*.txt: root でない利用者（daemon・名前 runner）で Python と比べる形 21/21・Python 無し 21/21、TZ=Asia/Tokyo で両方 21/21、TMPDIR を作業用のフォルダに替えて両方 21/21、偽の python を PATH の先に置いた Python 無しで 20/21（place_parity だけが「独立の答え（program/tools/*-truth.py）に標準の Python が要ります」で落ちる＝決めた形）",
   "mutations": "変異 M1（src/access.rs の revocation の at を書き直す）: Python と比べる形も Python 無しも access.revoke の焼いた表との食い違い 14 件で落ちる。変異 M2（src/builder.rs の見本の日時の年を 20→19）: 両方の形で builder の焼いた表との食い違い 3 件で落ちる（m1-*.log・m2-*.log。src は git checkout で戻した）",
   "frozen": "bless.py --no-python seeds mirror masters place: 流さなかった試験 7 本を test result と別の行に出す",
-  "delegates": "delegate-count 36 本: 計 59（比べる口 7・③-6 の 3・計算の must でない形 48・戻したキーに / がある道 1）・Windows だけ 2・予算と同じ"
+  "delegates": "delegate-count 36 本: 計 59（比べる口 7・③-6 の 3・計算の must でない形 48・戻したキーに / がある道 1）・Windows だけ 2・予算と同じ",
+  "check_all": "check-all --verify（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115f/check5/summary.txt）: js-check・compileall・cargo-build・ruff・fmt-clippy・py-tests（Ran 935）・bundle-tests（Ran 5）・cargo-test・verify・verify-local がすべて終了コード 0（窓の通しは check-all の 60 分で切られたので、同じ exe で窓の通しだけを流し直した）。1 回目は place_parity の場面の歩が種まきの競い合いと重なり、置き場の状態が「2 秒で答えません」になったので、2 つの試験を同じ時に流さない形にした（tests/place_parity.rs の SERIAL）"
  }
 }
