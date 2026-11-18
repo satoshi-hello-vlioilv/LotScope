@@ -67,6 +67,20 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_tables_keep_no_local_paths(self):
+        """焼いた表に、焼いた PC のリポジトリの道・家・cargo の作業フォルダが字のまま残っていない（版 3.115.0 の 2 回目の直し）。変異: 道を書き込むと落ちる"""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            for p in bless.BAKED.glob("*.json"):
+                shutil.copy(p, tmp / p.name)
+            self.assertEqual([x for x in bless.check(tmp) if "焼いた PC" in x], [])
+            t = json.loads((tmp / "settings_write.json").read_text(encoding="utf-8"))
+            t["oracle"]["x"] = str(PROGRAM / "app" / "master_defaults")
+            (tmp / "settings_write.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+            self.assertTrue(any("settings_write: 焼いた PC のリポジトリの根" in x for x in bless.check(tmp)))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_near_dates_in_the_sources_stop_the_bless(self):
         """答え合わせ役の元に今日に近い固定の日付があれば焼かない（時限の爆弾にしない）"""
         import datetime as dt

@@ -104,15 +104,61 @@ fn path_edge(c: Option<char>) -> bool {
     c.is_none_or(|c| !(c.is_alphanumeric() || matches!(c, '/' | '\\' | '.' | '-' | '_' | '~' | '$' | '%')))
 }
 
+/// リポジトリの根（desktop の上。PC ごとに違う: 手元の作業フォルダ・CI の /home/runner/work/…）
+pub fn repo_root() -> PathBuf {
+    let m = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let up = m.parent().unwrap_or(&m).to_path_buf();
+    PathBuf::from(spellings(&up).pop().unwrap_or_default())
+}
+
+/// 道の書き方の候補: 書いたままの字と、長い名前に直した字（canonicalize。Windows の \\?\ の頭は外す）。最後が長い名前
+pub fn spellings(p: &Path) -> Vec<String> {
+    let mut out = vec![p.to_string_lossy().trim_end_matches(['/', '\\']).to_string()];
+    if let Ok(c) = std::fs::canonicalize(p) {
+        let c = c.to_string_lossy().into_owned();
+        let c = c.strip_prefix(r"\\?\UNC\").map(|r| format!(r"\\{r}")).unwrap_or_else(|| c.strip_prefix(r"\\?\").unwrap_or(&c).to_string());
+        if !out.contains(&c) {
+            out.push(c);
+        }
+    }
+    out.retain(|s| !s.is_empty());
+    out
+}
+
 impl Ctx {
     pub fn new(base: &Path) -> Ctx {
-        let mut subs = vec![(base.to_string_lossy().into_owned(), "@WORK".to_string())];
-        if let Ok(h) = std::env::var("HOME") {
-            let h = h.trim_end_matches('/').to_string();
-            if h.len() > 1 && Path::new(&h).is_dir() && !base.starts_with(&h) {
-                subs.push((h, "@HOME".into()));
+        Ctx::with_home(base, std::env::var("HOME").ok().as_deref())
+    }
+
+    /// 家を決めて作る（試験: リポジトリが家の下にある PC〈CI〉と同じ形を作る）
+    pub fn with_home(base: &Path, home: Option<&str>) -> Ctx {
+        // 作業フォルダは書いたままの字と、長い名前に直した字（Windows の一時フォルダは 8.3 の短い名前 RUNNER~1 で来る。Python は長い名前で書く）の
+        // 両方を @WORK に。subs[0] は戻すときの字（作業フォルダ）、subs[1] はリポジトリの根
+        let repo = repo_root();
+        let mut subs =
+            vec![(base.to_string_lossy().into_owned(), "@WORK".to_string()), (repo.to_string_lossy().into_owned(), "@REPO".into())];
+        for v in spellings(base).into_iter().skip(1) {
+            subs.push((v, "@WORK".into()));
+        }
+        // リポジトリの根は @REPO（版 3.115.0 の 2 回目の直し: 前は置き換えず、手元〈家の外〉で焼いた表の program の道が、リポジトリが家の下にある
+        // CI で @HOME/… になって食い違った）。家より先に置き換わるよう、長い字の順で当てる（家の下にあっても @REPO）。
+        // 試験は program を desktop/.. でも書く（common::program）。その字も同じ @REPO
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for v in spellings(&repo)
+            .into_iter()
+            .skip(1)
+            .chain(spellings(&manifest.join("..")))
+            .chain(spellings(manifest.parent().unwrap_or(&manifest)))
+        {
+            subs.push((v, "@REPO".into()));
+        }
+        if let Some(h) = home {
+            let h = h.trim_end_matches(['/', '\\']).to_string();
+            if h.len() > 3 && Path::new(&h).is_dir() && !base.starts_with(&h) {
+                subs.extend(spellings(Path::new(&h)).into_iter().map(|v| (v, "@HOME".into())));
             }
         }
+        subs.dedup();
         Ctx { subs }
     }
     /// 作り物のサーバーの URL（組む所の CM3）を @URL にそろえる
@@ -124,6 +170,16 @@ impl Ctx {
     }
     /// 長い字から、段の境の前後（前の字・後ろの字が道の続きでない）で置き換える（/tmp が /tmp.abc や /x/tmp に当たらない）
     pub fn sub(&self, s: &str) -> String {
+        self.sub_with(s, false)
+    }
+
+    /// 答えをそろえるとき: 置き換えた後の道の区切りを「/」にそろえる（焼いた表は OS によらず同じ字。Windows の「\」も）。場面の宣言と問い合わせの
+    /// 字はそのまま（中身の JSON の \\ を崩さない）
+    pub fn sub_slash(&self, s: &str) -> String {
+        self.sub_with(s, true)
+    }
+
+    fn sub_with(&self, s: &str, slash: bool) -> String {
         let mut subs: Vec<&(String, String)> = self.subs.iter().collect();
         subs.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
         let mut t = s.to_string();
@@ -139,17 +195,28 @@ impl Ctx {
                 let after_ok =
                     after.is_none_or(|c| matches!(c, '/' | '\\' | '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | ':' | '」' | '?' | '#'));
                 out.push_str(&rest[..i]);
-                out.push_str(if path_edge(before) && after_ok { b } else { a });
                 rest = &rest[i + a.len()..];
+                if path_edge(before) && after_ok && slash {
+                    out.push_str(b);
+                    let end = rest
+                        .find(|c: char| matches!(c, '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | '」' | '?' | '#' | ';'))
+                        .unwrap_or(rest.len());
+                    out.push_str(&rest[..end].replace('\\', "/"));
+                    rest = &rest[end..];
+                } else if path_edge(before) && after_ok {
+                    out.push_str(b);
+                } else {
+                    out.push_str(a);
+                }
             }
             out.push_str(rest);
             t = out;
         }
         t
     }
-    /// 置き換えを戻す（作業フォルダだけ。家と URL は戻さない: 家は答えの字にだけ出る・URL は作り直す時に新しい物を当てる）
+    /// 置き換えを戻す（作業フォルダとリポジトリの根。家と URL は戻さない: 家は答えの字にだけ出る・URL は作り直す時に新しい物を当てる）
     fn unsub(&self, s: &str) -> String {
-        s.replace("@WORK", &self.subs[0].0)
+        s.replace("@WORK", &self.subs[0].0).replace("@REPO", &self.subs[1].0)
     }
 }
 
@@ -251,7 +318,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
-        let mut t = ctx.sub(t).replace(da_core::held::mark(), "@HELD:");
+        let mut t = ctx.sub_slash(t).replace(da_core::held::mark(), "@HELD:");
         if let Some(u) = os_user() {
             if t.contains(&format!("／{u} ")) {
                 t = t.replace(&format!("／{u} "), "／@USER ");
@@ -755,8 +822,8 @@ pub struct Bake {
     file: String,
     pub mode: Mode,
     scope: Vec<String>,
-    /// 焼いた表と比べるか（posix の表。Windows は比べない）
-    check: bool,
+    /// 焼いた表と比べるか（posix の表。Windows は比べない。試験の変異は明示して true にする）
+    pub check: bool,
     table: Option<Value>,
     base: PathBuf,
     pub ctx: Ctx,

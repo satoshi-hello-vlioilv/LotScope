@@ -25,6 +25,8 @@ fn a_one_character_change_in_the_window_answer_is_caught() {
         table(json!({"k": {"status": 200, "json": {"a": "窓の答え", "updated_at": "2001-01-01T00:00:00"}}}), json!({"k": "GET /api/x"}));
     let same = |text: &str| {
         let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);
+        // 焼いた表と比べる形を明示する（Windows は焼いた表と比べない決め〈nt の上書きは 2 版目〉なので、ここで比べる形にする）
+        bk.check = true;
         let _ = bk.oracle("unused.py", &[]);
         let want = bk.want("k", || Value::Null);
         bk.note("k", "GET /api/x", &json!({"status": 200, "json": {"a": text, "updated_at": "2001-01-01T00:00:00"}}), &want);
@@ -143,6 +145,8 @@ fn only_the_work_folder_and_named_users_are_replaced() {
     assert_eq!(settle(&json!(format!("{w}/a")), &ctx, &[]), json!("@WORK/a"));
     assert!(!settle(&json!(format!("/x{w}/a")), &ctx, &[]).to_string().contains("@WORK"), "前が道の続きなら置き換えない");
     assert!(!settle(&json!(format!("{w}2/a")), &ctx, &[]).to_string().contains("@WORK"), "後ろが道の続きなら置き換えない");
+    // 置き換えた後の区切りは「/」（Windows の「\」も）
+    assert_eq!(settle(&json!(format!("{w}\\s0\\a")), &ctx, &[]), json!("@WORK/s0/a"));
     let deep = json!([{"name": "/", "path": "/"}, {"name": "tmp", "path": tmp}, {"name": "x", "path": w}, {"name": "a", "path": format!("{w}/a")}]);
     assert_eq!(
         settle(&deep, &ctx, &[]),
@@ -152,6 +156,21 @@ fn only_the_work_folder_and_named_users_are_replaced() {
     if let Some(u) = common::bake::os_user() {
         let v = settle(&json!({"login": u, "name": u, "updated_by": {"login": u, "pc": "PC-1"}}), &ctx, &[]);
         assert_eq!(v, json!({"login": "@USER", "name": u, "updated_by": {"login": "@USER", "pc": "PC-1"}}), "名前を書く欄だけ");
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn the_repository_is_the_same_wherever_it_is_checked_out() {
+    // 版 3.115.0 の 2 回目の直し: リポジトリの道は @REPO。家の下にある PC（CI の /home/runner/work/…）でも @HOME/… にならない
+    let base = common::work("bake-repo");
+    let repo = common::bake::repo_root();
+    let p = repo.join("program").join("app").join("master_defaults").to_string_lossy().into_owned();
+    let raw = common::program().join("app").to_string_lossy().into_owned();
+    for home in [None, repo.parent().map(|h| h.to_string_lossy().into_owned()), Some("/".into())] {
+        let ctx = Ctx::with_home(&base, home.as_deref());
+        assert_eq!(settle(&json!(p), &ctx, &[]), json!("@REPO/program/app/master_defaults"), "家 {home:?}");
+        assert_eq!(settle(&json!(raw), &ctx, &[]), json!("@REPO/program/app"), "desktop/.. の書き方も");
     }
     let _ = std::fs::remove_dir_all(&base);
 }

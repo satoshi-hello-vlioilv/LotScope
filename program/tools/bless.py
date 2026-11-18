@@ -70,6 +70,18 @@ def near_dates(book, days=3):
     return out
 
 
+def local_paths():
+    """焼いた PC ごとに違う道（リポジトリの根・家・cargo の作業フォルダ）。焼いた表に字のまま残っていてはいけない（版 3.115.0 の 2 回目の直し:
+    手元〈家の外〉で焼いた表の program の道が、リポジトリが家の下にある CI で食い違った）"""
+    out = [("リポジトリの根", str(PROGRAM.parent.resolve()))]
+    home = os.environ.get("HOME", "")
+    if len(home.rstrip("/")) > 1:
+        out.append(("家", home.rstrip("/")))
+    target = os.environ.get("CARGO_TARGET_DIR") or str(DESKTOP / "target")
+    out.append(("cargo の作業フォルダ", str(Path(target).resolve())))
+    return out
+
+
 def check(baked=None):
     """→ 食い違いの言葉の並び（空なら古くない）。tests/baked の表を全部（部分の表も）確かめる（版 3.115.0 の作った後の直し: 前は 本.json だけを見た）"""
     bad = []
@@ -81,7 +93,11 @@ def check(baked=None):
         if BOOKS[book]["phase"] != PHASE:
             bad.append(f"{name}: 焼く版でない本（phase {BOOKS[book]['phase']}）に表がある")
             continue
-        t = json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8"))
+        text = ((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")
+        for why, path in local_paths():
+            if re.search(re.escape(json.dumps(path)[1:-1]) + r"(?=[/\\\\\"]|$)", text):
+                bad.append(f"{name}: 焼いた PC の{why}（{path}）が字のまま残っている（@REPO・@WORK・@HOME にそろえて焼き直す）")
+        t = json.loads(text)
         for k in ("book", "os", "oracle", "scene", "answers", "routes", "sources"):
             if k not in t:
                 bad.append(f"{name}: 表に {k} がありません")

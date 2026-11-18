@@ -110,7 +110,18 @@ fn folder_browse_matches_python() {
         if !os_bound {
             bk.note_step(&key, st, status, &got, &w);
         }
-        let (want, got) = (bk.s(&w.1), bk.s(&got));
+        let (mut want, mut got) = (bk.s(&w.1), bk.s(&got));
+        if os_bound {
+            // その場の OS の「/」の中身は、Python と窓が答える間に /tmp などの更新時刻が分の境をまたぐと揺れる（作った後の採点で見つかった前からの形）。
+            // 更新時刻は比べない（名前・種類・道は比べる）
+            for v in [&mut want, &mut got] {
+                for e in v["entries"].as_array_mut().into_iter().flatten() {
+                    if let Some(o) = e.as_object_mut() {
+                        o.remove("mtime");
+                    }
+                }
+            }
+        }
         if status as i64 != w.0 || common::diff(&want, &got, "").is_some() {
             bad.push(format!(
                 "[{i}] {} {}: {}\n  Python {} {}\n  窓     {status} {got}",
