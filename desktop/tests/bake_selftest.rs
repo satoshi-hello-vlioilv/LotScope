@@ -107,6 +107,71 @@ fn the_user_variant_is_chosen_by_the_field_not_by_who_runs_the_test() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// 場面の SQLite のファイルは、作った SQLite の版によらない形で比べる（版 3.115.0 の PR #115 の CI の直し: 答え合わせ役の Python に付く
+/// SQLite の版が手元〈3.53.1〉と CI で違い、頭の版の番号のバイトだけで「場面のフォルダが表の宣言と違う」になった）。
+/// 版の番号と変更の数が違うだけなら同じ・行の値・表の定義・ページの大きさが違えば違う・SQLite として開けない物はバイトのまま
+#[test]
+fn sqlite_files_in_a_scene_are_compared_by_content_not_by_the_library_version() {
+    use common::bake::{decl_cmp, sqlite_logical};
+    let base = common::work("bake-sqlite");
+    let make = |name: &str, sql: &str| -> Vec<u8> {
+        let p = base.join(name);
+        let c = rusqlite::Connection::open(&p).unwrap();
+        c.execute_batch(sql).unwrap();
+        drop(c);
+        std::fs::read(&p).unwrap()
+    };
+    let sql = "CREATE TABLE t(a, b); INSERT INTO t VALUES (1, 'あ'), (2.5, x'00ff'), (NULL, 'い'); PRAGMA user_version = 7;";
+    let a = make("a.sqlite3", sql);
+    // 別の版の SQLite が書いた形: 版の番号（96〜99）・その版が数えた変更の数（92〜95）・変更の数（24〜27）だけが違う
+    let mut other = a.clone();
+    other[96..100].copy_from_slice(&3_045_001u32.to_be_bytes());
+    other[92..96].copy_from_slice(&9u32.to_be_bytes());
+    other[24..28].copy_from_slice(&9u32.to_be_bytes());
+    assert_ne!(a, other);
+    let b64 = |b: &[u8]| {
+        use std::fmt::Write;
+        let t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".as_bytes();
+        let mut out = String::new();
+        for ch in b.chunks(3) {
+            let n = (ch[0] as u32) << 16 | (*ch.get(1).unwrap_or(&0) as u32) << 8 | *ch.get(2).unwrap_or(&0) as u32;
+            for (i, sh) in [18, 12, 6, 0].iter().enumerate() {
+                let _ = write!(out, "{}", if i <= ch.len() { t[(n >> sh & 63) as usize] as char } else { '=' });
+            }
+        }
+        out
+    };
+    let scene =
+        |b: &[u8]| json!({"files": {"d/x.sqlite3": {"blob": "k"}}, "dirs": {"d": {}}, "links": {}, "blobs": {"k": {"b64": b64(b)}}});
+    assert_eq!(decl_cmp(&scene(&a)), decl_cmp(&scene(&other)), "版の番号と変更の数だけが違うファイルは同じ場面");
+    assert!(decl_cmp(&scene(&a))["files"]["d/x.sqlite3"]["blob"]["sqlite"]["rows"]["t"].as_array().is_some_and(|r| r.len() == 3));
+    // 中身が違えば違う: 行の値・表の定義・user_version・ページの大きさ
+    for (what, sql2) in [
+        ("行の値", sql.replace("'い'", "'う'")),
+        ("行の数", sql.replace(", (NULL, 'い')", "")),
+        (
+            "表の定義",
+            sql.replace("t(a, b)", "t(a, b, c)")
+                .replace("'あ')", "'あ', 1)")
+                .replace("x'00ff')", "x'00ff', 1)")
+                .replace("'い')", "'い', 1)"),
+        ),
+        ("user_version", sql.replace("= 7", "= 8")),
+        ("ページの大きさ", format!("PRAGMA page_size = 8192; {sql}")),
+    ] {
+        let c = make(&format!("{what}.sqlite3"), &sql2);
+        assert_ne!(decl_cmp(&scene(&a)), decl_cmp(&scene(&c)), "{what} が違えば違う場面");
+    }
+    // SQLite として開けない物（頭だけ SQLite）と SQLite でない物はバイトのまま比べる
+    let mut broken = b"SQLite format 3\0".to_vec();
+    broken.extend(std::iter::repeat_n(0xAAu8, 200));
+    assert!(sqlite_logical(&broken).is_none() && sqlite_logical(b"plain").is_none());
+    let mut broken2 = broken.clone();
+    broken2[150] = 0xAB;
+    assert_ne!(decl_cmp(&scene(&broken)), decl_cmp(&scene(&broken2)));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 /// 今から secs 秒ずれた地方時の日時の字（fmt の形）
 fn at(secs: i64, fmt: &str) -> String {
     (chrono::Local::now().naive_local() + chrono::Duration::seconds(secs)).format(fmt).to_string()

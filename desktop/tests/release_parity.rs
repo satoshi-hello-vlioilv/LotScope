@@ -46,6 +46,34 @@ fn norm(v: &Value, root: &str) -> Value {
 }
 
 /// 道の字の @ROOT → 場面のフォルダ
+/// 写せなかった時の進み具合（done・files）は、フォルダの中を読む順で決まる（読めないファイル・名前付きパイプに当たるまでに写した量）。
+/// 読む順はファイル系の決めで、Python（os.scandir）と窓（read_dir）は同じフォルダなら同じ順だが、PC が違えば違う（ext4 は名前の
+/// ハッシュの順でファイル系ごとに種が違い、tmpfs は作った順の逆）。版 3.115.0 の PR #115 の CI の直し: 手元で焼いた表の done 20・40・0 が
+/// CI では 222・41・20 になって落ちた（TMPDIR を tmpfs〈/dev/shm〉にして再現。0・1・222 になる）。
+/// 焼いた表に記す・表と比べるときだけ、state が failed の進み具合の done・files を「<読む順で変わる>」にする。Python と比べるとき
+/// （同じファイル系の上）は数のまま比べる。失敗の言葉（どのファイルで止まったか）・total・totalFiles・state はどちらでも比べる
+fn order_free(v: &Value) -> Value {
+    match v {
+        Value::Object(o) => {
+            let failed = o.get("state").is_some_and(|s| s == "failed");
+            Value::Object(
+                o.iter()
+                    .map(|(k, x)| {
+                        let v = if failed && (k == "done" || k == "files") && x.is_number() {
+                            json!("<読む順で変わる>")
+                        } else {
+                            order_free(x)
+                        };
+                        (k.clone(), v)
+                    })
+                    .collect(),
+            )
+        }
+        Value::Array(a) => Value::Array(a.iter().map(order_free).collect()),
+        _ => v.clone(),
+    }
+}
+
 fn sub(x: &str, root: &str) -> String {
     x.replace("@ROOT", root)
 }
@@ -201,6 +229,31 @@ fn joined_paths_match_python() {
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
+/// 読む順で変わるのは、写せなかった時の done・files だけ（版 3.115.0 の PR #115 の CI の直し）。失敗の言葉・total・totalFiles・state と、
+/// 写し終えた答えの done・files は伏せない
+#[test]
+fn only_the_progress_of_a_failed_copy_is_free_of_the_reading_order() {
+    let failed = json!({"final": {"state": "failed", "done": 20, "files": 1, "total": 2275, "totalFiles": 8, "error": "写せませんでした: x"}, "status": 200});
+    let f = order_free(&failed);
+    assert_eq!(f["final"]["done"], "<読む順で変わる>");
+    assert_eq!(f["final"]["files"], "<読む順で変わる>");
+    assert_eq!(
+        order_free(
+            &json!({"final": {"state": "failed", "done": 222, "files": 3, "total": 2275, "totalFiles": 8, "error": "写せませんでした: x"}, "status": 200})
+        ),
+        f
+    );
+    for (k, v) in [("total", json!(1)), ("totalFiles", json!(9)), ("error", json!("写せませんでした: y")), ("state", json!("done"))]
+    {
+        let mut other = failed.clone();
+        other["final"][k] = v;
+        assert_ne!(order_free(&other), f, "{k} は比べる");
+    }
+    let done = json!({"state": "done", "done": 2275, "files": 8});
+    assert_eq!(order_free(&done), done, "写し終えた答えは数のまま");
+    assert_eq!(order_free(&json!([{"state": "failed", "done": 1}]))[0]["done"], "<読む順で変わる>");
+}
+
 #[test]
 fn release_place_matches_python() {
     let base = common::work("release");
@@ -210,6 +263,9 @@ fn release_place_matches_python() {
     bk.drop = vec!["rootUser", "root"];
     let oracle = bk.oracle("release_place_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
+    // 焼いた表と比べる流し方（Python 無し）では、表の答え（読む順で変わる数を伏せてある）と同じ形にして比べる。Python と比べるときは数のまま
+    let with_python = bk.python();
+    let cmp = |v: &Value| if with_python { v.clone() } else { order_free(v) };
     let (mut steps, mut delegated, mut copied, mut denied) = (0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
@@ -222,9 +278,9 @@ fn release_place_matches_python() {
                 let got = Mover::new(None).run_sync(&sub(s["src"].as_str().unwrap(), rs), &sub(s["dest"].as_str().unwrap(), rs));
                 let key = format!("{name} #{i}");
                 let w = bk.want(&key, || norm(&st["json"], py));
-                bk.note(&key, "sync", &norm(&got, rs), &w);
+                bk.note(&key, "sync", &order_free(&norm(&got, rs)), &order_free(&w));
                 denied += w.to_string().contains("Permission denied") as usize;
-                if let Some(d) = common::diff(&bk.s(&w), &bk.s(&norm(&got, rs)), "") {
+                if let Some(d) = common::diff(&bk.s(&w), &bk.s(&cmp(&norm(&got, rs))), "") {
                     bad.push(format!("{name} [{i}] 写す係: {d}"));
                 }
                 continue;
@@ -238,7 +294,7 @@ fn release_place_matches_python() {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
-            let (want, gotn) = (bk.s(&w["json"]), bk.s(&norm(&got, rs)));
+            let (want, gotn) = (bk.s(&w["json"]), bk.s(&cmp(&norm(&got, rs))));
             let mut g = json!({"status": status, "json": norm(&got, rs), "final": null});
             if status as i64 != w["status"].as_i64().unwrap_or(0) || common::diff(&want, &gotn, "").is_some() {
                 bad.push(format!(
@@ -254,11 +310,11 @@ fn release_place_matches_python() {
                 let fin = wait_done(&mover);
                 g["final"] = norm(&fin, rs);
                 denied += w["final"].to_string().contains("Permission denied") as usize;
-                if let Some(d) = common::diff(&bk.s(&w["final"]), &bk.s(&norm(&fin, rs)), "") {
+                if let Some(d) = common::diff(&bk.s(&w["final"]), &bk.s(&cmp(&norm(&fin, rs))), "") {
                     bad.push(format!("{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}", w["final"], norm(&fin, rs)));
                 }
             }
-            bk.note(&key, &common::bake::route_of(st), &g, &w);
+            bk.note(&key, &common::bake::route_of(st), &order_free(&g), &order_free(&w));
         }
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;

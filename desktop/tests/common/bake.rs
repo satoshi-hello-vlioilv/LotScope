@@ -770,15 +770,70 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
     }
 }
 
+/// SQLite のファイルの中身を、作った SQLite の版によらない形（頭の決め・表の定義・行）にする（宣言を比べるとき）。
+/// SQLite のファイルの頭には、最後に書いた SQLite の版の番号（96〜99 バイト目）と、その版が数えた変更の数（24〜27・92〜95）が入る。
+/// 答え合わせ役（Python）が作る場面の SQLite は、Python に付く SQLite の版でバイトが変わる（版 3.115.0 の PR #115 の CI の直し: 手元の
+/// Python は SQLite 3.53.1、CI の Python は別の版で、builder・mirror・seed_reads の 3 本が「場面のフォルダが表の宣言と違う」で落ちた。
+/// /usr/bin/python3〈SQLite 3.45.1〉を TPA_PYTHON にして再現）。表の定義・行・頭の決め（ページの大きさ・書式の版・字の符号）は比べる。
+/// SQLite として開けない物（頭だけ SQLite の壊れたファイル）は None で、バイトのまま比べる
+pub fn sqlite_logical(bytes: &[u8]) -> Option<Value> {
+    use rusqlite::types::Value as Cell;
+    if !bytes.starts_with(b"SQLite format 3\0") || bytes.len() < 100 {
+        return None;
+    }
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // 一時のファイルはその利用者が必ず書ける一時フォルダに置く（cargo の作業フォルダは root でない利用者が書けないことがある）
+    let p = std::env::temp_dir().join(format!("da-decl-{}-{n}.sqlite3", std::process::id()));
+    std::fs::write(&p, bytes).ok()?;
+    let cell = |c: Cell| match c {
+        Cell::Null => Value::Null,
+        Cell::Integer(i) => json!(i),
+        Cell::Real(f) => json!({"real": format!("{f:?}")}),
+        Cell::Text(t) => json!(t),
+        Cell::Blob(b) => json!({"blob": b64(&b)}),
+    };
+    let dump = || -> rusqlite::Result<Value> {
+        let c = rusqlite::Connection::open_with_flags(&p, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let rows = |sql: &str| -> rusqlite::Result<Vec<Value>> {
+            let mut st = c.prepare(sql)?;
+            let n = st.column_count();
+            let mut out = vec![];
+            let mut q = st.query([])?;
+            while let Some(r) = q.next()? {
+                out.push(Value::Array((0..n).map(|i| r.get::<_, Cell>(i).map(cell)).collect::<rusqlite::Result<Vec<_>>>()?));
+            }
+            Ok(out)
+        };
+        let schema = rows("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY rowid")?;
+        let mut tables = Map::new();
+        for s in &schema {
+            if s[0] == "table" {
+                let name = s[1].as_str().unwrap_or("");
+                tables.insert(name.to_string(), Value::Array(rows(&format!("SELECT * FROM \"{}\"", name.replace('"', "\"\"")))?));
+            }
+        }
+        let pragma = |n: &str| rows(&format!("PRAGMA {n}")).map(Value::Array);
+        Ok(json!({"schema": schema, "rows": tables, "user_version": pragma("user_version")?, "application_id": pragma("application_id")?}))
+    };
+    let out = dump().ok();
+    let _ = std::fs::remove_file(&p);
+    // 頭の決め: ページの大きさ（16〜17）・書式の版（18〜19）・予約と詰め方（20〜23）・字の符号（56〜59）。版の番号と変更の数は入れない
+    let head: String = bytes[16..24].iter().chain(&bytes[56..60]).map(|b| format!("{b:02x}")).collect();
+    out.map(|d| json!({"sqlite": d, "head": head}))
+}
+
 /// 宣言を比べられる形に（今からのずれは流すたびに変わるので形だけ残す）
-fn decl_cmp(v: &Value) -> Value {
+pub fn decl_cmp(v: &Value) -> Value {
     let re = super::re(r"@NOW\(-?\d+ms");
     // 中身は指紋（blobs の鍵）でなく中身そのもので比べる（指紋は今からのずれを含む）
     let mut files = v["files"].clone();
     if let Some(o) = files.as_object_mut() {
         for e in o.values_mut() {
             let b = v["blobs"][e["blob"].as_str().unwrap_or("")].clone();
-            e["blob"] = b;
+            // SQLite のファイルは、作った SQLite の版によらない形で比べる（sqlite_logical）
+            let logical = b["b64"].as_str().and_then(|t| sqlite_logical(&unb64(t)));
+            e["blob"] = logical.unwrap_or(b);
         }
     }
     // 読めない段（権限に読む印の無いフォルダ）の中と、読めないファイルの中身は比べない（root でない利用者は写せない。版 3.115.0 の作った後の直し:

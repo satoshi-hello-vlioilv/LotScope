@@ -81,6 +81,22 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_tables_keep_no_words_of_the_resolver(self):
+        """焼いた表に、PC の名前を引く係（DNS）の様子で変わる言葉が無い（版 3.115.0 の PR #115 の CI の直し: 場面は本物の名前を引かない）。
+        変異: 答えに書き込むと --check が落ちる"""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            for p in bless.BAKED.glob("*.json"):
+                shutil.copy(p, tmp / p.name)
+            self.assertEqual([x for x in bless.check(tmp) if "名前を引く係" in x], [])
+            for word in ("[Errno -2] Name or service not known", "[Errno -3] Temporary failure in name resolution"):
+                t = json.loads((tmp / "builder.json").read_text(encoding="utf-8"))
+                t["answers"]["x"] = {"error": f"CM3に接続できません: {word}"}
+                (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+                self.assertTrue(any("builder: PC の名前を引く係" in x for x in bless.check(tmp)), word)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_near_dates_in_the_sources_stop_the_bless(self):
         """答え合わせ役の元に今日に近い固定の日付があれば焼かない（時限の爆弾にしない）"""
         import datetime as dt
