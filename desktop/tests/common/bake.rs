@@ -198,9 +198,7 @@ impl Ctx {
                 rest = &rest[i + a.len()..];
                 if path_edge(before) && after_ok && slash {
                     out.push_str(b);
-                    let end = rest
-                        .find(|c: char| matches!(c, '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | '」' | '?' | '#' | ';'))
-                        .unwrap_or(rest.len());
+                    let end = rest.find(['"', '\'', ' ', '\n', '）', ')', ',', '」', '?', '#', ';']).unwrap_or(rest.len());
                     out.push_str(&rest[..end].replace('\\', "/"));
                     rest = &rest[end..];
                 } else if path_edge(before) && after_ok {
