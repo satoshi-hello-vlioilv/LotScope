@@ -18,6 +18,10 @@ use serde_json::{json, Map, Value};
 use std::path::Path;
 use std::sync::Arc;
 
+/// 場面の歩（置き場の状態は共有に 2 秒で尋ねる）と種まきの競い合い（窓 2 つと Python を一斉に起こす）を同じ時に流さない（版 3.115.0 の作った後の
+/// 直し: check-all で競い合いと重なり、状態の歩が「2 秒で答えません」になった。決めの 2 秒〈probe〉は変えない）
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
@@ -181,6 +185,7 @@ fn follow(conf: &mut Value, rs: &Path) {
 
 #[test]
 fn master_place_matches_python() {
+    let _one = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let base = common::work("place");
     let mut bk = common::bake::Bake::open("place", &base);
     bk.strip = ["status", "json", "files"].map(String::from).to_vec();
@@ -333,6 +338,7 @@ fn python_status(root: &str, ready_go: Option<(&Path, &Path)>) -> Value {
 /// まき終えた後の窓 2 つと Python の答えが同じ（置いた人・時刻・錠・名乗りは比べない）
 #[test]
 fn an_empty_share_is_seeded_once_by_whoever_comes_first() {
+    let _one = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     if !common::bake::frozen_python("an_empty_share_is_seeded_once_by_whoever_comes_first") {
         return;
     }
