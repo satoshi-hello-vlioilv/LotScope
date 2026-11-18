@@ -39,36 +39,74 @@ def sources_of(book):
     return out
 
 
-def check():
-    """→ 食い違いの言葉の並び（空なら古くない）"""
+def tables(baked=None):
+    """tests/baked の焼いた表（books.json・settle.json の外の *.json）→ {表のファイルの名前: 本}。本は名前の頭（本.部分）"""
+    baked = baked or BAKED
+    return {p.stem: p.stem.split(".")[0] for p in sorted(baked.glob("*.json")) if p.name not in ("books.json", "settle.json")}
+
+
+def files_of(book, baked=None):
+    """本の表のファイル（本.json と、部分の 本.部分.json）"""
+    return [(baked or BAKED) / f"{name}.json" for name, b in tables(baked).items() if b == book]
+
+
+DATE = re.compile(r"(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)")
+
+
+def near_dates(book, days=3):
+    """答え合わせ役の元に書いた固定の日付のうち、今日から days 日の内の物（焼くと「今に近い時刻」と読まれ、日がたつと表が古くなる時限の爆弾）"""
+    import datetime as dt
+    today = dt.date.today()
+    out = []
+    for rel in BOOKS[book]["sources"]:
+        p = PROGRAM / rel
+        for m in DATE.finditer(p.read_text(encoding="utf-8")) if p.exists() else []:
+            try:
+                d = dt.date(int(m[1]), int(m[2]), int(m[3]))
+            except ValueError:
+                continue
+            if abs((d - today).days) <= days:
+                out.append(f"{rel}: {m[0]}")
+    return out
+
+
+def check(baked=None):
+    """→ 食い違いの言葉の並び（空なら古くない）。tests/baked の表を全部（部分の表も）確かめる（版 3.115.0 の作った後の直し: 前は 本.json だけを見た）"""
     bad = []
-    for book, b in sorted(BOOKS.items()):
-        p = BAKED / f"{book}.json"
-        if b["phase"] != PHASE:
-            if p.exists():
-                bad.append(f"{book}: 焼く版でない本（phase {b['phase']}）に表がある")
+    tabs = tables(baked)
+    for name, book in tabs.items():
+        if book not in BOOKS:
+            bad.append(f"{name}: 知らない本の表（books.json に無い）")
             continue
-        if not p.exists():
-            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
+        if BOOKS[book]["phase"] != PHASE:
+            bad.append(f"{name}: 焼く版でない本（phase {BOOKS[book]['phase']}）に表がある")
             continue
-        t = json.loads(p.read_text(encoding="utf-8"))
+        t = json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8"))
         for k in ("book", "os", "oracle", "scene", "answers", "routes", "sources"):
             if k not in t:
-                bad.append(f"{book}: 表に {k} がありません")
-        if t.get("book") != book:
-            bad.append(f"{book}: 表の本の名前が {t.get('book')}")
+                bad.append(f"{name}: 表に {k} がありません")
+        if t.get("book") != book or t.get("file", name) != name:
+            bad.append(f"{name}: 表の本の名前が {t.get('book')}・{t.get('file')}")
         now = sources_of(book)
         for rel, h in now.items():
             if t.get("sources", {}).get(rel) != h:
-                bad.append(f"{book}: 元 {rel} が焼いた時と違う（表が古い。python tools/bless.py {book} で焼き直す）")
+                bad.append(f"{name}: 元 {rel} が焼いた時と違う（表が古い。python tools/bless.py {book} で焼き直す）")
         for rel in set(t.get("sources", {})) - set(now):
-            bad.append(f"{book}: 表に知らない元 {rel}")
+            bad.append(f"{name}: 表に知らない元 {rel}")
         scene = t.get("scene", {})
+        for k in ("files", "dirs", "links", "blobs"):
+            if not isinstance(scene.get(k), dict):
+                bad.append(f"{name}: 場面の宣言に {k} がありません")
         for rel, e in scene.get("files", {}).items():
             if not e.get("fifo") and e.get("blob") not in scene.get("blobs", {}):
-                bad.append(f"{book}: 場面のファイル {rel} の中身が無い")
-        if set(t.get("answers", {})) != set(t.get("routes", {})):
-            bad.append(f"{book}: 答えと道の型の鍵が合わない")
+                bad.append(f"{name}: 場面のファイル {rel} の中身が無い")
+        if not isinstance(t.get("answers"), dict) or set(t.get("answers", {})) != set(t.get("routes", {})):
+            bad.append(f"{name}: 答えと道の型の鍵が合わない")
+        elif not t["answers"] and not name.endswith(".shared"):
+            bad.append(f"{name}: 答えが 1 つもありません")
+    for book, b in sorted(BOOKS.items()):
+        if b["phase"] == PHASE and book not in tabs:
+            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
     return bad
 
 
@@ -97,8 +135,9 @@ def comparable(t):
     files = {rel: {**e, "blob": sc["blobs"].get(e.get("blob"))} for rel, e in sc["files"].items()}
     s = json.dumps({"oracle": t["oracle"], "answers": t["answers"], "files": files, "dirs": sc["dirs"], "links": sc["links"],
                     "variants": t.get("variants")}, ensure_ascii=False, sort_keys=True)
-    # 今からのずれと、Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
-    return json.loads(re.sub(r"\b[0-9a-f]{32}\b", "@HEX32", re.sub(r"@NOW\(-?\d+ms", "@NOW(~", s)))
+    # 今からのずれ（場面の @NOW と答えの @T の秒）と、Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
+    s = re.sub(r"@T\(([^|)]*)\|-?\d+\)", r"@T(\1|~)", re.sub(r"@NOW\(-?\d+ms", "@NOW(~", s))
+    return json.loads(re.sub(r"\b[0-9a-f]{32}\b", "@HEX32", s))
 
 
 def first_diff(a, b, p=""):
@@ -123,7 +162,11 @@ def first_diff(a, b, p=""):
 
 def bless(books):
     tests = tests_of(books)
-    keep = {b: (BAKED / f"{b}.json").read_bytes() for b in books if (BAKED / f"{b}.json").exists()}
+    near = [x for b in books for x in near_dates(b)]
+    if near:
+        sys.exit("答え合わせ役の元に今日から 3 日の内の固定の日付があります（焼くと今に近い時刻と読まれ、日がたつと表が古くなる）。遠い日付に替えてください:\n"
+                 + "\n".join(near))
+    keep = {p.name: p.read_bytes() for b in books for p in files_of(b)}
     if cargo(tests, {"TPA_BLESS": "1"}):
         restore(books, keep)
         sys.exit("1 回目の焼きが止まりました（Python と違う・試験の食い違い）。元の表に戻しました")
@@ -137,10 +180,14 @@ def bless(books):
             sys.exit("2 回目の焼きが止まりました。元の表に戻しました")
         bad = []
         for b in books:
-            one, two = (json.loads((d / f"{b}.json").read_text(encoding="utf-8")) for d in (BAKED, Path(out)))
-            d = first_diff(comparable(one), comparable(two))
-            if d:
-                bad.append(f"{b}: 1 回目と 2 回目が違う（そろえる決まりが足りない）: {d}")
+            for p in files_of(b):
+                if not (Path(out) / p.name).exists():
+                    bad.append(f"{p.stem}: 2 回目の表がありません")
+                    continue
+                one, two = (json.loads(f.read_text(encoding="utf-8")) for f in (p, Path(out) / p.name))
+                d = first_diff(comparable(one), comparable(two))
+                if d:
+                    bad.append(f"{p.stem}: 1 回目と 2 回目が違う（そろえる決まりが足りない）: {d}")
         if bad:
             restore(books, keep)
             sys.exit("\n".join(bad) + "\n元の表に戻しました")
@@ -149,11 +196,11 @@ def bless(books):
 
 def restore(books, keep):
     for b in books:
-        p = BAKED / f"{b}.json"
-        if b in keep:
-            p.write_bytes(keep[b])
-        elif p.exists():
-            p.unlink()
+        for p in files_of(b):
+            if p.name not in keep:
+                p.unlink()
+    for name, data in keep.items():
+        (BAKED / name).write_bytes(data)
 
 
 def test_bins(tests):
@@ -167,27 +214,48 @@ def test_bins(tests):
     return out
 
 
+# root でない利用者で焼くときの一時の利用者（版 3.115.0 の作った後の直し: 前は nobody で流し、場面の login「nobody」と名前の置き換えが重なった）
+BLESS_USER = "tpabless"
+
+
 def bless_user(books):
-    """root でない利用者で流して、root と違う歩を variants.user に焼く（root で焼いた答えは変えない）"""
+    """root でない利用者（場面に出ない名前の一時の利用者 tpabless。無ければ作り、終わったら消す）で流して、root と違う歩を variants.user に焼く
+    （root で焼いた答えは変えない）"""
     if os.geteuid() != 0:
-        sys.exit("--user は root で流す（nobody に替えて流す）")
-    home = Path(tempfile.mkdtemp(prefix="bless-nobody-"))
+        sys.exit("--user は root で流す（一時の利用者に替えて流す）")
+    for b in books:
+        for rel in BOOKS[b]["sources"]:
+            if BLESS_USER in (PROGRAM / rel).read_text(encoding="utf-8"):
+                sys.exit(f"一時の利用者の名前 {BLESS_USER} が場面に出ます（{rel}）。名前を替えてください")
+    made = subprocess.run(["id", BLESS_USER], capture_output=True).returncode != 0
+    if made:
+        subprocess.run(["useradd", "-M", "-r", "-s", "/usr/sbin/nologin", BLESS_USER], check=True)
+    try:
+        _bless_user(books)
+    finally:
+        if made:
+            subprocess.run(["userdel", BLESS_USER], check=False)
+
+
+def _bless_user(books):
+    home = Path(tempfile.mkdtemp(prefix="bless-user-"))
     out = home / "out"
     out.mkdir()
     for d in (home, out):
         os.chmod(d, 0o777)
     bins = test_bins(tests_of(books))
     for t in tests_of(books):
-        env = ["env", f"HOME={home}", "USER=nobody", "LOGNAME=nobody", "TPA_BLESS=1", f"TPA_BAKE_OUT={out}", f"TPA_PYTHON={shutil.which('python3')}", "PYTHONDONTWRITEBYTECODE=1"]
-        r = subprocess.run(["runuser", "-u", "nobody", "--"] + env + [bins[t], "--test-threads=1"], cwd=DESKTOP, capture_output=True, text=True)
+        env = ["env", f"HOME={home}", f"USER={BLESS_USER}", f"LOGNAME={BLESS_USER}", "TPA_BLESS=1", f"TPA_BAKE_OUT={out}", f"TPA_PYTHON={shutil.which('python3')}", "PYTHONDONTWRITEBYTECODE=1"]
+        r = subprocess.run(["runuser", "-u", BLESS_USER, "--"] + env + [bins[t], "--test-threads=1"], cwd=DESKTOP, capture_output=True, text=True)
         sys.stderr.write(r.stderr[-3000:])
         if r.returncode:
             sys.exit(f"{t}: root でない利用者で止まりました")
     for b in books:
-        if (out / f"{b}.json").exists():
-            shutil.copyfile(out / f"{b}.json", BAKED / f"{b}.json")
-            n = len(json.loads((BAKED / f"{b}.json").read_text(encoding="utf-8")).get("variants", {}).get("user", {}))
-            print(f"{b}: root でない利用者で違う歩 {n}")
+        for p in files_of(b):
+            if (out / p.name).exists():
+                shutil.copyfile(out / p.name, p)
+                n = len(json.loads(p.read_text(encoding="utf-8")).get("variants", {}).get("user", {}))
+                print(f"{p.stem}: root でない利用者で違う歩 {n}")
     shutil.rmtree(home, ignore_errors=True)
 
 
@@ -201,7 +269,7 @@ def main():
             print("  ", line)
         if bad:
             sys.exit(1)
-        print(f"焼いた表は古くありません（{sum(1 for b in BOOKS.values() if b['phase'] == PHASE)} 本）")
+        print(f"焼いた表は古くありません（{sum(1 for b in BOOKS.values() if b['phase'] == PHASE)} 本・{len(tables())} ファイル）")
         return
     books = [b for b, v in BOOKS.items() if v["phase"] == PHASE] if "--all" in args else [a for a in args if not a.startswith("--")]
     if args[0] == "--scope":
@@ -213,7 +281,14 @@ def main():
     if "--user" in args:
         bless_user(books)
     elif "--no-python" in args:
-        sys.exit(cargo(tests_of(books), {"TPA_NO_PYTHON": "1"}))
+        # Python 無し＝program/app を使わない形（独立の答え tools/*-truth.py の標準の Python は残す）。凍らせた Python を相手にする試験は流さず、
+        # その名前を test result の数と別に出す（desktop/tests/common/bake.rs の frozen_python が target/tmp/frozen-skipped.txt に書く）
+        skipped = Path(os.environ.get("CARGO_TARGET_DIR", DESKTOP / "target")) / "tmp" / "frozen-skipped.txt"
+        skipped.unlink(missing_ok=True)
+        rc = cargo(tests_of(books), {"TPA_NO_PYTHON": "1"})
+        names = skipped.read_text(encoding="utf-8").split() if skipped.exists() else []
+        print(f"流さなかった試験（凍らせた Python を相手にする） {len(names)} 本: " + " ".join(names))
+        sys.exit(rc)
     else:
         bless(books)
 

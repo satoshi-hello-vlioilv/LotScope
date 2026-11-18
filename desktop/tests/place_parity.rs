@@ -113,7 +113,8 @@ fn listing(root: &Path) -> Map<String, Value> {
 
 /// 独立の答え（tools/place-truth.py）に尋ねる
 fn truth(args: &[&str]) -> Value {
-    let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
+    // 独立の答えは app を import しない標準の Python の台本（TPA_NO_PYTHON でも要る。無ければ分かる言葉で落とす）
+    let py = common::bake::stdlib_python();
     let out = std::process::Command::new(&py)
         .arg(common::program().join("tools").join("place-truth.py"))
         .args(args)

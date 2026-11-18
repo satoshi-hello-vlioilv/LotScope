@@ -64,6 +64,18 @@ def _no_constant(name):
     raise ValueError(name)
 
 
+# timeout の上限（版 3.115.0 の作った後の直し: 1 年。これを超える数・0・負・nan・inf は既定の 15 秒。窓の schedule.rs の fetch_plan と同じ決め）
+TIMEOUT_MAX = 365 * 24 * 3600
+
+
+def timeout_of(cfg):
+    """CM3 への 1 回の接続・読み・書きの秒（数でない「abc」・並び・0・負・nan・inf・1 年を超える数は 15 秒。前は 0 で接続の誤り、
+    -1・nan で ValueError、inf で OverflowError の 500）"""
+    secs, ok = num_setting.read(cfg.get("timeout_sec") or 15, 15)
+    f = float(secs) if ok else 15.0
+    return f if 0 < f <= TIMEOUT_MAX else 15.0
+
+
 def fetch_raw(cfg, setsubi, term_kbn):
     """CM3 の答え（JSON の dict）そのもの。cfg: {cm3_base_url, init_path, client_ip, timeout_sec, use_system_proxy}"""
     base = str(cfg.get("cm3_base_url") or "").rstrip("/")
@@ -76,9 +88,7 @@ def fetch_raw(cfg, setsubi, term_kbn):
     # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ
     opener = urllib.request.build_opener() if cfg.get("use_system_proxy") else urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        # 数でない timeout（「abc」・並び）は既定の 15 秒（版 3.115.0。数の設定の読み方 num_setting と同じ。前は ValueError の 500）
-        secs, ok = num_setting.read(cfg.get("timeout_sec") or 15, 15)
-        with opener.open(req, timeout=float(secs if ok else 15)) as res:
+        with opener.open(req, timeout=timeout_of(cfg)) as res:
             text = _decode_body(res.read(), res.headers.get("Content-Type"))
     except urllib.error.HTTPError as e:
         raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None

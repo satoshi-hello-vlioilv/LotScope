@@ -333,10 +333,7 @@ class Schedules:
         if not force and st.get("path") and age is not None and age < max_age:
             return self.peek(code)
         seq0 = st.get("seq") or 0
-        try:                                         # 窓の最悪の時間: 30x を 10 回たどる 11 本 × （接続＋読み の timeout）
-            wait = float(cfg.get("timeout_sec") or 15) * 2 * 11 + 5
-        except (TypeError, ValueError):
-            wait = 335.0
+        wait = cm3_schedule.timeout_of(cfg) * 2 * 11 + 5    # 窓の最悪の時間: 30x を 10 回たどる 11 本 × （接続＋読み の timeout）
         self._tell(cfg, e, max_age, force, seq0)
         start = time.monotonic()
         end = start + max(min(wait, 600.0), 5.0)

@@ -306,6 +306,9 @@ def scenes(world_port, blackhole):
         ("システムのプロキシ", {**base, "use_system_proxy": True, "cm3_base_url": u("ok")}, [S(SCH, "equip=L-1", delegate=True)], None),
         # 場面の名前を分ける（版 3.115.0。CM3 が受けた要求は場面ごとに比べる。「ok」はシステムのプロキシの場面〈Python だけが取る〉と共にする）
         ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("timeout")}, [S(SCH, "equip=__HOT__")], None),
+        # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 年を超える数）は 15 秒（cm3_schedule.timeout_of）。1e7 は答える
+        *[(f"timeout が {t!r}", {**base, "timeout_sec": t, "cm3_base_url": u("timeout")}, [S(SCH, "equip=L-1")], None)
+          for t in (0, "0", -1, "nan", "inf", "-inf", 1e7, 1e300)],
     ]
     return out
 

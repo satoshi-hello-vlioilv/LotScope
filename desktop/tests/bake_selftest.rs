@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::bake::{materialize, settle, settle_with, snapshot, Bake, Ctx, Mode};
+use common::bake::{diff_tol, materialize, settle, settle_with, snapshot, Bake, Ctx, Mode};
 use serde_json::{json, Value};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -21,15 +21,16 @@ fn finished(bk: Bake) -> Result<(), String> {
 #[test]
 fn a_one_character_change_in_the_window_answer_is_caught() {
     let base = common::work("bake-one-char");
-    let t = table(json!({"k": {"status": 200, "json": {"a": "窓の答え", "updated_at": "@T"}}}), json!({"k": "GET /api/x"}));
+    let t =
+        table(json!({"k": {"status": 200, "json": {"a": "窓の答え", "updated_at": "2001-01-01T00:00:00"}}}), json!({"k": "GET /api/x"}));
     let same = |text: &str| {
         let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);
         let _ = bk.oracle("unused.py", &[]);
         let want = bk.want("k", || Value::Null);
-        bk.note("k", "GET /api/x", &json!({"status": 200, "json": {"a": text, "updated_at": "2026-11-17T21:15:03"}}), &want);
+        bk.note("k", "GET /api/x", &json!({"status": 200, "json": {"a": text, "updated_at": "2001-01-01T00:00:00"}}), &want);
         finished(bk)
     };
-    assert!(same("窓の答え").is_ok(), "同じ答え（時刻はそろえる決まりが伏せる）は通る");
+    assert!(same("窓の答え").is_ok(), "同じ答えは通る");
     let e = same("窓の答へ").expect_err("1 字変えた答えは落ちる");
     assert!(e.contains("焼いた表と違う"), "{e}");
     let _ = std::fs::remove_dir_all(&base);
@@ -58,6 +59,15 @@ fn a_scoped_bless_refuses_changes_outside_the_scope() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// 今から secs 秒ずれた地方時の日時の字（fmt の形）
+fn at(secs: i64, fmt: &str) -> String {
+    (chrono::Local::now().naive_local() + chrono::Duration::seconds(secs)).format(fmt).to_string()
+}
+
+fn now_epoch() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64()
+}
+
 #[test]
 fn bless_writes_only_when_the_settled_window_answer_equals_python() {
     let base = common::work("bake-bless");
@@ -71,30 +81,129 @@ fn bless_writes_only_when_the_settled_window_answer_equals_python() {
     };
     let e = run(json!({"v": "Python"}), json!({"v": "窓"})).expect_err("Python と違えば焼かない");
     assert!(e.contains("焼きません") && !out.join("selftest.json").exists(), "{e}");
-    // 時刻（鍵の名前の表）と作業フォルダ（道の字）だけが違うなら焼く
+    // 今に近い時刻（同じ形で秒の差が TOL の内）と作業フォルダ（道の字）だけが違うなら焼く
     let w = base.join("s0").to_string_lossy().into_owned();
-    run(
-        json!({"v": "x", "at": "2026-11-17T21:15:03", "p": format!("{w}/a")}),
-        json!({"v": "x", "at": "2026-11-18T01:00:00", "p": format!("{w}/a")}),
-    )
-    .expect("そろえた後が同じなら焼く");
+    let f = "%Y-%m-%dT%H:%M:%S";
+    run(json!({"v": "x", "at": at(-5, f), "p": format!("{w}/a")}), json!({"v": "x", "at": at(-65, f), "p": format!("{w}/a")}))
+        .expect("そろえた後が同じなら焼く");
     let t: Value = serde_json::from_slice(&std::fs::read(out.join("selftest.json")).unwrap()).unwrap();
-    assert_eq!(t["answers"]["k"], json!({"v": "x", "at": "@T", "p": "@WORK/s0/a"}));
+    let a = t["answers"]["k"]["at"].as_str().unwrap();
+    assert!(a.starts_with("@T(-Ts|-6") || a.starts_with("@T(-Ts|-"), "今に近い時刻は形と今からの秒: {a}");
+    assert_eq!(t["answers"]["k"]["p"], "@WORK/s0/a");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn only_times_near_now_are_settled_and_their_shape_and_value_are_kept() {
+    // 採点の割れ 1（版 3.115.0 の作った後の直し）: 遠い固定の日時・日時でない字・遠い数・ポートはそのまま比べる。今に近い時刻は形と今からの秒で比べる
+    let base = common::work("bake-near");
+    let ctx = Ctx::new(&base);
+    let differ = |a: Value, b: Value, why: &str| {
+        let (x, y) = (settle(&a, &ctx, &[]), settle(&b, &ctx, &[]));
+        assert!(diff_tol(&x, &y, "").is_some(), "{why}: {x} / {y}");
+    };
+    let same = |a: Value, b: Value, why: &str| {
+        let (x, y) = (settle(&a, &ctx, &[]), settle(&b, &ctx, &[]));
+        assert!(diff_tol(&x, &y, "").is_none(), "{why}: {x} / {y}");
+    };
+    differ(json!({"v": "2020-01-01 08:00"}), json!({"v": "2020-01-01 09:00"}), "遠い固定の日時は時刻まで比べる（場面の作業実績の見本）");
+    differ(json!({"v": "2020-01-01 08:00"}), json!({"v": "1920-01-01 08:00"}), "変異 M2: 見本の日時の年を替える");
+    differ(json!({"at": at(-60, "%Y-%m-%dT%H:%M")}), json!({"at": "壊れた字"}), "時刻の鍵でも日時でない字はそのまま");
+    differ(json!({"mtime": 1.7e9}), json!({"mtime": 1.8e9}), "遠い更新時刻の数");
+    differ(json!({"u": "http://127.0.0.1:8080/x"}), json!({"u": "http://127.0.0.1:9/x"}), "作り物のサーバーでないポート");
+    // 変異 M1: 切断の指示の at を、読んだ字のまま返さず「年-月-日T時:分:秒」に書き直す（小数と時差が消える）
+    let raw = format!("{}.123456+09:00", at(-30, "%Y-%m-%dT%H:%M:%S"));
+    differ(json!({"at": raw.clone()}), json!({"at": at(-30, "%Y-%m-%dT%H:%M:%S")}), "変異 M1: 今に近い時刻の形が替わる");
+    differ(
+        json!({"at": at(-30, "%Y-%m-%dT%H:%M:%S")}),
+        json!({"at": at(-30 - 7200, "%Y-%m-%dT%H:%M:%S")}),
+        "今に近い時刻でも 2 時間ずれれば違う",
+    );
+    same(
+        json!({"at": raw}),
+        json!({"at": format!("{}.654321+09:00", at(-90, "%Y-%m-%dT%H:%M:%S"))}),
+        "今に近い時刻は同じ形で秒の差が TOL の内なら同じ",
+    );
+    differ(json!({"t": now_epoch()}), json!({"t": now_epoch() - 30.0}), "時刻の鍵でない数はそのまま");
+    same(json!({"at": now_epoch()}), json!({"at": now_epoch() - 40.0}), "時刻の鍵の今に近い数");
+    differ(json!({"at": now_epoch()}), json!({"at": now_epoch() - 4000.0}), "時刻の鍵の数でも秒の差が TOL を超えれば違う");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn only_the_work_folder_and_named_users_are_replaced() {
+    // 採点の割れ 3・9: 一時フォルダの字は置き換えない（答え合わせ役の固定の「/tmp/x/../y」を混ぜない）・段の境の前後を見る・
+    // 区切りの作業フォルダより上は @ABOVE 1 つ・利用者の名前は名前を書く欄だけ
+    let base = common::work("bake-paths");
+    let ctx = Ctx::new(&base);
+    let w = base.to_string_lossy().into_owned();
+    let tmp = std::env::temp_dir().to_string_lossy().trim_end_matches('/').to_string();
+    assert_eq!(settle(&json!("/tmp/x/../y"), &ctx, &[]), json!("/tmp/x/../y"));
+    assert_eq!(settle(&json!(format!("{tmp}/other")), &ctx, &[]), json!(format!("{tmp}/other")));
+    assert_eq!(settle(&json!(format!("{w}/a")), &ctx, &[]), json!("@WORK/a"));
+    assert!(!settle(&json!(format!("/x{w}/a")), &ctx, &[]).to_string().contains("@WORK"), "前が道の続きなら置き換えない");
+    assert!(!settle(&json!(format!("{w}2/a")), &ctx, &[]).to_string().contains("@WORK"), "後ろが道の続きなら置き換えない");
+    let deep = json!([{"name": "/", "path": "/"}, {"name": "tmp", "path": tmp}, {"name": "x", "path": w}, {"name": "a", "path": format!("{w}/a")}]);
+    assert_eq!(
+        settle(&deep, &ctx, &[]),
+        json!([{"name": "@ABOVE", "path": "@ABOVE"}, {"name": "x", "path": "@WORK"}, {"name": "a", "path": "@WORK/a"}]),
+        "作業フォルダの深さに頼らない"
+    );
+    if let Some(u) = common::bake::os_user() {
+        let v = settle(&json!({"login": u, "name": u, "updated_by": {"login": u, "pc": "PC-1"}}), &ctx, &[]);
+        assert_eq!(v, json!({"login": "@USER", "name": u, "updated_by": {"login": "@USER", "pc": "PC-1"}}), "名前を書く欄だけ");
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn baking_fixes_the_time_zone() {
+    // 採点の割れ 4: 焼く・比べるときの時差は UTC（答え合わせ役の地方時の日時が PC の時差で違う更新時刻にならない）
+    let base = common::work("bake-tz");
+    let _bk = Bake::open("selftest", &base);
+    assert_eq!(std::env::var("TZ").as_deref(), Ok("UTC"));
     let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn dropping_a_settle_rule_lets_the_wobble_through() {
     let base = common::work("bake-settle");
-    let ctx = Ctx::new(&base);
-    let a = json!({"updated_at": 1763412345.5, "msg": "最後の更新 2026/11/17 21:15・3 ms", "url": "http://127.0.0.1:40123/x"});
-    let b = json!({"updated_at": 1763412400.25, "msg": "最後の更新 2026/11/17 21:16・7 ms", "url": "http://127.0.0.1:51234/x"});
-    assert_eq!(settle(&a, &ctx, &[]), settle(&b, &ctx, &[]), "決まりを全部当てれば揺れは消える");
-    for drop in ["updated_at", "@T", "・@MS ms", "$1:@PORT"] {
-        assert_ne!(settle_with(&a, &ctx, &[], Some(drop)), settle_with(&b, &ctx, &[], Some(drop)), "{drop} を外すと揺れが残る");
+    let mut ctx = Ctx::new(&base);
+    ctx.url("http://127.0.0.1:40123");
+    let a = json!({"msg": format!("最後の更新 {}・3 ms", at(-60, "%Y/%m/%d %H:%M")), "url": "http://127.0.0.1:40123/x", "at": now_epoch()});
+    let b = json!({"msg": format!("最後の更新 {}・7 ms", at(-120, "%Y/%m/%d %H:%M")), "url": "http://127.0.0.1:40123/x", "at": now_epoch() - 50.0});
+    assert!(diff_tol(&settle(&a, &ctx, &[]), &settle(&b, &ctx, &[]), "").is_none(), "決まりを全部当てれば揺れは消える");
+    for drop in ["near", "・@MS ms", "at"] {
+        assert!(
+            diff_tol(&settle_with(&a, &ctx, &[], Some(drop)), &settle_with(&b, &ctx, &[], Some(drop)), "").is_some(),
+            "{drop} を外すと揺れが残る"
+        );
     }
-    // 揺れない値は変えない（決まりは名前と形で当てる。値の中身は見る）
+    assert_eq!(settle(&json!("http://127.0.0.1:40123/x"), &ctx, &[]), json!("@URL/x"), "作り物のサーバーの URL だけ");
     assert_ne!(settle(&json!({"v": "古い表"}), &ctx, &[]), settle(&json!({"v": "古い衣"}), &ctx, &[]));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn a_scoped_bless_refuses_steps_vanishing_outside_the_scope() {
+    // 採点の割れ 6: 前の表にあって今回の答えに無い歩も、範囲の外なら止める
+    let base = common::work("bake-scope-gone");
+    let out = base.join("out");
+    let t =
+        table(json!({"a": {"status": 200, "json": 1}, "b": {"status": 200, "json": 2}}), json!({"a": "GET /api/x", "b": "POST /api/y"}));
+    let run = |note_a: bool| {
+        let mut bk = Bake::with("selftest", "selftest", Mode::BlessScope, vec!["POST /api/y".into()], Some(t.clone()), &base);
+        bk.out = Some(out.clone());
+        let _ = bk.oracle("unused.py", &[]);
+        if note_a {
+            bk.note("a", "GET /api/x", &json!({"status": 200, "json": 1}), &Value::Null);
+        }
+        bk.note("b", "POST /api/y", &json!({"status": 200, "json": 9}), &Value::Null);
+        finished(bk)
+    };
+    let e = run(false).expect_err("範囲の外の歩が消えたら書かない");
+    assert!(e.contains("消えた") && !out.join("selftest.json").exists(), "{e}");
+    run(true).expect("範囲の外が同じなら書く");
     let _ = std::fs::remove_dir_all(&base);
 }
 

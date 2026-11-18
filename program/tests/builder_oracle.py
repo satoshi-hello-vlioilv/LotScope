@@ -255,15 +255,25 @@ def closed_of():
         S("GET", "/api/sources/%E7%84%A1/columns"),
         S("POST", "/api/settings/check", "[1]"),
         S("POST", "/api/settings/check", {"key": ["lot_list.source"]}),
+        # 版 3.115.0 の作った後の直し（採点の割れ 2 (b)）: 字の欄の i64・u64 を超える整数は Python の str(int) の桁・道の全体の百分率符号を戻す
+        S("POST", F, '{"source": 10000000000000000000}'),
+        S("POST", F, '{"source": 100000000000000000000}'),
+        S("POST", F, '{"source": "work", "equip": 12345678901234567890123}'),
+        S("POST", F, '{"source": "work", "equips": [10000000000000000000, 1e16, false, 0, "CR1"]}'),
+        S("POST", "/api/sources/check", '{"place": 10000000000000000000}'),
+        S("POST", "/api/settings/check", '{"key": "lot_list.source", "value": 100000000000000000000}'),
+        S("GET", "/api/%73ources/wip/columns"),
     ]
 
 
 def delegates_of():
-    """まだ Python に任せる歩: 比べる口（?engine=python。段 ④ で口ごと消す）だけ"""
+    """まだ Python に任せる歩: 比べる口（?engine=python。段 ④ で口ごと消す）と、道の型に当たらない形"""
     F = "/api/dashboard/fields"
     return [
         S("GET", F, query="source=lot&engine=python"),
         S("POST", "/api/settings/check", {"key": "lot_list.source", "value": "x"}, query="engine=python"),
+        # 戻したキーに「/」がある道（/api/sources/a/b/columns）は道の型に当たらない（Python は道なしの 404）。段 ④ で窓の道なしの 404 に
+        S("GET", "/api/sources/a%2Fb/columns"),
     ]
 
 

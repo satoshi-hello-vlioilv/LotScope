@@ -21,8 +21,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// 場面の中の「今に近い」時刻（この幅の内は今からのずれで持つ）
-const NEAR: i64 = 2 * 24 * 3600;
+/// 場面の中の「今に近い」時刻（この幅の内は今からのずれで持つ・答えの今に近い時刻を @T(形|秒) にする）。焼くとき（tools/bless.py）に、
+/// 答え合わせ役の元に今からこの幅の内の固定の日付があれば焼かずに止める（時限の爆弾にしない）
+pub const NEAR: i64 = 2 * 24 * 3600;
+/// 今に近い時刻の秒の差を許す幅（焼いた時と比べる時の、場面を作ってから答えるまでの時間の違い）
+pub const TOL: i64 = 900;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode {
@@ -89,29 +92,38 @@ fn passwd_name() -> Option<String> {
     None
 }
 
-/// 置き換える道の字（作業フォルダ・一時フォルダ・家）。長い物から
+/// 置き換える道の字（作業フォルダ @WORK・家 @HOME・作り物のサーバーの URL @URL）。一時フォルダは置き換えない（版 3.115.0 の作った後の直し:
+/// 前は @TMP にして、答え合わせ役の固定の字「/tmp/x/../y」と流した PC の一時フォルダを混ぜた）
 #[derive(Clone)]
 pub struct Ctx {
     pub subs: Vec<(String, String)>,
 }
 
+/// 道の字の段の境か（前の字・後ろの字が道の続きでない）
+fn path_edge(c: Option<char>) -> bool {
+    c.is_none_or(|c| !(c.is_alphanumeric() || matches!(c, '/' | '\\' | '.' | '-' | '_' | '~' | '$' | '%')))
+}
+
 impl Ctx {
     pub fn new(base: &Path) -> Ctx {
         let mut subs = vec![(base.to_string_lossy().into_owned(), "@WORK".to_string())];
-        let tmp = std::env::temp_dir().to_string_lossy().trim_end_matches('/').to_string();
-        if tmp.len() > 1 {
-            subs.push((tmp, "@TMP".into()));
-        }
         if let Ok(h) = std::env::var("HOME") {
             let h = h.trim_end_matches('/').to_string();
-            if h.len() > 1 && Path::new(&h).is_dir() {
+            if h.len() > 1 && Path::new(&h).is_dir() && !base.starts_with(&h) {
                 subs.push((h, "@HOME".into()));
             }
         }
         Ctx { subs }
     }
-    /// 長い道から、段の境（後ろが字の終わり・区切り・引用符・空白）で置き換える（/tmp が /tmp.abc の頭に当たらない）
-    fn sub(&self, s: &str) -> String {
+    /// 作り物のサーバーの URL（組む所の CM3）を @URL にそろえる
+    pub fn url(&mut self, url: &str) {
+        if !url.is_empty() {
+            self.subs.retain(|(_, b)| b != "@URL");
+            self.subs.push((url.to_string(), "@URL".into()));
+        }
+    }
+    /// 長い字から、段の境の前後（前の字・後ろの字が道の続きでない）で置き換える（/tmp が /tmp.abc や /x/tmp に当たらない）
+    pub fn sub(&self, s: &str) -> String {
         let mut subs: Vec<&(String, String)> = self.subs.iter().collect();
         subs.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
         let mut t = s.to_string();
@@ -122,13 +134,12 @@ impl Ctx {
             let mut out = String::with_capacity(t.len());
             let mut rest = t.as_str();
             while let Some(i) = rest.find(a.as_str()) {
+                let before = if i > 0 { rest[..i].chars().last() } else { out.chars().last() };
                 let after = rest[i + a.len()..].chars().next();
+                let after_ok =
+                    after.is_none_or(|c| matches!(c, '/' | '\\' | '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | ':' | '」' | '?' | '#'));
                 out.push_str(&rest[..i]);
-                if after.is_none_or(|c| matches!(c, '/' | '\\' | '"' | '\'' | ' ' | '\n' | '）' | ')' | ',' | ':')) {
-                    out.push_str(b);
-                } else {
-                    out.push_str(a);
-                }
+                out.push_str(if path_edge(before) && after_ok { b } else { a });
                 rest = &rest[i + a.len()..];
             }
             out.push_str(rest);
@@ -136,13 +147,9 @@ impl Ctx {
         }
         t
     }
-    /// 置き換えを戻す（作業フォルダ・一時フォルダ。家と印の字は戻さない）
+    /// 置き換えを戻す（作業フォルダだけ。家と URL は戻さない: 家は答えの字にだけ出る・URL は作り直す時に新しい物を当てる）
     fn unsub(&self, s: &str) -> String {
-        let mut t = s.to_string();
-        for (a, b) in self.subs.iter().take(2) {
-            t = t.replace(b.as_str(), a);
-        }
-        t
+        s.replace("@WORK", &self.subs[0].0)
     }
 }
 
@@ -168,15 +175,65 @@ fn compiled() -> &'static (Vec<(regex::Regex, String)>, regex::Regex) {
     })
 }
 
-/// そろえる（鍵の名前の表＋字の形。tests/baked/settle.json）。extra_keys は本ごとに足す鍵。
-/// TPA_SETTLE_DROP=鍵か形の置き換えの字（例 updated_at・@T）で、その決まりを 1 つ外して流せる（変異: 外すと焼きの 2 回目・表との比べが落ちる）
+/// 鍵の名前の表（settle.json の nameKeys: 利用者の名前を書く欄。版 3.115.0 の作った後の直し: 前は値の字の一致で当て、場面の人の名前とも重なった）
+fn name_keys() -> Vec<&'static str> {
+    rules()["nameKeys"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default()
+}
+
+/// 日時の字の形（今に近いかを見る）: 年-月-日 時:分〔:秒〔.小数〕〕 と、文の中の 年/月/日 時:分〔:秒〕
+fn dt_any() -> &'static regex::Regex {
+    static R: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    R.get_or_init(|| regex::Regex::new(r"(\d{4})([-/])(\d{1,2})[-/](\d{1,2})([T ])(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?").unwrap())
+}
+
+/// 字の中の今に近い日時（±NEAR）を「@T(形|今からの秒)」にする。遠い日時・日時でない字はそのまま（版 3.115.0 の作った後の直し:
+/// 前は鍵の名前と字の形でどの日時も @T にし、窓の時刻の読み書きの誤りを表との比べが見なかった）。形は区切り・桁（Ts・Tf6・/m など）
+fn near_times(t: &str) -> String {
+    if !t.contains(':') {
+        return t.to_string();
+    }
+    let now = chrono::Local::now().naive_local();
+    dt_any()
+        .replace_all(t, |c: &regex::Captures| {
+            let p = |i: usize| c.get(i).map(|m| m.as_str().parse::<u32>().unwrap_or(0));
+            let d = chrono::NaiveDate::from_ymd_opt(p(1).unwrap() as i32, p(3).unwrap(), p(4).unwrap())
+                .and_then(|d| d.and_hms_opt(p(6).unwrap(), p(7).unwrap(), p(8).unwrap_or(0)));
+            let Some(d) = d else { return c[0].to_string() };
+            let off = (d - now).num_seconds();
+            if off.abs() > NEAR {
+                return c[0].to_string();
+            }
+            let prec = match (c.get(8), c.get(9)) {
+                (None, _) => "m".to_string(),
+                (Some(_), None) => "s".to_string(),
+                (Some(_), Some(f)) => format!("f{}", f.as_str().len()),
+            };
+            format!("@T({}{}{prec}|{off})", &c[2], &c[5])
+        })
+        .into_owned()
+}
+
+/// 時刻の数（秒・ミリ秒の 1970 年からの数）が今に近ければ「@T(epoch|今からの秒)」
+fn near_epoch(x: f64) -> Option<String> {
+    let now = now_secs();
+    if (x - now).abs() <= NEAR as f64 {
+        return Some(format!("@T(epoch|{})", (x - now).round() as i64));
+    }
+    if (x / 1000.0 - now).abs() <= NEAR as f64 {
+        return Some(format!("@T(epoch-ms|{})", (x / 1000.0 - now).round() as i64));
+    }
+    None
+}
+
+/// そろえる（tests/baked/settle.json の字の形と、今に近い時刻・道の字・大きな整数の印・利用者の名前の欄・アプリの版）。extra_keys は本ごとに足す
+/// 時刻の鍵。TPA_SETTLE_DROP=決まり（形の置き換えの字・鍵の名前・near）で 1 つ外して流せる（変異: 外すと焼きの 2 回目・表との比べが落ちる）
 pub fn settle(v: &Value, ctx: &Ctx, extra_keys: &[String]) -> Value {
     static DROP: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     let drop = DROP.get_or_init(|| std::env::var("TPA_SETTLE_DROP").ok().filter(|s| !s.is_empty()));
     settle_with(v, ctx, extra_keys, drop.as_deref())
 }
 
-/// settle の決まりを 1 つ外した形（drop: 鍵の名前か、形の置き換えの字）
+/// settle の決まりを 1 つ外した形（drop: 形の置き換えの字か、鍵の名前か、"near"〈今に近い時刻〉）
 pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&str>) -> Value {
     let r = rules();
     let keys: Vec<&str> = r["timeKeys"]
@@ -187,11 +244,13 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
         .chain(extra_keys.iter().map(String::as_str))
         .filter(|k| Some(*k) != drop)
         .collect();
+    let names: Vec<&str> = name_keys().into_iter().filter(|k| Some(*k) != drop).collect();
     let (all, day_re) = compiled();
     let forms: Vec<&(regex::Regex, String)> = all.iter().filter(|(_, to)| Some(to.as_str()) != drop).collect();
+    let near = drop != Some("near");
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
-        // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。OS の利用者の名前（書いた人の login）は @USER に（root と CI の利用者で同じ表）
+        // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
         let mut t = ctx.sub(t).replace(da_core::held::mark(), "@HELD:");
         if let Some(u) = os_user() {
             if t.contains(&format!("／{u} ")) {
@@ -203,37 +262,97 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
                 t = re.replace_all(&t, to.as_str()).into_owned();
             }
         }
-        // 今日に近い日付（±3 日）は今日からのずれで持つ（作業日・前日の答え）
+        if near {
+            t = near_times(&t);
+        }
+        // 今日から 3 日の内の日付だけの字は今日からのずれで持つ（作業日・前日の答え）
         day_re
             .replace_all(&t, |c: &regex::Captures| {
                 let d = chrono::NaiveDate::from_ymd_opt(c[1].parse().unwrap_or(0), c[3].parse().unwrap_or(0), c[5].parse().unwrap_or(0));
                 match d {
-                    Some(d) if (d - today).num_days().abs() <= 3 => format!("@DAY{:+}{}", (d - today).num_days(), &c[2]),
+                    Some(d) if near && (d - today).num_days().abs() <= 3 => format!("@DAY{:+}{}", (d - today).num_days(), &c[2]),
                     _ => c[0].to_string(),
                 }
             })
             .into_owned()
     };
-    fn go(v: &Value, keys: &[&str], s: &dyn Fn(&str) -> String) -> Value {
+    struct Cx<'a> {
+        keys: &'a [&'a str],
+        names: &'a [&'a str],
+        near: bool,
+        s: &'a dyn Fn(&str) -> String,
+    }
+    fn go(v: &Value, key: &str, cx: &Cx) -> Value {
         match v {
-            // 値の字だけ（鍵は替えない）: アプリの版は @VERSION（版を上げるたびに表が古くならないように）・OS の利用者の名前は @USER
+            // 値の字だけ（鍵は替えない）: アプリの版は @VERSION（版を上げるたびに表が古くならないように）
             Value::String(t) if t == app_version() => json!("@VERSION"),
-            Value::String(t) if os_user() == Some(t.as_str()) || t == "@USER@" => json!("@USER"),
-            Value::String(t) => Value::String(s(t)),
-            Value::Array(a) => Value::Array(a.iter().map(|x| go(x, keys, s)).collect()),
-            Value::Object(o) => Value::Object(
-                o.iter()
-                    .map(|(k, x)| {
-                        let timed = keys.contains(&k.as_str())
-                            && (x.as_str().is_some_and(|t| !t.is_empty()) || (x.is_number() && x.as_f64().is_some_and(|f| f.abs() > 1e8)));
-                        (s(k), if timed { json!("@T") } else { go(x, keys, s) })
-                    })
-                    .collect(),
-            ),
+            // 利用者の名前を書く欄（nameKeys）の OS の利用者の名前は @USER（root で焼き、CI の runner でも同じ表）
+            Value::String(t) if cx.names.contains(&key) && (os_user() == Some(t.as_str()) || t == "@USER@") => json!("@USER"),
+            Value::String(t) => Value::String((cx.s)(t)),
+            // 時刻の鍵の今に近い数（1970 年からの秒・ミリ秒）だけ。遠い数はそのまま
+            Value::Number(n) if cx.near && cx.keys.contains(&key) => {
+                n.as_f64().and_then(near_epoch).map(Value::String).unwrap_or_else(|| v.clone())
+            }
+            Value::Array(a) => {
+                let out: Vec<Value> = a.iter().map(|x| go(x, key, cx)).collect();
+                above_crumbs(out)
+            }
+            Value::Object(o) => Value::Object(o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect()),
             _ => v.clone(),
         }
     }
-    go(v, &keys, &s)
+    go(v, "", &Cx { keys: &keys, names: &names, near, s: &s })
+}
+
+/// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）
+fn above_crumbs(v: Vec<Value>) -> Value {
+    let crumb = |x: &Value| x.as_object().is_some_and(|o| o.len() == 2 && o.contains_key("name") && o["path"].is_string());
+    if v.is_empty() || !v.iter().all(crumb) || !v.iter().any(|x| x["path"].as_str().unwrap().starts_with("@WORK")) {
+        return Value::Array(v);
+    }
+    let mut out = vec![json!({"name": "@ABOVE", "path": "@ABOVE"})];
+    out.extend(v.into_iter().filter(|x| x["path"].as_str().unwrap().starts_with("@WORK")));
+    Value::Array(out)
+}
+
+/// 今からの秒を抜いた形（試験そのものの比べと、2 回の焼きの比べ）
+pub fn without_offsets(v: &Value) -> Value {
+    let re = regex::Regex::new(r"@T\(([^|)]*)\|-?\d+\)").unwrap();
+    map_strings(v, &|s| if s.contains("@T(") { re.replace_all(s, "@T($1)").into_owned() } else { s.to_string() })
+}
+
+/// 時刻の印（@T(形|秒)）の秒の差を許して比べる（TOL 秒の内なら同じ）。最初の違いの道
+pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
+    let re = regex::Regex::new(r"@T\(([^|)]*)\|(-?\d+)\)").unwrap();
+    match (a, b) {
+        (Value::String(x), Value::String(y)) if x.contains("@T(") || y.contains("@T(") => {
+            let (sx, sy) = (re.replace_all(x, "@T($1)"), re.replace_all(y, "@T($1)"));
+            let ox: Vec<i64> = re.captures_iter(x).map(|c| c[2].parse().unwrap()).collect();
+            let oy: Vec<i64> = re.captures_iter(y).map(|c| c[2].parse().unwrap()).collect();
+            let close = ox.len() == oy.len() && ox.iter().zip(&oy).all(|(p, q)| (p - q).abs() <= TOL);
+            (sx != sy || !close).then(|| format!("{path}: {x} / {y}"))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            for k in x.keys().chain(y.keys()) {
+                match (x.get(k), y.get(k)) {
+                    (Some(p), Some(q)) => {
+                        if let Some(d) = diff_tol(p, q, &format!("{path}.{k}")) {
+                            return Some(d);
+                        }
+                    }
+                    (p, q) => return Some(format!("{path}.{k}: {p:?} / {q:?}")),
+                }
+            }
+            None
+        }
+        (Value::Array(x), Value::Array(y)) => {
+            if x.len() != y.len() {
+                return Some(format!("{path}: 長さ {} / {}", x.len(), y.len()));
+            }
+            x.iter().zip(y).enumerate().find_map(|(i, (p, q))| diff_tol(p, q, &format!("{path}[{i}]")))
+        }
+        _ => super::diff(a, b, path),
+    }
 }
 
 // ------------------------------------------------------------------ 場面の宣言（フォルダの写し）
@@ -312,23 +431,26 @@ fn dt_re() -> regex::Regex {
 }
 
 /// 中身の字の今に近い日時を「@NOW(ずれ ms,区切り,桁)」にする（作る時に今からのずれで書き戻す。ほかの PC の錠の時刻など）
-/// 中身の字の OS の利用者の名前（JSON の値の "名前"。鍵〈後ろに「:」〉は替えない）を "@USER@" に（場面の権限の行・書いた人は流した利用者の名前）
+/// 中身の字の、利用者の名前を書く欄（settle.json の nameKeys）の OS の利用者の名前を "@USER@" に（場面の権限の行・錠の持ち主・書いた人は
+/// 流した利用者の名前。版 3.115.0 の作った後の直し: 前は値の字の一致で当て、場面の人の名前とも重なった）
 fn user_decl(t: &str) -> String {
     let Some(u) = os_user() else { return t.to_string() };
-    let q = format!("\"{u}\"");
-    if !t.contains(&q) {
+    if !t.contains(&format!("\"{u}\"")) {
         return t.to_string();
     }
-    let mut out = String::with_capacity(t.len());
-    let mut rest = t;
-    while let Some(i) = rest.find(&q) {
-        out.push_str(&rest[..i]);
-        let after = rest[i + q.len()..].trim_start();
-        out.push_str(if after.starts_with(':') { &q } else { "\"@USER@\"" });
-        rest = &rest[i + q.len()..];
+    let keys: Vec<String> = name_keys().iter().map(|k| regex::escape(k)).collect();
+    let re = regex::Regex::new(&format!(r#"("(?:{})"\s*:\s*)"{}""#, keys.join("|"), regex::escape(u))).unwrap();
+    re.replace_all(t, "${1}\"@USER@\"").into_owned()
+}
+
+/// 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前を @USER@ に
+fn named_users(v: &Value, key: &str) -> Value {
+    match v {
+        Value::String(s) if name_keys().contains(&key) && os_user() == Some(s.as_str()) => json!("@USER@"),
+        Value::Array(a) => Value::Array(a.iter().map(|x| named_users(x, key)).collect()),
+        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), named_users(x, k))).collect()),
+        _ => v.clone(),
     }
-    out.push_str(rest);
-    out
 }
 
 fn text_decl(t: &str, ctx: &Ctx) -> String {
@@ -587,7 +709,31 @@ fn decl_cmp(v: &Value) -> Value {
             e["blob"] = b;
         }
     }
-    let w = json!({"files": files, "dirs": v["dirs"], "links": v["links"]});
+    // 読めない段（権限に読む印の無いフォルダ）の中と、読めないファイルの中身は比べない（root でない利用者は写せない。版 3.115.0 の作った後の直し:
+    // 前は root のときだけ宣言を比べ、CI〈root でない runner〉では場面の古さを見なかった）
+    let locked: Vec<String> = v["dirs"]
+        .as_object()
+        .map(|o| o.iter().filter(|(_, e)| e["mode"].as_u64().is_some_and(|m| m & 0o444 == 0)).map(|(r, _)| format!("{r}/")).collect())
+        .unwrap_or_default();
+    if let Some(o) = files.as_object_mut() {
+        o.retain(|r, _| !locked.iter().any(|l| r.starts_with(l.as_str())));
+        for e in o.values_mut() {
+            if e["mode"].as_u64().is_some_and(|m| m & 0o444 == 0) {
+                e["blob"] = json!("<読めない>");
+            }
+        }
+    }
+    let mut dirs = v["dirs"].clone();
+    if let Some(o) = dirs.as_object_mut() {
+        o.retain(|r, _| !locked.iter().any(|l| r.starts_with(l.as_str())));
+        // フォルダの更新時刻は中を作るたびに変わり、読めない段の上は root でない利用者で写せない形もあるので比べない
+        for e in o.values_mut() {
+            if let Some(m) = e.as_object_mut() {
+                m.remove("mtime");
+            }
+        }
+    }
+    let w = json!({"files": files, "dirs": dirs, "links": v["links"]});
     // Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
     let hex = regex::Regex::new(r"\b[0-9a-f]{32}\b").unwrap();
     map_strings(&w, &|s| hex.replace_all(&re.replace_all(s, "@NOW(~"), "@HEX32").into_owned())
@@ -631,12 +777,31 @@ pub struct Bake {
 
 /// 段 ④ の配布の間だけ凍らせた最後の Python を相手にする試験（競い合い・受け身・前の版の読み手）か。TPA_NO_PYTHON=1（④ の後の形）では
 /// 流さない（配布が終わった版で試験ごと消す。決めは tools/ui-proposals/2026-11-stage3d.json の frozen_python）
+/// 流さなかった試験は target/tmp/frozen-skipped.txt に 1 行ずつ書く（版 3.115.0 の作った後の直し: 前は中身を流さずに ok と出るだけだった。
+/// tools/bless.py --no-python が流す前に消し、流した後に「流さなかった試験 n 本」を test result の数と別に出す）
 pub fn frozen_python(why: &str) -> bool {
     if env_on("TPA_NO_PYTHON") {
         eprintln!("凍らせた Python を相手にする試験なので流しません（TPA_NO_PYTHON）: {why}");
+        use std::io::Write;
+        let p = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("frozen-skipped.txt");
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "{why}");
+        }
         return false;
     }
     true
+}
+
+/// 独立の答え（tools/*-truth.py。app を import しない標準の Python の台本）を流す Python。TPA_NO_PYTHON は「program/app を使わない」形で、
+/// 標準の Python は独立の答えにだけ要る（段 ④ の後も残す）。起こせなければ分かる言葉で落とす
+pub fn stdlib_python() -> String {
+    let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
+    let ok = std::process::Command::new(&py).arg("-c").arg("import sys; sys.exit(0)").output().is_ok_and(|o| o.status.success());
+    assert!(
+        ok,
+        "独立の答え（program/tools/*-truth.py）に標準の Python（{py}）が要ります。TPA_NO_PYTHON は program/app を使わない形で、標準の Python は残します"
+    );
+    py
 }
 
 fn env_on(k: &str) -> bool {
@@ -651,6 +816,12 @@ impl Bake {
     /// 本の部分（表は tests/baked/<本>.<部分>.json）
     pub fn open_part(book: &str, part: &str, base: &Path) -> Bake {
         let file = if part.is_empty() { book.to_string() } else { format!("{book}.{part}") };
+        // 焼く・比べるときの時差は UTC に決める（版 3.115.0 の作った後の直し: 答え合わせ役の場面の地方時の日時〈fs の 2026-01-01〉が、焼いた PC と
+        // 比べる PC の時差で違う更新時刻になった）。窓も答え合わせ役（子のプロセス）も同じ TZ で流れる
+        if std::env::var("TZ").as_deref() != Ok("UTC") {
+            // SAFETY: 焼く係を開くのは試験の最初（窓・答え合わせ役を起こす前）。同じ試験の実行ファイルのほかの試験も同じ値にするだけ
+            unsafe { std::env::set_var("TZ", "UTC") };
+        }
         let bless = std::env::var("TPA_BLESS").unwrap_or_default();
         let no_py = env_on("TPA_NO_PYTHON");
         let mode = match (bless.as_str(), no_py) {
@@ -705,7 +876,7 @@ impl Bake {
         if self.python() {
             v.clone()
         } else {
-            settle(v, &self.ctx, &self.keys)
+            without_offsets(&settle(v, &self.ctx, &self.keys))
         }
     }
 
@@ -751,13 +922,14 @@ impl Bake {
         let ctx = self.ctx.clone();
         // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
         self.oracle = map_strings(&self.strip_answers(v), &|s| text_decl(s, &ctx));
-        // 答え合わせ役の答えの値の字で OS の利用者の名前（Python の書いた人・名乗り）は @USER@（作り直す時に今の利用者へ）
-        self.oracle = map_values(&self.oracle, &|s| if os_user() == Some(s) { "@USER@".into() } else { s.to_string() });
+        // 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前（Python の書いた人・名乗り）は @USER@（作り直す時に今の利用者へ）
+        self.oracle = named_users(&self.oracle, "");
         if let Some(o) = self.oracle.as_object_mut() {
             o.retain(|k, _| !self.drop.contains(&k.as_str()));
         }
         if let Some(url) = self.url_key.and_then(|k| v[k].as_str()).filter(|u| !u.is_empty()) {
             let url = url.to_string();
+            self.ctx.url(&url);
             self.oracle = map_strings(&self.oracle, &|s| s.replace(url.as_str(), "@URL"));
         }
         if let Some(k) = self.fid_key {
@@ -794,13 +966,12 @@ impl Bake {
                 settle(&map_strings(v, &|s| re.replace_all(s, "@NOW(~").into_owned()), &self.ctx, &self.keys)
             };
             let (a, b) = (now_free(&t["oracle"]), now_free(&self.oracle));
-            if let Some(d) = super::diff(&a, &b, "oracle") {
+            if let Some(d) = diff_tol(&a, &b, "oracle") {
                 self.bad.push(format!("表が古い（答え合わせ役の場面・歩が変わった。tools/bless.py で焼き直す）: {d}"));
             }
-            if variant() == "root" {
-                if let Some(d) = super::diff(&decl_cmp(&t["scene"]), &decl_cmp(&self.scene), "scene") {
-                    self.bad.push(format!("表が古い（場面のフォルダが表の宣言と違う）: {}", cut(&d)));
-                }
+            // どの利用者でも比べる（読めない段の中は decl_cmp が除く）
+            if let Some(d) = super::diff(&decl_cmp(&t["scene"]), &decl_cmp(&self.scene), "scene") {
+                self.bad.push(format!("表が古い（場面のフォルダが表の宣言と違う）: {}", cut(&d)));
             }
         }
     }
@@ -813,6 +984,7 @@ impl Bake {
         let ctx = self.ctx.clone();
         let base = self.base.clone();
         let url = if self.url_key.is_some() { serve_404() } else { String::new() };
+        self.ctx.url(&url);
         let o = map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url));
         map_values(&o, &|s| if s == "@USER@" { os_user().unwrap_or("").to_string() } else { s.to_string() })
     }
@@ -857,7 +1029,7 @@ impl Bake {
         let g = settle(got, &self.ctx, &self.keys);
         if self.mode == Mode::Bless {
             let w = settle(want, &self.ctx, &self.keys);
-            if let Some(d) = super::diff(&w, &g, &key) {
+            if let Some(d) = diff_tol(&w, &g, &key) {
                 self.bad.push(format!("そろえた後の窓の答えが Python と違う（焼かない）: {}", cut(&d)));
             }
         }
@@ -865,7 +1037,7 @@ impl Bake {
             match self.table_answer(&key) {
                 None => self.bad.push(format!("表に無い歩（表が古い。tools/bless.py で焼き直す）: {key}")),
                 Some(t) => {
-                    if let Some(d) = super::diff(&t, &g, &key) {
+                    if let Some(d) = diff_tol(&t, &g, &key) {
                         self.bad.push(format!("焼いた表と違う: {}", cut(&d)));
                     }
                 }
@@ -922,13 +1094,24 @@ impl Bake {
             Mode::BlessScope => {
                 let old = self.table.as_ref().unwrap()["answers"].as_object().cloned().unwrap_or_default();
                 let mut out = vec![];
+                let routes = self.table.as_ref().unwrap()["routes"].clone();
+                let in_scope = |k: &str, r: &str| {
+                    self.scope.iter().any(|s| s == "all" || r == s || r.starts_with(&format!("{s} ")) || k.starts_with(s.as_str()))
+                };
                 for (k, g) in &self.answers {
-                    if old.get(k) != Some(g) {
+                    let same = old.get(k).is_some_and(|o| diff_tol(o, g, k).is_none());
+                    if !same {
                         let r = &self.routes[k];
-                        if !self.scope.iter().any(|s| s == "all" || r == s || r.starts_with(&format!("{s} ")) || k.starts_with(s.as_str()))
-                        {
+                        if !in_scope(k, r) {
                             out.push(format!("範囲の外の答えが変わった: {k}（{r}）"));
                         }
+                    }
+                }
+                // 前の表にあって今回の答えに無い歩も、範囲の外なら止める（版 3.115.0 の作った後の直し: 前は書いた表から黙って落ちた）
+                for k in old.keys().filter(|k| !self.answers.contains_key(*k)) {
+                    let r = routes[k.as_str()].as_str().unwrap_or("?");
+                    if !in_scope(k, r) {
+                        out.push(format!("範囲の外の歩が消えた: {k}（{r}）"));
                     }
                 }
                 if !out.is_empty() {
@@ -969,8 +1152,11 @@ impl Bake {
             // root でない利用者: 本の答え（root で焼いた）は変えず、違う歩だけを variants.user に持つ
             let mut t = old.clone();
             let base = old["answers"].as_object().cloned().unwrap_or_default();
-            let user: Map<String, Value> =
-                answers.iter().filter(|(k, v)| base.get(*k) != Some(*v)).map(|(k, v)| (k.clone(), v.clone())).collect();
+            let user: Map<String, Value> = answers
+                .iter()
+                .filter(|(k, v)| base.get(*k).is_none_or(|b| diff_tol(b, v, k).is_some()))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
             t["variants"]["user"] = Value::Object(user);
             t
         } else {
@@ -1084,6 +1270,7 @@ fn leaves(v: &Value, p: &str, out: &mut BTreeMap<String, Value>) {
 
 /// 変わった葉の要約: 道の型ごとに、変わった葉の数・鍵・前 → 後の見本 3
 pub fn summary(book: &str, old: &Value, new: &Value) -> String {
+    let (old, new) = (&without_offsets(old), &without_offsets(new));
     let (oa, na) = (old["answers"].as_object().cloned().unwrap_or_default(), new["answers"].as_object().cloned().unwrap_or_default());
     let mut by: BTreeMap<String, (usize, std::collections::BTreeSet<String>, Vec<String>)> = BTreeMap::new();
     for k in oa.keys().chain(na.keys()).collect::<std::collections::BTreeSet<_>>() {

@@ -238,9 +238,8 @@ impl Cfg {
                 _ => 15.0,
             }
         };
-        if !secs.is_finite() || secs <= 0.0 || secs > 1e6 {
-            return Err(Fail::Python("timeout_sec が正の有限の数でない"));
-        }
+        // 0・負・nan・inf・1 年を超える数は既定の 15 秒（版 3.115.0 の作った後の直し。Python の cm3_schedule.timeout_of と同じ決め。前は任せた）
+        let secs = if secs.is_finite() && secs > 0.0 && secs <= TIMEOUT_MAX { secs } else { 15.0 };
         let url = format!("{base}{init}");
         crate::cm3_http::target(&url)?;
         Ok((url, base, Duration::from_secs_f64(secs)))
@@ -1150,6 +1149,9 @@ pub fn missing_lots(path: &Path, table: &str, brought: &[String]) -> Result<Opti
     nums.sort_by(|a, b| a.0.total_cmp(&b.0));
     Ok(Some(if nums.is_empty() { texts.into_iter().map(Value::String).collect() } else { nums.into_iter().map(|x| x.1).collect() }))
 }
+
+/// timeout の上限（1 年。Python の cm3_schedule.TIMEOUT_MAX）
+const TIMEOUT_MAX: f64 = 365.0 * 24.0 * 3600.0;
 
 /// JSON の字の外に NaN・Infinity・-Infinity があるか（Python の json.loads が parse_constant を呼ぶ字）
 fn json_constant(text: &str) -> bool {
