@@ -61,6 +61,52 @@ fn a_scoped_bless_refuses_changes_outside_the_scope() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// 利用者の別（root・root でない利用者）は Bake の欄で決まり、試験を流している利用者に左右されない（版 3.115.0 の CI の直し: root でない
+/// runner では上の試験が本の答えを変えず variants.user にだけ書いて落ちた）。"user" では本の答えを変えず、違う歩だけを variants.user に持ち、
+/// 比べる・範囲を確かめる相手も variants.user を重ねた答え
+#[test]
+fn the_user_variant_is_chosen_by_the_field_not_by_who_runs_the_test() {
+    let base = common::work("bake-variant");
+    let out = base.join("out");
+    let mut t =
+        table(json!({"a": {"status": 200, "json": 1}, "b": {"status": 200, "json": 2}}), json!({"a": "GET /api/x", "b": "POST /api/y"}));
+    t["variants"] = json!({"user": {"b": {"status": 200, "json": 5}}});
+    let bake = |mode: Mode, variant: &'static str| {
+        let mut bk = Bake::with("selftest", "selftest", mode, vec!["POST /api/y".into()], Some(t.clone()), &base);
+        assert_eq!(bk.variant, "root", "with は流している利用者によらず root");
+        bk.variant = variant;
+        bk.out = Some(out.clone());
+        bk.check = true;
+        let _ = bk.oracle("unused.py", &[]);
+        bk
+    };
+    let run = |mode: Mode, variant: &'static str, a: i64, b: i64| {
+        let mut bk = bake(mode, variant);
+        let wa = bk.want("a", || Value::Null);
+        let wb = bk.want("b", || Value::Null);
+        bk.note("a", "GET /api/x", &json!({"status": 200, "json": a}), &wa);
+        bk.note("b", "POST /api/y", &json!({"status": 200, "json": b}), &wb);
+        finished(bk)
+    };
+    // 焼いた表と比べる: root は本の答え、user は variants.user を重ねた答え
+    run(Mode::Baked, "root", 1, 2).expect("root は本の答え");
+    run(Mode::Baked, "user", 1, 5).expect("user は variants.user の答え");
+    assert!(run(Mode::Baked, "user", 1, 2).is_err(), "user で本の答えは食い違い");
+    // 範囲を決めた焼き直し（user）: variants.user と同じなら範囲の外も変わっていない
+    assert!(run(Mode::BlessScope, "user", 3, 5).expect_err("範囲の外").contains("範囲"));
+    run(Mode::BlessScope, "user", 1, 7).expect("範囲の中だけが変わったら書く");
+    let w: Value = serde_json::from_slice(&std::fs::read(out.join("selftest.json")).unwrap()).unwrap();
+    assert_eq!(w["answers"]["b"]["json"], 2, "user は本の答えを変えない");
+    assert_eq!(w["variants"]["user"]["b"]["json"], 7, "違う歩だけを variants.user に");
+    assert!(w["variants"]["user"].get("a").is_none(), "同じ歩は variants.user に持たない");
+    // 同じ表を root で焼き直すと本の答えが替わり、variants.user は残す
+    run(Mode::BlessScope, "root", 1, 8).expect("root の範囲の中");
+    let w: Value = serde_json::from_slice(&std::fs::read(out.join("selftest.json")).unwrap()).unwrap();
+    assert_eq!(w["answers"]["b"]["json"], 8);
+    assert_eq!(w["variants"]["user"]["b"]["json"], 5, "root の焼き直しは variants.user を変えない");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 /// 今から secs 秒ずれた地方時の日時の字（fmt の形）
 fn at(secs: i64, fmt: &str) -> String {
     (chrono::Local::now().naive_local() + chrono::Duration::seconds(secs)).format(fmt).to_string()
@@ -179,7 +225,9 @@ fn the_repository_is_the_same_wherever_it_is_checked_out() {
 fn baking_fixes_the_time_zone() {
     // 採点の割れ 4: 焼く・比べるときの時差は UTC（答え合わせ役の地方時の日時が PC の時差で違う更新時刻にならない）
     let base = common::work("bake-tz");
-    let _bk = Bake::open("selftest", &base);
+    // 本「selftest」の焼いた表は無いので、TPA_NO_PYTHON=1 の流し方では開いた後に「焼いた表がありません」で落ちる。時差は表を探す前に
+    // 決めるので、どの流し方でも時差だけを見る（版 3.115.0 の CI の直し: 前は TPA_NO_PYTHON=1 で流すとこの試験だけが落ちた）
+    let _ = catch_unwind(AssertUnwindSafe(|| Bake::open("selftest", &base)));
     assert_eq!(std::env::var("TZ").as_deref(), Ok("UTC"));
     let _ = std::fs::remove_dir_all(&base);
 }

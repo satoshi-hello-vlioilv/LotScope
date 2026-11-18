@@ -822,6 +822,10 @@ pub struct Bake {
     scope: Vec<String>,
     /// 焼いた表と比べるか（posix の表。Windows は比べない。試験の変異は明示して true にする）
     pub check: bool,
+    /// 表のどの答えを読み書きするか（"root": 本の答え・"user": root でない利用者で違う歩〈variants.user〉）。open_part は流している
+    /// 利用者から決め、with（試験の変異）は "root" に決める（版 3.115.0 の CI の直し: 前は書く・読む所が流している利用者を直に見て、
+    /// root でない CI の runner では範囲を決めた焼き直しの試験が本の答えを変えず variants.user にだけ書いた）
+    pub variant: &'static str,
     table: Option<Value>,
     base: PathBuf,
     pub ctx: Ctx,
@@ -907,7 +911,9 @@ impl Bake {
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
             panic!("焼いた表 {} がありません（TPA_BLESS=1 で焼く）", path.display());
         }
-        Bake::with(book, &file, mode, scope, table, base)
+        let mut bk = Bake::with(book, &file, mode, scope, table, base);
+        bk.variant = variant();
+        bk
     }
 
     /// 流し方と表を決めて作る（試験の変異で使う。open_part は環境変数と tests/baked から決める）
@@ -920,6 +926,7 @@ impl Bake {
             mode,
             scope,
             check,
+            variant: "root",
             table,
             base: base.to_path_buf(),
             ctx: Ctx::new(base),
@@ -1068,7 +1075,7 @@ impl Bake {
 
     fn table_answer(&self, key: &str) -> Option<Value> {
         let t = self.table.as_ref()?;
-        if variant() == "user" {
+        if self.variant == "user" {
             if let Some(v) = t["variants"]["user"].get(key) {
                 return Some(v.clone());
             }
@@ -1163,7 +1170,14 @@ impl Bake {
                 self.write();
             }
             Mode::BlessScope => {
-                let old = self.table.as_ref().unwrap()["answers"].as_object().cloned().unwrap_or_default();
+                // 比べる前の答えは、この利用者が読む答え（root でなければ variants.user を重ねた形）
+                let t = self.table.as_ref().unwrap();
+                let mut old = t["answers"].as_object().cloned().unwrap_or_default();
+                if self.variant == "user" {
+                    if let Some(u) = t["variants"]["user"].as_object() {
+                        old.extend(u.iter().map(|(k, v)| (k.clone(), v.clone())));
+                    }
+                }
                 let mut out = vec![];
                 let routes = self.table.as_ref().unwrap()["routes"].clone();
                 let in_scope = |k: &str, r: &str| {
@@ -1219,7 +1233,7 @@ impl Bake {
         let old = self.table.clone().unwrap_or(Value::Null);
         let answers: Map<String, Value> = self.answers.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         let routes: Map<String, Value> = self.routes.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
-        let mut t = if variant() == "user" && old.is_object() {
+        let mut t = if self.variant == "user" && old.is_object() {
             // root でない利用者: 本の答え（root で焼いた）は変えず、違う歩だけを variants.user に持つ
             let mut t = old.clone();
             let base = old["answers"].as_object().cloned().unwrap_or_default();
@@ -1236,7 +1250,7 @@ impl Bake {
                 "book": self.book,
                 "file": self.file,
                 "os": "posix",
-                "variant": variant(),
+                "variant": self.variant,
                 "oracle": self.oracle,
                 "scene": self.scene,
                 "answers": answers,
