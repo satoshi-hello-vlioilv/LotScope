@@ -177,22 +177,39 @@ class BakedTables(unittest.TestCase):
             ci.test_bins, os.geteuid, sys.argv = old
 
     def test_the_windows_measure_summary_reads_the_records(self):
-        """Windows の測るだけの仕事の記録のまとめ（bless.py --measured。落とさない）"""
+        """Windows の測るだけの仕事の記録のまとめ（bless.py --measured。落とさない）。流した形（Python と比べる形・表だけの形）ごとに
+        別の行で出し、--json の行（仕事の記録）から記録を戻せる（版 3.117.0）"""
         import contextlib
         import io
         tmp = Path(tempfile.mkdtemp())
         try:
-            (tmp / "calc.json").write_text(json.dumps({"file": "calc", "os": "windows", "steps": 3, "tableSteps": 3, "missing": [], "differing": [
+            py, tab = tmp / "py", tmp / "table"
+            py.mkdir()
+            tab.mkdir()
+            (py / "calc.json").write_text(json.dumps({"file": "calc", "os": "windows", "steps": 3, "tableSteps": 3, "missing": [], "differing": [
                 {"key": "a", "route": "POST /api/calculate", "diff": ".json.processes[1].total_off_front_m: 1.0 / 1.0000000000000002"}]}), encoding="utf-8")
+            (tab / "calc.json").write_text(json.dumps({"file": "calc", "os": "windows", "form": "table", "finished": True, "steps": 3, "tableSteps": 3,
+                                                        "missing": [], "differing": []}), encoding="utf-8")
+            (tab / "fs.json").write_text(json.dumps({"file": "fs", "os": "windows", "form": "table", "finished": False, "steps": 0, "tableSteps": 2,
+                                                      "missing": ["a", "b"], "differing": [], "sceneError": "名前「a:b」は作れません"}, ensure_ascii=False), encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                bless.measured(tmp)
-                bless.measured(tmp / "無い")
+                bless.measured([py, tab, tmp / "無い"], as_json=True)
             text = out.getvalue()
             self.assertIn("calc（windows）: 歩 3・表と違う歩 1", text)
             self.assertIn("total_off_front_m×1", text)
-            self.assertIn("計: 表 1 つ・歩 3・焼いた表（posix）と違う歩 1", text)
+            self.assertIn("計（Python と比べる形（その PC の Python が場面を作る））: 表 1 つ・歩 3・焼いた表（posix）と違う歩 1・表にあって答えない歩 0・場面を作れなかった表 0", text)
+            self.assertIn("計（表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る。段 ④ の後の形））: 表 2 つ・歩 3・焼いた表（posix）と違う歩 0・"
+                          "表にあって答えない歩 2・場面を作れなかった表 1（fs）・終わりまで流れなかった表 1（fs）", text)
+            self.assertIn("sceneError: 名前「a:b」は作れません", text)
             self.assertIn("測りの記録がありません", text)
+            # 仕事の記録（log。行の頭に時刻が付く）から戻す
+            log = tmp / "job.log"
+            log.write_text("\n".join("2026-11-19T13:16:56.9Z " + line for line in text.splitlines()), encoding="utf-8")
+            self.assertEqual(bless.from_log(log, tmp / "back"), 3)
+            for form, name in (("python", "calc"), ("table", "calc"), ("table", "fs")):
+                src = json.loads(((py if form == "python" else tab) / f"{name}.json").read_text(encoding="utf-8"))
+                self.assertEqual(json.loads((tmp / "back" / form / f"{name}.json").read_text(encoding="utf-8")), src)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

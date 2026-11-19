@@ -10,6 +10,9 @@
 //! - TPA_BLESS=1: 焼く。答え合わせ役と比べて、試験の食い違いが 0 で、そろえた後の窓の答え＝そろえた後の Python の答えのときだけ書く
 //! - TPA_BLESS=道の型,…（TPA_NO_PYTHON=1 と一緒に。④ の後）: 範囲を宣言して焼き直す。範囲の外の答えが変わったら書かずに止める
 //! - TPA_BAKE_OUT=フォルダ: 表を desktop/tests/baked でなくそこへ書く（tools/bless.py が 2 回目を流して 1 回目と比べるため）
+//! - TPA_MEASURE=フォルダ（表と比べない PC＝Windows）: 測るだけ。表と違う歩を落とさずに数えて <フォルダ>/<表>.json に書く。
+//!   何も付けなければ Python と比べる形（form: python）、TPA_NO_PYTHON=1 と一緒なら表の宣言から場面を作る形（form: table。段 ④ の後の形。
+//!   版 3.117.0。試験そのものは表の答えと比べて落ちるので、CI の段は落ちても続ける）の数
 //!
 //! そろえる決まり（tests/baked/settle.json）は「鍵の名前の表＋字の形」で、揺れなくても常に当てる。焼いた表と比べるときは、窓の答えも
 //! 同じ決まりでそろえてから比べる。独立の答え（tools/*-truth.py）と人が書いた事例の表（tests/fixtures/*_cases.json）は bless が書き換えない
@@ -1211,8 +1214,12 @@ pub struct Bake {
     pub script: Option<(&'static str, Vec<String>)>,
     /// 測るだけ（版 3.116.0。環境変数 TPA_MEASURE=フォルダ）: 焼いた表と比べない PC（Windows。表は posix の答え）で、窓の答えが表と違う歩を
     /// 試験を落とさずに数え、終わりに <フォルダ>/<表>.json へ書く（.github/workflows/desktop.yml の Windows の仕事が成果物に置き、
-    /// tools/bless.py --measured がまとめる）。違う歩が少なければ Windows の上書き（variants.nt）を作って Windows でも表と比べる
+    /// tools/bless.py --measured がまとめる）。違う歩が少なければ Windows の上書き（variants.nt）を作って Windows でも表と比べる。
+    /// 版 3.117.0: 表の宣言から場面を作る形（Mode::Baked。段 ④ の後の形）でも測る。その形では試験そのものが表の答えと比べて落ちるので、
+    /// 記録は finish に届かなくても（途中で落ちても）手放すとき（Drop）に書く。場面を作れなかった表は sceneError に理由を書く
     pub measure: Option<PathBuf>,
+    /// 測りの記録を finish で書いたか（書いていなければ Drop が「終わりまで流れなかった」形で書く）
+    measure_done: bool,
     measured: Vec<Value>,
     measured_decl: Map<String, Value>,
     oracle: Value,
@@ -1315,6 +1322,7 @@ impl Bake {
             pack: false,
             script: None,
             measure: None,
+            measure_done: false,
             measured: vec![],
             measured_decl: Map::new(),
             oracle: Value::Null,
@@ -1471,7 +1479,22 @@ impl Bake {
         }
     }
 
+    /// 表の宣言から場面を作り、問い合わせを返す。測るだけの形（表と比べない PC）では、場面を作れなかった理由を記録に書いてから落とす
     fn rebuild_from_table(&mut self) -> Value {
+        if self.measure.is_none() || self.check {
+            return self.rebuild_inner();
+        }
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.rebuild_inner())) {
+            Ok(v) => v,
+            Err(e) => {
+                let why = e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
+                self.measured_decl.insert("sceneError".into(), json!(cut(&why)));
+                std::panic::resume_unwind(e)
+            }
+        }
+    }
+
+    fn rebuild_inner(&mut self) -> Value {
         let t = self.table.clone().unwrap();
         if let Some((script, args)) = &self.script {
             // 場面の台本（app を import しない標準の Python。独立の答えと同じく段 ④ の後も残す）
@@ -1553,8 +1576,8 @@ impl Bake {
                 self.bad.push(format!("そろえた後の窓の答えが Python と違う（焼かない）: {}", cut(&d)));
             }
         }
-        if !self.check && self.measure.is_some() && self.table.is_some() && self.mode == Mode::Python {
-            // 測るだけ（表と比べない PC）: 表と違う歩を記す（落とさない）
+        if !self.check && self.measure.is_some() && self.table.is_some() && matches!(self.mode, Mode::Python | Mode::Baked) {
+            // 測るだけ（表と比べない PC）: 表と違う歩を記す（ここでは落とさない。表だけの形〈Baked〉は試験そのものの比べが落とす）
             let d = match self.table_answer(&key) {
                 None => Some("<表に無い歩>".to_string()),
                 Some(t) => diff_tol(&t, &g, ""),
@@ -1598,7 +1621,7 @@ impl Bake {
 
     /// 終わり: 焼く・表と比べた食い違いを知らせる。test_bad は試験そのものの食い違い（Python と比べた分）
     pub fn finish(mut self, test_bad: &[String]) {
-        self.write_measure();
+        self.write_measure(true);
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
                 let mut missing: Vec<&String> =
@@ -1672,12 +1695,19 @@ impl Bake {
         }
     }
 
-    /// 測るだけの記録を書く（TPA_MEASURE のフォルダ。表と比べない PC だけ。書けなくても試験は続ける）
-    fn write_measure(&self) {
-        let (Some(dir), Some(t), false, Mode::Python) = (&self.measure, &self.table, self.check, self.mode) else { return };
+    /// 測るだけの記録を書く（TPA_MEASURE のフォルダ。表と比べない PC だけ。書けなくても試験は続ける）。form は流した形
+    /// （python: Python と比べる形・table: 表の宣言から場面を作る形）、finished は試験が finish まで流れたか（途中で落ちた試験は
+    /// そこまでの歩だけを数えている。Drop が書く）
+    fn write_measure(&mut self, finished: bool) {
+        if self.measure_done {
+            return;
+        }
+        let (Some(dir), Some(t), false, Mode::Python | Mode::Baked) = (&self.measure, &self.table, self.check, self.mode) else { return };
         let missing: Vec<&String> =
             t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
-        let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "steps": self.answers.len(),
+        let form = if self.mode == Mode::Baked { "table" } else { "python" };
+        let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "form": form, "finished": finished,
+                           "steps": self.answers.len(),
                            "tableSteps": t["answers"].as_object().map(|o| o.len()).unwrap_or(0),
                            "differing": self.measured, "missing": missing});
         for (k, d) in &self.measured_decl {
@@ -1685,6 +1715,7 @@ impl Bake {
         }
         let _ = std::fs::create_dir_all(dir);
         let _ = std::fs::write(dir.join(format!("{}.json", self.file)), serde_json::to_string_pretty(&v).unwrap_or_default());
+        self.measure_done = true;
     }
 
     fn dump_diff(&self) {
@@ -1740,6 +1771,13 @@ impl Bake {
         // 変わった葉の要約（道の型ごとの数・鍵・前 → 後の見本 3）。PR の説明に貼る
         eprintln!("{}", summary(&self.file, &old, &plain).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
         eprintln!("bless| {} に書きました", path.display());
+    }
+}
+
+impl Drop for Bake {
+    /// finish に届かなかった試験（途中で落ちた）も、測りの記録は残す（そこまでの歩と、場面を作れなかった理由）
+    fn drop(&mut self) {
+        self.write_measure(false);
     }
 }
 

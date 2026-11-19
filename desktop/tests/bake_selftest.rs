@@ -517,7 +517,7 @@ fn measuring_counts_the_steps_that_differ_without_failing() {
         json!({"same": {"status": 200, "json": {"a": 1}}, "differs": {"status": 200, "json": {"a": "posix の答え"}}, "gone": {"status": 200, "json": {}}}),
         json!({"same": "GET /s", "differs": "GET /d", "gone": "GET /g"}),
     );
-    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t), &base);
+    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t.clone()), &base);
     bk.check = false; // 表と比べない PC（Windows）の形
     bk.measure = Some(out.clone());
     bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
@@ -530,6 +530,30 @@ fn measuring_counts_the_steps_that_differ_without_failing() {
     assert_eq!(keys, ["differs", "new"], "違う歩と表に無い歩だけ: {m}");
     assert!(m["differing"][0]["diff"].as_str().unwrap().contains("posix の答え"), "{m}");
     assert_eq!(m["missing"], json!(["gone"]), "表にあって答えなかった歩");
+    assert_eq!((&m["form"], &m["finished"]), (&json!("python"), &json!(true)), "流した形と、finish まで流れたか: {m}");
+    // 表だけの形（Mode::Baked。段 ④ の後の形。版 3.117.0）でも同じ記録を書く（form: table）。試験が finish に届かなくても（表の答えと
+    // 比べて途中で落ちても）、手放すとき（Drop）にそこまでの歩を書く
+    let mut bk = Bake::with("selftest", "tabled", Mode::Baked, vec![], Some(t.clone()), &base);
+    bk.check = false;
+    bk.measure = Some(out.clone());
+    bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
+    bk.note("differs", "GET /d", &json!({"status": 200, "json": {"a": "nt の答え"}}), &Value::Null);
+    drop(bk);
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("tabled.json")).expect("表だけの形の測りの記録")).unwrap();
+    assert_eq!((&m["form"], &m["finished"]), (&json!("table"), &json!(false)), "{m}");
+    let keys: Vec<&str> = m["differing"].as_array().unwrap().iter().map(|x| x["key"].as_str().unwrap()).collect();
+    assert_eq!((keys, &m["missing"]), (vec!["differs"], &json!(["gone"])), "{m}");
+    // 場面を作れなかった表（宣言が Windows で作れない など）は、理由を sceneError に書いてから落ちる
+    let mut broken = t.clone();
+    broken["scene"] = json!({"files": {"a.txt": {"blob": "無い"}}, "dirs": {}, "links": {}, "blobs": {}});
+    let mut bk = Bake::with("selftest", "noscene", Mode::Baked, vec![], Some(broken), &base.join("noscene"));
+    bk.check = false;
+    bk.measure = Some(out.clone());
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| bk.oracle("無い台本.py", &[])));
+    assert!(r.is_err(), "場面を作れなければ試験は落ちる");
+    drop(bk);
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("noscene.json")).expect("場面を作れなかった表の記録")).unwrap();
+    assert!(m["sceneError"].is_string() && m["finished"] == false && m["steps"] == 0, "{m}");
     // 比べる PC（check）では測りの記録を書かない（表と違えば今までどおり落ちる）
     let mut bk = Bake::with("selftest", "checked", Mode::Python, vec![], Some(table(json!({}), json!({}))), &base);
     bk.check = true;

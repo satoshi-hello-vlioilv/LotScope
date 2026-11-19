@@ -9,8 +9,12 @@
     python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
     python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
                                             tests/test_baked_tables.py からも流れる）。違えば終了コード 1
-    python tools/bless.py --measured フォルダ … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
-                                            本ごとに「焼いた表（posix）と違う歩」の数と、違う葉の鍵・見本を出す（落とさない。終了コード 0）
+    python tools/bless.py --measured フォルダ … [--json] … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
+                                            本ごとに「焼いた表（posix）と違う歩」の数と、違う葉の鍵・見本を出す（落とさない。終了コード 0）。
+                                            フォルダは流した形ごと（Python と比べる形・表だけの形〈TPA_NO_PYTHON=1。段 ④ の後の形〉）で、形ごとに別の行で出す。
+                                            --json は記録そのものを 1 表 1 行（「measure-json| 」で始まる行）でも出す（成果物を取れないときは仕事の記録から読む）
+    python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す
+    python tools/bless.py --no-python --all --skip-test 試験,… … Python 無しの形で流すが、名前を挙げた試験は流さない（Windows の測り: route_reach は長い）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
 
 焼いた表は desktop/tests/baked/<本>.json。焼くのは窓の試験（desktop/tests/common/bake.rs）で、この道具はそれを流して確かめるだけ。
@@ -410,34 +414,85 @@ def _bless_user(books):
     shutil.rmtree(home, ignore_errors=True)
 
 
-def measured(folder):
-    """測るだけの仕事の記録（desktop/tests/common/bake.rs が TPA_MEASURE のフォルダに書いた <表>.json）のまとめ。落とさない"""
-    files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
-    if not files:
-        print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません")
-        return
-    steps = differ = 0
-    for f in files:
-        try:
-            m = json.loads(f.read_text(encoding="utf-8"))
-        except ValueError as e:
-            print(f"{f.stem}: 記録が読めません（{e}）")
+FORMS = {"python": "Python と比べる形（その PC の Python が場面を作る）", "table": "表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る。段 ④ の後の形）"}
+JSON_LINE = "measure-json| "
+
+
+def measured(folders, as_json=False):
+    """測るだけの仕事の記録（desktop/tests/common/bake.rs が TPA_MEASURE のフォルダに書いた <表>.json）のまとめ。落とさない。
+    フォルダは流した形ごと（記録の form: python・table）。形ごとに別の行で出す（版 3.117.0）"""
+    for folder in folders:
+        files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
+        if not files:
+            print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません")
             continue
-        d = m.get("differing", [])
-        steps += m.get("steps", 0)
-        differ += len(d)
-        keys = {}
-        for x in d:
-            k = re.split(r"[.\[]", x.get("diff", "").split(":")[0])[-1].rstrip("]") or "?"
-            keys[k] = keys.get(k, 0) + 1
-        top = " ".join(f"{k}×{n}" for k, n in sorted(keys.items(), key=lambda kv: -kv[1])[:8])
-        extra = "".join(f"・{name} が違う" for name in ("oracle", "scene") if m.get(name))
-        print(f"{f.stem}（{m.get('os', '?')}）: 歩 {m.get('steps', 0)}・表と違う歩 {len(d)}・表にあって答えない歩 {len(m.get('missing', []))}{extra}"
-              + (f"・違う葉の鍵 {top}" if top else ""))
-        for x in d[:3]:
-            print(f"    {x.get('key', '')}（{x.get('route', '')}）: {x.get('diff', '')[:300]}")
-    print(f"計: 表 {len(files)} つ・歩 {steps}・焼いた表（posix）と違う歩 {differ}"
-          + ("（0 なら Windows でも表と比べられる。多ければ上書き variants.nt か、そろえる決まりを足す）"))
+        steps = differ = unanswered = 0
+        noscene, cut_short, forms = [], [], set()
+        rows = []
+        for f in files:
+            try:
+                m = json.loads(f.read_text(encoding="utf-8"))
+            except ValueError as e:
+                rows.append(f"{f.stem}: 記録が読めません（{e}）")
+                continue
+            forms.add(m.get("form", "python"))
+            d = m.get("differing", [])
+            steps += m.get("steps", 0)
+            differ += len(d)
+            unanswered += len(m.get("missing", []))
+            keys = {}
+            for x in d:
+                k = re.split(r"[.\[]", x.get("diff", "").split(":")[0])[-1].rstrip("]") or "?"
+                keys[k] = keys.get(k, 0) + 1
+            top = " ".join(f"{k}×{n}" for k, n in sorted(keys.items(), key=lambda kv: -kv[1])[:8])
+            extra = "".join(f"・{name} が違う" for name in ("oracle", "scene") if m.get(name))
+            if m.get("sceneError"):
+                noscene.append(f.stem)
+                extra += "・場面を作れなかった"
+            if m.get("finished") is False:
+                cut_short.append(f.stem)
+                extra += "・終わりまで流れなかった（そこまでの歩の数）"
+            rows.append(f"{f.stem}（{m.get('os', '?')}）: 歩 {m.get('steps', 0)}・表と違う歩 {len(d)}・表にあって答えない歩 {len(m.get('missing', []))}{extra}"
+                        + (f"・違う葉の鍵 {top}" if top else ""))
+            for name in ("sceneError", "scene", "oracle"):
+                if m.get(name):
+                    rows.append(f"    {name}: {str(m[name])[:300]}")
+            for x in d[:3]:
+                rows.append(f"    {x.get('key', '')}（{x.get('route', '')}）: {x.get('diff', '')[:300]}")
+        form = " / ".join(FORMS.get(x, x) for x in sorted(forms)) or "?"
+        print(f"== {form}（{folder}）")
+        print("\n".join(rows))
+        print(f"計（{form}）: 表 {len(files)} つ・歩 {steps}・焼いた表（posix）と違う歩 {differ}・表にあって答えない歩 {unanswered}"
+              f"・場面を作れなかった表 {len(noscene)}" + (f"（{' '.join(noscene)}）" if noscene else "")
+              + f"・終わりまで流れなかった表 {len(cut_short)}" + (f"（{' '.join(cut_short)}）" if cut_short else "")
+              + "（違う歩が 0 の表は Windows でもそのまま表と比べられる）")
+    if as_json:
+        # 記録そのもの（1 表 1 行）。成果物の置き場に届かない所からでも、仕事の記録（log）から --from-log で戻せる
+        for folder in folders:
+            for f in sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []:
+                try:
+                    m = json.loads(f.read_text(encoding="utf-8"))
+                except ValueError:
+                    continue
+                print(JSON_LINE + json.dumps(m, ensure_ascii=True, separators=(",", ":")))
+
+
+def from_log(log, out):
+    """仕事の記録（--measured … --json の行）から、測りの記録を <out>/<形>/<表>.json に戻す → 戻した数"""
+    n = 0
+    for line in Path(log).read_text(encoding="utf-8", errors="replace").splitlines():
+        i = line.find(JSON_LINE)
+        if i < 0:
+            continue
+        try:
+            m = json.loads(line[i + len(JSON_LINE):])
+        except ValueError:
+            continue
+        d = Path(out) / m.get("form", "python")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{m['file']}.json").write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
+        n += 1
+    return n
 
 
 def main():
@@ -455,11 +510,19 @@ def main():
         print(f"焼いた表は古くありません（{sum(1 for b in BOOKS if baked(b))} 本・{len(tables())} ファイル）")
         return
     if args[0] == "--measured":
-        measured(args[1] if len(args) > 1 else "")
+        measured([a for a in args[1:] if not a.startswith("--")] or [""], "--json" in args)
+        return
+    if args[0] == "--from-log":
+        print(f"測りの記録 {from_log(args[1], args[2])} 個を {args[2]} に戻しました")
         return
     if args[0] == "--stats":
         stats(args[args.index("--base") + 1] if "--base" in args else None)
         return
+    skip = []
+    if "--skip-test" in args:
+        i = args.index("--skip-test")
+        skip = [x for x in args[i + 1].split(",") if x]
+        del args[i:i + 2]
     books = [b for b in BOOKS if baked(b)] if "--all" in args else [a for a in args if not a.startswith("--")]
     if args[0] == "--scope":
         scope, books = args[1], args[2:]
@@ -474,7 +537,7 @@ def main():
         # その名前を test result の数と別に出す（desktop/tests/common/bake.rs の frozen_python が target/tmp/frozen-skipped.txt に書く）
         skipped = Path(os.environ.get("CARGO_TARGET_DIR", DESKTOP / "target")) / "tmp" / "frozen-skipped.txt"
         skipped.unlink(missing_ok=True)
-        rc = cargo(tests_of(books), {"TPA_NO_PYTHON": "1"})
+        rc = cargo([t for t in tests_of(books) if t not in skip], {"TPA_NO_PYTHON": "1"})
         names = skipped.read_text(encoding="utf-8").split() if skipped.exists() else []
         print(f"流さなかった試験（凍らせた Python を相手にする） {len(names)} 本: " + " ".join(names))
         sys.exit(rc)

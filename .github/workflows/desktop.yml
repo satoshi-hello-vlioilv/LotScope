@@ -54,16 +54,30 @@ jobs:
           workspaces: desktop
       # --no-fail-fast: 落ちた本で止めず、全部の本を流す（ci.yml と同じ。落ちた本があれば終了コードは 0 でない）
       # TPA_MEASURE（版 3.116.0。測るだけ）: 焼いた表（desktop/tests/baked。posix の窓の答え）と Windows の窓の答えが違う歩を、試験を落とさずに
-      # 数えて残す（desktop/tests/common/bake.rs。Windows は ④ まで Windows の Python と比べ、表とは比べない）。数は下の段が出し、成果物にも置く
+      # 数えて残す（desktop/tests/common/bake.rs。Windows は ④ まで Windows の Python と比べ、表とは比べない）。数は下の段が出し、成果物にも置く。
+      # この段は Python と比べる形（Windows の Python が場面を作る）。表だけの形は 2 つ下の段
       - name: test（Rust・Windows）
         working-directory: desktop
         env:
           TPA_MEASURE: ${{ runner.temp }}\bake-measure
         run: cargo test --locked --no-fail-fast
+      # 表だけの形でも測る（版 3.117.0。測るだけ・落とさない）: 焼いた本の試験だけを TPA_NO_PYTHON=1（段 ④ の後の形。Python を呼ばず、
+      # 表の宣言から場面を作って焼いた答えと比べる）でもう 1 回流す。上の形は Windows の Python が場面を作るので、④ の後に残る形で
+      # Windows が通るかは、この段の数でしか分からない。試験そのものは表（posix の答え）と比べて落ちる所があるので、段は落ちても続ける。
+      # route_reach は長い（Windows で約 19 分）ので流さない（答えは数だけで、歩を表に持たない）。組み直しは無い（上の段と同じ debug）
+      - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（測るだけ・落ちても続ける）
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          TPA_MEASURE: ${{ runner.temp }}\bake-measure-table
+        run: python program/tools/bless.py --no-python --all --skip-test route_reach
+      # 2 つの形の数を別の行で出す。--json: 記録そのものも 1 表 1 行で出す（成果物の置き場に届かない所からは、この仕事の記録を
+      # python program/tools/bless.py --from-log 記録 出力フォルダ で戻す。PR #116 では成果物を取れず、記録の出力から数えた）
       - name: 焼いた表（posix）と Windows の窓の答えの違いを数える（測るだけ・落とさない）
         if: always()
         continue-on-error: true
-        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure"
+        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure" "$env:RUNNER_TEMP\bake-measure-table" --json
       # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
       # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
       - name: 写しと公開の干渉（Python・Windows）
@@ -83,12 +97,14 @@ jobs:
       - name: 壊れた設定・マスタと正規表現の事例（Python・Windows）
         working-directory: program
         run: python -m unittest tests.test_broken_masters tests.test_equip_regex tests.test_bundle_sections -v
-      # 測りの記録（<表>.json）は小さな成果物（desktop-windows-measure）に置く。配る物の成果物（desktop-windows。windows-exe）とは別
+      # 測りの記録（形ごとのフォルダの <表>.json）は小さな成果物（desktop-windows-measure）に置く。配る物の成果物（desktop-windows。windows-exe）とは別
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: desktop-windows-measure
-          path: ${{ runner.temp }}/bake-measure/
+          path: |
+            ${{ runner.temp }}/bake-measure/
+            ${{ runner.temp }}/bake-measure-table/
           if-no-files-found: warn
 
   # 本番の作り方（--release）の exe・本物の WebView2 の自己診断・更新の通し・配る ZIP。手で windows-test だけを選んだときは流さない
