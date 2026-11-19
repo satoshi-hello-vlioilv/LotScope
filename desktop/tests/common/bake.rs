@@ -823,8 +823,23 @@ fn mode_of(_: &std::fs::Metadata) -> u32 {
     0
 }
 
+/// 場面の台本（標準の部品だけの Python）が作ったファイルの指紋: SQLite は作った SQLite の版によらない形（sqlite_logical）の字、
+/// ほかはバイトの sha256 の頭 16 字。焼いた表はこの指紋だけを持ち（中身は持たない）、台本が作り直した物と比べる
+pub fn made_print(p: &Path) -> String {
+    use sha2::Digest;
+    let b = std::fs::read(p).unwrap_or_default();
+    let text = sqlite_logical(&b).map(|v| v.to_string().into_bytes()).unwrap_or(b);
+    format!("{:x}", sha2::Sha256::digest(&text))[..16].to_string()
+}
+
 /// 場面のフォルダを宣言に写す（files・dirs・links と中身 blobs〈同じ中身は 1 つ〉）。exclude の名前の段（Python だけの写し py・pd）は除く
 pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
+    snapshot_with(base, ctx, exclude, &[])
+}
+
+/// snapshot と同じだが、made（場面の台本が作るファイルの相対の道）は中身でなく指紋（made_print）で持つ（版 3.116.0。大きな SQLite を
+/// 表に入れない。Python 無しの形では台本が作り直し、指紋が表と同じかを見る）
+pub fn snapshot_with(base: &Path, ctx: &Ctx, exclude: &[&str], made: &[String]) -> Value {
     use sha2::Digest;
     let (mut files, mut dirs, mut links, mut blobs) = (Map::new(), Map::new(), Map::new(), Map::new());
     fn walk(d: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>, exclude: &[&str]) {
@@ -880,6 +895,13 @@ pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
         }
         if md != 0o644 && cfg!(unix) {
             e.insert("mode".into(), json!(md));
+        }
+        if made.contains(&rel) {
+            // 台本が作るファイル: 指紋だけ（更新時刻は台本を流した時刻なので持たない）
+            e.remove("mtime");
+            e.insert("made".into(), json!(made_print(&p)));
+            files.insert(rel, Value::Object(e));
+            continue;
         }
         let b = std::fs::read(&p).unwrap_or_default();
         let blob = match std::str::from_utf8(&b) {
@@ -954,6 +976,10 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
     for (rel, e) in fs {
         let p = base.join(rel);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        if e.get("made").is_some() {
+            // 場面の台本が作った物（指紋は呼ぶ側 rebuild_from_table が確かめる）
+            continue;
+        }
         if e["fifo"] == true {
             let _ = std::process::Command::new("mkfifo").arg(&p).status();
             continue;
@@ -1128,6 +1154,9 @@ pub struct Bake {
     pub drop: Vec<&'static str>,
     /// 表を詰めた形（pack_table）で書くか（版 3.116.0 の大きい本。小さい 21 本は今の形のまま）
     pub pack: bool,
+    /// 場面の台本（標準の部品だけの Python。program/tests からの相対の道と引数。版 3.116.0）。Python 無しの形では、表の宣言から場面を
+    /// 作る前にこれを流す。台本が作るファイルは、答え合わせ役の答えの "sceneMade"（場面の相対の道の並び）で知る
+    pub script: Option<(&'static str, Vec<String>)>,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -1224,6 +1253,7 @@ impl Bake {
             url_key: None,
             drop: vec!["rootUser"],
             pack: false,
+            script: None,
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -1295,7 +1325,9 @@ impl Bake {
     /// Python の答えを受けた直後: 場面を写し、表の宣言・問い合わせと比べる（表が古いか）
     pub fn took(&mut self, v: &Value) {
         let ex: Vec<&str> = self.exclude.clone();
-        self.scene = snapshot(&self.base, &self.ctx, &ex);
+        // 場面の台本が作ったファイル（答え合わせ役が同じ台本を呼んで作り、その相対の道を sceneMade で答える）
+        let made: Vec<String> = v["sceneMade"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+        self.scene = snapshot_with(&self.base, &self.ctx, &ex, &made);
         let ctx = self.ctx.clone();
         // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
         self.oracle = map_strings(&self.strip_answers(v), &|s| text_decl(s, &ctx));
@@ -1355,7 +1387,32 @@ impl Bake {
 
     fn rebuild_from_table(&mut self) -> Value {
         let t = self.table.clone().unwrap();
+        if let Some((script, args)) = &self.script {
+            // 場面の台本（app を import しない標準の Python。独立の答えと同じく段 ④ の後も残す）
+            let py = stdlib_python();
+            let out = std::process::Command::new(&py)
+                .arg("-I")
+                .arg(super::program().join("tests").join(script))
+                .args(args)
+                .env("PYTHONIOENCODING", "utf-8")
+                .env("PYTHONDONTWRITEBYTECODE", "1")
+                .current_dir(super::program())
+                .output()
+                .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
+            assert!(out.status.success(), "場面の台本 {script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
+        }
         materialize(&t["scene"], &self.base, &self.ctx);
+        for (rel, e) in t["scene"]["files"].as_object().unwrap() {
+            if let Some(want) = e["made"].as_str() {
+                let got = made_print(&self.base.join(rel));
+                assert!(
+                    got == want,
+                    "場面の台本が作ったファイル {rel} が表の指紋と違います（{got} / 表 {want}）。台本か Python の版（乱数の並び）が変わりました。\
+                     場面と表を同時に焼き直します: python program/tools/bless.py {}",
+                    self.book
+                );
+            }
+        }
         self.scene = t["scene"].clone();
         self.oracle = t["oracle"].clone();
         let ctx = self.ctx.clone();

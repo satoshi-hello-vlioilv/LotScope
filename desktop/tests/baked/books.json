@@ -333,13 +333,17 @@
    "why": "詰めた形で全部の答えを焼く（2 乗は C の pow のまま。利用者の決め 2026-11-18）。乱数の事例は Python とは 160 件を比べ、表には 40 件。人の事例の表 calc_cases.json（test_calculator の手で確かめた値）が第 2 の線。Windows で最後の桁が違う歩は測るだけの仕事が数える"
   },
   "lists": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "lists_parity"
    ],
    "sources": [
-    "tests/lists_oracle.py"
-   ]
+    "tests/lists_oracle.py",
+    "tests/lists_scene.py",
+    "tests/lotlist_fixture.py"
+   ],
+   "maxMB": 5.0,
+   "why": "46 通り＋結合 13 本の答え（数・列・行の全部）を詰めた形で焼く。場面の SQLite は標準の部品だけの台本 lists_scene.py が作り、表は指紋だけを持つ。結合の基は小さい物（quality_s 160 行・wip_s 120 行・重なりマスタ 480 行）にした"
   },
   "lotlist": {
    "phase": "3.116.0",

@@ -1,6 +1,6 @@
 //! 異常ロット一覧: Rust（src/lotlist.rs）の答えが Python（app/services/lot_list.py）と同じか。
 //! 試験用の品質データと問い合わせの組は program/tests/lotlist_fixture.py（Python の試験と同じ物）。
-//! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lotlist.json。詰めた形。場面は品質データの SQLite）にも持ち、Python 無しでは表とだけ比べる。
+//! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lotlist.json。詰めた形。場面の品質データは台本 lotlist_fixture.py が作り、表は指紋だけ）にも持ち、Python 無しでは表とだけ比べる。
 
 mod common;
 
@@ -30,6 +30,8 @@ fn rust_answers_like_python() {
     let work = common::work("lotlist");
     let mut bk = common::bake::Bake::open("lotlist", &work);
     bk.pack = true;
+    // 場面の品質データは標準の部品だけの台本（lotlist_fixture.py）が作り、表は指紋だけを持つ
+    bk.script = Some(("lotlist_fixture.py", vec![work.join("lotlist_fixture.sqlite3").to_string_lossy().into_owned()]));
     // Python の答え（expected）は表に持たない（表は窓の答えを answers に持つ）
     bk.drop.push("expected");
     let o = bk.oracle("lotlist_oracle.py", &[work.to_str().unwrap()]);

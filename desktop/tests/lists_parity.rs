@@ -1,6 +1,8 @@
 //! 作業実績・データ元の一覧（版 3.60.0）: Rust（src/lotlist.rs・src/worksum.rs）の答えが Python（lot_list.query・work_summary）と同じか。
 //! 表の候補・設定の表・ロット番号の列の上書き・作業でまとめる（勤務体系・直・日の数）・日時の読み方を、
 //! program/tests/lists_oracle.py の答えと突き合わせる。
+//! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lists.json。詰めた形）にも持つ。場面の SQLite は標準の部品だけの台本
+//! （program/tests/lists_scene.py）が作り、表は指紋だけを持つ（Python 無しの形では台本が作り直した物と指紋を比べる）。
 
 mod common;
 
@@ -25,18 +27,30 @@ fn py(v: &Value) -> Py<'_> {
 #[test]
 fn work_and_source_lists_answer_like_python() {
     let work = common::work("lists");
-    let o = common::python_json("lists_oracle.py", &[work.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("lists", &work);
+    bk.pack = true;
+    bk.script = Some(("lists_scene.py", vec![work.to_string_lossy().into_owned()]));
+    // Python が作った結合の答え（joins_py・joiner_py）は場面に入れない
+    bk.exclude.extend(["joins_py", "joiner_py"]);
+    // Python の答え（expected・結合の expected）は表の問い合わせに持たない（表は窓の答えを answers に持つ）
+    let o = bk.oracle_with("lists_oracle.py", &[work.to_str().unwrap()], |v| {
+        let mut o = v.clone();
+        o.as_object_mut().unwrap().remove("expected");
+        for j in o["joins"].as_array_mut().unwrap() {
+            j.as_object_mut().unwrap().remove("expected");
+        }
+        o
+    });
     let today = NaiveDate::parse_from_str(o["today"].as_str().unwrap(), "%Y-%m-%d").unwrap();
     let shifts = o["shifts"].as_array().unwrap().clone();
     let tables = Arc::new(Tables::from_json(&json!({})));
-    let (cases, expected) = (o["cases"].as_array().unwrap(), o["expected"].as_array().unwrap());
+    let cases = o["cases"].as_array().unwrap();
     assert!(cases.len() >= 40, "問い合わせの組が足りません: {}", cases.len());
-    let grouped = expected.iter().filter(|e| e["ok"]["work"]["buckets"].as_array().is_some_and(|b| !b.is_empty())).count();
-    assert!(grouped >= 20, "作業でまとめた答えが足りません: {grouped}");
+    let mut grouped = 0;
     let read = o["datetimes"].as_array().unwrap().iter().filter(|x| !x[2].is_null()).count();
     assert!(read >= 300 && o["datetimes"].as_array().unwrap().len() >= 500, "日時の事例が足りません: {read}");
     let mut bad = vec![];
-    for (i, (case, want)) in cases.iter().zip(expected).enumerate() {
+    for (i, case) in cases.iter().enumerate() {
         let db = std::path::PathBuf::from(o["dbs"][case["db"].as_str().unwrap()].as_str().unwrap());
         let qs: Vec<(String, String)> =
             case["args"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
@@ -73,10 +87,15 @@ fn work_and_source_lists_answer_like_python() {
             }
             Err(e) => json!({"error": e}),
         };
-        if let Some(d) = common::diff(want, &got, "") {
+        let key = format!("#{i}");
+        let want = bk.want(&key, || o["expected"][i].clone());
+        bk.note(&key, "list", &got, &want);
+        grouped += usize::from(want["ok"]["work"]["buckets"].as_array().is_some_and(|b| !b.is_empty()));
+        if let Some(d) = common::diff(&bk.s(&want), &bk.s(&got), "") {
             bad.push(format!("#{i} {case}: {d}"));
         }
     }
+    assert!(grouped >= 20, "作業でまとめた答えが足りません: {grouped}");
     // 日時の読み方（作業開始の鍵・日・直の元）
     for x in o["datetimes"].as_array().unwrap() {
         let got = to_datetime(&py(&x[0]), &py(&x[1]));
@@ -92,42 +111,34 @@ fn work_and_source_lists_answer_like_python() {
     }
     // 結合（data_join → src/join.rs）: 数・列・行の全部と、答えのファイルの名前（Python と同じ決まりの名前なら互いに使い回せる）
     let joins = o["joins"].as_array().unwrap();
-    assert!(joins.len() >= 8 && joins.iter().filter(|j| j["expected"]["error"].is_string()).count() >= 2, "結合の事例が足りません");
+    assert!(joins.len() >= 8, "結合の事例が足りません");
+    // 答えのファイルの名前（k番号_指紋.sqlite3）の指紋は基の場所（作業フォルダの道）から作るので、表には名前の頭と拡張子だけを持つ
+    // （Python とは名前の全部を比べる。同じ決まりの名前なら互いに使い回せる）
+    let name_re = common::re(r"^(k\d+)_[0-9a-f]+(\.sqlite3)$");
+    let mut failed = 0;
     for (i, j) in joins.iter().enumerate() {
-        let want = &j["expected"];
-        let base = std::path::PathBuf::from(o["dbs"][j["base"].as_str().unwrap()].as_str().unwrap());
+        let key = format!("結合 #{i}");
+        let want = bk.want(&key, || {
+            let mut w = j["expected"].clone();
+            if let Some(n) = w["name"].as_str() {
+                w["name"] = json!(name_re.replace(n, "${1}_<指紋>${2}"));
+            }
+            w
+        });
+        // 結合の基は小さい物（lists_scene の quality_s・wip_s）
+        let base = std::path::PathBuf::from(o["dbs"][format!("{}_s", j["base"].as_str().unwrap())].as_str().unwrap());
         let items = Join::list(&j["items"]);
-        let rights: Vec<Right> = want["rights"]
+        let rights: Vec<Right> = j["rights"]
             .as_array()
-            .map(|a| {
-                a.iter()
-                    .map(|r| Right {
-                        path: r[0].as_str().unwrap().into(),
-                        table: r[1].as_str().unwrap().into(),
-                        name: r[2].as_str().unwrap().into(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                // 失敗の事例は相手の場所を答えに持たないので、同じ作り方で並べる（製造条件・設備のマスタ）
-                j["items"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|x| {
-                        let (file, table) =
-                            if x["with"] == "cond" { ("製造条件マスタ", "製造条件") } else { ("設備マスタ", "設備") };
-                        Right { path: work.join("masters").join(format!("{file}.sqlite3")), table: table.into(), name: file.into() }
-                    })
-                    .collect()
-            });
+            .unwrap()
+            .iter()
+            .map(|r| Right { path: r[0].as_str().unwrap().into(), table: r[1].as_str().unwrap().into(), name: r[2].as_str().unwrap().into() })
+            .collect();
         let dest = work.join("joins_rs").join(format!("j{i}.sqlite3"));
-        match build(&dest, &base, "仕掛", &items, &rights) {
+        let got = match build(&dest, &base, "仕掛", &items, &rights) {
             Err(e) => {
-                let rule = matches!(e, JoinError::Rule(_));
-                if want["error"].as_str() != Some(e.to_string().as_str()) || want["rule"].as_bool() != Some(rule) {
-                    bad.push(format!("結合 #{i}: 失敗 {e}（{rule}）/ Python {want}"));
-                }
+                failed += 1;
+                json!({"error": e.to_string(), "rule": matches!(e, JoinError::Rule(_))})
             }
             Ok(stats) => {
                 let c = rusqlite::Connection::open(&dest).unwrap();
@@ -152,21 +163,22 @@ fn work_and_source_lists_answer_like_python() {
                     .unwrap()
                     .map(Result::unwrap)
                     .collect();
-                let got = json!({"stats": stats, "columns": cols, "rows": rows});
-                let mut w = want.clone();
-                for k in ["rights", "name"] {
-                    w.as_object_mut().unwrap().remove(k);
-                }
-                if let Some(d) = common::diff(&w, &got, "") {
-                    bad.push(format!("結合 #{i}: {d}"));
-                }
                 let (path, _) = Joiner::new(work.join("joiner_rs")).path_for(&format!("k{i}"), &base, "仕掛", &items, &rights).unwrap();
-                if path.file_name().unwrap().to_str() != want["name"].as_str() {
-                    bad.push(format!("結合 #{i}: 答えのファイルの名前 {path:?} / Python {}", want["name"]));
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                // Python とは名前の全部を比べる
+                if bk.python() && Some(name.as_str()) != j["expected"]["name"].as_str() {
+                    bad.push(format!("結合 #{i}: 答えのファイルの名前 {name} / Python {}", j["expected"]["name"]));
                 }
+                json!({"stats": stats, "columns": cols, "rows": rows, "name": name_re.replace(&name, "${1}_<指紋>${2}")})
             }
+        };
+        bk.note(&key, "join", &got, &want);
+        if let Some(d) = common::diff(&bk.s(&want), &bk.s(&got), "") {
+            bad.push(format!("結合 #{i}: {d}"));
         }
     }
+    assert!(failed >= 2, "結合の失敗の事例が足りません: {failed}");
     let _ = std::fs::remove_dir_all(&work);
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} 通りが食い違いました:\n{}", bad.len(), bad.join("\n"));
 }

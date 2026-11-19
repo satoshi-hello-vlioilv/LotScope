@@ -200,7 +200,7 @@ def check(baked=None):
             if not isinstance(scene.get(k), dict):
                 bad.append(f"{name}: 場面の宣言に {k} がありません")
         for rel, e in scene.get("files", {}).items():
-            if not e.get("fifo") and e.get("blob") not in scene.get("blobs", {}):
+            if not e.get("fifo") and not e.get("made") and e.get("blob") not in scene.get("blobs", {}):
                 bad.append(f"{name}: 場面のファイル {rel} の中身が無い")
         if not isinstance(t.get("answers"), dict) or set(t.get("answers", {})) != set(t.get("routes", {})):
             bad.append(f"{name}: 答えと道の型の鍵が合わない")
