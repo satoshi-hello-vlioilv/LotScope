@@ -322,9 +322,9 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     let forms: Vec<&(regex::Regex, String)> = all.iter().filter(|(_, to)| Some(to.as_str()) != drop).collect();
     let near = drop != Some("near");
     let stamp = drop != Some("@BUILD");
-    // 名乗りの鍵（settle.json の userSuffixKeys。値は「端末@利用者」）: 利用者の所だけを @USER に
-    let suffix: Vec<&str> =
-        r["userSuffixKeys"].as_array().into_iter().flatten().filter_map(Value::as_str).filter(|k| Some(*k) != drop).collect();
+    // 名乗りの表（{key, pc, …}）の鍵は「端末@利用者」（使えない字があれば _ にして sha1 の 6 字を足す。bundle::terminal_key）。
+    // 鍵が「OS の利用者の名前と、となりの pc」から作った字そのもののときだけ、利用者を @USER にして作り直した字にそろえる
+    let who_key = drop != Some("who.key");
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
@@ -359,7 +359,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     struct Cx<'a> {
         keys: &'a [&'a str],
         names: &'a [&'a str],
-        suffix: &'a [&'a str],
+        who_key: bool,
         near: bool,
         s: &'a dyn Fn(&str) -> String,
     }
@@ -369,11 +369,6 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             Value::String(t) if t == app_version() => json!("@VERSION"),
             // 利用者の名前を書く欄（nameKeys）の OS の利用者の名前は @USER（root で焼き、CI の runner でも同じ表）
             Value::String(t) if cx.names.contains(&key) && (os_user() == Some(t.as_str()) || t == "@USER@") => json!("@USER"),
-            // 名乗りの鍵（「端末@利用者」）: 終わりが「@OS の利用者の名前」のときだけ、利用者の所を @USER に（端末の名前はそのまま比べる）
-            Value::String(t) if cx.suffix.contains(&key) && os_user().is_some_and(|u| t.ends_with(&format!("@{u}"))) => {
-                let u = os_user().unwrap_or("");
-                json!(format!("{}@@USER", (cx.s)(&t[..t.len() - u.len() - 1])))
-            }
             Value::String(t) => Value::String((cx.s)(t)),
             // 時刻の鍵の今に近い数（1970 年からの秒・ミリ秒）だけ。遠い数はそのまま
             Value::Number(n) if cx.near && cx.keys.contains(&key) => {
@@ -383,11 +378,19 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
                 let out: Vec<Value> = a.iter().map(|x| go(x, key, cx)).collect();
                 above_crumbs(out)
             }
-            Value::Object(o) => Value::Object(o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect()),
+            Value::Object(o) => {
+                let mut out: Map<String, Value> = o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect();
+                if let (true, Some(k), Some(pc), Some(u)) = (cx.who_key, o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user()) {
+                    if k == da_core::bundle::terminal_key(u, pc) {
+                        out.insert("key".into(), json!(da_core::bundle::terminal_key("@USER", pc)));
+                    }
+                }
+                Value::Object(out)
+            }
             _ => v.clone(),
         }
     }
-    go(v, "", &Cx { keys: &keys, names: &names, suffix: &suffix, near, s: &s })
+    go(v, "", &Cx { keys: &keys, names: &names, who_key, near, s: &s })
 }
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）
