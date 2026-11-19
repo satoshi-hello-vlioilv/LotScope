@@ -2679,6 +2679,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
   （`common::clean_env`。答え合わせ役・場面の台本を起こす所も外す）。`oracle_gate.py` は変えていない（16 本の元の指紋で、変えると 16 本を焼き直す。
   答え合わせ役は窓の試験が起こすので、起こす所の 1 か所で足りる）。(b) lotdsp のかかった秒（direct[].seconds）は表の問い合わせから落とす。
   (a)(c)(d)（キー 2 つの差し替え・dashboard の at・@UI と @OPS を消す）は 3.117.2。
+  あわせて、窓の試験は頭で umask を 022 に決める（Linux。時差を UTC に決めるのと同じ扱い: 場面のファイルと窓が作るフォルダの権限を、流す PC の umask に頼らせない）。
 - **K4 ci-shape に環境変数の形**: どの形も、プロキシは閉じた口・TLS の根の置き場は空で流す（試験が外し忘れた道はここで落ちる）。runner は LANG=ja_JP.UTF-8、
   ほかは LANG=C。nopy は umask 077。名前を引く本（nodns）に lotdsp を足した。
 - そろえる決まり（settle.json）は足していない。足したのは名前つきの URL（下）だけ。
@@ -2688,11 +2689,14 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 窓の突き合わせの試験のうち 3 本（equipgroups・lotdsp・schedule）は、答え合わせ役を起こしたまま、同じ作り物のサーバーに問い合わせる。
 ④ の後も作り物は試験の道具として残るので、起こす所を app から切り離した。
 
-- `tests/fakes_serve.py`（app を import しない入口）: `python tests/fakes_serve.py 種類` が `tests/fakes_<種類>.py` の start() を呼び、最初の 1 行に
-  `{"urls": {名前: URL}}` を書いて標準入力が閉じるまで起こしたままにする（尋ねられる口 ask があれば 1 行ごとに答える。schedule の requests・count 用）。
-  種類を足しても入口は変わらない（入口は equipgroups・lotdsp の元の指紋に入っている）。
+- `tests/fakes_serve.py`（app を import しない入口）: `python tests/fakes_serve.py 種類 [引数…]` が `tests/fakes_<種類>.py` の start(引数…) を呼び、
+  最初の 1 行に `{"urls": {名前: URL}}` を書いて標準入力が閉じるまで起こしたままにする（尋ねられる口 ask があれば 1 行ごとに答える）。
+  種類を足しても入口は変わらない（入口は equipgroups・lotdsp の元の指紋に入っている）。`tests/test_fakes_serve.py`（python -I で起こせる・app を読まない）。
   - `fakes_equipgroups.py`: 作り物の CM3（L-1 の予定 6 行。`schedule_fixture`）
   - `fakes_lotdsp.py`: 作り物の LotDsp の API とサイト。答えの表は焼いた見本 `tests/fixtures/lotdsp_fake_tables.json`
+  - `fakes_schedule.py`: スケジュールの作り物（場面ごとの答え World・接続を受けない口 blackhole。引数は仕掛の SQLite。ask は「requests 係 場面」
+    「count 係 場面」）。`schedule_oracle.py` から写し、答え合わせ役はここを呼ぶ（切り出しの前後で違う葉は時刻・かかった ms・要求の並び＝前からの揺れだけ）。
+    **schedule を焼くのは 3.117.1**（③-6 の後に 1 回。窓の試験 schedule_parity はまだ焼く係を使っていない）
 - 答え合わせ役（`equipgroups_oracle.py`・`lotdsp_oracle.py`）も同じ start() で同じ作り物を起こし、答えの `urls` で名乗る（作り物の中身は 1 か所）。
   切り出しの前後で lotdsp の答え合わせ役の答え（30.5 MB）はポートとかかった秒（2 葉）のほか同じ。
 - `bake.rs`: `Bake::fakes`（Python 無しの形で、答え合わせ役の代わりにこの台本を標準の Python〈-I〉で起こしたままにする）・名前つきの URL
@@ -2703,7 +2707,6 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
   （画面の見本を app の読み手 lotdsp_progress で読んで作り物の API の JSON を作る。採点の測りは import だけを見ていた）。→ 見本と崩し方
   （FIXTURE・html_with_offs・with_cells・to_moment）は `tests/lotdsp_samples.py`（app なし）へ移し、作り物の API の答えは表に焼いた
   （`tests/fixtures/lotdsp_fake_tables.json`。焼くのは `python program/tools/lotdsp-fake-tables.py`、古い表は `tests/test_lotdsp_fake_tables.py` が止める）。
-- **schedule の作り物（World・blackhole）の切り出しは 3.117.1**（schedule を焼く版。入口 `fakes_serve.py` はそのまま使え、`fakes_schedule.py` を足すだけ）。
 
 #### ⑤⑥ 焼いた本
 
@@ -2712,7 +2715,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 #### この版の後に残る物
 
 - 任せる歩は 11 のまま（比べる口 7・③-6 の 3・戻したキーに / がある道 1。Windows だけ 2）。③-6（3.117.1）で 11 → 8・Windows だけ 2 → 0。
-- 3.117.1: ③-6・K5（schedule を焼く前の直し 3 つ）・schedule・`fakes_schedule.py`。3.117.2: `tests/scenes/ui_scene.py`（inode の直し）と pivot・routes・dashboard・ops。
+- 3.117.1: ③-6・K5（schedule を焼く前の直し 3 つ）・schedule（窓の試験に焼く係を入れる。作り物 `fakes_schedule.py` はこの版で切り出した）。3.117.2: `tests/scenes/ui_scene.py`（inode の直し）と pivot・routes・dashboard・ops。
   3.117.3: Windows の切り替え・凍らせる写し。
 - Windows の測りの 2 つの形の数と、仕事を割った後の時間は、この版の最初の Windows の CI の記録から読む（`bless.py --from-log`）。
 

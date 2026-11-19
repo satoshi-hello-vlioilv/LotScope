@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """起こしたままの相手（作り物のサーバー）を起こす台本（版 3.117.0。標準の部品だけ。app を import しない）。
 
-    python tests/fakes_serve.py 種類
+    python tests/fakes_serve.py 種類 [引数 …]
 
-種類ごとの作り物は tests/fakes_<種類>.py の start() が起こす（ここは入口だけで、種類を足しても変わらない）:
+種類ごとの作り物は tests/fakes_<種類>.py の start(引数 …) が起こす（ここは入口だけで、種類を足しても変わらない）:
 
     equipgroups … 作り物の CM3（設備グループの本の場面「スケジュールの元がある」。tests/fakes_equipgroups.py）
     lotdsp      … 作り物の LotDsp の API とサイト（tests/fakes_lotdsp.py）
+    schedule 仕掛の SQLite … 作り物の CM3（スケジュールの本の場面ごとの答え）と、接続を受けない口（tests/fakes_schedule.py）
 
 最初の 1 行に {"urls": {名前: URL}} を書き、標準入力が閉じるまで作り物を起こしたままにする。作り物が尋ねられる口（ask）を持つときは、
 標準入力の 1 行ごとに答えを JSON の 1 行で書く（スケジュールの作り物の「requests」「count」。口の無い作り物は行を読み捨てる）。
@@ -30,17 +31,17 @@ if str(HERE) not in sys.path:           # python -I（Python 無しの形）は�
     sys.path.insert(0, str(HERE))
 
 
-def start(kind):
-    """作り物を起こす → {"urls": {名前: URL}, "close": 閉じる関数, "ask": 1 行を受けて答える関数か None}"""
+def start(kind, *args):
+    """作り物を起こす → {"urls": {名前: URL}, "close": 閉じる関数, "ask": 1 行を受けて答える関数か None, …}。args は種類ごとの引数"""
     if not re.fullmatch(r"[a-z][a-z0-9_]*", kind or "") or not (HERE / f"fakes_{kind}.py").is_file():
         raise SystemExit(f"知らない種類: {kind}（tests/fakes_<種類>.py がありません）")
-    return importlib.import_module(f"fakes_{kind}").start()
+    return importlib.import_module(f"fakes_{kind}").start(*args)
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         raise SystemExit(__doc__)
-    fake = start(sys.argv[1])
+    fake = start(*sys.argv[1:])
     sys.stdout.write(json.dumps({"urls": fake["urls"]}, ensure_ascii=False) + "\n")
     sys.stdout.flush()
     with contextlib.suppress(Exception):

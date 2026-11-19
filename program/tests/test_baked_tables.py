@@ -95,6 +95,17 @@ class BakedTables(unittest.TestCase):
         log = Path(tempfile.mkdtemp()) / "calls.log"
         log.write_text(f"TPA\t-I\t{PROGRAM / 'tests' / 'lists_scene.py'}\tx\nTPA\t-c\timport sys\n", encoding="utf-8")
         self.assertEqual(ci.python_calls_ok(log), [])
+        # 起こしたままの相手の入口（版 3.117.0）: 種類ごとの作り物（tests/fakes_<種類>.py）も見る。引数の道（仕掛の SQLite）は種類と読まない
+        fakes = PROGRAM / "tests" / "fakes_serve.py"
+        log.write_text(f"TPA\t-I\t{fakes}\tequipgroups\nTPA\t-I\t{fakes}\tschedule\t/tmp/x/LOTNOW.sqlite3\nTPA\t-I\t{fakes}\tlotdsp\n", encoding="utf-8")
+        self.assertEqual(ci.python_calls_ok(log), [])
+        bad = PROGRAM / "tests" / "fakes_zz_selftest.py"
+        try:
+            bad.write_text("from app import create_app\n\n\ndef start():\n    return create_app\n", encoding="utf-8")
+            log.write_text(f"TPA\t-I\t{fakes}\tzz_selftest\n", encoding="utf-8")
+            self.assertEqual(len(ci.python_calls_ok(log)), 1, "app を import する作り物は見つける")
+        finally:
+            bad.unlink(missing_ok=True)
         log.write_text(f"TPA\t{PROGRAM / 'tests' / 'calc_oracle.py'}\tx\nPATH\t-V\n", encoding="utf-8")
         self.assertEqual(len(ci.python_calls_ok(log)), 2, "app を import する台本と PATH の python は見つける")
         shutil.rmtree(log.parent, ignore_errors=True)

@@ -191,6 +191,12 @@ impl Ctx {
                 subs.extend(spellings(Path::new(&h)).into_iter().map(|v| (v, "@HOME".into())));
             }
         }
+        if cfg!(windows) {
+            // 「/」の書き方の道も同じ印に（表の宣言から作った場面の道は「/」で書いてある。unsub）
+            let more: Vec<(String, String)> =
+                subs.iter().filter(|(a, _)| a.contains('\\')).map(|(a, b)| (a.replace('\\', "/"), b.clone())).collect();
+            subs.extend(more);
+        }
         subs.dedup();
         Ctx { subs, urls: vec![] }
     }
@@ -279,7 +285,11 @@ impl Ctx {
     }
     /// 置き換えを戻す（作業フォルダとリポジトリの根。家と URL は戻さない: 家は答えの字にだけ出る・URL は作り直す時に新しい物を当てる）
     fn unsub(&self, s: &str) -> String {
-        self.unsub_urls(s).replace("@WORK", &self.subs[0].0).replace("@REPO", &self.subs[1].0)
+        // Windows（表の宣言から場面を作る形。版 3.117.0 の測り）: 戻す道の区切りは「/」にする。場面のファイルの中身（JSON の字）に「\」を
+        // 裸で入れると読めない字になる（"D:\a\_temp" の \a・\_）。Windows は「/」も道の区切りに読む。答えの中の「/」の書き方の
+        // 作業フォルダも @WORK にそろう（with_home が「/」の書き方も覚える）
+        let p = |x: &str| if cfg!(windows) { x.replace('\\', "/") } else { x.to_string() };
+        self.unsub_urls(s).replace("@WORK", &p(&self.subs[0].0)).replace("@REPO", &p(&self.subs[1].0))
     }
 }
 

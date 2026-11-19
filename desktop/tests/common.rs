@@ -31,12 +31,24 @@ pub fn program() -> PathBuf {
 /// （schedule.use_system_proxy。③-6 で窓が取る）や、プロキシを決めずに urllib を使う答え合わせ役の答えが、流す PC で変わる。
 /// プロキシの場面は、場面が決めた値だけを入れる。試験はどれも最初に work() を呼ぶので、そこで 1 度だけ外す（答え合わせ役〈子の
 /// プロセス〉は外した後の環境変数を受け継ぐ。起こす所でも外す）。手元の確かめは tools/ci-shape.py（プロキシと根の置き場を置いた形）
+///
+/// あわせて umask を 022 に決める（Linux）。場面のファイル（答え合わせ役が書く・表の宣言から作る）と、窓が作るフォルダ・ファイルの権限は
+/// umask で変わり、権限を答える歩（配布の置き場の写した後の中身など）が流す PC の umask に頼る。時差を UTC に決めるのと同じ扱い
+/// （ci-shape の nopy の形は umask 077 で流す）
 pub fn clean_env() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         for k in pc_env_names() {
             // SAFETY: 試験の最初（窓・答え合わせ役を起こす前）に 1 度だけ。同じ実行ファイルのほかの試験も同じ値（無い）にするだけ
             unsafe { std::env::remove_var(&k) };
+        }
+        #[cfg(target_os = "linux")]
+        {
+            unsafe extern "C" {
+                fn umask(mask: u32) -> u32;
+            }
+            // SAFETY: 引数は権限の数だけ。プロセスの umask を決めるだけで失敗しない
+            unsafe { umask(0o022) };
         }
     });
 }
