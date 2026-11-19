@@ -28,13 +28,7 @@ fn calc_matches_python() {
     bk.pack = true;
     // 事例（name・path・body）の status・json は焼かない（表は窓の答えを answers に持つ）
     bk.strip_in = vec!["body"];
-    let oracle = if bk.python() {
-        let full = common::python_json("calc_oracle.py", &[base.to_str().unwrap()]);
-        bk.took(&baked_only(&full));
-        full
-    } else {
-        bk.oracle("calc_oracle.py", &[base.to_str().unwrap()])
-    };
+    let oracle = bk.oracle_with("calc_oracle.py", &[base.to_str().unwrap()], baked_only);
     let (mut bad, mut answered, mut handed, mut typed) = (vec![], 0, 0, 0);
     let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/calc_error_cases.json")).unwrap();
     let kinds = table["kinds"].as_object().unwrap().clone();

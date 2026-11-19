@@ -59,7 +59,7 @@ def unpack(v, parts):
                     raise KeyError(f"詰めた表の参照 {x} の中身が parts にありません")
                 return unpack(parts[x], parts)
             if k == "@rep":
-                return x["head"] + x["unit"] * x["n"] + x["tail"]
+                return "".join(s if isinstance(s, str) else s[0] * s[1] for s in x)
             return {kk: unpack(y, parts) for kk, y in x.items()}
         return {k: unpack(x, parts) for k, x in v.items()}
     return v

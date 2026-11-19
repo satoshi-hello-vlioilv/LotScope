@@ -1,0 +1,468 @@
+{
+ "about": "窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 ui_defaults。作り直すのは python program/tools/bless.py ui_defaults",
+ "answers": {
+  "ほかの PC が保存している途中（錠） #0": {"json":{"error":"PC-8／u8 がマスタを保存中です（あと約20秒）。少し待つと保存できます。","holder_login":"u8","holder_pc":"PC-8","kind":"locked","remaining":20},"status":409},
+  "ほかの PC が保存している途中（錠） #1": {"@same":"04bfbf947f9f"},
+  "ほかの PC が保存している途中（錠） ファイル": {"@same":"44cf74cd7dbd"},
+  "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる） #0": {"@same":"04bfbf947f9f"},
+  "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる） ファイル": {"local/master_cache/ui_defaults.json":{"@same":"9d28075c7a8d"},"share/ui_defaults.json":{"@same":"9d28075c7a8d"}},
+  "共有にまだ無い（写しから最初の版） #0": {"@same":"04bfbf947f9f"},
+  "共有にまだ無い（写しから最初の版） #1": {"json":{"count":1,"defaults":{"tpa.lotlist.pageSize.v1":"30"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"boss","pc":"PC-1"}},"status":200},
+  "共有にまだ無い（写しから最初の版） #2": {"json":{"canPublish":true,"defaults":{"tpa.lotlist.pageSize.v1":"30"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"boss","pc":"PC-1"}},"status":200},
+  "共有にまだ無い（写しから最初の版） ファイル": {"local/master_cache/ui_defaults.json":{"@same":"d68067f36ca2"},"share/ui_defaults.json":{"@same":"d68067f36ca2"}},
+  "切断中の開発者 #0": {"@same":"04bfbf947f9f"},
+  "切断中の開発者 #1": {"json":{"error":"この PC は一時的に切断されています。初期設定を置けません。","kind":"revoked"},"status":403},
+  "切断中の開発者 ファイル": {"@same":"44cf74cd7dbd"},
+  "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる） #0": {"json":{"canPublish":true,"defaults":{"tpa.lotlist.layout.v1":"2"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"","updatedBy":{}},"status":200},
+  "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる） ファイル": {"share/ui_defaults.json":{"revision":3,"rows":[{"値":"x","名前":"tpa.lotlist.pageSize.v1"},{"名前":"tpa.lotlist.pageSize.v1"},{"値":"1","名前":"tpa.lotlist.layout.v1"},{"値":"2","名前":"tpa.lotlist.layout.v1"}],"schema":1,"updated_at":"","updated_by":{}}},
+  "手元だけ（共有しない PC） #0": {"@same":"444fa87f747f"},
+  "手元だけ（共有しない PC） #1": {"json":{"count":1,"defaults":{"tpa.lotlist.pageSize.v1":"20"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"boss","pc":"PC-1"}},"status":200},
+  "手元だけ（共有しない PC） #2": {"json":{"canPublish":true,"defaults":{"tpa.lotlist.pageSize.v1":"20"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"boss","pc":"PC-1"}},"status":200},
+  "手元だけ（共有しない PC） ファイル": {"app/data/ui_defaults.json":[{"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"},"値":"20","名前":"tpa.lotlist.pageSize.v1"}]},
+  "置き場の行の値が字でない（窓も同じに読む） #0": {"@same":"444fa87f747f"},
+  "置き場の行の値が字でない（窓も同じに読む） #1": {"json":{"count":1,"defaults":{"tpa.lotlist.pageSize.v1":"1"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"boss","pc":"PC-1"}},"status":200},
+  "置き場の行の値が字でない（窓も同じに読む） ファイル": {"local/master_cache/ui_defaults.json":{"@same":"24a43f19817d"},"share/ui_defaults.json":{"@same":"24a43f19817d"}},
+  "開発者: 置く・外す・本文の形 #0": {"@same":"04bfbf947f9f"},
+  "開発者: 置く・外す・本文の形 #1": {"json":{"count":2,"defaults":{"tpa.lotlist.layout.v1":"{\"c\":1}","tpa.lotlist.pageSize.v1":"50"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #10": {"json":{"error":"keys の形が違います（{名前: 文字}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #11": {"json":{"error":"keys の形が違います（{名前: 文字}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #12": {"json":{"error":"keys の形が違います（{名前: 文字}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #13": {"json":{"error":"keys の形が違います（{名前: 文字}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #14": {"json":{"error":"表示の設定が大きすぎます。"},"status":400},
+  "開発者: 置く・外す・本文の形 #15": {"json":{"count":1,"defaults":{"tpa.lotlist.layout.v1":{"@rep":[["a",2097123]]}},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #16": {"json":{"error":"表示の設定が大きすぎます。"},"status":400},
+  "開発者: 置く・外す・本文の形 #17": {"json":{"count":1,"defaults":{"tpa.lotlist.layout.v1":{"@rep":["\u0001",["あ",699039]]}},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #18": {"json":{"count":1,"defaults":{"tpa.lotlist.layout.v1":"text/plain で置く"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #19": {"json":{"canPublish":true,"defaults":{"tpa.lotlist.layout.v1":"text/plain で置く"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #2": {"json":{"canPublish":true,"defaults":{"tpa.lotlist.layout.v1":"{\"c\":1}","tpa.lotlist.pageSize.v1":"50"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #20": {"@same":"89109a583d80"},
+  "開発者: 置く・外す・本文の形 #21": {"@same":"444fa87f747f"},
+  "開発者: 置く・外す・本文の形 #22": {"json":{"error":"本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。","kind":"body"},"status":400},
+  "開発者: 置く・外す・本文の形 #23": {"json":{"error":"本文の字に対の無い代用字（\\ud800 など）があります。","kind":"body"},"status":400},
+  "開発者: 置く・外す・本文の形 #24": {"@same":"89109a583d80"},
+  "開発者: 置く・外す・本文の形 #25": {"json":{"error":"本文を JSON として読めません。","kind":"body"},"status":400},
+  "開発者: 置く・外す・本文の形 #3": {"json":{"count":2,"defaults":{"tpa.lotlist.marks.v1":"制御字\u0001と ","tpa.lotlist.views.v1":"\"字\""},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"@T(-Ts|0)","updatedBy":{"login":"","pc":""}},"status":200},
+  "開発者: 置く・外す・本文の形 #4": {"json":{"error":"本文の形が違います（表で送ってください）。","kind":"body"},"status":400},
+  "開発者: 置く・外す・本文の形 #5": {"json":{"error":"本文の形が違います（{keys: {名前: 字}}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #6": {"json":{"error":"本文の形が違います（{keys: {名前: 字}}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #7": {"json":{"error":"本文の形が違います（表で送ってください）。","kind":"body"},"status":400},
+  "開発者: 置く・外す・本文の形 #8": {"json":{"error":"本文の形が違います（{keys: {名前: 字}}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 #9": {"json":{"error":"本文の形が違います（{keys: {名前: 字}}）。"},"status":400},
+  "開発者: 置く・外す・本文の形 ファイル": {"local/master_cache/ui_defaults.json":{"revision":10,"rows":[],"schema":1,"updated_at":"<t>","updated_by":{"login":"","pc":""}},"share/ui_defaults.json":{"revision":10,"rows":[],"schema":1,"updated_at":"<t>","updated_by":{"login":"","pc":""}}},
+  "開発者でない・切断中 #0": {"json":{"canPublish":false,"defaults":{"tpa.lotlist.layout.v1":"[1,2]","tpa.lotlist.pageSize.v1":"100"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"2026-10-01T09:00:00","updatedBy":{"login":"x","pc":"PC-9"}},"status":200},
+  "開発者でない・切断中 #1": {"json":{"error":"初期設定を置けるのは開発者だけです（この PC は 一般ユーザー）。","kind":"forbidden"},"status":403},
+  "開発者でない・切断中 #2": {"json":{"error":"本文の形が違います（表で送ってください）。","kind":"body"},"status":400},
+  "開発者でない・切断中 ファイル": {"@same":"44cf74cd7dbd"}
+ },
+ "book": "ui_defaults",
+ "file": "ui_defaults",
+ "oracle": {
+  "profileKeys": {
+   "@same": "9d3a5af1b8e5"
+  },
+  "scenarios": [
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s0/rs/local/master_cache","data":"@WORK/s0/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s0/presence","refreshSeconds":0.0,"shareDir":"@WORK/s0/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"_@_-06d90d","login":"","pc":"","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "開発者: 置く・外す・本文の形",
+    "py": "@WORK/s0/py",
+    "rs": "@WORK/s0/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.layout.v1\": \"{\\\"c\\\":1}\", \"tpa.lotlist.pageSize.v1\": \"50\", \"知らない名前\": \"x\", \"tpa.lotlist.marks.v1\": 3, \"tpa.lotlist.rules.v1\": null}, \"extra\": [1]}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.marks.v1\": \"制御字\\u0001と \", \"tpa.lotlist.views.v1\": \"\\\"字\\\"\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"[1]","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"null","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"\"x\"","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"0","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"[]","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": null}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": []}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": \"x\"}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":{"@rep":["{\"keys\": {\"tpa.lotlist.layout.v1\": \"",["あ",716800],"\", \"tpa.lotlist.pageSize.v1\": \"",["あ",716800],"\", \"tpa.lotlist.marks.v1\": \"",["あ",716800],"\"}}"]},"ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":{"@rep":["{\"keys\": {\"tpa.lotlist.layout.v1\": \"",["a",2097123],"\"}}"]},"ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":{"@rep":["{\"keys\": {\"tpa.lotlist.layout.v1\": \"",["a",2097124],"\"}}"]},"ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":{"@rep":["{\"keys\": {\"tpa.lotlist.layout.v1\": \"\\u0001",["あ",699039],"\"}}"]},"ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.layout.v1\": \"text/plain で置く\"}}","ctype":"text/plain","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {}, \"x\": NaN}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.layout.v1\": \"\\ud800\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {}, \"x\": -0}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"],"window":true},
+     {"body":"{","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "",
+     "pc": ""
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s1/rs/local/master_cache","data":"@WORK/s1/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s1/presence","refreshSeconds":0.0,"shareDir":"@WORK/s1/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "開発者でない・切断中",
+    "py": "@WORK/s1/py",
+    "rs": "@WORK/s1/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["p1","PC-2"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.pageSize.v1\": \"1\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["p1","PC-2"]},
+     {"body":"[1]","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["v1","PC-3"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s2/rs/local/master_cache","data":"@WORK/s2/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s2/presence","refreshSeconds":0.0,"shareDir":"@WORK/s2/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-3@v1","login":"v1","pc":"PC-3","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "切断中の開発者",
+    "py": "@WORK/s2/py",
+    "rs": "@WORK/s2/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"@same":"17182ac91f85"}
+    ],
+    "storeWho": {
+     "login": "v1",
+     "pc": "PC-3"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s3/rs/local/master_cache","data":"@WORK/s3/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s3/presence","refreshSeconds":0.0,"shareDir":"","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "手元だけ（共有しない PC）",
+    "py": "@WORK/s3/py",
+    "rs": "@WORK/s3/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.pageSize.v1\": \"20\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s4/rs/local/master_cache","data":"@WORK/s4/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s4/presence","refreshSeconds":0.0,"shareDir":"@WORK/s4/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）",
+    "py": "@WORK/s4/py",
+    "rs": "@WORK/s4/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s5/rs/local/master_cache","data":"@WORK/s5/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s5/presence","refreshSeconds":0.0,"shareDir":"@WORK/s5/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "共有にまだ無い（写しから最初の版）",
+    "py": "@WORK/s5/py",
+    "rs": "@WORK/s5/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":"{\"keys\": {\"tpa.lotlist.pageSize.v1\": \"30\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s6/rs/local/master_cache","data":"@WORK/s6/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s6/presence","refreshSeconds":0.0,"shareDir":"@WORK/s6/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる）",
+    "py": "@WORK/s6/py",
+    "rs": "@WORK/s6/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s7/rs/local/master_cache","data":"@WORK/s7/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s7/presence","refreshSeconds":0.0,"shareDir":"@WORK/s7/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "ほかの PC が保存している途中（錠）",
+    "py": "@WORK/s7/py",
+    "rs": "@WORK/s7/rs",
+    "steps": [
+     {"@same":"17182ac91f85"},
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   },
+   {
+    "conf": {
+     "place": {"cache":"@WORK/s8/rs/local/master_cache","data":"@WORK/s8/rs/app/data","defaults":"@REPO/program/app/master_defaults","lockTtl":20.0,"presence":"@WORK/s8/presence","refreshSeconds":0.0,"shareDir":"@WORK/s8/rs/share","shared":{"@same":"756f30240b75"}},
+     "who": {"key":"PC-1@boss","login":"boss","pc":"PC-1","pcSource":"試験"}
+    },
+    "delegates": [],
+    "name": "置き場の行の値が字でない（窓も同じに読む）",
+    "py": "@WORK/s8/py",
+    "rs": "@WORK/s8/rs",
+    "steps": [
+     {"body":null,"ctype":"application/json","method":"GET","path":"/api/ui-defaults","query":"","who":["boss","PC-1"],"window":true},
+     {"body":"{\"keys\": {\"tpa.lotlist.pageSize.v1\": \"1\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"],"window":true}
+    ],
+    "storeWho": {
+     "login": "boss",
+     "pc": "PC-1"
+    }
+   }
+  ]
+ },
+ "os": "posix",
+ "parts": {
+  "04bfbf947f9f": {"json":{"@same":"c2e556136946"},"status":200},
+  "0c8f16b3ac83": {"canPublish":true,"defaults":{},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"","updatedBy":{}},
+  "17182ac91f85": {"body":"{\"keys\": {\"tpa.lotlist.pageSize.v1\": \"1\"}}","ctype":"application/json","method":"PUT","path":"/api/ui-defaults","query":"","who":["boss","PC-1"]},
+  "24a43f19817d": {"revision":4,"rows":[{"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"},"値":"1","名前":"tpa.lotlist.pageSize.v1"}],"schema":1,"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"}},
+  "444fa87f747f": {"json":{"@same":"0c8f16b3ac83"},"status":200},
+  "44cf74cd7dbd": {"share/ui_defaults.json":{"@same":"5cefa215a1f8"}},
+  "5cefa215a1f8": {"revision":3,"rows":{"@same":"eb8432243025"},"schema":1,"updated_at":"","updated_by":{}},
+  "756f30240b75": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+  "89109a583d80": {"json":{"@same":"bcf4139d8d82"},"status":200},
+  "9d28075c7a8d": {"revision":3,"rows":{"@same":"eb8432243025"},"schema":1,"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"}},
+  "9d3a5af1b8e5": ["tpa.lotlist.layout.v1","tpa.lotlist.colPresets.v1","tpa.lotlist.rules.v1","tpa.lotlist.rowGap.v1","tpa.lotlist.cellPad.v1","tpa.lotlist.overflow.v1","tpa.lotlist.freeze.v1","tpa.lotlist.arrange.v1","tpa.lotlist.sorts.v1","tpa.lotlist.pageSize.v1","tpa.lotlist.features.v1","tpa.lotlist.slicer.v1","tpa.lotlist.marks.v1","tpa.lotlist.zoomStep.v1","tpa.lotlist.presets.v1","tpa.lotlist.views.v1","tpa.lotlist.pivot.v1","tpa.worklog.count.v1"],
+  "bcf4139d8d82": {"count":0,"defaults":{},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"","updatedBy":{}},
+  "c2e556136946": {"canPublish":true,"defaults":{"tpa.lotlist.layout.v1":"[1,2]","tpa.lotlist.pageSize.v1":"100"},"keys":{"@same":"9d3a5af1b8e5"},"updatedAt":"2026-10-01T09:00:00","updatedBy":{"login":"x","pc":"PC-9"}},
+  "d68067f36ca2": {"revision":4,"rows":[{"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"},"値":"30","名前":"tpa.lotlist.pageSize.v1"}],"schema":1,"updated_at":"<t>","updated_by":{"login":"boss","pc":"PC-1"}},
+  "eb8432243025": [{"updated_at":"<t>","updated_by":{"login":"x","pc":"PC-9"},"値":"100","名前":"tpa.lotlist.pageSize.v1"},{"値":"1","名前":"知らない名前"},{"値":"[1,2]","名前":"tpa.lotlist.layout.v1"}]
+ },
+ "routes": {
+  "ほかの PC が保存している途中（錠） #0": "PUT /api/ui-defaults",
+  "ほかの PC が保存している途中（錠） #1": "GET /api/ui-defaults",
+  "ほかの PC が保存している途中（錠） ファイル": "files",
+  "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる） #0": "GET /api/ui-defaults",
+  "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる） ファイル": "files",
+  "共有にまだ無い（写しから最初の版） #0": "GET /api/ui-defaults",
+  "共有にまだ無い（写しから最初の版） #1": "PUT /api/ui-defaults",
+  "共有にまだ無い（写しから最初の版） #2": "GET /api/ui-defaults",
+  "共有にまだ無い（写しから最初の版） ファイル": "files",
+  "切断中の開発者 #0": "GET /api/ui-defaults",
+  "切断中の開発者 #1": "PUT /api/ui-defaults",
+  "切断中の開発者 ファイル": "files",
+  "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる） #0": "GET /api/ui-defaults",
+  "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる） ファイル": "files",
+  "手元だけ（共有しない PC） #0": "GET /api/ui-defaults",
+  "手元だけ（共有しない PC） #1": "PUT /api/ui-defaults",
+  "手元だけ（共有しない PC） #2": "GET /api/ui-defaults",
+  "手元だけ（共有しない PC） ファイル": "files",
+  "置き場の行の値が字でない（窓も同じに読む） #0": "GET /api/ui-defaults",
+  "置き場の行の値が字でない（窓も同じに読む） #1": "PUT /api/ui-defaults",
+  "置き場の行の値が字でない（窓も同じに読む） ファイル": "files",
+  "開発者: 置く・外す・本文の形 #0": "GET /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #1": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #10": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #11": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #12": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #13": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #14": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #15": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #16": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #17": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #18": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #19": "GET /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #2": "GET /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #20": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #21": "GET /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #22": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #23": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #24": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #25": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #3": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #4": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #5": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #6": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #7": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #8": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 #9": "PUT /api/ui-defaults",
+  "開発者: 置く・外す・本文の形 ファイル": "files",
+  "開発者でない・切断中 #0": "GET /api/ui-defaults",
+  "開発者でない・切断中 #1": "PUT /api/ui-defaults",
+  "開発者でない・切断中 #2": "PUT /api/ui-defaults",
+  "開発者でない・切断中 ファイル": "files"
+ },
+ "scene": {
+  "blobs": {
+   "01ed675684c279e6": {"text":"{\"by\": \"boss2\", \"byPc\": \"PC-8\", \"reason\": \"試験\", \"at\": \"@NOW(-442ms,T,f6)\"}"},
+   "0254d205378c8653": {"text":"{\"token\": \"t\", \"holder_pc\": \"PC-8\", \"holder_login\": \"u8\", \"holder_instance\": \"z:1\", \"acquired_at\": \"@NOW(-619ms,T,s)\", \"expires_at\": \"@NOW(599380ms,T,s)\"}"},
+   "23d1fa357266a918": {"text":"{\n  \"schema\": 1,\n  \"revision\": 1,\n  \"updated_at\": \"@NOW(-619ms,T,s)\",\n  \"updated_by\": {\n    \"pc\": \"PC-1\",\n    \"login\": \"boss\"\n  },\n  \"rows\": []\n}\n"},
+   "2c7a6618177a9ace": {"text":"{\n  \"schema\": 1,\n  \"revision\": 1,\n  \"updated_at\": \"@NOW(-618ms,T,s)\",\n  \"updated_by\": {\n    \"pc\": \"PC-1\",\n    \"login\": \"boss\"\n  },\n  \"rows\": []\n}\n"},
+   "3ccd4870ff951568": {"text":"{\"schema\": 1, \"revision\": 3, \"updated_at\": \"\", \"updated_by\": {}, \"rows\": [{\"名前\": \"tpa.lotlist.pageSize.v1\", \"値\": 100}, {\"名前\": [\"x\"], \"値\": \"1\"}]}"},
+   "78705ea864129a80": {"text":"{\"schema\": 1, \"revision\": 3, \"updated_at\": \"\", \"updated_by\": {}, \"rows\": [{\"名前\": \"tpa.lotlist.pageSize.v1\", \"値\": \"100\", \"updated_at\": \"2026-10-01T09:00:00\", \"updated_by\": {\"pc\": \"PC-9\", \"login\": \"x\"}}, {\"名前\": \"知らない名前\", \"値\": \"1\"}, {\"名前\": \"tpa.lotlist.layout.v1\", \"値\": \"[1,2]\"}]}"},
+   "87ac3fb15972dcde": {"text":"{\n  \"schema\": 1,\n  \"revision\": 1,\n  \"updated_at\": \"@NOW(-617ms,T,s)\",\n  \"updated_by\": {\n    \"pc\": \"PC-1\",\n    \"login\": \"boss\"\n  },\n  \"rows\": []\n}\n"},
+   "885c19b821ddc3e5": {"text":"{\n  \"schema\": 1,\n  \"revision\": 1,\n  \"updated_at\": \"@NOW(-618ms,T,s)\",\n  \"updated_by\": {\n    \"pc\": \"PC-3\",\n    \"login\": \"v1\"\n  },\n  \"rows\": []\n}\n"},
+   "95a735beb141ab66": {"text":"{\"schema\": 1, \"revision\": 3, \"updated_at\": \"\", \"updated_by\": {}, \"rows\": [{\"名前\": \"tpa.lotlist.pageSize.v1\", \"値\": \"x\"}, {\"名前\": \"tpa.lotlist.pageSize.v1\"}, {\"名前\": \"tpa.lotlist.layout.v1\", \"値\": \"1\"}, {\"名前\": \"tpa.lotlist.layout.v1\", \"値\": \"2\"}]}"},
+   "a4effcb5a1e01d70": {"text":"[]"},
+   "a787735f90f26375": {"text":"{\"schema\": 1, \"revision\": 3, \"updated_at\": \"\", \"updated_by\": {}, \"rows\": [{\"id\": 1, \"ログインID\": \"boss\", \"PC名\": \"\", \"権限区分\": \"開発者\", \"マスタ編集\": \"編集可\", \"有効\": \"有\", \"rev\": 1}, {\"id\": 2, \"ログインID\": \"p1\", \"PC名\": \"\", \"権限区分\": \"一般ユーザー\", \"マスタ編集\": \"部分的編集可\", \"有効\": \"有\"}, {\"id\": 3, \"ログインID\": \"v1\", \"PC名\": \"\", \"権限区分\": \"一般ユーザー\", \"マスタ編集\": \"閲覧のみ\", \"有効\": \"有\"}]}"},
+   "b01f602ac5cc7db2": {"text":"inst1"},
+   "b883b275fb44cc3e": {"text":"{\n  \"schema\": 1,\n  \"revision\": 1,\n  \"updated_at\": \"@NOW(-1617ms,T,s)\",\n  \"updated_by\": {\n    \"pc\": \"\",\n    \"login\": \"\"\n  },\n  \"rows\": []\n}\n"},
+   "bf4772bc958878f5": {"text":"[{\"id\": 1, \"ログインID\": \"boss\", \"PC名\": \"\", \"権限区分\": \"開発者\", \"マスタ編集\": \"編集可\", \"有効\": \"有\", \"rev\": 1}, {\"id\": 2, \"ログインID\": \"p1\", \"PC名\": \"\", \"権限区分\": \"一般ユーザー\", \"マスタ編集\": \"部分的編集可\", \"有効\": \"有\"}, {\"id\": 3, \"ログインID\": \"v1\", \"PC名\": \"\", \"権限区分\": \"一般ユーザー\", \"マスタ編集\": \"閲覧のみ\", \"有効\": \"有\"}]"}
+  },
+  "dirs": {
+   "s0": {"mtime":"@NOW(-1080ms)"},
+   "s0/presence": {"mtime":"@NOW(-1080ms)"},
+   "s0/rs": {"mtime":"@NOW(-1106ms)"},
+   "s0/rs/app": {"mtime":"@NOW(-1106ms)"},
+   "s0/rs/app/data": {"mtime":"@NOW(-1106ms)"},
+   "s0/rs/local": {"mtime":"@NOW(-1106ms)"},
+   "s0/rs/local/master_cache": {"mtime":"@NOW(-1098ms)"},
+   "s0/rs/share": {"mtime":"@NOW(-1099ms)"},
+   "s1": {"mtime":"@NOW(-481ms)"},
+   "s1/presence": {"mtime":"@NOW(-481ms)"},
+   "s1/rs": {"mtime":"@NOW(-501ms)"},
+   "s1/rs/app": {"mtime":"@NOW(-501ms)"},
+   "s1/rs/app/data": {"mtime":"@NOW(-501ms)"},
+   "s1/rs/local": {"mtime":"@NOW(-501ms)"},
+   "s1/rs/local/master_cache": {"mtime":"@NOW(-491ms)"},
+   "s1/rs/share": {"mtime":"@NOW(-492ms)"},
+   "s2": {"mtime":"@NOW(-446ms)"},
+   "s2/presence": {"mtime":"@NOW(-446ms)"},
+   "s2/rs": {"mtime":"@NOW(-471ms)"},
+   "s2/rs/app": {"mtime":"@NOW(-471ms)"},
+   "s2/rs/app/data": {"mtime":"@NOW(-471ms)"},
+   "s2/rs/local": {"mtime":"@NOW(-471ms)"},
+   "s2/rs/local/master_cache": {"mtime":"@NOW(-459ms)"},
+   "s2/rs/share": {"mtime":"@NOW(-461ms)"},
+   "s3": {"mtime":"@NOW(-422ms)"},
+   "s3/presence": {"mtime":"@NOW(-422ms)"},
+   "s3/rs": {"mtime":"@NOW(-436ms)"},
+   "s3/rs/app": {"mtime":"@NOW(-436ms)"},
+   "s3/rs/app/data": {"mtime":"@NOW(-436ms)"},
+   "s3/rs/local": {"mtime":"@NOW(-436ms)"},
+   "s3/rs/local/master_cache": {"mtime":"@NOW(-436ms)"},
+   "s3/rs/share": {"mtime":"@NOW(-436ms)"},
+   "s4": {"mtime":"@NOW(-390ms)"},
+   "s4/presence": {"mtime":"@NOW(-390ms)"},
+   "s4/rs": {"mtime":"@NOW(-414ms)"},
+   "s4/rs/app": {"mtime":"@NOW(-414ms)"},
+   "s4/rs/app/data": {"mtime":"@NOW(-414ms)"},
+   "s4/rs/local": {"mtime":"@NOW(-414ms)"},
+   "s4/rs/local/master_cache": {"mtime":"@NOW(-402ms)"},
+   "s4/rs/share": {"mtime":"@NOW(-403ms)"},
+   "s5": {"mtime":"@NOW(-354ms)"},
+   "s5/presence": {"mtime":"@NOW(-354ms)"},
+   "s5/rs": {"mtime":"@NOW(-378ms)"},
+   "s5/rs/app": {"mtime":"@NOW(-378ms)"},
+   "s5/rs/app/data": {"mtime":"@NOW(-378ms)"},
+   "s5/rs/local": {"mtime":"@NOW(-378ms)"},
+   "s5/rs/local/master_cache": {"mtime":"@NOW(-366ms)"},
+   "s5/rs/share": {"mtime":"@NOW(-368ms)"},
+   "s6": {"mtime":"@NOW(-310ms)"},
+   "s6/presence": {"mtime":"@NOW(-310ms)"},
+   "s6/rs": {"mtime":"@NOW(-334ms)"},
+   "s6/rs/app": {"mtime":"@NOW(-334ms)"},
+   "s6/rs/app/data": {"mtime":"@NOW(-334ms)"},
+   "s6/rs/local": {"mtime":"@NOW(-334ms)"},
+   "s6/rs/local/master_cache": {"mtime":"@NOW(-321ms)"},
+   "s6/rs/share": {"mtime":"@NOW(-323ms)"},
+   "s7": {"mtime":"@NOW(-282ms)"},
+   "s7/presence": {"mtime":"@NOW(-282ms)"},
+   "s7/rs": {"mtime":"@NOW(-298ms)"},
+   "s7/rs/app": {"mtime":"@NOW(-298ms)"},
+   "s7/rs/app/data": {"mtime":"@NOW(-298ms)"},
+   "s7/rs/local": {"mtime":"@NOW(-298ms)"},
+   "s7/rs/local/master_cache": {"mtime":"@NOW(-298ms)"},
+   "s7/rs/share": {"mtime":"@NOW(-298ms)"},
+   "s8": {"mtime":"@NOW(-255ms)"},
+   "s8/presence": {"mtime":"@NOW(-255ms)"},
+   "s8/rs": {"mtime":"@NOW(-274ms)"},
+   "s8/rs/app": {"mtime":"@NOW(-274ms)"},
+   "s8/rs/app/data": {"mtime":"@NOW(-274ms)"},
+   "s8/rs/local": {"mtime":"@NOW(-274ms)"},
+   "s8/rs/local/master_cache": {"mtime":"@NOW(-263ms)"},
+   "s8/rs/share": {"mtime":"@NOW(-265ms)"}
+  },
+  "files": {
+   "s0/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-1105ms)"},
+   "s0/rs/local/master_cache/path_settings.json": {"blob":"b883b275fb44cc3e","mtime":"@NOW(-1098ms)"},
+   "s0/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-1114ms)"},
+   "s0/rs/share/path_settings.json": {"blob":"b883b275fb44cc3e","mtime":"@NOW(-1099ms)"},
+   "s0/rs/share/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-1114ms)"},
+   "s1/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-501ms)"},
+   "s1/rs/local/master_cache/path_settings.json": {"blob":"87ac3fb15972dcde","mtime":"@NOW(-491ms)"},
+   "s1/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-501ms)"},
+   "s1/rs/share/path_settings.json": {"blob":"87ac3fb15972dcde","mtime":"@NOW(-492ms)"},
+   "s1/rs/share/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-500ms)"},
+   "s2/presence/PC-1@boss.revoke.json": {"blob":"01ed675684c279e6","mtime":"@NOW(-443ms)"},
+   "s2/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-471ms)"},
+   "s2/rs/local/master_cache/path_settings.json": {"blob":"885c19b821ddc3e5","mtime":"@NOW(-459ms)"},
+   "s2/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-471ms)"},
+   "s2/rs/share/path_settings.json": {"blob":"885c19b821ddc3e5","mtime":"@NOW(-461ms)"},
+   "s2/rs/share/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-470ms)"},
+   "s3/rs/app/data/access_permissions.json": {"blob":"bf4772bc958878f5","mtime":"@NOW(-436ms)"},
+   "s3/rs/app/data/ui_defaults.json": {"blob":"a4effcb5a1e01d70","mtime":"@NOW(-436ms)"},
+   "s3/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-436ms)"},
+   "s4/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-414ms)"},
+   "s4/rs/local/master_cache/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-414ms)"},
+   "s4/rs/local/master_cache/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-402ms)"},
+   "s4/rs/local/master_cache/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-414ms)"},
+   "s4/rs/share/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-403ms)"},
+   "s5/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-378ms)"},
+   "s5/rs/local/master_cache/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-378ms)"},
+   "s5/rs/local/master_cache/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-366ms)"},
+   "s5/rs/local/master_cache/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-378ms)"},
+   "s5/rs/share/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-368ms)"},
+   "s6/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-334ms)"},
+   "s6/rs/local/master_cache/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-321ms)"},
+   "s6/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-334ms)"},
+   "s6/rs/share/path_settings.json": {"blob":"2c7a6618177a9ace","mtime":"@NOW(-323ms)"},
+   "s6/rs/share/ui_defaults.json": {"blob":"95a735beb141ab66","mtime":"@NOW(-334ms)"},
+   "s7/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-298ms)"},
+   "s7/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-298ms)"},
+   "s7/rs/share/master.lock.json": {"blob":"0254d205378c8653","mtime":"@NOW(-299ms)"},
+   "s7/rs/share/ui_defaults.json": {"blob":"78705ea864129a80","mtime":"@NOW(-299ms)"},
+   "s8/rs/local/instance_id": {"blob":"b01f602ac5cc7db2","mtime":"@NOW(-274ms)"},
+   "s8/rs/local/master_cache/path_settings.json": {"blob":"23d1fa357266a918","mtime":"@NOW(-263ms)"},
+   "s8/rs/share/access_permissions.json": {"blob":"a787735f90f26375","mtime":"@NOW(-274ms)"},
+   "s8/rs/share/path_settings.json": {"blob":"23d1fa357266a918","mtime":"@NOW(-265ms)"},
+   "s8/rs/share/ui_defaults.json": {"blob":"3ccd4870ff951568","mtime":"@NOW(-274ms)"}
+  },
+  "links": {}
+ },
+ "sources": {
+  "tests/oracle_gate.py": "74d8effb19f3211d",
+  "tests/ui_defaults_oracle.py": "14905362e63bed88"
+ },
+ "variant": "root"
+}

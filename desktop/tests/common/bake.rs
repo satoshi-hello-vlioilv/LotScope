@@ -449,7 +449,7 @@ pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
 
 /// これより長い字（JSON の字の長さ）で、表の中に 2 回以上出る部分（表・並び・字）は参照にする
 pub const PACK_MIN: usize = 120;
-/// これより長い字で、同じ単位の繰り返しが半分を超える字は作り方（頭・単位 × 数・尾）で持つ
+/// これより長く同じ単位が続く所のある字は作り方（間の字と [単位, 数] の並び）で持つ
 pub const REP_MIN: usize = 2000;
 const MARKS: [&str; 3] = ["@same", "@rep", "@lit"];
 
@@ -472,38 +472,68 @@ fn marked(o: &Map<String, Value>) -> bool {
     o.len() == 1 && o.keys().next().is_some_and(|k| MARKS.contains(&k.as_str()))
 }
 
-/// 長い字の作り方: 真ん中から同じ単位（1〜64 字）の繰り返しを左右へ伸ばし、字の半分を超えれば {head, unit, n, tail}
+/// 長い字の作り方: 同じ単位（1〜64 字）が REP_MIN 字より長く続く所を [単位, 数] にし、間の字はそのまま並べる
+/// （{"@rep": ["頭", ["あ", 1000000], "間", ["い", 500000], "尾"]}）。続く所が無ければ None
 fn rep_of(s: &str) -> Option<Value> {
     let c: Vec<char> = s.chars().collect();
     if c.len() <= REP_MIN {
         return None;
     }
-    let mid = c.len() / 2;
+    let mut covered = vec![false; c.len()];
+    let mut runs: Vec<(usize, usize, usize)> = vec![];
     for u in 1..=64usize {
-        if mid + u >= c.len() {
+        // 残りに REP_MIN 字より長い続きが入る所が無ければ終わり
+        let (mut free, mut best) = (0usize, 0usize);
+        for x in &covered {
+            free = if *x { 0 } else { free + 1 };
+            best = best.max(free);
+        }
+        if best < REP_MIN {
             break;
         }
-        let (mut l, mut r) = (mid, mid);
-        while l > 0 && c[l - 1] == c[l - 1 + u] {
-            l -= 1;
-        }
-        while r + u < c.len() && c[r] == c[r + u] {
-            r += 1;
-        }
-        // [l, r + u) が周期 u の区間
-        let n = (r + u - l) / u;
-        if n * u > c.len() / 2 && n * u >= REP_MIN {
-            let text = |a: usize, b: usize| c[a..b].iter().collect::<String>();
-            return Some(json!({"@rep": {"head": text(0, l), "unit": text(l, l + u), "n": n, "tail": text(l + n * u, c.len())}}));
+        let mut i = 0;
+        while i + u < c.len() {
+            if covered[i] || covered[i + u] || c[i] != c[i + u] {
+                i += 1;
+                continue;
+            }
+            let (l, mut r) = (i, i);
+            while r + u < c.len() && c[r] == c[r + u] && !covered[r + u] {
+                r += 1;
+            }
+            let n = (r + u - l) / u;
+            if n * u >= REP_MIN {
+                runs.push((l, u, n));
+                covered[l..l + n * u].iter_mut().for_each(|x| *x = true);
+                i = l + n * u;
+            } else {
+                i = r + 1;
+            }
         }
     }
-    None
+    if runs.is_empty() {
+        return None;
+    }
+    runs.sort();
+    let text = |a: usize, b: usize| c[a..b].iter().collect::<String>();
+    let (mut segs, mut at) = (vec![], 0);
+    for (l, u, n) in runs {
+        if l > at {
+            segs.push(json!(text(at, l)));
+        }
+        segs.push(json!([text(l, l + u), n]));
+        at = l + n * u;
+    }
+    if at < c.len() {
+        segs.push(json!(text(at, c.len())));
+    }
+    Some(json!({"@rep": segs}))
 }
 
 /// 詰める: sections（表の answers・oracle・scene・variants）の中で 2 回以上出る部分を {"@same": 中身の指紋 12 桁} にし、中身は parts
 /// （指紋 → 中身。scene.blobs と同じ形）に 1 つだけ置く。参照は通し番号でも初出の位置でもなく中身の指紋なので、1 歩が変わっても
 /// ほかの歩の行は動かない（PR の差分と、範囲を決めた焼き直しの「範囲の外が変わった」が誤って当たらない）。長い繰り返しの字は作り方
-/// {"@rep": …}。印と同じ形の表は {"@lit": …} で包む。比べるのはいつも開いた後（unpack）
+/// {"@rep": [字, [単位, 数], …]}。印と同じ形の表は {"@lit": …} で包む。比べるのはいつも開いた後（unpack）
 pub fn pack(sections: &mut [&mut Value]) -> Map<String, Value> {
     use std::collections::HashMap;
     fn scan(v: &Value, counts: &mut HashMap<String, u32>) {
@@ -570,10 +600,18 @@ pub fn unpack(v: &Value, parts: &Map<String, Value>) -> Value {
                     let h = x.as_str().unwrap_or("");
                     unpack(parts.get(h).unwrap_or_else(|| panic!("詰めた表の参照 {h} の中身が parts にありません")), parts)
                 }
-                "@rep" => {
-                    let s = |k: &str| x[k].as_str().unwrap_or("");
-                    Value::String(format!("{}{}{}", s("head"), s("unit").repeat(x["n"].as_u64().unwrap_or(0) as usize), s("tail")))
-                }
+                "@rep" => Value::String(
+                    x.as_array()
+                        .map(|segs| {
+                            segs.iter()
+                                .map(|s| match s {
+                                    Value::String(t) => t.clone(),
+                                    s => s[0].as_str().unwrap_or("").repeat(s[1].as_u64().unwrap_or(0) as usize),
+                                })
+                                .collect::<String>()
+                        })
+                        .unwrap_or_default(),
+                ),
                 _ => Value::Object(x.as_object().map(|m| m.iter().map(|(k, y)| (k.clone(), unpack(y, parts))).collect()).unwrap_or_default()),
             }
         }
@@ -1225,6 +1263,18 @@ impl Bake {
         if self.python() {
             let v = super::python_json(script, args);
             self.took(&v);
+            v
+        } else {
+            self.rebuild_from_table()
+        }
+    }
+
+    /// oracle と同じだが、表の問い合わせ（oracle）には keep で残した形だけを持つ（Python の答えそのもの〈expected・終わった後のファイル〉や
+    /// 焼かない事例を除く。版 3.116.0）。返すのは答え合わせ役の答えの全部（Python と比べるのに使う）。焼いた表で流すときは表の形
+    pub fn oracle_with(&mut self, script: &str, args: &[&str], keep: impl Fn(&Value) -> Value) -> Value {
+        if self.python() {
+            let v = super::python_json(script, args);
+            self.took(&keep(&v));
             v
         } else {
             self.rebuild_from_table()

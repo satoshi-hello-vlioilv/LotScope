@@ -270,22 +270,25 @@
    ]
   },
   "presence": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "presence_parity"
    ],
    "sources": [
     "tests/presence_oracle.py"
-   ]
+   ],
+   "why": "11 場面の歩の答えと終わった後のファイルを詰めた形で焼く（時計は差し替えた固定の時刻。4 MB の境の本文と控えは繰り返しの字の作り方で持つ）"
   },
   "ui_defaults": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "ui_defaults_parity"
    ],
    "sources": [
-    "tests/ui_defaults_oracle.py"
-   ]
+    "tests/ui_defaults_oracle.py",
+    "tests/oracle_gate.py"
+   ],
+   "why": "9 場面の歩の答えと終わった後のファイルを詰めた形で焼く（2 MB の境の本文は繰り返しの字の作り方で持つ）"
   },
   "ops": {
    "phase": "3.117.0",
@@ -338,13 +341,16 @@
    ]
   },
   "lotlist": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "lotlist_parity"
    ],
    "sources": [
-    "tests/lotlist_oracle.py"
-   ]
+    "tests/lotlist_oracle.py",
+    "tests/lotlist_fixture.py"
+   ],
+   "maxMB": 5.0,
+   "why": "119 通りの答えを詰めた形で焼く（行の重なりで 1/10）。場面は品質データの SQLite（lotlist_fixture。標準の部品だけ・日付は 2026-10-02 に固定）"
   },
   "lotdsp": {
    "phase": "3.117.0",
