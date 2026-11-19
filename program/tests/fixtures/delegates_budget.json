@@ -1,11 +1,11 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 59,
+ "total": 11,
  "per": {
   "access_oracle": 0,
   "access_write_oracle": 0,
   "builder_oracle": 3,
-  "calc_oracle": 48,
+  "calc_oracle": 0,
   "cards_oracle": 0,
   "conversions_oracle": 0,
   "dashboard_oracle": 0,
@@ -54,7 +54,7 @@
   "all_oracles": "版 3.115.0（採点の first_fixes 1・11）: 数える答え合わせ役を 19 本から 36 本の全部にした（share_reader は場面の答えを持たないので流さない）。予算外で見つけた任せる歩 Linux 24（口 7・形 17）のうち形 14（組む所 9・スケジュール 3・利用状況の掃除 2）を窓と Python が同じ版で答える（本文の門の表 ROUTES・TYPES、字の欄の str(値 or \"\")、百分率符号を戻した元のキー、窓の持たない codec は飛ばす、CM3 の NaN は「JSON ではありません」、数でない timeout は 15 秒、datetime の外の月は読めない名前）。残りは 10 = 比べる口 7（段 ④ で口ごと消す）＋ 段 ③-6 の 3（https 2・システムのプロキシ 1）。ほかに Windows だけの 2（envExtra）",
   "builder_oracle": "版 3.115.0: 0 → 2（比べる口 2）。作った後の直し（採点の割れ 2 (b)）: 2 → 3。字の欄の大きな整数 6 形と /api/%73ources/… は窓が答え、戻したキーに / がある道（/api/sources/a%2Fb/columns。Python は道なしの 404）を数えた（段 ④ で窓の道なしの 404）",
   "schedule_oracle": "版 3.115.0: 0 → 3。前から任せていた段 ③-6 の 3（https 2・システムのプロキシ 1）を数えた（前は ORACLES の外）。EUC-JP・NaN・数でない timeout の 3 は窓が答える",
-  "calc_oracle": "版 3.115.0 の作った後の直し（採点の割れ 2 (a)）: 0 → 48。窓が答えず任せてよい形（must でない歩）に delegate の印を付けて数えた（前は数えなかった）。48 のうち今の窓が任せるのは 39（Python の例外の言葉 33 と範囲外の番号）、9 は窓も同じに答える。言葉の決まり calc::error_message は作ってあり、窓が例外の形を答えるのは 2 版目"
+  "calc_oracle": "版 3.115.0（0 → 48）: must でない歩に印を付けて数えた。版 3.116.0（48 → 0。採点の first_fixes 11）: Python が例外で答える形・大きな整数・答えに NaN の出る形・設定とマスタの形が違う場面を、窓が Python と同じ順の例外の種類と言葉（calc::error_message）で答える。誤りを 2 つ重ねた本文と形の違う本文も calc_oracle の overlaps・ODD に足した"
  },
  "routerForward": [
   {
@@ -70,9 +70,9 @@
  "remain": {
   "mouths": 7,
   "stage3_6": 3,
-  "calc": 48,
+  "calc": 0,
   "route_slash": 1,
   "windowsOnly": 2,
-  "why": "版 3.115.0 の作った後の残り（delegate-count.py の報告の行と同じ）: 比べる口（?engine=python）7・段 ③-6 の 3・計算の must でない形 48（今任せるのは 39。2 版目）・戻したキーに / がある道 1・Windows だけ 2。道ごとに中身へ回す当たりは routerForwardTotal（route_reach）"
+  "why": "版 3.116.0 の残り（delegate-count.py の報告の行と同じ）: 比べる口（?engine=python）7・段 ③-6 の 3・戻したキーに / がある道 1（段 ④ で窓の道なしの 404）・Windows だけ 2。計算は 0（窓がどの形も答える）。道ごとに中身へ回す当たりは routerForwardTotal（route_reach）"
  }
 }

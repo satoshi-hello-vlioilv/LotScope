@@ -8,7 +8,7 @@ mod common;
 
 use da_core::access::Place;
 use da_core::calc::{handle, Masters};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 #[test]
 fn calc_matches_python() {
@@ -21,7 +21,8 @@ fn calc_matches_python() {
         let name = sc["name"].as_str().unwrap();
         let place = Place::from_json(&sc["conf"]["place"]);
         let masters = Masters::new(place.rows("equipment_master").unwrap(), place.rows("roll_master").unwrap()).expect("マスタ");
-        let calc = if sc["calculation"].is_null() { json!({}) } else { sc["calculation"].clone() };
+        // 設定の calculation は束の値のまま（版 3.116.0: null・並びも Python と同じ例外の答えになる。前は null を {} にして渡した）
+        let calc = sc["calculation"].clone();
         for c in sc["cases"].as_array().unwrap() {
             let case = format!("{name} / {}", c["name"].as_str().unwrap());
             // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
@@ -46,6 +47,8 @@ fn calc_matches_python() {
                 }
                 Some((status, got)) => {
                     answered += 1;
+                    // 画面へ返す字（held::reply_bytes: 大きな整数は桁のまま・NaN と Infinity は null）で比べる
+                    let got = common::json_keep(&da_core::held::reply_bytes(&got)).expect("窓の答えの字");
                     let want: &Value = &c["json"];
                     if status as i64 != c["status"].as_i64().unwrap() {
                         bad.push(format!(
@@ -63,6 +66,6 @@ fn calc_matches_python() {
     let _ = std::fs::remove_dir_all(&base);
     println!("窓が答えた {answered}・Python に任せた {handed}");
     assert!(answered >= 600, "窓が答えた数が少ない: {answered}（任せた {handed}）");
-    assert!(typed >= 33, "Python の例外の答えが少ない: {typed}");
+    assert!(typed >= 150, "Python の例外の答えが少ない: {typed}");
     assert!(bad.is_empty(), "{} 件の食い違い（答えた {answered}・任せた {handed}）:\n{}", bad.len(), bad.join("\n"));
 }

@@ -1447,7 +1447,7 @@ impl Lot {
     }
 
     /// 転写距離・ピッチ計算と検査計の有無（版 3.72.0。src/calc.rs）。設定の calculation・置き場が無い・マスタを読めない・
-    /// engine=python・窓が答えない形（calc::handle が None）は Python が答える
+    /// engine=python は Python が答える。版 3.116.0 から本文の形（Python が例外で答える形・大きな整数）はどれも窓が答える
     fn calc_route(&self, path: &str, query: &str, body: &[u8]) -> Option<(u16, Value)> {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
@@ -4663,6 +4663,19 @@ mod tests {
         assert_eq!((st, v["error"].as_str()), (400, Some("計算するロット（lot）がありません。")));
         assert!(lot.handle_body_with("POST", "/api/calculate", "engine=python", &b, &ask).is_none(), "engine=python は Python");
         assert!(body_refused(lot.handle_body_with("POST", "/api/calculate", "", b"{\"lot\": NaN}", &ask)), "読めない本文は門が断る");
+        // 版 3.116.0: Python が例外で答える形（欄が無い・数でない・大きな整数・names が数）も窓が答える（前は Python に任せた）
+        let ans = |path: &str, b: &str| lot.handle_body_with("POST", path, "", b.as_bytes(), &ask).expect("窓が答える");
+        let (st, v) = ans("/api/calculate", r#"{"lot": {"processes": []}}"#);
+        assert_eq!((st, v["error"].as_str(), v["type"].as_str()), (400, Some("計算の入力に「inputs」がありません。"), Some("KeyError")));
+        let (st, v) = ans("/api/calculate", r#"{"lot": {"processes": [{"no": "x"}]}, "inputs": {"found_equipment": "1", "found_pitch_mm": 1}}"#);
+        assert_eq!((st, v["type"].as_str()), (400, Some("ValueError")), "{v}");
+        assert_eq!(v["error"], "計算の入力に数で読めない値「x」があります（整数で書いてください）。");
+        let big = r#"{"lot": {"processes": [{"no": 123456789012345678901234567890, "equipment": "TLV", "thickness": 1, "width": 1, "weight": 1}]},
+            "inputs": {"found_equipment": "123456789012345678901234567890:TLV", "found_pitch_mm": 610}}"#;
+        let (st, v) = ans("/api/calculate", big);
+        assert_eq!((st, v["processes"][0]["equipment_flag"].as_i64()), (200, Some(2)), "大きな整数の番号も桁のまま比べる: {v}");
+        let (st, v) = ans("/api/equipment/inspection", r#"{"names": 5}"#);
+        assert_eq!((st, v["kind"].as_str()), (400, Some("body")), "names が数は本文の門が断る: {v}");
         let old = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
         assert!(
             Lot::new(dir.join("l2").join("db_cache")).handle_body_with("POST", "/api/calculate", "", &b, &old).is_none(),
