@@ -341,7 +341,8 @@ def main():
             unbaked = cname.startswith("乱数 ") and int(cname.split()[1]) >= 40
             cases.append({"name": cname, "path": path, "body": text, "must": must, "status": r.status_code, "json": ans,
                           **({} if must else {"delegate": True}), **({"bake": False} if unbaked else {})})
-        out.append({"name": name, "conf": conf, "calculation": calc, "cases": cases})
+        # 窓へ渡すのは置き場だけ（名乗り who は流した PC の名前と利用者で変わるので、焼いた表の問い合わせに入れない。版 3.116.0）
+        out.append({"name": name, "conf": {"place": conf["place"]}, "calculation": calc, "cases": cases})
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))
 
 

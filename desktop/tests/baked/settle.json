@@ -1,5 +1,5 @@
 {
- "about": "焼いた表と窓の答えをそろえる決まり（版 3.115.0。common/bake.rs の settle）。作った後の直しで狭めた: 時刻は今から NEAR（2 日）の内の日時の字と、時刻の鍵（timeKeys）の今に近い数だけを @T(形|今からの秒) にし、比べるときは形が同じで秒の差が TOL（1800 秒）の内なら同じ。遠い日時・日時でない字・遠い数はそのまま比べる。道は作業フォルダ @WORK と家 @HOME（段の境の前後を見る）・作り物のサーバーの URL @URL だけ。一時フォルダは置き換えない。区切り（crumbs）の作業フォルダより上の段は @ABOVE 1 つ。利用者の名前は名前を書く欄（nameKeys）の OS の利用者の名前だけ @USER。ほかに大きな整数の印 @HELD:・アプリの版 @VERSION・今日から 3 日の内の日付だけの字 @DAY±n。forms は時刻でない揺れの字の形（上から順）",
+ "about": "焼いた表と窓の答えをそろえる決まり（版 3.115.0。common/bake.rs の settle）。作った後の直しで狭めた: 時刻は今から NEAR（2 日）の内の日時の字と、時刻の鍵（timeKeys）の今に近い数だけを @T(形|今からの秒) にし、比べるときは形が同じで秒の差が TOL（1800 秒）の内なら同じ。遠い日時・日時でない字・遠い数はそのまま比べる。道は作業フォルダ @WORK と家 @HOME（段の境の前後を見る）・作り物のサーバーの URL @URL だけ。一時フォルダは置き換えない。区切り（crumbs）の作業フォルダより上の段は @ABOVE 1 つ。利用者の名前は名前を書く欄（nameKeys）の OS の利用者の名前だけ @USER。ほかに大きな整数の印 @HELD:・アプリの版 @VERSION・今日から 3 日の内の日付だけの字 @DAY±n。forms は時刻でない揺れの字の形（上から順）。版 3.116.0 で足した 2 つ（どちらも変異の試験つき。bake_selftest の the_build_stamp_and_the_terminal_key_are_settled_narrowly）: 画面の指紋 @BUILD（今の program の指紋の字そのものだけ。画面の字を焼くため）・名乗りの鍵 userSuffixKeys（値「端末@利用者」の終わりが OS の利用者の名前のときだけ、その所を @USER に。束の access.who.key）",
  "timeKeys": [
   "updated_at",
   "updatedAt",
@@ -44,5 +44,8 @@
   "login",
   "holder_login",
   "ログインID"
+ ],
+ "userSuffixKeys": [
+  "key"
  ]
 }

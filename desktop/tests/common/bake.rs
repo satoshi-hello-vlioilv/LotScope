@@ -67,6 +67,14 @@ pub fn app_version() -> &'static str {
     V.get_or_init(|| da_core::update::program_version(&super::program()).unwrap_or_else(|| "?".into()))
 }
 
+/// 画面の指紋（meta の tpa-build・静的ファイルの ?v=。app_build.fingerprint と同じ「版-指紋 12 桁」）。program/app のファイルの大きさと
+/// 更新時刻から作るので、取り出した PC ごと・プログラムを変えるたびに変わる。答えの字の中のこの字そのものだけを @BUILD にそろえる
+/// （版 3.116.0。画面の字〈GET /〉を焼くため。ほかの「版-16 進」の字はそのまま比べる）
+pub fn build_stamp() -> &'static str {
+    static B: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    B.get_or_init(|| da_core::page::fingerprint(&super::program()))
+}
+
 /// OS の利用者の名前（Python の getpass.getuser と同じ順: LOGNAME・USER・LNAME・USERNAME）
 pub fn os_user() -> Option<&'static str> {
     static U: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -313,10 +321,17 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     let (all, day_re) = compiled();
     let forms: Vec<&(regex::Regex, String)> = all.iter().filter(|(_, to)| Some(to.as_str()) != drop).collect();
     let near = drop != Some("near");
+    let stamp = drop != Some("@BUILD");
+    // 名乗りの鍵（settle.json の userSuffixKeys。値は「端末@利用者」）: 利用者の所だけを @USER に
+    let suffix: Vec<&str> =
+        r["userSuffixKeys"].as_array().into_iter().flatten().filter_map(Value::as_str).filter(|k| Some(*k) != drop).collect();
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
         let mut t = ctx.sub_slash(t).replace(da_core::held::mark(), "@HELD:");
+        if stamp && t.contains(build_stamp()) {
+            t = t.replace(build_stamp(), "@BUILD");
+        }
         if let Some(u) = os_user() {
             if t.contains(&format!("／{u} ")) {
                 t = t.replace(&format!("／{u} "), "／@USER ");
@@ -344,6 +359,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     struct Cx<'a> {
         keys: &'a [&'a str],
         names: &'a [&'a str],
+        suffix: &'a [&'a str],
         near: bool,
         s: &'a dyn Fn(&str) -> String,
     }
@@ -353,6 +369,11 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             Value::String(t) if t == app_version() => json!("@VERSION"),
             // 利用者の名前を書く欄（nameKeys）の OS の利用者の名前は @USER（root で焼き、CI の runner でも同じ表）
             Value::String(t) if cx.names.contains(&key) && (os_user() == Some(t.as_str()) || t == "@USER@") => json!("@USER"),
+            // 名乗りの鍵（「端末@利用者」）: 終わりが「@OS の利用者の名前」のときだけ、利用者の所を @USER に（端末の名前はそのまま比べる）
+            Value::String(t) if cx.suffix.contains(&key) && os_user().is_some_and(|u| t.ends_with(&format!("@{u}"))) => {
+                let u = os_user().unwrap_or("");
+                json!(format!("{}@@USER", (cx.s)(&t[..t.len() - u.len() - 1])))
+            }
             Value::String(t) => Value::String((cx.s)(t)),
             // 時刻の鍵の今に近い数（1970 年からの秒・ミリ秒）だけ。遠い数はそのまま
             Value::Number(n) if cx.near && cx.keys.contains(&key) => {
@@ -366,7 +387,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             _ => v.clone(),
         }
     }
-    go(v, "", &Cx { keys: &keys, names: &names, near, s: &s })
+    go(v, "", &Cx { keys: &keys, names: &names, suffix: &suffix, near, s: &s })
 }
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）

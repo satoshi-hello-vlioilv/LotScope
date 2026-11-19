@@ -22,6 +22,89 @@ class BakedTables(unittest.TestCase):
         self.assertEqual(set(bless.BOOKS), oracles)
         self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "3.115.0"), 21)
         self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "keep"), 1)
+        # 版 3.116.0: 2 版目で焼いた 7 本と、次の版（3.117.0）へ送った 7 本（送った理由を why に書く）
+        self.assertEqual(sorted(k for k, b in bless.BOOKS.items() if b["phase"] == "3.116.0"),
+                         ["calc", "conversions", "lists", "lotlist", "presence", "settings", "ui_defaults"])
+        sent = sorted(k for k, b in bless.BOOKS.items() if b["phase"] == "3.117.0")
+        self.assertEqual(sent, ["dashboard", "equipgroups", "lotdsp", "ops", "pivot", "routes", "schedule"])
+        for k in sent:
+            self.assertTrue(bless.BOOKS[k].get("why"), f"{k}: 次の版へ送った理由が無い")
+        self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0", "3.117.0", "keep"})
+
+    def test_packed_tables_open_and_stay_under_the_size_limits(self):
+        """詰めた表（版 3.116.0。parts・@same・@rep）は開ける・大きさ（UTF-8 のバイト）は上限の内。変異: 上限を下げる・参照の先を消すと落ちる"""
+        packed = [n for n in bless.tables() if "parts" in json.loads((bless.BAKED / f"{n}.json").read_text(encoding="utf-8"))]
+        self.assertGreaterEqual(len(packed), 7, packed)
+        for n in packed:
+            t = bless.unpack_table(json.loads((bless.BAKED / f"{n}.json").read_text(encoding="utf-8")))
+            self.assertNotIn("parts", t)
+            self.assertNotIn('{"@same"', json.dumps(list(t["answers"].values())[:3], ensure_ascii=False), n)
+        old_total, old_cap = bless.MAX_TOTAL_MB, bless.BOOKS["calc"].get("maxMB")
+        try:
+            bless.MAX_TOTAL_MB = 1.0
+            self.assertTrue(any("焼いた表の計が大きい" in x for x in bless.check()))
+            bless.MAX_TOTAL_MB = old_total
+            bless.BOOKS["calc"]["maxMB"] = 1.0
+            self.assertTrue(any(x.startswith("calc: 表が大きい") for x in bless.check()))
+        finally:
+            bless.MAX_TOTAL_MB = old_total
+            bless.BOOKS["calc"]["maxMB"] = old_cap
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            for p in bless.BAKED.glob("*.json"):
+                shutil.copy(p, tmp / p.name)
+            t = json.loads((tmp / "presence.json").read_text(encoding="utf-8"))
+            t["parts"].pop(next(iter(t["parts"])))
+            (tmp / "presence.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+            self.assertTrue(any(x.startswith("presence:") and "parts にありません" in x for x in bless.check(tmp)))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_stats_count_the_settled_stamps(self):
+        """本ごとの大きさ・歩・葉・そろえた印の数（そろえすぎを数で見せる。版 3.116.0 の first_fixes 12）"""
+        s = bless.stats_of(bless.BAKED / "calc.json")
+        self.assertGreater(s["steps"], 1000)
+        self.assertGreater(s["leaves"], 100000)
+        self.assertLess(s["stamped"], s["leaves"] * bless.STAMP_SHARE, "計算の答えに印はほとんど無い")
+        s = bless.stats_of(bless.BAKED / "settings.bundle.json")
+        self.assertIn("@WORK", s["stamps"])
+        self.assertEqual(bless.notices(), [], "印のある葉が 2 割を超える本は無い")
+
+    def test_scene_scripts_and_truths_do_not_import_the_app(self):
+        """場面の台本（Python 無しの形でも流す標準の Python）と独立の答えは program/app を import しない（版 3.116.0。ci-shape.py の確かめと同じ）"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ci_shape", PROGRAM / "tools" / "ci-shape.py")
+        ci = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ci)
+        for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py"] + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
+            self.assertIsNone(ci.imports_app(PROGRAM / rel), rel)
+        self.assertEqual(ci.imports_app(PROGRAM / "tests" / "lists_oracle.py"), "lists_oracle.py", "答え合わせ役は app を import する（見つける側の確かめ）")
+        log = Path(tempfile.mkdtemp()) / "calls.log"
+        log.write_text(f"TPA\t-I\t{PROGRAM / 'tests' / 'lists_scene.py'}\tx\nTPA\t-c\timport sys\n", encoding="utf-8")
+        self.assertEqual(ci.python_calls_ok(log), [])
+        log.write_text(f"TPA\t{PROGRAM / 'tests' / 'calc_oracle.py'}\tx\nPATH\t-V\n", encoding="utf-8")
+        self.assertEqual(len(ci.python_calls_ok(log)), 2, "app を import する台本と PATH の python は見つける")
+        shutil.rmtree(log.parent, ignore_errors=True)
+
+    def test_the_windows_measure_summary_reads_the_records(self):
+        """Windows の測るだけの仕事の記録のまとめ（bless.py --measured。落とさない）"""
+        import contextlib
+        import io
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            (tmp / "calc.json").write_text(json.dumps({"file": "calc", "os": "windows", "steps": 3, "tableSteps": 3, "missing": [], "differing": [
+                {"key": "a", "route": "POST /api/calculate", "diff": ".json.processes[1].total_off_front_m: 1.0 / 1.0000000000000002"}]}), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                bless.measured(tmp)
+                bless.measured(tmp / "無い")
+            text = out.getvalue()
+            self.assertIn("calc（windows）: 歩 3・表と違う歩 1", text)
+            self.assertIn("total_off_front_m×1", text)
+            self.assertIn("計: 表 1 つ・歩 3・焼いた表（posix）と違う歩 1", text)
+            self.assertIn("測りの記録がありません", text)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_a_changed_source_makes_the_table_stale(self):
         tmp = Path(tempfile.mkdtemp())

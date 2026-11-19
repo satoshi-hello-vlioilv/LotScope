@@ -231,7 +231,8 @@
    ],
    "sources": [
     "tests/equipgroups_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（作り物の CM3 を起こしたままにする本）。Python 無しの形で作り物の CM3（schedule_fixture.Cm3Server。標準の部品だけ）を app なしで起こす台本と、場面のファイルの中の作り物の URL（ポート）を名前つきで置き換える係（Ctx::url を場面にも）が要る。3.116.0 は場面の台本（指紋）・詰める形・ci-shape までを作り、起こしたままの台本は作っていない"
   },
   "routes": {
    "phase": "3.117.0",
@@ -240,7 +241,8 @@
    ],
    "sources": [
     "tests/routes_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面）。場面が作業フォルダの外（/tmp/tpa-ui-*）で、キー・元の id が乱数（尋ねる設備が流すたびに替わる）。場面を標準の部品だけの台本（決めたキー・作業フォルダの下・決めた更新時刻）に出し、ui_server.py も同じ台本を呼ぶ形にしてから焼く（採点の first_fixes 2・9）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる"
   },
   "pivot": {
    "phase": "3.117.0",
@@ -249,7 +251,8 @@
    ],
    "sources": [
     "tests/pivot_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。routes と同じ台本が要る。今のそろえる決まりで揺れは 0 だが、場面が作業フォルダの外なので宣言にできない）"
   },
   "schedule": {
    "phase": "3.117.0",
@@ -258,7 +261,8 @@
    ],
    "sources": [
     "tests/schedule_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（③-6 の schedule.rs の直しと同じ版）。試験が途中で作り物の CM3 に尋ねる（requests・count）ので、Python 無しの形の起こしたままの台本に同じ口が要る。焼く前に直す物: 場面「名前が引けない」の言葉（PC の DNS で変わる。その言葉だけを 1 つの印に）・CM3 への要求の並び（糸の順。設備ごとに比べる）・「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」・Host の見出しと viewUrl のポート・changedAt と fetchedAt"
   },
   "conversions": {
    "phase": "3.116.0",
@@ -298,7 +302,8 @@
    ],
    "sources": [
     "tests/ops_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（tools/ops-bench.py の場面。/tmp/tpa-ops-* と乱数のキー。create_app・MasterStore を使わない台本に出してから焼く）"
   },
   "dashboard": {
    "phase": "3.117.0",
@@ -307,7 +312,8 @@
    ],
    "sources": [
     "tests/dashboard_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。panel.source・panel.equip が乱数のキーで問い合わせそのものが替わる・80 時間前の更新時刻。routes と同じ台本が要る）"
   },
   "settings": {
    "phase": "3.116.0",
@@ -366,7 +372,8 @@
    ],
    "sources": [
     "tests/lotdsp_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本）。Python 無しの形で lotdsp_cdp_fake.py と作り物の API を app なしで起こす台本と、url・search_url・base のポートの名前つきの置き換え（API・サイトの 2 つ）が要る。10 MB の境の本文は詰める形の繰り返しの字で持てる"
   }
  }
 }

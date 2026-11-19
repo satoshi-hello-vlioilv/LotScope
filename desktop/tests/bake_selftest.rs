@@ -537,3 +537,32 @@ fn measuring_counts_the_steps_that_differ_without_failing() {
     assert!(finished(bk).is_ok() && !out.join("checked.json").exists());
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// 版 3.116.0 で足したそろえる決まり 2 つは狭い: 画面の指紋（今の program の指紋の字そのものだけ）と、名乗りの鍵（値「端末@利用者」の
+/// 終わりが OS の利用者の名前のときだけ）。許す範囲のすぐ外（別の指紋・別の利用者・別の鍵・端末の名前の違い）はそのまま比べる。
+/// 決まりを外すと揺れが残る
+#[test]
+fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
+    let base = common::work("bake-stamp");
+    let ctx = Ctx::new(&base);
+    let stamp = common::bake::build_stamp();
+    let (ver, hex) = stamp.rsplit_once('-').expect("版-指紋");
+    assert!(hex.len() == 12 && hex.chars().all(|c| c.is_ascii_hexdigit()), "{stamp}");
+    let page = |s: &str| json!({"html": format!("<meta name=\"tpa-build\" content=\"{s}\"><script src=\"/static/app.js?v={s}\">")});
+    let settled = settle(&page(stamp), &ctx, &[]);
+    assert_eq!(settled, json!({"html": "<meta name=\"tpa-build\" content=\"@BUILD\"><script src=\"/static/app.js?v=@BUILD\">"}));
+    // 別の指紋（同じ版・12 桁）はそろえない＝古い画面・別の program の指紋は表との比べで落ちる
+    let other = format!("{ver}-{}", if hex.starts_with('0') { "1".repeat(12) } else { "0".repeat(12) });
+    assert_eq!(settle(&page(&other), &ctx, &[]), page(&other), "別の指紋はそのまま");
+    assert_ne!(settle_with(&page(stamp), &ctx, &[], Some("@BUILD")), settled, "決まりを外すと指紋の字が残る");
+    // 名乗りの鍵
+    let Some(u) = common::bake::os_user() else { return };
+    let who = |pc: &str, user: &str| json!({"who": {"key": format!("{pc}@{user}"), "pc": pc}});
+    assert_eq!(settle(&who("PC-1", u), &ctx, &[]), json!({"who": {"key": "PC-1@@USER", "pc": "PC-1"}}));
+    assert_ne!(settle(&who("PC-1", u), &ctx, &[]), settle(&who("PC-2", u), &ctx, &[]), "端末の名前の違いは落ちる");
+    let stranger = format!("{u}x");
+    assert_eq!(settle(&who("PC-1", &stranger), &ctx, &[]), who("PC-1", &stranger), "別の利用者はそのまま");
+    assert_eq!(settle(&json!({"other": format!("PC-1@{u}")}), &ctx, &[]), json!({"other": format!("PC-1@{u}")}), "別の鍵はそのまま");
+    assert_eq!(settle_with(&who("PC-1", u), &ctx, &[], Some("key")), who("PC-1", u), "決まりを外すと利用者の名前が残る");
+    let _ = std::fs::remove_dir_all(&base);
+}
