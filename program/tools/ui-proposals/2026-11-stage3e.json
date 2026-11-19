@@ -889,7 +889,7 @@
  },
  "built_plan": {
   "about": "作った形（版 3.116.0・ブランチ stage3e）。1 位の案 G に採点の first_fixes 12 件と、利用者・主の決め（2 乗はべき乗のまま・競い合いの付け替えはしない・Windows は測るだけまで・ci-shape を check-all の段に）を入れた。採点の中身（rounds・evaluation）は書き換えていない",
-  "baked": "14 本のうち 7 本を焼いた（calc・lotlist・presence・ui_defaults・conversions・lists・settings〈settings.bundle・settings.pages。route_reach は束の表の場面を借りる〉）。時刻の境をまたぐ 2 回の焼きが同じ。表は 34 ファイル・23.48 MB（前 6.71 MB。7 本で +16.78 MB。UTF-8 のバイト）",
+  "baked": "14 本のうち 7 本を焼いた（calc・lotlist・presence・ui_defaults・conversions・lists・settings〈settings.bundle・settings.pages。route_reach は束の表の場面を借りる〉）。時刻の境をまたぐ 2 回の焼きが同じ。表は 34 ファイル・23.95 MB（前 6.71 MB。7 本で +17.25 MB。UTF-8 のバイト。作った後の直しで calc に場面を足した後の数）",
   "sent": "3.117.0 へ送った 7 本: equipgroups・schedule・lotdsp（起こしたままの 3 本）と routes・pivot・dashboard・ops（ui_server・ops-bench の 4 本）。採点の切る線（ops → dashboard → routes → pivot の順に送る）より多く送った: 起こしたままの 3 本は、Python 無しの形で作り物を app なしで起こす台本と URL の名前つきの置き換えまで作れなかった。理由は desktop/tests/baked/books.json の why と RUST_PORT_PLAN.md",
   "first_fixes": {
    "1": "K1・K4 は外した（3.115.0 に入っている）。route_reach の割り・予算の試験の引っ越しはしていない",
@@ -902,7 +902,7 @@
    "8": "program/tools/ci-shape.py（runner・nopy・nodns の 3 つの形で焼いた本の試験 31 本を全部）を check-all.sh の段 ci-shape にした。作っている途中にこの段が手元の焼きの割れを 4 つ見つけた（画面の指紋・名乗りの鍵の利用者の名前・その sha1 の 6 字・計算の問い合わせの PC の名前）",
    "9": "場面の台本の仕組み（bk.script・sceneMade・指紋 made_print）を作り、lists（tests/lists_scene.py）と lotlist（tests/lotlist_fixture.py）で使った。ui_server.py・ops-bench.py の台本への切り出しはしていない（4 本を送ったため）",
    "10": "作る順は 土台 → 易しい 7 本 まで。起こしたままの 3 本と ui_server・ops-bench の 4 本は送った",
-   "11": "calc::calculate を Python の行の順に書き直し、例外の形を calc::Stop::Py と error_message で答える。delegate-count --check は計 11・calc 0、calc_parity は窓が答えた 1,723・任せた 0。誤りを 2 つ重ねた本文と形の違う本文 78・設定とマスタの形が違う場面 23 を足した。K3（数でない timeout を HOT から始めたときの要求の数）は直していない（schedule と一緒に 3.117.0）",
+   "11": "calc::calculate を Python の行の順に書き直し、例外の形を calc::Stop::Py と error_message で答える。delegate-count --check は計 11・calc 0、calc_parity は窓が答えた 2,247・任せた 0（作った後の直しで読めないマスタの 16 場面と 0 割りを足した後の数）。誤りを 2 つ重ねた本文と形の違う本文 78・設定とマスタの形が違う場面 23 を足した。K3（数でない timeout を HOT から始めたときの要求の数）は直していない（schedule と一緒に 3.117.0）",
    "12": "bless.py --stats が本ごとの大きさ・歩・葉・印の数（--base で前の表から増えた分）を出し、--check は印のある葉が 2 割を超える本を知らせる（今は fs だけ: 答えが道そのもの）"
   },
   "found_while_building": [
@@ -915,6 +915,7 @@
    "送った 7 本と K3・ui_server の台本・Windows の上書き",
    "Windows の測りの数（未知）。calc の pow の最後の桁が Windows で違うかは、その数で分かる",
    "route_reach は名前を引けない形で 187 秒かかる（ci-shape の nodns）"
-  ]
+  ],
+  "after_scoring": "作った後の採点（35.5 点・割れ 6）は tools/ui-proposals/2026-11-stage3e-built.json。割れは全部直して試験に足した（built_fixed）"
  }
 }

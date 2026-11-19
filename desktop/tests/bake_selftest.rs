@@ -557,9 +557,19 @@ fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
     assert_ne!(settle_with(&page(stamp), &ctx, &[], Some("@BUILD")), settled, "決まりを外すと指紋の字が残る");
     // 画面の字（指紋のある字）の中のアプリの版（見出しの札）も @VERSION に。別の版・指紋の無い字の中の版はそのまま
     let badge = |s: &str, v: &str| json!({"html": format!("<meta content=\"{s}\"><button>VER{v}</button> 1{v} {v}.1")});
-    assert_eq!(settle(&badge(stamp, ver), &ctx, &[]), json!({"html": format!("<meta content=\"@BUILD\"><button>VER@VERSION</button> 1{ver} {ver}.1")}));
-    assert_eq!(settle(&badge(stamp, "0.0.1"), &ctx, &[])["html"], json!(format!("<meta content=\"@BUILD\"><button>VER0.0.1</button> 10.0.1 0.0.1.1")));
-    assert_eq!(settle(&json!({"text": format!("VER{ver} の画面")}), &ctx, &[]), json!({"text": format!("VER{ver} の画面")}), "指紋の無い字の中の版はそのまま");
+    assert_eq!(
+        settle(&badge(stamp, ver), &ctx, &[]),
+        json!({"html": format!("<meta content=\"@BUILD\"><button>VER@VERSION</button> 1{ver} {ver}.1")})
+    );
+    assert_eq!(
+        settle(&badge(stamp, "0.0.1"), &ctx, &[])["html"],
+        json!(format!("<meta content=\"@BUILD\"><button>VER0.0.1</button> 10.0.1 0.0.1.1"))
+    );
+    assert_eq!(
+        settle(&json!({"text": format!("VER{ver} の画面")}), &ctx, &[]),
+        json!({"text": format!("VER{ver} の画面")}),
+        "指紋の無い字の中の版はそのまま"
+    );
     // 名乗りの表の鍵（端末@利用者。使えない字があれば _ にして sha1 の 6 字）
     let Some(u) = common::bake::os_user() else { return };
     let key = da_core::bundle::terminal_key;
