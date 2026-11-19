@@ -169,6 +169,14 @@
    "rule": "/api/equipment/inspection",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "names",
+      "l"
+     ]
+    ]
    }
   },
   {

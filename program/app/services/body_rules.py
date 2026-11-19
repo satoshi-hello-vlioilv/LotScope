@@ -317,6 +317,8 @@ TYPES = {
     ("POST", "/api/sources/groups"): [("from", S), ("to", S)],
     ("PUT", "/api/settings/<path:key>"): [("value", S)],
     ("POST", "/api/fs/browse"): [("path", S), ("purpose", S), ("pattern", S)],
+    # 検査計の有無（版 3.116.0。予算外の任せる歩を閉じる: 前は names が数・真のとき回せずに 500 になった。表も鍵を回さず断る）
+    ("POST", "/api/equipment/inspection"): [("names", L)],
     ("POST", "/api/masters/place/check"): _PLACE,
     ("POST", "/api/masters/place/move"): _PLACE,
     ("POST", "/api/release/place/check"): [("from", S)] + _PLACE,

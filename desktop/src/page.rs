@@ -428,6 +428,57 @@ pub fn conversion_views(rows: &[Value], revision: i64) -> R<Value> {
 mod tests {
     use super::*;
 
+    /// 画面の指紋（meta の tpa-build・?v=）の人の決めの試験（版 3.116.0 の作った後の採点の割れ 3）。焼いた表は今の指紋の字を @BUILD に
+    /// そろえるので、指紋の作り方そのものはここが守る: 決めた入力（版 9.8.7・3 つのファイル・決めた大きさと更新時刻）に決めた 12 桁
+    /// （Python の app_build.fingerprint の答えを写した）・大きさ／更新時刻／名前／版を 1 つ変えると違う指紋・数えない物（vendor・
+    /// __pycache__・拡張子の外）を変えても同じ・作る順によらない
+    #[test]
+    fn the_fingerprint_is_the_version_and_the_names_sizes_and_times() {
+        let root = std::env::temp_dir().join(format!("da-page-fp-{}", std::process::id()));
+        let files = [
+            ("app/version.py", "APP_VERSION = \"9.8.7\"\n"),
+            ("app/templates/index.html", "<html></html>\n"),
+            ("app/static/app.js", "console.log(1)\n"),
+            ("app/static/vendor/three.js", "skip"),
+            ("app/__pycache__/x.py", "skip"),
+            ("app/static/logo.png", "skip"),
+            ("app/brand.json", "{}\n"),
+        ];
+        let at = |i: u64| std::time::UNIX_EPOCH + std::time::Duration::new(1_700_000_000 + i * 1000, 123_456_700);
+        let put = |dir: &Path, rel: &str, text: &str, i: u64| {
+            let p = rel.split('/').fold(dir.to_path_buf(), |p, c| p.join(c));
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, text).unwrap();
+            std::fs::File::options().write(true).open(&p).unwrap().set_modified(at(i)).unwrap();
+        };
+        let make = |name: &str, order: &[usize], change: &dyn Fn(usize) -> Option<(&'static str, u64)>| {
+            let dir = root.join(name);
+            let _ = std::fs::remove_dir_all(&dir);
+            for &i in order {
+                let (rel, text) = files[i];
+                let (text, time) = change(i).unwrap_or((text, i as u64));
+                put(&dir, rel, text, time);
+            }
+            fingerprint(&dir)
+        };
+        let all: Vec<usize> = (0..files.len()).collect();
+        let base = make("base", &all, &|_| None);
+        assert_eq!(base, "9.8.7-33f97779114b", "決めた入力の指紋（Python の app_build.fingerprint と同じ）");
+        let back: Vec<usize> = all.iter().rev().copied().collect();
+        assert_eq!(make("order", &back, &|_| None), base, "作る順によらない");
+        // 数える物を 1 つ変えると違う指紋
+        assert_ne!(make("size", &all, &|i| (i == 2).then_some(("console.log(12)\n", 2))), base, "大きさが変わった");
+        assert_ne!(make("time", &all, &|i| (i == 2).then_some(("console.log(1)\n", 9))), base, "更新時刻が変わった（中身と大きさは同じ）");
+        assert_ne!(make("version", &all, &|i| (i == 0).then_some(("APP_VERSION = \"9.8.8\"\n", 0))), base, "版が変わった");
+        let dir = root.join("name");
+        let _ = make("name", &all, &|_| None);
+        std::fs::rename(dir.join("app").join("static").join("app.js"), dir.join("app").join("static").join("app2.js")).unwrap();
+        assert_ne!(fingerprint(&dir), base, "名前が変わった");
+        // 数えない物（vendor・__pycache__・拡張子の外）を変えても同じ
+        assert_eq!(make("skip", &all, &|i| matches!(i, 3..=5).then_some(("変えた", 77))), base, "数えない物は指紋に入らない");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     fn ctx(v: Value) -> Map<String, Value> {
         v.as_object().unwrap().clone()
     }

@@ -410,3 +410,268 @@ fn a_scene_comes_back_from_its_declaration() {
     }
     let _ = std::fs::remove_dir_all(&base);
 }
+
+// ------------------------------------------------------------------ 版 3.116.0: 詰める形・場面の台本の指紋・測るだけ
+
+/// 詰める → 開く ＝ 元（往復）。参照は中身の指紋で、1 歩が変わってもほかの歩の行（詰めた字）は動かない。参照の先を 1 字変えると、
+/// 開いた答えが変わって表との比べが落ちる。印と同じ形の表・長い繰り返しの字も元に戻る
+#[test]
+fn packing_round_trips_and_references_do_not_move() {
+    use common::bake::{pack_table, unpack_table, PACK_MIN, REP_MIN};
+    let long = |c: &str| c.repeat(PACK_MIN);
+    let big = format!("{{\"k\": \"{}\", \"m\": \"{}\"}}", "あ".repeat(REP_MIN + 10), "ab".repeat(REP_MIN));
+    let answers = json!({
+        "a": {"status": 200, "json": {"rows": [long("x"), long("y")], "lot": {"n": long("z")}}},
+        "b": {"status": 200, "json": {"rows": [long("x"), long("y")], "lot": {"n": long("z")}, "extra": 1}},
+        "c": {"status": 200, "json": {"@same": "印と同じ形の表"}},
+        "d": {"status": 200, "json": {"body": big.clone(), "again": big}},
+    });
+    let t = table(answers.clone(), json!({"a": "GET /a", "b": "GET /b", "c": "GET /c", "d": "GET /d"}));
+    let packed = pack_table(&t);
+    let text = serde_json::to_string(&packed).unwrap();
+    assert!(packed["parts"].as_object().is_some_and(|p| !p.is_empty()), "2 回出る部分は parts に置く");
+    assert!(text.len() < serde_json::to_string(&t).unwrap().len() / 2, "詰めた表は小さい: {}", text.len());
+    assert!(text.contains("\"@rep\"") && text.contains("\"@lit\""), "長い繰り返しの字は作り方・印と同じ形の表は包む");
+    assert_eq!(unpack_table(&packed), t, "詰める → 開く ＝ 元");
+    assert_eq!(pack_table(&unpack_table(&packed)), packed, "開く → 詰める ＝ 同じ字（焼き直しで差分が出ない）");
+    // 1 歩（b）だけを変えても、ほかの歩（a・c・d）の詰めた字と、変わらない部分の参照は動かない
+    let mut changed = t.clone();
+    changed["answers"]["b"]["json"]["extra"] = json!(2);
+    let p2 = pack_table(&changed);
+    for k in ["a", "c", "d"] {
+        assert_eq!(p2["answers"][k], packed["answers"][k], "歩 {k} の詰めた字が動いた");
+    }
+    assert_eq!(p2["answers"]["b"]["json"]["rows"], packed["answers"]["b"]["json"]["rows"], "変わらない部分の参照は同じ指紋");
+    // 参照の先（parts の中身）を 1 字変えると、開いた答えが変わる
+    let mut tampered = packed.clone();
+    let key = packed["answers"]["a"]["json"]["lot"]["@same"].as_str().expect("lot は参照").to_string();
+    tampered["parts"][key.as_str()]["n"] = json!(long("z").replacen('z', "Z", 1));
+    assert_ne!(unpack_table(&tampered)["answers"]["a"], t["answers"]["a"], "参照の先の 1 字の違いは開いた答えに出る");
+    // 参照の先が無い表は分かる言葉で落ちる
+    let mut broken = packed.clone();
+    broken["parts"].as_object_mut().unwrap().remove(&key);
+    let e = catch_unwind(AssertUnwindSafe(|| unpack_table(&broken))).expect_err("参照の先が無い");
+    let e = e.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(e.contains("parts にありません"), "{e}");
+    // 詰めた表でも、窓の答えの 1 字の違いは落ちる（比べるのは開いた後）
+    let base = common::work("bake-packed");
+    let same = |text: &str| {
+        let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(unpack_table(&packed)), &base);
+        bk.check = true;
+        let _ = bk.oracle("unused.py", &[]);
+        for k in ["a", "b", "c", "d"] {
+            let mut got = answers[k].clone();
+            if k == "a" {
+                got["json"]["lot"]["n"] = json!(text);
+            }
+            let want = bk.want(k, || Value::Null);
+            bk.note(k, &format!("GET /{k}"), &got, &want);
+        }
+        finished(bk)
+    };
+    assert!(same(&long("z")).is_ok(), "同じ答えは通る");
+    assert!(same(&long("z").replacen('z', "Z", 1)).expect_err("1 字違う").contains("焼いた表と違う"));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 場面の台本が作るファイルは、表に中身でなく指紋を持つ: 同じ中身なら同じ指紋（SQLite は作った版によらない形）・1 行違えば違う指紋・
+/// 宣言から作り直すときは台本の作った物に触らない
+#[test]
+fn files_made_by_a_scene_script_are_declared_by_their_fingerprint() {
+    use common::bake::{made_print, snapshot_with};
+    let base = common::work("bake-made");
+    let db = |name: &str, rows: &[i64]| {
+        let p = base.join(name);
+        let _ = std::fs::remove_file(&p);
+        let c = rusqlite::Connection::open(&p).unwrap();
+        c.execute_batch("CREATE TABLE t (a)").unwrap();
+        for r in rows {
+            c.execute("INSERT INTO t VALUES (?1)", [r]).unwrap();
+        }
+        p
+    };
+    let (a, b, c) = (db("a.sqlite3", &[1, 2, 3]), db("b.sqlite3", &[1, 2, 3]), db("c.sqlite3", &[1, 2, 4]));
+    assert_eq!(made_print(&a), made_print(&b), "同じ中身は同じ指紋");
+    assert_ne!(made_print(&a), made_print(&c), "1 行違えば違う指紋");
+    std::fs::write(base.join("plain.txt"), "中身").unwrap();
+    let ctx = Ctx::new(&base);
+    let decl = snapshot_with(&base, &ctx, &[], &["a.sqlite3".to_string()]);
+    assert_eq!(decl["files"]["a.sqlite3"], json!({"made": made_print(&a)}), "台本の作る物は指紋だけ（中身も更新時刻も持たない）");
+    assert!(decl["files"]["b.sqlite3"]["blob"].is_string() && decl["files"]["plain.txt"]["blob"].is_string());
+    assert!(!serde_json::to_string(&decl["blobs"]).unwrap().is_empty());
+    // 作り直す: 台本の作る物（a）は書かない（台本が先に作る）。ほかは宣言から戻る
+    let again = common::work("bake-made-again");
+    materialize(&decl, &again, &Ctx::new(&again));
+    assert!(!again.join("a.sqlite3").exists() && again.join("b.sqlite3").exists() && again.join("plain.txt").exists());
+    for d in [&base, &again] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}
+
+/// 測るだけ（TPA_MEASURE。表と比べない PC〈Windows〉）: 表と違う歩を試験を落とさずに数えて記録に書く
+#[test]
+fn measuring_counts_the_steps_that_differ_without_failing() {
+    let base = common::work("bake-measure");
+    let out = base.join("measure");
+    let t = table(
+        json!({"same": {"status": 200, "json": {"a": 1}}, "differs": {"status": 200, "json": {"a": "posix の答え"}}, "gone": {"status": 200, "json": {}}}),
+        json!({"same": "GET /s", "differs": "GET /d", "gone": "GET /g"}),
+    );
+    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t), &base);
+    bk.check = false; // 表と比べない PC（Windows）の形
+    bk.measure = Some(out.clone());
+    bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
+    bk.note("differs", "GET /d", &json!({"status": 200, "json": {"a": "nt の答え"}}), &Value::Null);
+    bk.note("new", "GET /n", &json!({"status": 200, "json": {}}), &Value::Null);
+    assert!(finished(bk).is_ok(), "測るだけは落とさない");
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("measured.json")).expect("測りの記録")).unwrap();
+    assert_eq!((m["steps"].as_u64(), m["tableSteps"].as_u64()), (Some(3), Some(3)));
+    let keys: Vec<&str> = m["differing"].as_array().unwrap().iter().map(|x| x["key"].as_str().unwrap()).collect();
+    assert_eq!(keys, ["differs", "new"], "違う歩と表に無い歩だけ: {m}");
+    assert!(m["differing"][0]["diff"].as_str().unwrap().contains("posix の答え"), "{m}");
+    assert_eq!(m["missing"], json!(["gone"]), "表にあって答えなかった歩");
+    // 比べる PC（check）では測りの記録を書かない（表と違えば今までどおり落ちる）
+    let mut bk = Bake::with("selftest", "checked", Mode::Python, vec![], Some(table(json!({}), json!({}))), &base);
+    bk.check = true;
+    bk.measure = Some(out.clone());
+    assert!(finished(bk).is_ok() && !out.join("checked.json").exists());
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 版 3.116.0 で足したそろえる決まり 2 つは狭い: 画面の指紋（今の program の指紋の字そのものだけ）と、名乗りの鍵（値「端末@利用者」の
+/// 終わりが OS の利用者の名前のときだけ）。許す範囲のすぐ外（別の指紋・別の利用者・別の鍵・端末の名前の違い）はそのまま比べる。
+/// 決まりを外すと揺れが残る
+#[test]
+fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
+    let base = common::work("bake-stamp");
+    let ctx = Ctx::new(&base);
+    let stamp = common::bake::build_stamp();
+    let (ver, hex) = stamp.rsplit_once('-').expect("版-指紋");
+    assert!(hex.len() == 12 && hex.chars().all(|c| c.is_ascii_hexdigit()), "{stamp}");
+    let page = |s: &str| json!({"html": format!("<meta name=\"tpa-build\" content=\"{s}\"><script src=\"/static/app.js?v={s}\">")});
+    let settled = settle(&page(stamp), &ctx, &[]);
+    assert_eq!(settled, json!({"html": "<meta name=\"tpa-build\" content=\"@BUILD\"><script src=\"/static/app.js?v=@BUILD\">"}));
+    // 別の指紋（同じ版・12 桁）はそろえない＝古い画面・別の program の指紋は表との比べで落ちる
+    let other = format!("{ver}-{}", if hex.starts_with('0') { "1".repeat(12) } else { "0".repeat(12) });
+    assert_eq!(settle(&page(&other), &ctx, &[]), page(&other), "別の指紋はそのまま");
+    assert_ne!(settle_with(&page(stamp), &ctx, &[], Some("@BUILD")), settled, "決まりを外すと指紋の字が残る");
+    // 画面の字（指紋のある字）の中のアプリの版（見出しの札）も @VERSION に。別の版・指紋の無い字の中の版はそのまま
+    let badge = |s: &str, v: &str| json!({"html": format!("<meta content=\"{s}\"><button>VER{v}</button> 1{v} {v}.1")});
+    assert_eq!(
+        settle(&badge(stamp, ver), &ctx, &[]),
+        json!({"html": format!("<meta content=\"@BUILD\"><button>VER@VERSION</button> 1{ver} {ver}.1")})
+    );
+    assert_eq!(
+        settle(&badge(stamp, "0.0.1"), &ctx, &[])["html"],
+        json!(format!("<meta content=\"@BUILD\"><button>VER0.0.1</button> 10.0.1 0.0.1.1"))
+    );
+    assert_eq!(
+        settle(&json!({"text": format!("VER{ver} の画面")}), &ctx, &[]),
+        json!({"text": format!("VER{ver} の画面")}),
+        "指紋の無い字の中の版はそのまま"
+    );
+    // 名乗りの表の鍵（端末@利用者。使えない字があれば _ にして sha1 の 6 字）
+    let Some(u) = common::bake::os_user() else { return };
+    let key = da_core::bundle::terminal_key;
+    let who = |pc: &str, k: String| json!({"who": {"key": k, "pc": pc}});
+    for pc in ["PC-1", "PC 1:北"] {
+        assert_eq!(settle(&who(pc, key(u, pc)), &ctx, &[]), who(pc, key("@USER", pc)), "{pc}: 利用者を @USER にして作り直す");
+    }
+    assert!(key(u, "PC 1:北").contains('-') && key("@USER", "PC 1:北") != key(u, "PC 1:北"), "使えない字の端末は sha1 の 6 字つき");
+    assert_ne!(
+        settle(&who("PC-1", key(u, "PC-1")), &ctx, &[]),
+        settle(&who("PC-2", key(u, "PC-2")), &ctx, &[]),
+        "端末の名前の違いは落ちる"
+    );
+    let stranger = format!("{u}x");
+    assert_eq!(settle(&who("PC-1", key(&stranger, "PC-1")), &ctx, &[]), who("PC-1", key(&stranger, "PC-1")), "別の利用者はそのまま");
+    // sha1 の 6 字が違う鍵（作り方の誤り）はそろえない＝表との比べで落ちる
+    let wrong = format!("{}-000000", key(u, "PC 1:北").rsplit_once('-').unwrap().0);
+    assert_eq!(settle(&who("PC 1:北", wrong.clone()), &ctx, &[]), who("PC 1:北", wrong), "違う sha1 はそのまま");
+    assert_eq!(settle(&json!({"key": key(u, "PC-1")}), &ctx, &[]), json!({"key": key(u, "PC-1")}), "となりに pc の無い鍵はそのまま");
+    assert_eq!(
+        settle_with(&who("PC-1", key(u, "PC-1")), &ctx, &[], Some("who.key")),
+        who("PC-1", key(u, "PC-1")),
+        "決まりを外すと利用者の名前が残る"
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 詰める形の往復は、2 回出る部分の無い表でも、乱数で作った表でも成り立つ（版 3.116.0 の作った後の採点の割れ 4: 前は parts の無い表が
+/// 開かれず、長い繰り返しの字・印と同じ形の表が詰めた形のまま残った）
+#[test]
+fn packing_round_trips_without_repeats_and_for_random_tables() {
+    use common::bake::{pack_table, unpack_table, PACK_MIN, REP_MIN};
+    // 重なりの無い表に、長い繰り返しの字と、印と同じ形の表
+    let t = table(
+        json!({"a": {"status": 200, "json": {"body": "い".repeat(REP_MIN + 5), "mark": {"@rep": [1]}, "lit": {"@lit": {"@same": "x"}}}}}),
+        json!({"a": "GET /a"}),
+    );
+    let packed = pack_table(&t);
+    assert_eq!(packed["parts"], json!({}), "2 回出る部分が無くても、詰めた表の印として空の parts を付ける");
+    assert!(serde_json::to_string(&packed).unwrap().contains("\"@rep\":[["), "長い繰り返しの字は作り方");
+    assert_eq!(unpack_table(&packed), t, "重なりの無い表も 詰める → 開く ＝ 元");
+    assert_eq!(pack_table(&unpack_table(&packed)), packed);
+    // 乱数の表（決めた種。2000 字の境の前後の繰り返しの字・印と同じ形の表・重なる部分木・重ならない部分木）
+    let mut seed = 0x2545F4914F6CDD1Du64;
+    let mut rnd = move |n: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % n
+    };
+    fn gen(depth: u32, rnd: &mut dyn FnMut(u64) -> u64) -> Value {
+        match rnd(if depth > 3 { 5 } else { 9 }) {
+            0 => json!(rnd(1000)),
+            1 => json!(["あ", "ab", "x"][rnd(3) as usize].repeat((REP_MIN - 3 + rnd(7) as usize) / [1, 2, 1][rnd(3) as usize])),
+            2 => json!("字".repeat(rnd(2 * PACK_MIN as u64) as usize)),
+            3 => json!({["@same", "@rep", "@lit"][rnd(3) as usize]: rnd(5)}),
+            4 => json!({"k": "重なる部分".repeat(PACK_MIN / 4), "n": rnd(2)}),
+            5 | 6 => Value::Array((0..rnd(4)).map(|_| gen(depth + 1, rnd)).collect()),
+            _ => Value::Object((0..rnd(4)).map(|i| (format!("k{i}"), gen(depth + 1, rnd))).collect()),
+        }
+    }
+    let (mut with_parts, mut without) = (0, 0);
+    for i in 0..300 {
+        let answers: serde_json::Map<String, Value> = (0..1 + rnd(4)).map(|k| (format!("s{k}"), gen(0, &mut rnd))).collect();
+        let routes: serde_json::Map<String, Value> = answers.keys().map(|k| (k.clone(), json!("GET /x"))).collect();
+        let t = table(Value::Object(answers), Value::Object(routes));
+        let packed = pack_table(&t);
+        if packed["parts"].as_object().is_some_and(|p| p.is_empty()) {
+            without += 1;
+        } else {
+            with_parts += 1;
+        }
+        assert_eq!(unpack_table(&packed), t, "乱数の表 {i}: 詰める → 開く ＝ 元");
+        // 書いた字から読み直しても同じ・詰め直しても同じ
+        let reread: Value = serde_json::from_str(&common::bake::lines(&packed, 0)).unwrap();
+        assert_eq!(unpack_table(&reread), t, "乱数の表 {i}: 書いた字から読み直す");
+        assert_eq!(pack_table(&unpack_table(&reread)), packed, "乱数の表 {i}: 詰め直しても同じ字");
+    }
+    assert!(with_parts >= 50 && without >= 50, "重なりのある表 {with_parts}・無い表 {without} の両方を見る");
+}
+
+/// この PC の名前（ホスト名）は、表の「pc」の欄の値がホスト名そのもののときだけ @HOST にそろえる（PR #116 の CI の直し: 名乗りを決めて
+/// いない場面の答えに焼いた PC の名前が入り、CI の runner で落ちた）。名乗りの鍵も @HOST で作り直す。ほかの端末の名前・ほかの欄の
+/// ホスト名はそのまま比べる（窓の名乗りの係が違う名前を答えたら、表との比べで落ちる）。決まりを外すとホスト名が残る
+#[test]
+fn the_host_name_is_settled_only_in_the_pc_field() {
+    let base = common::work("bake-host");
+    let ctx = Ctx::new(&base);
+    let (Some(host), Some(u)) = (common::bake::host_name(), common::bake::os_user()) else { return };
+    let key = da_core::bundle::terminal_key;
+    let who = |pc: &str| json!({"who": {"key": key(u, pc), "pc": pc, "source": "ホスト名"}});
+    assert_eq!(settle(&who(host), &ctx, &[]), json!({"who": {"key": key("@USER", "@HOST"), "pc": "@HOST", "source": "ホスト名"}}));
+    // ほかの名前（窓がホスト名を読み違えた形: 先頭だけ・FQDN）はそのまま
+    for other in [format!("{host}x"), format!("{host}.example.invalid"), "PC-ORACLE".to_string()] {
+        assert_eq!(settle(&who(&other), &ctx, &[])["who"]["pc"], json!(other), "ほかの名前はそのまま");
+        assert_eq!(settle(&who(&other), &ctx, &[])["who"]["key"], json!(key("@USER", &other)));
+    }
+    // pc でない欄のホスト名・字の中のホスト名はそのまま
+    assert_eq!(
+        settle(&json!({"name": host, "text": format!("{host} から")}), &ctx, &[]),
+        json!({"name": host, "text": format!("{host} から")})
+    );
+    assert_eq!(settle_with(&who(host), &ctx, &[], Some("@HOST"))["who"]["pc"], json!(host), "決まりを外すとホスト名が残る");
+    let _ = std::fs::remove_dir_all(&base);
+}

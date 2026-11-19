@@ -40,9 +40,17 @@ jobs:
         with:
           workspaces: desktop
       # --no-fail-fast: 落ちた本で止めず、全部の本を流す（ci.yml と同じ。落ちた本があれば終了コードは 0 でない）
+      # TPA_MEASURE（版 3.116.0。測るだけ）: 焼いた表（desktop/tests/baked。posix の窓の答え）と Windows の窓の答えが違う歩を、試験を落とさずに
+      # 数えて残す（desktop/tests/common/bake.rs。Windows は ④ まで Windows の Python と比べ、表とは比べない）。数は下の段が出し、成果物にも置く
       - name: test（Rust・Windows）
         working-directory: desktop
+        env:
+          TPA_MEASURE: ${{ runner.temp }}\bake-measure
         run: cargo test --locked --no-fail-fast
+      - name: 焼いた表（posix）と Windows の窓の答えの違いを数える（測るだけ・落とさない）
+        if: always()
+        continue-on-error: true
+        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure"
       # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
       # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
       - name: 写しと公開の干渉（Python・Windows）
@@ -102,6 +110,7 @@ jobs:
           New-Item -ItemType Directory -Force $out | Out-Null
           if (Test-Path "desktop\target\release\$env:EXE") { Copy-Item "desktop\target\release\$env:EXE" $out }
           if (Test-Path "$env:RUNNER_TEMP\selftest.json") { Copy-Item "$env:RUNNER_TEMP\selftest.json" $out }
+          if (Test-Path "$env:RUNNER_TEMP\bake-measure") { Copy-Item -Recurse "$env:RUNNER_TEMP\bake-measure" "$out\bake-measure" }
           Get-ChildItem "$env:RUNNER_TEMP\release" -File -ErrorAction SilentlyContinue | Copy-Item -Destination $out
       - uses: actions/upload-artifact@v4
         if: always()

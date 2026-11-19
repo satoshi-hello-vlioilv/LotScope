@@ -67,6 +67,27 @@ pub fn app_version() -> &'static str {
     V.get_or_init(|| da_core::update::program_version(&super::program()).unwrap_or_else(|| "?".into()))
 }
 
+/// 画面の指紋（meta の tpa-build・静的ファイルの ?v=。app_build.fingerprint と同じ「版-指紋 12 桁」）。program/app のファイルの大きさと
+/// 更新時刻から作るので、取り出した PC ごと・プログラムを変えるたびに変わる。答えの字の中のこの字そのものだけを @BUILD にそろえる
+/// （版 3.116.0。画面の字〈GET /〉を焼くため。ほかの「版-16 進」の字はそのまま比べる）
+pub fn build_stamp() -> &'static str {
+    static B: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    B.get_or_init(|| da_core::page::fingerprint(&super::program()))
+}
+
+/// この PC の名前（ホスト名）。窓の名乗りの係（bundle::pc_name）を通さず、OS から直に読む（Linux は /proc/sys/kernel/hostname・
+/// Windows は COMPUTERNAME）。名乗りを決めていない場面（配った設定の identity が空）の答えの pc はこの名前になるので、焼いた PC の名前を
+/// 表に持たないよう @HOST にそろえる（版 3.116.0 の PR #116 の CI の直し: 表に手元の「vm」が入り、CI の runner の名前で落ちた）
+pub fn host_name() -> Option<&'static str> {
+    static H: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    H.get_or_init(|| {
+        let name =
+            if cfg!(windows) { std::env::var("COMPUTERNAME").ok() } else { std::fs::read_to_string("/proc/sys/kernel/hostname").ok() };
+        name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty())
+    })
+    .as_deref()
+}
+
 /// OS の利用者の名前（Python の getpass.getuser と同じ順: LOGNAME・USER・LNAME・USERNAME）
 pub fn os_user() -> Option<&'static str> {
     static U: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -313,10 +334,23 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     let (all, day_re) = compiled();
     let forms: Vec<&(regex::Regex, String)> = all.iter().filter(|(_, to)| Some(to.as_str()) != drop).collect();
     let near = drop != Some("near");
+    let stamp = drop != Some("@BUILD");
+    // 名乗りの表（{key, pc, …}）の鍵は「端末@利用者」（使えない字があれば _ にして sha1 の 6 字を足す。bundle::terminal_key）。
+    // 鍵が「OS の利用者の名前と、となりの pc」から作った字そのもののときだけ、利用者を @USER にして作り直した字にそろえる
+    let who_key = drop != Some("who.key");
+    // 名乗りの表の pc がこの PC の名前（ホスト名）そのもののときだけ @HOST に（名乗りを決めていない場面。鍵も @HOST で作り直す）
+    let host = drop != Some("@HOST");
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
         let mut t = ctx.sub_slash(t).replace(da_core::held::mark(), "@HELD:");
+        if stamp && t.contains(build_stamp()) {
+            t = t.replace(build_stamp(), "@BUILD");
+            // 画面の字（指紋のある字）の中のアプリの版（見出しの札「VER3.116.0」）も @VERSION に（版を上げるたびに表が古くならないように。
+            // 値がアプリの版そのものの欄は下の go が @VERSION にする）。前後が数字・点でない所だけ。指紋の無い字の中の版はそのまま比べる
+            let ver = super::re(&format!(r"(^|[^0-9.]){}([^0-9.]|$)", regex::escape(app_version())));
+            t = ver.replace_all(&t, "${1}@VERSION${2}").into_owned();
+        }
         if let Some(u) = os_user() {
             if t.contains(&format!("／{u} ")) {
                 t = t.replace(&format!("／{u} "), "／@USER ");
@@ -344,6 +378,8 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     struct Cx<'a> {
         keys: &'a [&'a str],
         names: &'a [&'a str],
+        who_key: bool,
+        host: bool,
         near: bool,
         s: &'a dyn Fn(&str) -> String,
     }
@@ -362,11 +398,25 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
                 let out: Vec<Value> = a.iter().map(|x| go(x, key, cx)).collect();
                 above_crumbs(out)
             }
-            Value::Object(o) => Value::Object(o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect()),
+            Value::Object(o) => {
+                let mut out: Map<String, Value> = o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect();
+                // この PC の名前（ホスト名）そのものの pc は @HOST（表の「pc」の欄だけ。ほかの欄・ほかの名前はそのまま比べる）
+                let pc = o.get("pc").and_then(Value::as_str);
+                let is_host = cx.host && pc.is_some() && pc == host_name();
+                if is_host {
+                    out.insert("pc".into(), json!("@HOST"));
+                }
+                if let (true, Some(k), Some(pc), Some(u)) = (cx.who_key, o.get("key").and_then(Value::as_str), pc, os_user()) {
+                    if k == da_core::bundle::terminal_key(u, pc) {
+                        out.insert("key".into(), json!(da_core::bundle::terminal_key("@USER", if is_host { "@HOST" } else { pc })));
+                    }
+                }
+                Value::Object(out)
+            }
             _ => v.clone(),
         }
     }
-    go(v, "", &Cx { keys: &keys, names: &names, near, s: &s })
+    go(v, "", &Cx { keys: &keys, names: &names, who_key, host, near, s: &s })
 }
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）
@@ -443,6 +493,216 @@ pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
         }
         _ => super::diff(a, b, path),
     }
+}
+
+// ------------------------------------------------------------------ 詰める形（版 3.116.0。大きい本の表）
+
+/// これより長い字（JSON の字の長さ）で、表の中に 2 回以上出る部分（表・並び・字）は参照にする
+pub const PACK_MIN: usize = 120;
+/// これより長く同じ単位が続く所のある字は作り方（間の字と [単位, 数] の並び）で持つ
+pub const REP_MIN: usize = 2000;
+const MARKS: [&str; 3] = ["@same", "@rep", "@lit"];
+
+/// 指紋を取る字（中身の字。大きな整数・NaN は桁のまま）
+fn canon(v: &Value) -> String {
+    if da_core::held::has_held(v) || da_core::held::has_nonfinite(v) || da_core::held::has_lone(v) {
+        da_core::held::to_text(v, None)
+    } else {
+        serde_json::to_string(v).unwrap()
+    }
+}
+
+fn print_of(text: &str) -> String {
+    use sha2::Digest;
+    format!("{:x}", sha2::Sha256::digest(text.as_bytes()))[..12].to_string()
+}
+
+/// 詰める印と同じ形の表（鍵が 1 つで @same・@rep・@lit）か
+fn marked(o: &Map<String, Value>) -> bool {
+    o.len() == 1 && o.keys().next().is_some_and(|k| MARKS.contains(&k.as_str()))
+}
+
+/// 長い字の作り方: 同じ単位（1〜64 字）が REP_MIN 字より長く続く所を [単位, 数] にし、間の字はそのまま並べる
+/// （{"@rep": ["頭", ["あ", 1000000], "間", ["い", 500000], "尾"]}）。続く所が無ければ None
+fn rep_of(s: &str) -> Option<Value> {
+    let c: Vec<char> = s.chars().collect();
+    if c.len() <= REP_MIN {
+        return None;
+    }
+    let mut covered = vec![false; c.len()];
+    let mut runs: Vec<(usize, usize, usize)> = vec![];
+    for u in 1..=64usize {
+        // 残りに REP_MIN 字より長い続きが入る所が無ければ終わり
+        let (mut free, mut best) = (0usize, 0usize);
+        for x in &covered {
+            free = if *x { 0 } else { free + 1 };
+            best = best.max(free);
+        }
+        if best < REP_MIN {
+            break;
+        }
+        let mut i = 0;
+        while i + u < c.len() {
+            if covered[i] || covered[i + u] || c[i] != c[i + u] {
+                i += 1;
+                continue;
+            }
+            let (l, mut r) = (i, i);
+            while r + u < c.len() && c[r] == c[r + u] && !covered[r + u] {
+                r += 1;
+            }
+            let n = (r + u - l) / u;
+            if n * u >= REP_MIN {
+                runs.push((l, u, n));
+                covered[l..l + n * u].iter_mut().for_each(|x| *x = true);
+                i = l + n * u;
+            } else {
+                i = r + 1;
+            }
+        }
+    }
+    if runs.is_empty() {
+        return None;
+    }
+    runs.sort();
+    let text = |a: usize, b: usize| c[a..b].iter().collect::<String>();
+    let (mut segs, mut at) = (vec![], 0);
+    for (l, u, n) in runs {
+        if l > at {
+            segs.push(json!(text(at, l)));
+        }
+        segs.push(json!([text(l, l + u), n]));
+        at = l + n * u;
+    }
+    if at < c.len() {
+        segs.push(json!(text(at, c.len())));
+    }
+    Some(json!({"@rep": segs}))
+}
+
+/// 詰める: sections（表の answers・oracle・scene・variants）の中で 2 回以上出る部分を {"@same": 中身の指紋 12 桁} にし、中身は parts
+/// （指紋 → 中身。scene.blobs と同じ形）に 1 つだけ置く。参照は通し番号でも初出の位置でもなく中身の指紋なので、1 歩が変わっても
+/// ほかの歩の行は動かない（PR の差分と、範囲を決めた焼き直しの「範囲の外が変わった」が誤って当たらない）。長い繰り返しの字は作り方
+/// {"@rep": [字, [単位, 数], …]}。印と同じ形の表は {"@lit": …} で包む。比べるのはいつも開いた後（unpack）
+pub fn pack(sections: &mut [&mut Value]) -> Map<String, Value> {
+    use std::collections::HashMap;
+    fn scan(v: &Value, counts: &mut HashMap<String, u32>) {
+        match v {
+            Value::Array(a) => a.iter().for_each(|x| scan(x, counts)),
+            Value::Object(o) => o.values().for_each(|x| scan(x, counts)),
+            _ => {}
+        }
+        if matches!(v, Value::Array(_) | Value::Object(_) | Value::String(_)) {
+            let t = canon(v);
+            if t.len() > PACK_MIN {
+                *counts.entry(print_of(&t)).or_default() += 1;
+            }
+        }
+    }
+    fn go(v: &Value, counts: &HashMap<String, u32>, parts: &mut BTreeMap<String, Value>, texts: &mut HashMap<String, String>) -> Value {
+        let inner = match v {
+            Value::Array(a) => Value::Array(a.iter().map(|x| go(x, counts, parts, texts)).collect()),
+            Value::Object(o) => {
+                let m: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), go(x, counts, parts, texts))).collect();
+                if marked(o) {
+                    json!({"@lit": m})
+                } else {
+                    Value::Object(m)
+                }
+            }
+            Value::String(s) => rep_of(s).unwrap_or_else(|| v.clone()),
+            _ => return v.clone(),
+        };
+        let t = canon(v);
+        if t.len() <= PACK_MIN {
+            return inner;
+        }
+        let h = print_of(&t);
+        if counts.get(&h).copied().unwrap_or(0) < 2 {
+            return inner;
+        }
+        match texts.get(&h) {
+            Some(old) => assert!(*old == t, "指紋 {h} が 2 つの中身に当たりました"),
+            None => {
+                texts.insert(h.clone(), t);
+                parts.insert(h.clone(), inner);
+            }
+        }
+        json!({"@same": h})
+    }
+    let mut counts = HashMap::new();
+    sections.iter().for_each(|s| scan(s, &mut counts));
+    let (mut parts, mut texts) = (BTreeMap::new(), HashMap::new());
+    for s in sections.iter_mut() {
+        **s = go(s, &counts, &mut parts, &mut texts);
+    }
+    parts.into_iter().collect()
+}
+
+/// 開く（pack の逆）。参照の先が parts に無ければ分かる言葉で落とす
+pub fn unpack(v: &Value, parts: &Map<String, Value>) -> Value {
+    match v {
+        Value::Array(a) => Value::Array(a.iter().map(|x| unpack(x, parts)).collect()),
+        Value::Object(o) if marked(o) => {
+            let (k, x) = o.iter().next().unwrap();
+            match k.as_str() {
+                "@same" => {
+                    let h = x.as_str().unwrap_or("");
+                    unpack(parts.get(h).unwrap_or_else(|| panic!("詰めた表の参照 {h} の中身が parts にありません")), parts)
+                }
+                "@rep" => Value::String(
+                    x.as_array()
+                        .map(|segs| {
+                            segs.iter()
+                                .map(|s| match s {
+                                    Value::String(t) => t.clone(),
+                                    s => s[0].as_str().unwrap_or("").repeat(s[1].as_u64().unwrap_or(0) as usize),
+                                })
+                                .collect::<String>()
+                        })
+                        .unwrap_or_default(),
+                ),
+                _ => {
+                    Value::Object(x.as_object().map(|m| m.iter().map(|(k, y)| (k.clone(), unpack(y, parts))).collect()).unwrap_or_default())
+                }
+            }
+        }
+        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), unpack(x, parts))).collect()),
+        _ => v.clone(),
+    }
+}
+
+/// 表を開いた形にする（parts を外す。詰めていない表はそのまま）
+pub fn unpack_table(t: &Value) -> Value {
+    let Some(parts) = t.get("parts").and_then(Value::as_object) else { return t.clone() };
+    let mut out = Map::new();
+    for (k, v) in t.as_object().unwrap() {
+        if k != "parts" {
+            out.insert(k.clone(), if PACKED.contains(&k.as_str()) { unpack(v, parts) } else { v.clone() });
+        }
+    }
+    Value::Object(out)
+}
+
+/// 詰める段（表の上の鍵）
+const PACKED: [&str; 4] = ["oracle", "scene", "answers", "variants"];
+
+/// 表を詰めた形にする（PACKED の段を詰め、parts を足す。2 回出る部分が無くても空の parts を付ける＝詰めた表の印）
+pub fn pack_table(t: &Value) -> Value {
+    let mut t = unpack_table(t);
+    let o = t.as_object_mut().unwrap();
+    let mut held: Vec<(String, Value)> = PACKED.iter().filter_map(|k| o.get(*k).map(|v| (k.to_string(), v.clone()))).collect();
+    let parts = {
+        let mut refs: Vec<&mut Value> = held.iter_mut().map(|(_, v)| v).collect();
+        pack(&mut refs)
+    };
+    for (k, v) in held {
+        o.insert(k, v);
+    }
+    // parts はいつも付ける（空でも。詰めた表の印: 開く側は parts があれば開く。版 3.116.0 の作った後の直し: 前は 2 回出る部分が
+    // 無いと付けず、長い繰り返しの字 @rep・印と同じ形の表 @lit だけがある表が開かれなかった）
+    o.insert("parts".into(), Value::Object(parts));
+    t
 }
 
 // ------------------------------------------------------------------ 場面の宣言（フォルダの写し）
@@ -615,8 +875,23 @@ fn mode_of(_: &std::fs::Metadata) -> u32 {
     0
 }
 
+/// 場面の台本（標準の部品だけの Python）が作ったファイルの指紋: SQLite は作った SQLite の版によらない形（sqlite_logical）の字、
+/// ほかはバイトの sha256 の頭 16 字。焼いた表はこの指紋だけを持ち（中身は持たない）、台本が作り直した物と比べる
+pub fn made_print(p: &Path) -> String {
+    use sha2::Digest;
+    let b = std::fs::read(p).unwrap_or_default();
+    let text = sqlite_logical(&b).map(|v| v.to_string().into_bytes()).unwrap_or(b);
+    format!("{:x}", sha2::Sha256::digest(&text))[..16].to_string()
+}
+
 /// 場面のフォルダを宣言に写す（files・dirs・links と中身 blobs〈同じ中身は 1 つ〉）。exclude の名前の段（Python だけの写し py・pd）は除く
 pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
+    snapshot_with(base, ctx, exclude, &[])
+}
+
+/// snapshot と同じだが、made（場面の台本が作るファイルの相対の道）は中身でなく指紋（made_print）で持つ（版 3.116.0。大きな SQLite を
+/// 表に入れない。Python 無しの形では台本が作り直し、指紋が表と同じかを見る）
+pub fn snapshot_with(base: &Path, ctx: &Ctx, exclude: &[&str], made: &[String]) -> Value {
     use sha2::Digest;
     let (mut files, mut dirs, mut links, mut blobs) = (Map::new(), Map::new(), Map::new(), Map::new());
     fn walk(d: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>, exclude: &[&str]) {
@@ -672,6 +947,13 @@ pub fn snapshot(base: &Path, ctx: &Ctx, exclude: &[&str]) -> Value {
         }
         if md != 0o644 && cfg!(unix) {
             e.insert("mode".into(), json!(md));
+        }
+        if made.contains(&rel) {
+            // 台本が作るファイル: 指紋だけ（更新時刻は台本を流した時刻なので持たない）
+            e.remove("mtime");
+            e.insert("made".into(), json!(made_print(&p)));
+            files.insert(rel, Value::Object(e));
+            continue;
         }
         let b = std::fs::read(&p).unwrap_or_default();
         let blob = match std::str::from_utf8(&b) {
@@ -746,6 +1028,10 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
     for (rel, e) in fs {
         let p = base.join(rel);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        if e.get("made").is_some() {
+            // 場面の台本が作った物（指紋は呼ぶ側 rebuild_from_table が確かめる）
+            continue;
+        }
         if e["fifo"] == true {
             let _ = std::process::Command::new("mkfifo").arg(&p).status();
             continue;
@@ -918,6 +1204,17 @@ pub struct Bake {
     pub url_key: Option<&'static str>,
     /// 答え合わせ役の答えの上の段で、焼かない鍵（root で流したか など利用者で変わる印）
     pub drop: Vec<&'static str>,
+    /// 表を詰めた形（pack_table）で書くか（版 3.116.0 の大きい本。小さい 21 本は今の形のまま）
+    pub pack: bool,
+    /// 場面の台本（標準の部品だけの Python。program/tests からの相対の道と引数。版 3.116.0）。Python 無しの形では、表の宣言から場面を
+    /// 作る前にこれを流す。台本が作るファイルは、答え合わせ役の答えの "sceneMade"（場面の相対の道の並び）で知る
+    pub script: Option<(&'static str, Vec<String>)>,
+    /// 測るだけ（版 3.116.0。環境変数 TPA_MEASURE=フォルダ）: 焼いた表と比べない PC（Windows。表は posix の答え）で、窓の答えが表と違う歩を
+    /// 試験を落とさずに数え、終わりに <フォルダ>/<表>.json へ書く（.github/workflows/desktop.yml の Windows の仕事が成果物に置き、
+    /// tools/bless.py --measured がまとめる）。違う歩が少なければ Windows の上書き（variants.nt）を作って Windows でも表と比べる
+    pub measure: Option<PathBuf>,
+    measured: Vec<Value>,
+    measured_decl: Map<String, Value>,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -982,12 +1279,15 @@ impl Bake {
         };
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
         let path = baked_dir().join(format!("{file}.json"));
-        let table = std::fs::read(&path).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display())));
+        let table = std::fs::read(&path)
+            .ok()
+            .map(|b| unpack_table(&super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display()))));
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
             panic!("焼いた表 {} がありません（TPA_BLESS=1 で焼く）", path.display());
         }
         let mut bk = Bake::with(book, &file, mode, scope, table, base);
         bk.variant = variant();
+        bk.measure = std::env::var("TPA_MEASURE").ok().filter(|s| !s.is_empty()).map(PathBuf::from);
         bk
     }
 
@@ -1012,6 +1312,11 @@ impl Bake {
             fid_key: None,
             url_key: None,
             drop: vec!["rootUser"],
+            pack: false,
+            script: None,
+            measure: None,
+            measured: vec![],
+            measured_decl: Map::new(),
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -1057,6 +1362,18 @@ impl Bake {
         }
     }
 
+    /// oracle と同じだが、表の問い合わせ（oracle）には keep で残した形だけを持つ（Python の答えそのもの〈expected・終わった後のファイル〉や
+    /// 焼かない事例を除く。版 3.116.0）。返すのは答え合わせ役の答えの全部（Python と比べるのに使う）。焼いた表で流すときは表の形
+    pub fn oracle_with(&mut self, script: &str, args: &[&str], keep: impl Fn(&Value) -> Value) -> Value {
+        if self.python() {
+            let v = super::python_json(script, args);
+            self.took(&keep(&v));
+            v
+        } else {
+            self.rebuild_from_table()
+        }
+    }
+
     /// 起こしたままにする答え合わせ役（common::Live）。焼いた表で流すときは None
     pub fn live(&mut self, script: &str, args: &[&str]) -> (Option<super::Live>, Value) {
         if self.python() {
@@ -1071,7 +1388,10 @@ impl Bake {
     /// Python の答えを受けた直後: 場面を写し、表の宣言・問い合わせと比べる（表が古いか）
     pub fn took(&mut self, v: &Value) {
         let ex: Vec<&str> = self.exclude.clone();
-        self.scene = snapshot(&self.base, &self.ctx, &ex);
+        // 場面の台本が作ったファイル（答え合わせ役が同じ台本を呼んで作り、その相対の道を sceneMade で答える）
+        let made: Vec<String> =
+            v["sceneMade"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+        self.scene = snapshot_with(&self.base, &self.ctx, &ex, &made);
         let ctx = self.ctx.clone();
         // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
         self.oracle = map_strings(&self.strip_answers(v), &|s| text_decl(s, &ctx));
@@ -1109,6 +1429,28 @@ impl Bake {
             self.scene = map_strings(&self.scene, &f);
             self.oracle = map_strings(&self.oracle, &f);
         }
+        if self.mode == Mode::Python && !self.check && self.measure.is_some() {
+            // 測るだけ: 場面と問い合わせが表と違うか（落とさない。比べる途中で落ちても試験は続ける）
+            if let Some(t) = self.table.clone() {
+                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let now_free = |v: &Value| {
+                        let re = super::re(r"@NOW\(-?\d+ms");
+                        settle(&map_strings(v, &|s| re.replace_all(s, "@NOW(~").into_owned()), &self.ctx, &self.keys)
+                    };
+                    (
+                        diff_tol(&now_free(&t["oracle"]), &now_free(&self.oracle), "oracle"),
+                        super::diff(&decl_cmp(&t["scene"]), &decl_cmp(&self.scene), "scene"),
+                    )
+                }));
+                let (o, s) = r.unwrap_or((Some("（測りが落ちた）".into()), Some("（測りが落ちた）".into())));
+                if let Some(d) = o {
+                    self.measured_decl.insert("oracle".into(), json!(cut(&d)));
+                }
+                if let Some(d) = s {
+                    self.measured_decl.insert("scene".into(), json!(cut(&d)));
+                }
+            }
+        }
         if self.mode == Mode::Python && self.check {
             let Some(t) = &self.table else {
                 self.bad.push(format!("焼いた表 tests/baked/{}.json がありません（TPA_BLESS=1 で焼く）", self.file));
@@ -1131,7 +1473,32 @@ impl Bake {
 
     fn rebuild_from_table(&mut self) -> Value {
         let t = self.table.clone().unwrap();
+        if let Some((script, args)) = &self.script {
+            // 場面の台本（app を import しない標準の Python。独立の答えと同じく段 ④ の後も残す）
+            let py = stdlib_python();
+            let out = std::process::Command::new(&py)
+                .arg("-I")
+                .arg(super::program().join("tests").join(script))
+                .args(args)
+                .env("PYTHONIOENCODING", "utf-8")
+                .env("PYTHONDONTWRITEBYTECODE", "1")
+                .current_dir(super::program())
+                .output()
+                .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
+            assert!(out.status.success(), "場面の台本 {script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
+        }
         materialize(&t["scene"], &self.base, &self.ctx);
+        for (rel, e) in t["scene"]["files"].as_object().unwrap() {
+            if let Some(want) = e["made"].as_str() {
+                let got = made_print(&self.base.join(rel));
+                assert!(
+                    got == want,
+                    "場面の台本が作ったファイル {rel} が表の指紋と違います（{got} / 表 {want}）。台本か Python の版（乱数の並び）が変わりました。\
+                     場面と表を同時に焼き直します: python program/tools/bless.py {}",
+                    self.book
+                );
+            }
+        }
         self.scene = t["scene"].clone();
         self.oracle = t["oracle"].clone();
         let ctx = self.ctx.clone();
@@ -1186,6 +1553,16 @@ impl Bake {
                 self.bad.push(format!("そろえた後の窓の答えが Python と違う（焼かない）: {}", cut(&d)));
             }
         }
+        if !self.check && self.measure.is_some() && self.table.is_some() && self.mode == Mode::Python {
+            // 測るだけ（表と比べない PC）: 表と違う歩を記す（落とさない）
+            let d = match self.table_answer(&key) {
+                None => Some("<表に無い歩>".to_string()),
+                Some(t) => diff_tol(&t, &g, ""),
+            };
+            if let Some(d) = d {
+                self.measured.push(json!({"key": key, "route": route, "diff": cut(&d)}));
+            }
+        }
         if self.check && self.table.is_some() && self.mode != Mode::BlessScope {
             match self.table_answer(&key) {
                 None => self.bad.push(format!("表に無い歩（表が古い。tools/bless.py で焼き直す）: {key}")),
@@ -1221,6 +1598,7 @@ impl Bake {
 
     /// 終わり: 焼く・表と比べた食い違いを知らせる。test_bad は試験そのものの食い違い（Python と比べた分）
     pub fn finish(mut self, test_bad: &[String]) {
+        self.write_measure();
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
                 let mut missing: Vec<&String> =
@@ -1294,6 +1672,21 @@ impl Bake {
         }
     }
 
+    /// 測るだけの記録を書く（TPA_MEASURE のフォルダ。表と比べない PC だけ。書けなくても試験は続ける）
+    fn write_measure(&self) {
+        let (Some(dir), Some(t), false, Mode::Python) = (&self.measure, &self.table, self.check, self.mode) else { return };
+        let missing: Vec<&String> =
+            t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
+        let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "steps": self.answers.len(),
+                           "tableSteps": t["answers"].as_object().map(|o| o.len()).unwrap_or(0),
+                           "differing": self.measured, "missing": missing});
+        for (k, d) in &self.measured_decl {
+            v[k.as_str()] = d.clone();
+        }
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::write(dir.join(format!("{}.json", self.file)), serde_json::to_string_pretty(&v).unwrap_or_default());
+    }
+
     fn dump_diff(&self) {
         let d = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("bless-diff");
         let _ = std::fs::create_dir_all(&d);
@@ -1337,10 +1730,15 @@ impl Bake {
             t
         };
         t["sources"] = sources_of(&self.book);
+        // 大きい本（版 3.116.0）は詰めた形で書く。前の表が詰めてあれば同じく詰める。要約は開いた形で出す
+        let plain = t.clone();
+        if self.pack {
+            t = pack_table(&t);
+        }
         let text = lines(&t, 0) + "\n";
         std::fs::write(&path, text).unwrap();
         // 変わった葉の要約（道の型ごとの数・鍵・前 → 後の見本 3）。PR の説明に貼る
-        eprintln!("{}", summary(&self.file, &old, &t).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
+        eprintln!("{}", summary(&self.file, &old, &plain).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
         eprintln!("bless| {} に書きました", path.display());
     }
 }
@@ -1348,7 +1746,10 @@ impl Bake {
 /// 表の字: 段 2 までは 1 項目 1 行（歩ごと・ファイルごとの差分が読める）、その下は詰めて書く（oracle は場面ごとに 1 行）
 pub fn lines(v: &Value, depth: usize) -> String {
     let pad = |d: usize| " ".repeat(d);
+    // 詰めた表（parts がある）の oracle は場面ごとの歩が参照になっているので、1 段深く 1 項目 1 行にする
+    let packed = v.get("parts").is_some();
     let deep = |k: &str| match k {
+        "oracle" if packed => 5,
         "oracle" => 4,
         "scene" => 3,
         _ => 2,

@@ -1,0 +1,921 @@
+{
+ "title": "Rust 化の版 3.116.0 で何をするか（段 ③ の 4 つ目の 2 版目: 残り 14 本の答え合わせ役の置き換え・計算の任せる歩・Windows の表・試験データの台本・競い合いの守り方・PC に頼る形と時間）の案出し（2026-11-18）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（試験の答えの元を Python の app から外す 2 版目）なので決まり 2026-11-06（案の採点は 1 回だけ。届かなくても 1 位に指摘を直して入れた形で作る。作った後の採点も 1 回だけ）。製品の答えが変わるのは、計算の 16 形（Python が例外などで答える本文）を窓が自分で答える所だけで、字は今 Python が出している物と同じ。案 F だけは ③-6（CM3 の https・プロキシ）も入れる。採点はまだ（別の係がする。score・minus・seen・evaluator は空）",
+ "measured": {
+  "where": "作業フォルダ /home/user/LotScope/.claude/worktrees/stage3d（ブランチ stage3d・版 3.115.0・PR #115 の CI の直しの最中）を読むだけで測った（2026-11-18）。Linux の開発コンテナ（root・4 コア）・Python 3.13.18・glibc 2.39・rustc 1.97.0。別の係の check-all（check9）が同じ時に流れていたので cargo は 1 度も動かしていない。答え合わせ役は nice -n 19 で 1 本ずつ流した。測りの台本と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/ に置いた（commit しない。作業フォルダには何も書いていない）: measure.py・measure.json（14 本を 2 回ずつ）・bulk.py・bulk.json（大きさが溜まる鍵）・pack.py・pack.json（中身を失わない詰め方）・forms.py・forms.json（行の辞書・長い字）・shrink.py・shrink.json（小さくする余地）・osdiff.py・osdiff.json（OS で変わりそうな歩）・baked_stats.py・baked_stats.json（焼いた表 26 ファイル）・cargo_times.py・cargo_times.json（check-all の cargo の試験の本ごとの時間。3.114.0 と 3.115.0）・rx/rx.rs・rx/settle.rs・rx/result.txt（正規表現の手間）・delegates.json・delegates.log（任せる歩）・ci-*.log・ci-win-*-times.json（CI の記録）・pytime-baked.log・cache/（答えの gzip 12 MB。数え直し用で、消してよい）",
+  "delegates": "python program/tools/delegate-count.py 作業フォルダ --check（135 秒）: 計 59 = 比べる口 7（fs 1・place 1・release_place 3・builder 2）・段 ③-6 の 3（schedule）・計算 48（calc。16 形 × 3 場面。Python の答え 4xx 39・2xx 9。今の窓が任せるのは 39、9 は窓も同じに答える）・戻したキーに / がある道 1（builder）。ほかに Windows だけ 2（schedule）・道ごとに中身へ回す当たり 135（比べる口）。予算と同じ",
+  "calc_delegates": "計算の 16 形（1 場面あたり）: 欄が無い KeyError 4（thickness・found_equipment・found_pitch_mm・inputs）・並びが足りない IndexError 3（i64 に入らない字の found_equipment・発見設備が工程に無い・番号の順が入れ替わる）・数でない ValueError 3（x・'8.0'・'abc'）・字でない AttributeError 1（設備名が数）・本文の形 2（本文が並び・NaN。kind: body）・200 で答える 3（番号が i64 に入らない字・下流の設備名が null・検査計の名前が表〈鍵が Python の repr の字 \"{'a': 1}\"〉）。type つきの答えは 33（11 形 × 3）",
+  "baked_3115": "版 3.115.0 の焼いた表: 26 ファイル・6.71 MB（gzip 0.40 MB）・答え 2,775 歩・問い合わせ（oracle）の字 51,916・場面の字のファイル 1,023。大きい順: formats 1.30・presets 0.74・access 0.56・dashboards 0.55・cards 0.48・seed_reads 0.44 MB（baked_stats.json）",
+  "check_all": {
+   "3.114.0（b3114/check2）": "py-tests 199 秒（Ran 926）・cargo-test 769 秒・verify 2,125 秒 → 約 53 分",
+   "3.115.0（b3115f/check8）": "js-check 9・cargo-build 36・fmt-clippy 39・py-tests 297（Ran 936）・cargo-test 1,422・verify 2,257・verify-local 15 秒 → 4,075 秒 = 68 分（CLAUDE.md の「背景で流すときは制限時間を 60 分」を超える。check5 では窓の通しが 60 分で切られた）",
+   "増えた所": "cargo-test +650 秒（下の cargo_test）・py-tests +100 秒（tests/test_delegates_budget.py が答え合わせ役を 19 → 36 本流す。delegate-count は単独で 135 秒＝py-tests の 45%）・verify +130 秒",
+   "verify の中身": "場面 11。開いてから結果まで share 141・nan-config 263・app 133・closed-new 140・revert 135・python-broken 10・python-slow 170・badconf 10・js-broken 202・distribute-down 142・entry 140 秒（計 1,486 秒）。8 場面が窓の中の自己診断を 130〜260 秒ずつ流す（Python を通す項目が大半。段 ④ で減る）"
+  },
+  "cargo_test": {
+   "sum": "試験の時間の計（組む時間を除く）: 3.114.0 691.8 秒 → 3.115.0 1,338.9 秒",
+   "baked21": "焼いた 21 本の試験: 332.1 → 939.4 秒（+607.3 秒）。例: access_parity 0.97 → 65.6・name_key_cases 12.6 → 69.8・presets_parity 58.1 → 111.1・dashboards_parity 51.7 → 99.2・equip_rows_parity 8.9 → 62.9・release_parity 3.7 → 44.8 秒",
+   "rest14": "2 版目の 14 本（試験 16 ファイル）: 296.5 → 329.8 秒（焼いていないのでほぼ同じ）。lotdsp_parity 68.9・route_reach 57.9・ops_parity 42.2・lotlist_parity 37.3・calc_parity 27.6 秒",
+   "why": "増えた 607 秒の主因は、焼く係（desktop/tests/common/bake.rs）が正規表現を呼ぶたびに組むこと: text_decl の dt_re()（Python と比べる形の took が、答え合わせ役の答えから歩の答え〈status・json〉を除いた残りの字と鍵の 1 つずつ・場面の字のファイルの 1 つずつで呼ぶ）・route_of（歩ごと）・text_of_decl と fid_unsub（Python 無しの形で字ごと）・decl_cmp・user_decl。試験と同じ debug の regex の rlib で測ると（rx/rx.rs。cargo を使わず rustc で組んだ）dt_re の Regex::new は 1 回 8.8〜11.7 ms・text_of_decl 1.2〜1.8 ms・route_of 0.4〜0.9 ms、組んだ後の当ては 1〜3 µs（1/3,000〜1/10,000）。数の合い方: 焼いた 26 表の問い合わせの字 51,916 ＋ 場面の字のファイル 1,023 ＝ 52,939 回 × 約 10 ms ≈ 530 秒、name_key の落とす前の字 約 7,000 × 約 8 ms ≈ 57 秒（表では 5 字に見えるが took は落とす前に全部を通す）→ 約 590 秒（測った増え 607 秒）",
+   "baked_mode": "Python 無しの形（TPA_NO_PYTHON=1）の 21 本: 341 秒（b3115f/run-tz-nopy）。Python と比べる形の同じ回は 801 秒。焼く前の 332 秒とほぼ同じ（段 ④ の後はここへ戻る）",
+   "projection": "今の焼く係のまま 14 本を焼くと: 14 本の答えの字の葉 2,284,399（鍵を除く）× 約 10 ms ≈ 6.3 時間が上限。歩の答え（method のある表の status・json）は落とされるが、その形でない答え（lists・lotlist の expected、pivot の answer、settings の reads、routes・dashboard・ops の body: 字の葉 約 185 万）は通るので、本ごとに落とす鍵を決めても場面の字のファイル 6,370 と問い合わせの字で数分〜数十分、決めなければ約 5 時間（check-all に入らない）。正規表現を 1 度だけ組めば、そろえる決まりの 1 字あたりは 約 4 µs（rx/settle.rs。settle.json の形 4 つ＋今に近い日時＋日付）で、440 万葉でも 1〜3 分の見込み（測っていない: cargo を動かせなかった）"
+  },
+  "ci": {
+   "時間": "Linux の CI（ci.yml）: 54〜68 分（3.114.0 の頭 1d9e35c: test（Rust）558 秒・自己診断 169 秒・更新の通し 2,427 秒）。Windows の CI（desktop.yml）: 78〜80 分（上限 timeout-minutes 90）。1d9e35c: test（Rust・Windows）2,416 秒・exe 286・自己診断 160・更新の通し 1,668 秒",
+   "Windows の試験の内訳": "1d9e35c（3.114.0）の試験の計 2,292 秒のうち route_reach が 1,098.8 秒（48%。Linux は 58 秒）・builder_cases 135.8 秒（Linux 4.6 秒）・lib 119 秒。079947d（3.115.0）: route_reach 1,114.8 秒。両方で流れた 52 本は 2,115 → 2,710 秒（+594 秒。うち焼いた 14 本 391 → 926 秒）。079947d は schedule_parity で落ちて後ろの 10 本（3.114.0 で計 177 秒）が流れていないので、最後まで流れると test の段は 約 3,200 秒 → 仕事の計が 約 91 分で上限 90 分に届く見込み",
+   "落ちた回": [
+    "1（Linux・bb53ac5・test 135 秒）: access_parity「表が古い: oracle.cases[0].conf.place.defaults: \"/home/user/LotScope/.claude/worktrees/stage3d/program/app/master_defaults\" / \"@HOME/work/LotScope/LotScope/…\"」＝焼いた表にリポジトリの道が字のまま（リポジトリが家の下にある PC）",
+    "2（Windows・bb53ac5・test 394 秒）: bake_selftest の 2 つ（a_one_character_change_in_the_window_answer_is_caught・bless_writes_only_when_the_settled_window_answer_equals_python）＝Windows は表と比べない決め・置き換えた後の区切りが「\\」",
+    "3（Linux・079947d・test 144 秒）: bake_selftest の a_scoped_bless_refuses_changes_outside_the_scope＝書く・読む答えを流している利用者（root でない runner）で決めていた",
+    "4（Windows・079947d・test 2,893 秒）: schedule_parity「timeout が 10000000.0: Python 500 OverflowError: timeout doesn't fit into C timeval / 窓 200」「timeout が 1e+300: CM3 への要求 Python 10 本 / 窓 11 本」＝Windows の Python だけの答え（直している最中）"
+   ],
+   "気づき": "cargo test は最初に落ちた試験の実行ファイルで止まる（--no-fail-fast でない）ので、落ちる所が 1 回に 1 つずつしか分からなかった: bb53ac5 の Linux は access_parity で止まり、その後ろの bake_selftest（3 回目の原因）は流れていない。Windows も bake_selftest（394 秒）で止まり、schedule_parity（4 回目）は次の回で初めて流れた"
+  },
+  "books14": [
+   {
+    "name": "equipgroups_oracle",
+    "rustTest": "equipgroups_write_parity",
+    "rustTestSec": 8.83,
+    "oracleSec": 4.7,
+    "answerMB": 1.29,
+    "answerGzMB": 0.03,
+    "leaves": 58714,
+    "stringLeaves": 45107,
+    "cases": "44 場面・335 歩",
+    "packedMB": 0.22,
+    "sceneMB": 2.01,
+    "scene": "作業フォルダの下（2.0 MB・1,873 ファイル）＋作り物の CM3 を起こしたまま（--serve）",
+    "wobbleLeaves": 2335,
+    "wobbleKeys": {
+     "updated_at": 2335
+    },
+    "pythonErrorTypes": {
+     "GroupError": 46
+    },
+    "pathTextSteps": 22,
+    "longFloatSteps": 0
+   },
+   {
+    "name": "routes_oracle",
+    "rustTest": "routes_parity",
+    "rustTestSec": 3.15,
+    "oracleSec": 1.4,
+    "answerMB": 1.52,
+    "answerGzMB": 0.17,
+    "leaves": 61269,
+    "stringLeaves": 34512,
+    "cases": "2 段・91 歩（77＋14）",
+    "packedMB": 0.76,
+    "sceneMB": 0.0,
+    "scene": "作業フォルダの外（ui_server.build の /tmp/tpa-ui-*。1.2〜2.2 MB・63 ファイル。app を 10 か所 import）",
+    "wobbleLeaves": 329,
+    "wobbleKeys": {
+     "remote": 42,
+     "at": 38,
+     "checkedAt": 37,
+     "query": 35,
+     "copiedAt": 33,
+     "server": 27,
+     "キー": 26,
+     "ファイルID": 24,
+     "key": 16,
+     "place": 16,
+     "path": 14,
+     "updated_at": 8
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 37,
+    "longFloatSteps": 41
+   },
+   {
+    "name": "pivot_oracle",
+    "rustTest": "pivot_parity",
+    "rustTestSec": 3.79,
+    "oracleSec": 1.7,
+    "answerMB": 0.91,
+    "answerGzMB": 0.11,
+    "leaves": 47339,
+    "stringLeaves": 35200,
+    "cases": "131 件（うち断る 20）＋値の計算 331",
+    "packedMB": 0.55,
+    "sceneMB": 0.0,
+    "scene": "作業フォルダの外（ui_server.build）",
+    "wobbleLeaves": 488,
+    "wobbleKeys": {
+     "path": 486,
+     "error": 2
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 115,
+    "longFloatSteps": 29
+   },
+   {
+    "name": "schedule_oracle",
+    "rustTest": "schedule_parity",
+    "rustTestSec": 11.36,
+    "oracleSec": 5.4,
+    "answerMB": 1.71,
+    "answerGzMB": 0.16,
+    "leaves": 98278,
+    "stringLeaves": 78224,
+    "cases": "43 場面・102 歩＋CM3 への要求の記録",
+    "packedMB": 0.47,
+    "sceneMB": 3.95,
+    "scene": "作業フォルダの下（3.9 MB・1,196 ファイル）＋作り物の CM3 を起こしたまま＋受け身の Python（凍らせる相手）",
+    "wobbleLeaves": 934,
+    "wobbleKeys": {
+     "headers": 423,
+     "fetchedAt": 126,
+     "checkedAt": 122,
+     "remote": 58,
+     "copiedAt": 57,
+     "viewUrl": 44,
+     "changedAt": 38,
+     "body": 20,
+     "equip": 20,
+     "server": 15,
+     "cm3": 5,
+     "now": 5
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 0,
+    "longFloatSteps": 59
+   },
+   {
+    "name": "conversions_oracle",
+    "rustTest": "conversions_write_parity",
+    "rustTestSec": 15.24,
+    "oracleSec": 4.2,
+    "answerMB": 3.87,
+    "answerGzMB": 0.17,
+    "leaves": 154949,
+    "stringLeaves": 135288,
+    "cases": "54 場面・377 歩",
+    "packedMB": 0.37,
+    "sceneMB": 4.04,
+    "scene": "作業フォルダの下（4.0 MB・2,060 ファイル。同じ中身が多い）",
+    "wobbleLeaves": 11,
+    "wobbleKeys": {
+     "updated_at": 5,
+     "error": 5,
+     "between": 1
+    },
+    "pythonErrorTypes": {
+     "ConversionError": 57
+    },
+    "pathTextSteps": 20,
+    "longFloatSteps": 0
+   },
+   {
+    "name": "presence_oracle",
+    "rustTest": "presence_parity",
+    "rustTestSec": 8.62,
+    "oracleSec": 2.3,
+    "answerMB": 29.48,
+    "answerGzMB": 0.04,
+    "leaves": 4014,
+    "stringLeaves": 2771,
+    "cases": "11 場面・190 歩",
+    "packedMB": 0.08,
+    "sceneMB": 4.24,
+    "scene": "作業フォルダの下（4.2 MB。うち 4 MB の境の ui_state.json）",
+    "wobbleLeaves": 0,
+    "wobbleKeys": {},
+    "pythonErrorTypes": {},
+    "pathTextSteps": 17,
+    "longFloatSteps": 2
+   },
+   {
+    "name": "ui_defaults_oracle",
+    "rustTest": "ui_defaults_parity",
+    "rustTestSec": 5.45,
+    "oracleSec": 1.3,
+    "answerMB": 16.97,
+    "answerGzMB": 0.02,
+    "leaves": 1246,
+    "stringLeaves": 1143,
+    "cases": "9 場面・43 歩",
+    "packedMB": 2.17,
+    "sceneMB": 0.04,
+    "scene": "作業フォルダの下（0.04 MB）",
+    "wobbleLeaves": 12,
+    "wobbleKeys": {
+     "updatedAt": 12
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 4,
+    "longFloatSteps": 0
+   },
+   {
+    "name": "ops_oracle",
+    "rustTest": "ops_parity",
+    "rustTestSec": 42.15,
+    "oracleSec": 15.0,
+    "answerMB": 4.22,
+    "answerGzMB": 0.32,
+    "leaves": 262861,
+    "stringLeaves": 102171,
+    "cases": "51 件＋3 段（108・10・3）",
+    "packedMB": 1.5,
+    "sceneMB": 0.0,
+    "scene": "作業フォルダの外（tools/ops-bench.py の一時フォルダ。create_app・MasterStore を使う）",
+    "wobbleLeaves": 3934,
+    "wobbleKeys": {
+     "キー": 755,
+     "at": 733,
+     "checkedAt": 733,
+     "copiedAt": 733,
+     "remote": 733,
+     "ファイルID": 126,
+     "updated_at": 50,
+     "cache": 14,
+     "data": 14,
+     "presence": 14,
+     "place": 14,
+     "folder": 14
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 161,
+    "longFloatSteps": 161
+   },
+   {
+    "name": "dashboard_oracle",
+    "rustTest": "dash_parity",
+    "rustTestSec": 12.11,
+    "oracleSec": 5.6,
+    "answerMB": 2.07,
+    "answerGzMB": 0.19,
+    "leaves": 87616,
+    "stringLeaves": 51892,
+    "cases": "347 件＋4 段（18）",
+    "packedMB": 1.01,
+    "sceneMB": 0.0,
+    "scene": "作業フォルダの外（ui_server.build）",
+    "wobbleLeaves": 6985,
+    "wobbleKeys": {
+     "at": 1650,
+     "checkedAt": 1650,
+     "copiedAt": 1650,
+     "remote": 1650,
+     "server": 159,
+     "キー": 65,
+     "ファイルID": 55,
+     "updated_at": 40,
+     "place": 35,
+     "source": 7,
+     "raw": 5,
+     "api": 5
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 321,
+    "longFloatSteps": 321
+   },
+   {
+    "name": "settings_oracle",
+    "rustTest": "bundle_parity・page_parity・route_reach",
+    "rustTestSec": 71.2,
+    "oracleSec": 3.9,
+    "answerMB": 8.02,
+    "answerGzMB": 1.46,
+    "leaves": 27812,
+    "stringLeaves": 20812,
+    "cases": "74 場面（束と読む道 7 本）・道の型 138",
+    "packedMB": 2.92,
+    "sceneMB": 0.54,
+    "scene": "作業フォルダの下（0.54 MB・790 ファイル）。bundle_parity・page_parity・route_reach の 3 試験が使う",
+    "wobbleLeaves": 91,
+    "wobbleKeys": {
+     "rev": 73,
+     "updated_at": 10,
+     "until": 6,
+     "body": 2
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 74,
+    "longFloatSteps": 2
+   },
+   {
+    "name": "calc_oracle",
+    "rustTest": "calc_parity",
+    "rustTestSec": 27.62,
+    "oracleSec": 9.7,
+    "answerMB": 23.29,
+    "answerGzMB": 2.62,
+    "leaves": 800879,
+    "stringLeaves": 163113,
+    "cases": "3 場面 × 244 事例 = 732",
+    "packedMB": 17.15,
+    "sceneMB": 0.48,
+    "scene": "作業フォルダの下（0.48 MB）",
+    "wobbleLeaves": 0,
+    "wobbleKeys": {},
+    "pythonErrorTypes": {
+     "KeyError": 12,
+     "IndexError": 9,
+     "ValueError": 9,
+     "AttributeError": 3
+    },
+    "pathTextSteps": 0,
+    "longFloatSteps": 666
+   },
+   {
+    "name": "lists_oracle",
+    "rustTest": "lists_parity",
+    "rustTestSec": 14.01,
+    "oracleSec": 3.6,
+    "answerMB": 16.4,
+    "answerGzMB": 1.4,
+    "leaves": 1424643,
+    "stringLeaves": 707476,
+    "cases": "46 件＋日時 528＋分 59＋結合 13",
+    "packedMB": 7.82,
+    "sceneMB": 12.67,
+    "scene": "作業フォルダの下（12.7 MB。SQLite 7 つ。lotlist_fixture〈stdlib〉が作る）",
+    "wobbleLeaves": 11,
+    "wobbleKeys": {
+     "name": 11
+    },
+    "pythonErrorTypes": {},
+    "pathTextSteps": 1,
+    "longFloatSteps": 1
+   },
+   {
+    "name": "lotlist_oracle",
+    "rustTest": "lotlist_parity",
+    "rustTestSec": 37.28,
+    "oracleSec": 7.9,
+    "answerMB": 31.49,
+    "answerGzMB": 4.99,
+    "leaves": 1349484,
+    "stringLeaves": 897434,
+    "cases": "119 件",
+    "packedMB": 2.6,
+    "sceneMB": 0.77,
+    "scene": "作業フォルダの下（0.77 MB。SQLite 1 つ）",
+    "wobbleLeaves": 0,
+    "wobbleKeys": {},
+    "pythonErrorTypes": {},
+    "pathTextSteps": 1,
+    "longFloatSteps": 1
+   },
+   {
+    "name": "lotdsp_oracle",
+    "rustTest": "lotdsp_parity",
+    "rustTestSec": 68.94,
+    "oracleSec": 34.8,
+    "answerMB": 30.54,
+    "answerGzMB": 0.59,
+    "leaves": 20508,
+    "stringLeaves": 9256,
+    "cases": "13 場面・182 歩＋見えないブラウザ 20 場面",
+    "packedMB": 3.28,
+    "sceneMB": 0.28,
+    "scene": "作業フォルダの下（0.28 MB）＋作り物の LotDsp の API・サイト・ブラウザを起こしたまま（serve）",
+    "wobbleLeaves": 49,
+    "wobbleKeys": {
+     "url": 37,
+     "search_url": 11,
+     "base": 1
+    },
+    "pythonErrorTypes": {
+     "LookupError": 60,
+     "ValueError": 7
+    },
+    "pathTextSteps": 0,
+    "longFloatSteps": 0
+   }
+  ],
+  "books14_total": "14 本の計: 答え 171.8 MB（gzip 12.3 MB）・葉 4,399,612・字の葉 2,284,399・答え合わせ役を 1 回流す時間の計 101.5 秒・作業フォルダの下の場面 29.0 MB。答えの大きさは Python の答え（問い合わせ込み）で測った目安（焼いた表は窓の答えを持つので、ほぼ同じ大きさになる）",
+  "bulk": "大きさが溜まる所（bulk.json）: calc は json 6.4 MB（葉 797,065。小数）＋body 2.2 MB／lists は joins[].expected.rows 7.5 MB（葉 123 万）／lotlist は expected[].ok.rows 9.9 MB（葉 132 万）／lotdsp は body_hex 29.8 MB（10 MB の境の本文 2 つで 20 MB）／presence は 4 MB の境の本文と ui_state.json／ui_defaults は 2 MB の境の本文 7 MB／settings は reads の本文（画面の字「/」2.2 MB〈74 場面で 14 種類〉・/api/sources 2.6 MB〈27 種類〉・/api/settings 0.9 MB〈74 種類〉）",
+  "forms": {
+   "そのまま": "171.8 MB（gzip 12.3 MB）",
+   "中身を失わない詰め方（pack.py）": "同じ中身の部分（120 字より大きい表・並び・字）は 2 回目から指紋の参照・2,000 字を超える繰り返しの字は作り方（頭・単位 × 数・尾）・16 進の本文は元の字に戻す → 計 40.9 MB。本ごと（MB）: equipgroups 0.22・routes 0.76・pivot 0.55・schedule 0.47・conversions 0.37・presence 0.08・ui_defaults 2.17・ops 1.5・dashboard 1.01・settings 2.92・calc 17.15・lists 7.82・lotlist 2.6・lotdsp 3.28。ui_defaults の 2.17 は「ああ…」の 2 MB の本文 1 つを作り方に読めていない分で、直せば約 0.1",
+   "行の辞書（forms.json）": "lotlist: 行 41,917 のうち違う行は 6,639（19.8 → 2.1 MB）／lists: 49,939 行のうち違う行 27,133（11.7 → 7.7 MB。結合の答えは行が長く重なりが少ない）／conversions: pack で 3.87 → 0.37 MB／schedule: 2,260 行のうち違う行 483",
+   "行ごとの指紋（8 桁）": "lists 0.40 MB・lotlist 0.34 MB・ops 0.06 MB・routes 0.02 MB（指紋は gzip で縮まない）。歩ごとの指紋だけなら 14 本で 0.1 MB（64 バイト × 歩）",
+   "小さくする余地（shrink.json）": "lists: 結合 13 本の行は 800・712・712・800・2,134・600・0・0・2,508・2,508・4,878・3,661・11,054（計 30,367 行）。行を 1/5 にすれば 7.5 → 約 1.5 MB／lotlist: 119 事例のうち 53 が 500 行（頁の大きさ）・48 が 0 行／calc: 244 事例 × 3 場面。場面の間で答えが同じ事例は 20 だけ（場面を減らしても効かない）。答えは 1 事例 約 26 KB／lotdsp: 本文 115 種類・25.7 MB（10 MB の境 2 つを除くと 5.7 MB）／settings: 画面の字は 74 場面で 14 種類"
+  },
+  "wobble": "2 回流して違う葉（measure.json）: dashboard 6,985・ops 3,934・equipgroups 2,335・schedule 934・pivot 488・routes 329・settings 91・lotdsp 49・ui_defaults 12・conversions 11・lists 11・calc 0・lotlist 0・presence 0。鍵は updated_at・at・checkedAt・copiedAt・remote・path（/tmp/tpa-ui-*）・rev・fetchedAt・headers（CM3 のポート）・url・ファイルID・キー。新しい種類は schedule の headers（作り物の CM3 のポートが Host に入る）と lotdsp の url・search_url（作り物のサイトのポート）。2 回は 1.2 秒あけただけで時刻の境（次の分）をまたいでいないので、この数は下限（前の採点の指摘のとおり、境をまたぐと増える）",
+  "os": "Windows で答えが変わりそうな歩の目安（osdiff.json。上限）: 焼いた 2,775 歩のうち OS の誤りの字（Errno など）を含む 113・道の字を含む 311（計で 15% 以下）。残り 14 本は道の字を含む歩が多い（dashboard 321/365・ops 161/172・pivot 115/115。ほぼ mirrors[].remote と parts[].path の一時フォルダの道で、そろえる決まりで消える）。長い小数を含む歩は calc 666/732・dashboard 321・ops 161・schedule 59",
+  "pow": "計算は 2 乗を C の pow で数える（窓 calc.rs の pow2・Python の x ** 2。calc_oracle.py と calc_parity.rs の冒頭に「焼いた表にしない」と書いてある）。この PC（glibc 2.39）で x**2 と x*x が違う x は 2,000,000 個のうち 1,136 個（0.057%。例 3523.028434654385）。pow は OS の数学の部品で 1 ulp 変わりうるので、Linux で焼いた calc の答えは Windows で最後の桁が違う恐れがある（Windows では測っていない）。pow を使う所はほかに formula.rs（10 の d 乗）・num_expr.rs（a ** b）・pivot.rs（n の −0.2 乗）",
+  "frozen": "凍らせた Python を相手にする試験（bake::frozen_python の印）は 8: masters 1・seeds 3・place 1・mirror 2・appsettings_cases 1。ほかに schedule の受け身・builder の同時に組む場面・place の --follow・release_place の 2 つの PC。program/app は .py 25,780 行・1.59 MB（static 3.4 MB を含めると 5.6 MB）",
+  "live": "起こしたままにする答え合わせ役 3 本（equipgroups --serve・schedule serve・lotdsp serve）は、試験の間、作り物のサーバー（CM3・LotDsp の API とサイト・作り物のブラウザ）を持つ。schedule_fixture.py（Cm3Server）と lotdsp_cdp_fake.py は app を import しないが、起こす台本（*_oracle.py）は app を import する。schedule_parity は試験の途中で live に尋ねる（requests・count）。Python 無しの形では、作り物だけを app なしで起こす台本が要る（1 版目の builder は窓の側で 404 を答える作り物を起こした）"
+ },
+ "inventory": [
+  "T1 焼く係の速さが先: 今の bake.rs は字ごとに正規表現を組み、21 本で +607 秒。このまま 14 本を足すと上限 6.3 時間（落とす鍵を本ごとに決めなければ約 5 時間）。Windows の CI は 3.115.0 のままで上限 90 分に届く見込み。どの案でも最初に直す（3.115.0 の CI の直しに入れてもよい）",
+  "T2 14 本の答えは 171.8 MB（1 版目の 21 本の表は 6.7 MB）。中身を失わずに詰めても 40.9 MB で、calc 17.2・lists 7.8 の 2 本で 61%。残り 12 本は 15.9 MB（ui_defaults を直せば 13.8）",
+  "T3 場面が作業フォルダの外にある本が 4（routes・pivot・dashboard は ui_server.build、ops は ops-bench）。bake::snapshot は作業フォルダだけを写すので、そのままでは場面を宣言にできない。SQLite を b64 で表に入れると lists だけで 12.7 → 17 MB になるので、DB は app を import しない台本で作る形が要る（lotlist_fixture・schedule_fixture は既に stdlib＋sqlite3＋種つきの random）",
+  "T4 起こしたままの 3 本（equipgroups・schedule・lotdsp）は、作り物のサーバーを app なしで起こす台本を切り出さないと Python 無しの形で流せない",
+  "T5 calc は OS の pow に頼る（この PC で x**2 ≠ x*x が 0.057%）。Linux の答えを焼いて Windows で比べる形は、nt の上書きが最大 666 歩になるか、1 ulp の違いで落ちる",
+  "T6 任せる歩 59 のうち 3.116.0 で閉じられるのは計算の 48（→ 11 = 口 7・③-6 の 3・道 1）。計算の 16 形は Python の評価の順（どの誤りが先に出るか）まで写す要がある",
+  "T7 PC に頼る形で CI が落ちた 4 回のうち、手元で見つけられた形は 2（家の下・root でない利用者: runuser と HOME で再現できる）。Windows の 2 は手元で流せない。cargo test が最初の失敗で止まるので 1 回に 1 つずつしか分からなかった",
+  "T8 時間の大きい塊（どれも段 ④ で消えるか縮む）: Windows の route_reach 1,100 秒・verify の自己診断 8 場面 × 130〜260 秒・test_delegates_budget 135 秒・答え合わせ役を流す時間（14 本で 101 秒）"
+ ],
+ "common": {
+  "about": "測りで見つけた、案によらず要る直し（どの案にも入れる土台。案の手間にはこの分を足す: Rust 250〜400 行・Python 60〜120 行・YAML 2 行）",
+  "items": [
+   "K1 焼く係の正規表現を 1 度だけ組む（dt_re・text_of_decl・fid_unsub・decl_cmp・user_decl・route_of・took の now_free を OnceLock に）。見込み: 手元の cargo-test 1,422 → 約 820〜850 秒（−約 600 秒）・Windows の CI の test −約 500〜600 秒（測った増えは両方で流れた 52 本で +594 秒）・bless.py --all（2 回焼く）約 30 分 → 約 15 分。あわせて regex・regex-automata・regex-syntax を dev でも最適化する（Cargo.toml の sha2・zip と同じ書き方）かを測って決める",
+   "K2 計算の 48 歩を窓が答える（任せる歩 59 → 11）。Python が例外で答える 11 形は calc::error_message（1 版目で用意済み）の言葉と type で 400、本文の形 2 は門の言葉、200 の 3 形（i64 に入らない番号・null の下流の設備名・検査計の名前が表）は pyfmt の PyInt::Big と str_repr で。Python の評価の順を写すので、誤りを 2 つ重ねた本文（欄が無い × 数でない など 20〜30 事例）を calc_oracle に足して、Python が残っている今のうちに突き合わせる",
+   "K3 「数でない timeout」を HOT から始めたときの CM3 への要求の数を Python と同じにする（答えは同じ。場面を分けて要求の並びも比べる）",
+   "K4 CI の cargo test を --no-fail-fast にする（落ちる本を 1 回で全部見る。通る回の時間は変わらない）",
+   "K5 予算（delegates_budget.json の calc 48 → 0・total 59 → 11）・books.json の phase・RUST_PORT_PLAN.md・CLAUDE.md の評価関数の行を直す"
+  ]
+ },
+ "axes": {
+  "about": "案の方向の並び（偏りの確かめ）。列は 14 本の持ち方／Windows／ui_server の試験データ／競い合い／PC に頼る形の見つけ方／時間の減らし方／版の数",
+  "A": "詰めて全部（中身を失わない）／nt の上書きを CI の手で起こす仕事で焼く／stdlib の台本／凍らせた Python／bless.py の旗を手で／K1 だけ／1 版",
+  "B": "大きい 6 本は指紋＋行の指紋＋形の要約、全部の答えは repo の外／要約の本は丸ごと 2 つ・ほかは上書き／場面の写し（台本は ④）／凍らせた Python／CI の手で起こす軽い仕事（両 OS）／K1＋route_reach／1 版",
+  "C": "場面と事例を減らしてから全部を焼く／焼かない（posix の表を Windows でも比べ、OS だけの歩は人の事例の表）／stdlib の台本／凍らせた Python／表の静かな見張り（字の形）／K1／1 版",
+  "D": "OS と数学の部品で変わる本は独立の答え（calc・結合・日時）、ほかは詰めて全部／独立の答えはその OS で数える・ほかは上書き／stdlib の台本／独立の相手役（錠の決めだけの stdlib の台本）／check-all の段／K1／1 版",
+  "E": "G と同じ振り分けを 2 版に割る（中の 8 本 → 大きい 6 本）／測るだけの仕事 → 2 版目で決める／stdlib の台本（1 版目）／凍らせた Python（2 版目）／check-all の段（1 版目）／K1＋route_reach＋予算の試験／2 版（③-6 を 2 版目に並べる）",
+  "F": "14 本とも歩ごとの指紋＋形の要約だけ／焼かない／④ へ送る／窓どうし＋錠の決めの事例の表（凍らせない）／表の静かな見張り／K1／1 版に ③-6 も入れて ④ を 1 版早く",
+  "G": "本ごとに 3 つの型へ振り分ける（詰めて全部 12・減らしてから 1・独立の答え 1）／測ってから決める（少なければ焼かない・残りだけ上書き）／stdlib の台本／前の版が相手の試験だけ凍らせ、ほかは窓どうし／check-all の段＋静かな見張り／K1＋route_reach＋予算の試験＋--no-fail-fast／1 版（切る線つき）"
+ },
+ "visible": [
+  "どの案も画面の見た目は変えない。計算の欄が欠けた・数でない本文の知らせは、言葉は同じまま窓が答えるようになる（Python が止まっていても出る）",
+  "案 F だけ: スケジュールが https とプロキシ越しの CM3 に届くようになる（③-6）"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像なし（測った数とコード）。測った物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/ の measure.json・bulk.json・pack.json・forms.json・shrink.json・osdiff.json・baked_stats.json・cargo_times.json・rx/result.txt・delegates.json・delegates.log・ci-*.log・ci-win-*-times.json・pytime-baked.log",
+   "self_check": "案を作った者が採点に渡す前に自分で確かめたこと: (1) 作業フォルダ stage3d は読むだけにした。cargo は動かしていない（rx/ の測りは rustc だけで、cargo の作業フォルダの rlib を読んで、出力は測りのフォルダに書いた）。git は最初に git status --short を 1 回流しただけ。作業フォルダの中に書いたファイルは無い。答え合わせ役と道具は PYTHONDONTWRITEBYTECODE=1・nice -n 19 で 1 本ずつ流した。ui_server を使う答え合わせ役（routes・pivot・ops・dashboard）は /tmp/tpa-ui-* を残す（1〜2 MB ずつ。別の係の試験の分と見分けられないので消していない）。(2) 14 本を 2 回ずつ流して、大きさ・葉・歩・時間・揺れを本ごとに出した（measure.json。約 4 分）。揺れは同じ分の 2 回なので下限。(3) 1 版目で cargo の試験が 2 倍になった理由を、check-all の記録の本ごとの時間（3.114.0 と 3.115.0）と bake.rs のコードで突き止め、同じ debug の regex で正規表現を組む手間を測って数を合わせた（530＋57 秒の見積もりと測った +607 秒）。cargo で直した後の時間は測れていない（見込み）。(4) CI の 4 回の失敗を gh run view の記録で 1 つずつ確かめ、Windows の試験の本ごとの時間を 3.114.0 と 3.115.0 で並べた（route_reach 1,100 秒は 3.114.0 からあった）。(5) 任せる歩を delegate-count.py --check で数え直した（59・予算と同じ）。計算の 16 形を答えから 1 つずつ見た。(6) 持ち方ごとの大きさは Python の答え（問い合わせ込み）で数えた目安で、詰める形は数えただけ（焼く係には作っていない）。指紋と要約の大きさは見積もり。(7) 測っていない物: Windows で違う歩の数（上限の目安だけ）・Windows の pow・直した後の cargo の時間・場面を減らしたときの被覆・ci-shape を足した check-all の時間（21 本の Python 無しの形 341〜355 秒から見込んだ）。(8) 案の方向を axes に並べて偏りを見た: 持ち方は 全部（A）・指紋と要約（B・F）・減らす（C）・独立の答え（D）・混ぜる（E・G）、Windows は 上書き（A・D）・丸ごと 2 つ（B）・焼かない（C・F）・測ってから（E・G）、競い合いは 凍らせる（A・B・C）・独立の相手役（D）・窓どうしと事例の表（F）・絞って混ぜる（E・G）、版は 1 版（A〜D・G）・2 版（E）・③-6 も入れて ④ を早める（F）。(9) 案を作った者の推し（採点ではない）: G。理由: 指紋だけの本を作らずに表を +14〜16 MB に収められる（lotlist は行の重なりで 31.5 → 2.6 MB、calc は OS の pow に頼るので焼かない方が正しい）・1 版目の CI で弱かった所（速さ・PC の形・Windows）を表が増える前に直せる・切る線を使えば E に落とせる。弱い所は 1 版の大きさと、Windows を測るまで手間の幅が広いこと。(10) 採点の欄は空なので、python program/tools/ui_score.py にこのファイルを渡すと「採点した者（evaluator）が無い」で止まる（採点の後に通る）",
+   "proposals": {
+    "A 1 版で全部・中身を失わない形で全部を焼く（案 G の 2 版目をそのまま進める）": {
+     "what": [
+      "土台 K1〜K5",
+      "1 大きい・中の 14 本: 焼く係に「詰める形」を足す（同じ中身の部分は 2 回目から指紋の参照・長い繰り返しの字は作り方・16 進の本文は元の字）。答えは 1 つも落とさず全部を持つ。割れたら今までどおり最初に違う葉の道を言う（参照は開いてから比べる）",
+      "3 Windows: variants.nt（上書き）を desktop.yml の手で起こす仕事 bless-nt（cargo test を TPA_BLESS=1 で流して artifact に書く）で焼き、bless.py --take-nt で取り込む。Windows の CI は取り込んだ後、表と比べる",
+      "4 ui_server の試験データ: app を import しない台本 tests/scenes/ui_scene.py（lotlist_fixture・schedule_fixture と、マスタの JSON を直に書く）に出し、ui_server.py・routes／pivot／dashboard の答え合わせ役・Python 無しの形の窓の試験（stdlib の Python で呼ぶ）が同じ台本を使う。ops は ops-bench の 9 つの書き方の作りだけを台本へ。起こしたままの 3 本の作り物も app なしで起こす台本に分ける",
+      "5 競い合い: 1 版目の決めのとおり、凍らせた最後の Python（program/tests/legacy/<版>/。指紋を CI が見る）を相手に残す。写すのは ④ の直前",
+      "8 PC に頼る形: bless.py に --tz・--home・--tmp の旗を足し、焼いた後に手で流す決まりを CLAUDE.md に書く（1 版目に手で流した形を道具にするだけ）"
+     ],
+     "numbers": {
+      "delegates": "59 → 11（口 7・③-6 の 3・道 1）。Windows だけ 2 は残る",
+      "tables": "14 本で +約 39〜41 MB（calc 17.2・lists 7.8・lotdsp 3.3・settings 2.9・lotlist 2.6・ops 1.5・dashboard 1.0・routes 0.76・pivot 0.55・schedule 0.47・conversions 0.37・equipgroups 0.22・ui_defaults 0.1・presence 0.08）。いまの 6.7 MB と合わせて 約 46〜48 MB。場面は同じ中身を 1 つにして +1.5〜2.5 MB（DB は台本で作る）。nt の上書きは calc の小数が違えば最大 666 歩ぶん",
+      "time": "手元の cargo-test: K1 で 1,422 → 約 820〜850 秒、14 本の焼きで +1〜3 分（440 万葉 × そろえる・比べるの 10〜20 µs の見込み。測っていない）→ 約 900〜1,000 秒。bless.py --all は 35 本 × 2 回で 30〜40 分。Windows の仕事の往復は 1 回 50〜80 分"
+     },
+     "risks": [
+      "repo に 40 MB の JSON が入る。calc 17 MB・lists 8 MB の差分は PR で読めず、焼き直すたびに履歴が増える（参照の指紋が変わると表の広い範囲が書き換わる）",
+      "calc を Linux の pow で焼くと、Windows の上書きが最大 666 歩になるか、表と比べる試験が 1 ulp で落ちる（Windows で測るまで分からない）",
+      "1 版が特大（1 版目より本が重い: 起こしたままの 3 本・作業フォルダの外の場面 4 本・試験 16 ファイル）。check-all と Windows の CI の往復の回数が増える",
+      "nt の上書きは Linux で焼き直すたびに Windows の仕事を起こして取り込む 2 往復になる（忘れると Windows の CI が落ちて初めて気づく）",
+      "PC に頼る形の確かめが「手で流す決まり」のまま（1 版目に 4 回落ちた形と同じ弱さ）"
+     ],
+     "stage4": "3.116.0 の後は ③-6（3.117.0）→ ④（3.118.0）。④ では 35 本が Python 無しで流れ、凍らせた Python の 8＋4 試験だけが相手を持つ。ui-eval の開発用サーバーを窓に替える仕事（300〜600 行）は ④ に残る",
+     "stage3_6": "schedule の本を焼いた後に ③-6 で https・プロキシの 3 歩と Windows だけの 2 歩が変わる → TPA_BLESS=道の型 の範囲つきの焼き直しと nt の焼き直しが 1 回ずつ要る。作り物の CM3 を台本に分けてあるので https の作り物はそこへ足す",
+     "size": "Rust 1,700〜2,400 行（詰める形と開く比べ 300〜400・本ごとの付け替え 16 ファイル × 50〜120・variants.nt 80〜120・作り物を起こす係 100〜150）・Python 900〜1,300 行（台本 400〜600・ops の切り出し 150・作り物の切り出し 200〜300・bless.py 150）・YAML 50〜70 行。特大（1 版目より大きい）",
+     "verify": [
+      "表の大きさ: nice -n 19 python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/measure.py 出力.json 本…（答え合わせ役を 2 回流す。14 本で約 4 分）→ python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/pack.py・forms.py・shrink.py・bulk.py・osdiff.py（cache を読む）。pack.json の packedMB が案の数（計 40.9 MB）と合うか",
+      "速さ: cd /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/rx && D=/home/user/LotScope/desktop/target/debug/deps && rustc --edition 2021 -C opt-level=0 -L dependency=$D --extern regex=$(ls $D/libregex-*.rlib | head -1) -o /tmp/rx-bench rx.rs && /tmp/rx-bench（cargo を使わない。読むだけ） で Regex::new の 1 回の手間を見る。cargo が空いたら bake.rs の dt_re を OnceLock にした 3 行の試しで cargo test --test name_key_cases（69.8 秒 → 13 秒前後に戻るか）",
+      "任せる歩: python program/tools/delegate-count.py 作業フォルダ --check（計 59・計算 48）と、calc_oracle.py の答えの delegate の印 48（measure.json の calc.delegateMarks）",
+      "calc の pow: python3 -c 'import random;r=random.Random(1);print(sum((x:=r.uniform(0.001,5000))**2!=x*x for _ in range(10**6)))'（この PC で 0 でないこと。案を作った者の PC では 800）"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 3,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 3,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 8「bless.py に --tz・--home・--tmp の旗を足し、焼いた後に手で流す決まり」: PC に頼る形（家の下・root でない利用者・時差・別の TMPDIR）を確かめたかどうかが、道具にも CI にも残らない。1 版目で CI が 4 回落ちたうち 2 回（1 回目 access_parity の @HOME・3 回目 bake_selftest の利用者）は手元で再現できた形で、手で流す決まりでは止まらなかった"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案の what 3・risks 4: nt の上書きを測らずに作り、Linux で焼き直すたびに Windows の仕事（1 往復 50〜80 分）を起こして --take-nt で取り込む手が 1 つ増える（忘れると Windows の CI で初めて落ちる）"
+      }
+     ],
+     "seen": "1 版で 14 本とも中身を失わずに焼き、凍らせた Python の 8 試験を残す。型は 1 版目と同じ 1 つで、守りはいちばん厚い。測って見えたこと: (1) 大きさは案より大きい。pack.py は字数で数えており、本当に詰めて UTF-8 のバイトで測ると 14 本で 48.5 MB（案 40.9。calc 17.58・lists 9.28・ui_defaults 6.47〈作り方に直せば約 0.1〉・lotdsp 3.43・lotlist 3.19・settings 3.03）。場面の宣言は同じ中身を 1 つにしても 14.9 MB（lists の SQLite 6.6・presence の 4 MB の境のファイル 4.2・lotlist の SQLite 0.77 を台本と作り方に逃がして約 3.5〜4 MB。案は +1.5〜2.5）。今の 6.7 MB と合わせて repo に 55〜60 MB。(2) calc を Linux の pow で焼く恐れは案の言う「最大 666 歩」より小さい: pow に頼るのは calculator.py の 2 行だけで、掛け算に替えて流すと変わるのは 732 歩のうち 9 歩・84 葉。(3) 2 巡流して今のそろえる決まりを当てた後に残る揺れが 7 本にあり（ops 1,685・schedule 1,281・dashboard 403・routes 165・settings 75・lotdsp 49・lists 11 葉）、案はその決まりを書いていない（1 版目の作った後の採点 27.5 点の割れ 1 と同じ種類）。(4) routes の asks[15] は流すたびに尋ねる設備が替わり（実績_BAD／実績_SL3）、schedule の CM3 への要求の並びも替わる（requests[6] が L-3／L-1）。全部を焼く形ではそのまま表が揺れる。(5) 1 版が特大（Rust 1,700〜2,400・Python 900〜1,300）で切る線が無い。Windows の往復が焼き直しのたびに要る。"
+    },
+    "B 1 版・大きい 6 本は指紋と要約で持ち、全部の答えは repo の外に置く": {
+     "what": [
+      "土台 K1〜K5",
+      "1 中の 8 本（equipgroups・routes・pivot・schedule・conversions・presence・ops・dashboard）は A と同じ詰める形で全部。大きい 6 本（calc・lists・lotlist・lotdsp・settings・ui_defaults）は、歩ごとの指紋（そろえた答えの sha256 16 桁）＋行ごとの指紋（8 桁。何行目が違うかを言える）＋葉の道 → 型と数の要約＋見出しの値（calc は転写距離など 4 つ、一覧は件数と列の並び）を表に持つ。全部の答え（gzip 約 12 MB）は bless が target/tmp/bless-full/<本>.json.gz に書き、CI の artifact と Releases の資産に置く。割れたら bless.py --fetch-full で前の全部を取ってきて葉まで比べる",
+      "3 Windows: 要約の 6 本は小さいので posix と nt を丸ごと 2 つ持つ（answers.nt）。中の 8 本は variants.nt の上書き。どちらも CI の手で起こす仕事で焼く",
+      "4 ui_server の試験データ: 台本は作らず、答え合わせ役が作った /tmp/tpa-ui-* を作業フォルダの下に作らせて bake::snapshot で写す（SQLite は b64。routes・pivot・dashboard で 1 つの場面の表を共にする: 約 1.7 MB）。台本と開発用サーバーは ④ で",
+      "5 競い合い: 凍らせた最後の Python（A と同じ）",
+      "8 PC に頼る形: 両方の OS で焼いた表の本だけを流す軽い仕事 baked-check（workflow_dispatch。Linux は root でない runner・Windows。exe も窓の通しも作らない）を作り、PR を開く前に手で起こす。route_reach は場面を 4 つの実行に割る（Windows 1,100 秒 → 300〜550 秒の見込み）"
+     ],
+     "numbers": {
+      "delegates": "59 → 11",
+      "tables": "中の 8 本 +約 5.0 MB（詰めて全部）＋大きい 6 本の要約 +約 1.3〜1.5 MB（行の指紋 lists 0.40・lotlist 0.34 MB、歩の指紋と形・見出しの値 0.5〜0.7 MB）＋場面の表 1.7 MB ≈ +8 MB。nt の丸ごと +1.5 MB。repo の外に全部の答え gzip 12 MB",
+      "time": "手元の cargo-test: K1 で −約 600 秒、14 本で +1〜2 分（指紋は全部の答えをそろえてから取るので、そろえる手間は A と同じ）。Windows の CI: route_reach で −550〜−800 秒"
+     },
+     "risks": [
+      "指紋は「違う」ことしか言えない。行の指紋で行までは言えるが、どの列がどう違うかは repo の外の全部の答えを取ってこないと分からない（前の採点で −3 の形。行の指紋と形の要約で軽くしただけ）",
+      "artifact は 90 日で消える。Releases に置けば残るが、焼き直すたびに資産を替える手が要り、PR の頭と資産が食い違うと比べる相手が古い",
+      "calc の指紋は pow の 1 ulp で OS ごとに違う → nt の丸ごとが要る（そのために丸ごと 2 つにした）。小数の最後の桁の退行と OS の違いを指紋では分けられない",
+      "場面の SQLite を b64 で持つと、試験データを変えるたびに 1.7 MB が丸ごと変わる。lists の DB 12.7 MB は b64 にできないので、結局そこだけ台本が要る",
+      "段 ④ の後は「窓の答えの指紋を窓の指紋と比べる」だけになる本が 6 本残る（第 2 の線は capacity-truth・lotdsp の事例の表など今ある物だけ）"
+     ],
+     "stage4": "③-6（3.117.0）→ ④（3.118.0）。④ で ui_server を窓の開発用サーバーに替えるときに試験データの台本も作る（④ が重くなる）",
+     "stage3_6": "schedule は詰めて全部なので A と同じ（範囲つきの焼き直し 1 回）",
+     "size": "Rust 1,400〜2,000 行（指紋・行の指紋・形の要約 250〜350・詰める形 300〜400・本ごと 16 ファイル）・Python 500〜800 行（bless.py の全部の答えの出し入れ 150・作り物の切り出し 200〜300）・YAML 80〜110 行。大",
+     "verify": [
+      "要約の大きさ: nice -n 19 python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/measure.py 出力.json 本…（答え合わせ役を 2 回流す。14 本で約 4 分）→ python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/pack.py・forms.py・shrink.py・bulk.py・osdiff.py（cache を読む）。forms.json の rowHashMB（lists 0.40・lotlist 0.34）と measure.json の fingerprintBytes・summaryBytes",
+      "指紋で分かる範囲: cache の lotlist の答えの 1 つの行の 1 列を変え、行の指紋が何行目を指すか・列までは言えないことを 20 行ほどの台本で見る",
+      "route_reach: gh run view 44179549452 --log | grep -a 'test result' で Windows の 1,098.8 秒を確かめる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/ci-win-1d9e35c-times.json）。desktop/tests/route_reach.rs が場面ごとに環境変数を替えている所（糸では割れない）を読む"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 4,
+      "steps": 5,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 4,
+      "place": 3,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 1「大きい 6 本は歩ごとの指紋＋行ごとの指紋＋形の要約」: 行の指紋は何行目が違うかまでで、どの列がどう違うかは言えない（前の採点 2026-11-stage3d.json と同じ減点）。calc の小数の最後の桁の退行と OS の違いを指紋では分けられない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 1・risks 2「全部の答え（gzip 約 12 MB）は CI の artifact と Releases の資産」: 割れを葉まで比べる相手が repo の外にあり、artifact は 90 日で消え、PR の頭と資産が食い違っても表からは分からない（答えの元が 2 か所）"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案の what 3: 要約の 6 本は posix と nt を丸ごと 2 つ、中の 8 本は nt の上書き。Linux で焼き直すたびに Windows の仕事を起こして取り込む手が増える"
+      }
+     ],
+     "seen": "repo に入る表は小さい（+約 8 MB）が、大きい 6 本の守りは指紋と要約になる。測って見えたこと: (1) 中の 8 本を詰めて全部はバイトで 10.4 MB（ui_defaults を作り方にして約 4.0。案は 5.0）。(2) 場面を台本にせず bake::snapshot で写す形は、ui_server・ops-bench が流すたびに乱数のキーと元の id を作るので成り立たない: 2 巡で routes は キー 26・key 16・query 35（equip=乱数のキー）・/api/src/s… が違い、ops は キー 755・/tmp/tpa-ops-* 733、dashboard は src:s… の id が違う。Python と比べる形のたびに「表が古い（場面が宣言と違う）」になるか、キーを広くそろえる決まりが要る（1 版目の割れ 1 と同じ穴）。lists の SQLite 6.6 MB は base64 にできず結局台本が要る（案も認めている）。(3) calc の指紋は OS ごとに違いうるが、pow で変わるのは 732 歩のうち 9 歩ほど（採点者の測り）。丸ごと 2 つ持つ理由としては弱く、違いの中身は指紋では見えない。(4) baked-check（両 OS の軽い仕事）は PC に頼る形を PR の前に見られて良いが、手で起こす決まり。route_reach の割りは測っていない見込みで、④ で消す試験。(5) 試験データの台本と開発用サーバーを ④ へ送るので ④ が重くなる。"
+    },
+    "C 1 版・場面と事例を減らしてから全部を焼く（答えの形の被覆を数で守る）": {
+     "what": [
+      "土台 K1〜K5",
+      "1 Python が残っている今のうちに答え合わせ役を小さくし、Python と比べ直してから、全部を詰めて焼く（指紋は使わない）。lists: 結合の DB の行を 1/5 に（30,367 → 約 6,000 行）。calc: 乱数の事例を減らす（244 → 約 80 事例 × 3 場面。場面の間で同じ答えは 20 だけなので場面は減らさない）。lotdsp: 10 MB の境の本文 2 つは作り方に・画面の表の見本を 1/2 に。settings: 画面の字 14 種類は 1 回ずつ。lotlist・ほかは詰めるだけ。減らす前後で「道の型 × 状態 × 誤りの言葉の型 × 答えの形（鍵と型）」の組が 1 つも減らないことを道具 tools/shape-cover.py で確かめ、窓のコードを 1 か所ずつ変える変異 15〜20 個が減らす前と同じく落ちることを見る",
+      "3 Windows: nt の表を作らない。posix の表を Windows でも比べ、OS で違う所は (a) そろえる決まり（区切り・ドライブ・OS の誤りの字の表）で吸収し、(b) それでも違う歩は表に osOnly の印を付けて比べず、人の事例の表（ospath_cases・place_cases・fid_cases）に 1 件ずつ足す。先に Windows の「測るだけの仕事」を 1 回起こして違う歩の数を出す",
+      "4 ui_server の試験データ: A と同じ stdlib の台本（減らすときに行の数を引数にするので、先に台本にする）",
+      "5 競い合い: 凍らせた最後の Python（A と同じ）",
+      "8 PC に頼る形: bless.py --check に字の形の見張りを足す（表の中の この PC の利用者の名前・一時フォルダ・時差つきの時刻・装置と inode の番号・ポート・ホストの名前を探す。py-tests で 0.1 秒）"
+     ],
+     "numbers": {
+      "delegates": "59 → 11",
+      "tables": "14 本で +約 20〜22 MB（calc 約 5.6・lotdsp 約 3.3 → 見本を減らして 2〜2.5・settings 2.9・lotlist 2.6・lists 約 1.9・ops 1.5・dashboard 1.0・ほか 2.5）。A の約半分。nt の表は 0",
+      "time": "手元の cargo-test: K1 で −約 600 秒。calc_parity 27.6 → 約 10 秒・lists_parity 14 → 約 5 秒・答え合わせ役の時間も減る。Windows の CI は nt の往復が無い"
+     },
+     "risks": [
+      "「形の被覆」は代わりの物差しで、値の端（丸めの境・行の多い頁・長い結合）を見ている事例を落としても気づけない。calc は 1/3 にしても 5.6 MB で、効き目が小さい割に事例を 160 個捨てる",
+      "答え合わせ役を今変えるので、乱数の種と行の数が変わり、14 本のうち 4 本（lists・calc・lotdsp・settings）の答えが全部変わる。変える前後を比べる基準が Python の答えだけになる",
+      "Windows を焼かない形は、違う歩が多いと osOnly の印だらけになり、Windows の答えを誰も見なくなる。calc の小数は OS の pow で違いうるので、1 ulp を許す比べ方か印が要る（どちらも守りが弱まる）",
+      "減らす仕事は ④ に要る物ではなく（表を小さくするためだけ）、その分 Rust 化の終わりが延びる"
+     ],
+     "stage4": "③-6（3.117.0）→ ④（3.118.0）。Windows の表が無いので ④ の後の焼き直しは Linux だけで済む（JSON 列の展開のときの往復が 1 回少ない）",
+     "stage3_6": "schedule は詰めて全部。③-6 の Windows だけの 2 歩（更新時刻の範囲）は osOnly の印にせず事例の表で決める",
+     "size": "Rust 1,300〜1,800 行・Python 1,200〜1,700 行（台本 400〜600・答え合わせ役の直し 300〜400・shape-cover.py 150・変異の台本 150）・YAML 30 行。大（減らす確かめの分だけ試しが多い）",
+     "verify": [
+      "減らせる量: python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/shrink.py（cache が要る。lists の joinRows・calc の sameAnswerAsScenario0=[20,20]・lotlist の rowsHist・settings の uniquePageBodies=14）",
+      "形の被覆の試し: cache の calc の 732 事例から（状態・type・答えの鍵の集まり）の組を数え、案の 80 事例を選んだときに組が減らないかを 30 行ほどの台本で見る（shrink.json の answerShapes は並びの中身も見た 514 種類）",
+      "Windows で違う歩の上限: python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/osdiff.py（焼いた 2,775 歩のうち OS の誤りの字 113・道の字 311）"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 3「posix の表を Windows でも比べ、違う歩は osOnly の印を付けて比べない」: 印を付けた歩の Windows の答えは表にも Python にも比べられなくなり、何歩がそうなったかは測る前で分からない（案の risks 3 も認める）。④ の後は Windows だけの割れ（版 3.57.1 の SQLite の URI・今回の timeval の種類）を見る物が事例の表だけになる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 1「道の型 × 状態 × 誤りの言葉の型 × 答えの形の組が減らないこと」: 形の被覆は代わりの物差しで、値の端（丸めの境・行の多い頁・長い結合）を見ていた事例を落としても見えない。4 本（lists・calc・lotdsp・settings）の答えが全部変わり、前後を比べる基準が Python の答えだけになる"
+      }
+     ],
+     "seen": "指紋を使わず 1 つの型で全部を焼く点は良い。測って見えたこと: (1) 減らす効き目は本で違う。lists は結合の行を 1/5 にして 9.28 → 3.1 MB（案の 1.9 は字数）。calc は 244 事例のうち 160 が乱数で（23.3 MB のうち 16.2 MB）、乱数を 160 → 40 にして 6.4 MB・乱数なしで 2.5 MB。乱数の役目は 2 乗の pow の違い探しで、pow を掛け算に替えれば（変わるのは 9 歩）乱数を減らしても守りは減らない。案はその手を取らず、形の被覆で 244 → 80 にする。(2) 表は 14 本で 20〜22 MB の見込みだがバイトでは 1.2 倍ほど（lotlist 3.19・settings 3.03・lotdsp 3.43）。(3) Windows を焼かない形は往復が無くて軽いが、違う歩の数を測る前に「比べない印」を型にしている。(4) 字の形の見張り（利用者の名前・一時フォルダ・ポートなど）は 1 版目の CI の 1 回目（リポジトリの道）には効くが、root でない利用者・時差・Windows の形は流さないと分からない。(5) 減らす確かめ（shape-cover.py・変異 15〜20）は ④ に要る物ではなく、その分だけ終わりが延びる。揺れの新しい決まり（採点者の測りで 7 本）は書かれていない。"
+    },
+    "D 1 版・OS や数学の部品で答えが変わる本は独立の答え、ほかは詰めて全部": {
+     "what": [
+      "土台 K1〜K5",
+      "1 独立の答え（app を import しない stdlib の台本。place-truth・builder-truth・capacity-truth と同じ型）を 3 つ足す: tools/calc-truth.py（転写距離・ピッチの式を仕様から。その PC の pow で数えるので OS ごとに正しい。test_calculator の L6183D0 の手で確かめた値も当てる）・tools/join-truth.py（lists の結合 13 本を stdlib の sqlite3 の JOIN で直に数える）・日時と分の読み方 587 件は事例の表 tests/fixtures/datetime_cases.json に焼く（pynum_cases と同じ型）。calc・lists の結合は表に答えを持たず、試験のたびに独立の答えと比べる（calc は見出しの値だけ 244 事例ぶん焼いて第 2 の線に）。残り 12 本は A と同じ詰める形で全部",
+      "3 Windows: 独立の答えは Windows でもその場で数えるので表が要らない。残りは variants.nt の上書き（A と同じ仕事）",
+      "4 ui_server の試験データ: A と同じ stdlib の台本",
+      "5 競い合い: 凍らせた Python を持たず、「独立の相手役」tools/lock-peer.py（共有の錠と起動の初期値の決めだけを stdlib で書いた 150〜200 行。app を import しない）を相手にする。3.116.0 では同じ試験を今の Python と相手役の両方で流し、結果が同じことを見てから ④ で相手役だけにする",
+      "8 PC に頼る形: check-all に段 ci-shape を足す（焼いた本の試験の実行ファイルを、root でない利用者・家の下にリポジトリがある形・TZ=Asia/Tokyo・TMPDIR を別の所・TPA_NO_PYTHON=1 で流す。約 6 分）"
+     ],
+     "numbers": {
+      "delegates": "59 → 11",
+      "tables": "14 本で +約 16 MB（40.9 − calc 17.2 − lists の結合 約 7.5 ＋ calc の見出しの値 0.2）。独立の答え 3 本は表を持たない",
+      "time": "手元の cargo-test: K1 で −約 600 秒、独立の答えを流す時間 +10〜20 秒（calc-truth は 732 事例）、ci-shape +約 6 分。check-all は約 62 分"
+     },
+     "risks": [
+      "calc-truth.py は calculator.py（407 行）と同じ式を書くので実装の写しになりやすい（前の採点の指摘）。式の順まで同じにしないとビットが合わず、順を同じにすると写しになる",
+      "独立の答えは答えの JSON の全部の鍵（工程ごとの長さ・候補・起点）を出す要があり、calc で 400〜450 行・結合で 100〜150 行。答えを変えるたびに窓と台本の両方を直す",
+      "標準の Python が ④ の後も試験の道具に残る本が増える（今は place・builder・capacity の 3 つ）。Python の無い PC では calc・lists の試験が流れない",
+      "独立の相手役は「前の版の Python の決め」を書いた物で、前の版の Python そのものではない。配布の間に本物が決めと違う動き（錠の取り直し・写しの順）をしても試験は通る",
+      "ci-shape で check-all が 60 分を超えたままになる"
+     ],
+     "stage4": "③-6（3.117.0）→ ④（3.118.0）。④ の後、凍らせた Python と Flask の依存が CI に残らない（相手役は stdlib だけ）",
+     "stage3_6": "schedule は詰めて全部（A と同じ）",
+     "size": "Rust 1,400〜1,900 行・Python 1,700〜2,300 行（calc-truth 400〜450・join-truth 100〜150・lock-peer 150〜200・datetime の表を焼く道具 80・台本 400〜600・作り物の切り出し 200〜300）・YAML 50〜70 行。特大",
+     "verify": [
+      "calc の大きさと pow: bulk.json の calc（json 6.4 MB・葉 797,065）と measured.pow の 1 行の台本",
+      "結合の行: shrink.json の lists.joinRows（計 30,367 行・7.5 MB）",
+      "写しになるか: program/app/services/calculator.py（407 行）と tests/test_calculator.py（36 試験・確かめ 53）を読み、仕様から書ける式と Python の書き方に頼る所（int の 0・例外の順）を数える",
+      "相手にする試験: grep -n 'frozen_python(' desktop/tests/*.rs（8 か所）"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 5,
+      "place": 5,
+      "layout": 3,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5「凍らせた Python を持たず、独立の相手役 tools/lock-peer.py を相手にする」: 相手は前の版の Python そのものでなく、錠と起動の初期値の決めを書き直した物になる。④ の配布の間に本物が決めと違う動きをしても試験は通り、その違いは見えない（frozen_python の 8 試験を 1 版目の採点が残させた理由）"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案の what 3: 残り 12 本の nt の上書きは A と同じ仕事（測らずに作り、焼き直すたびに Windows の往復）"
+      }
+     ],
+     "seen": "独立の答えは Python の誤りを焼かない固い型で、check-all に ci-shape の段を足すのも 1 版目の弱さに効く。測って見えたこと: (1) calc を独立の答えにする理由（OS の pow）は細い。pow に頼るのは calculator.py の 210・211 行と calc.rs の pow2 の 1 か所だけで、掛け算に替えた写しで calc_oracle を流すと変わるのは 732 歩のうち 9 歩・84 葉。Python と窓を同じ版で掛け算に替えれば OS に頼らなくなり、calc-truth.py（400〜450 行。答えの全部の鍵を同じビットで出すので実装の写しになる）は要らない。(2) 結合の独立の答え（sqlite3 の JOIN）は筋が良いが、結合の答えは 10.4 MB（13 本・30,367 行）で、行を減らして焼く手（3.1 MB）と比べて試験のたびに Python が要る。(3) 書く量が最大（Python 1,700〜2,300 行）で、④ の後も標準の Python に頼る試験が calc・lists に広がる。(4) ci-shape の時間は、3.115.0 の直し（正規表現を覚える）の後は 21 本で約 92 秒（別の係の記録）なので、案の「約 6 分」より軽い。(5) 揺れの新しい決まり（7 本）と、順の決まらない歩（routes・schedule）は書かれていない。"
+    },
+    "E 2 版に割る（3.116.0: 土台と中の 8 本／3.117.0: 大きい 6 本を ③-6 と並べる）": {
+     "what": [
+      "3.116.0（先）: 土台 K1〜K5・route_reach を 4 つの実行に割る・任せる歩の予算の確かめを py-tests から外し、cargo の試験が target/tmp に残した答え合わせ役の答えを delegate-count.py --files で数える段を cargo-test の後に置く（py-tests −約 130 秒。CI は desktop の仕事の中）・check-all の段 ci-shape・表の字の形の見張り・stdlib の台本（ui_scene・作り物を起こす台本）・中の 8 本（equipgroups・routes・pivot・schedule・conversions・presence・ui_defaults・dashboard）を詰めて全部・Windows の「測るだけの仕事」（今の 21 本＋8 本で posix の表と違う歩の数を artifact に出すだけ。まだ比べない）",
+      "3.117.0（後）: 大きい 6 本（ops・settings・lotlist・lotdsp は詰めて全部、lists は結合の行を減らしてから、calc は独立の答え calc-truth.py＋見出しの値）・Windows の表（測った数で、焼かない／上書きを決める）・凍らせた Python の写し・③-6（CM3 の https・プロキシ）を同じ版に並べる（schedule.rs だけを触るので試験の土台と重ならない）",
+      "順の理由: 1 版目の CI で弱かった所（速さ・PC に頼る形・Windows）を先に固め、型（詰める形・作り物の切り出し・作業フォルダの外の場面）を中の本で確かめてから大きい本へ進む"
+     ],
+     "numbers": {
+      "delegates": "3.116.0 で 59 → 11、3.117.0 で ③-6 の 3 と Windows だけの 2 を閉じて 8（口 7・道 1）",
+      "tables": "3.116.0 で +約 3.6 MB（conversions 0.37・dashboard 1.01・equipgroups 0.22・pivot 0.55・presence 0.08・routes 0.76・schedule 0.47・ui_defaults 0.1）、3.117.0 で +約 12.5 MB（ops 1.5・settings 2.9・lotlist 2.6・lotdsp 3.3・lists 約 1.9・calc 0.2）",
+      "time": "3.116.0 の check-all: cargo-test 約 850〜900 秒・py-tests 約 170 秒・ci-shape +約 4 分（29 本）→ 約 58〜60 分。Windows の CI: test 約 3,200 → 約 2,000〜2,300 秒（K1 と route_reach）。3.117.0 はそこに +1〜2 分"
+     },
+     "risks": [
+      "④ は 3.118.0 のままだが、3.117.0 が「大きい 6 本＋Windows の表＋凍らせる写し＋③-6」で重い。③-6 は利用者の実物（VPN・プロキシ越しの CM3）での確かめが要り、延びると ④ も延びる",
+      "PR が 2 つになり、check-all（約 1 時間）と CI（Linux 約 1 時間・Windows 約 1.3 時間）の往復が 1 版ぶん増える。利用者の「早めに終わらせたい」に対して、版の数は A〜D と同じ（3.118.0 で ④）だが 3.116.0 の時点の進みは小さい",
+      "3.116.0 の後は Python 無しで流せる本が 29/35 で止まる（大きい 6 本は Python が要るまま 1 版残る）",
+      "割った境（中 8・大 6）は表の大きさで決めた物で、手間の重い本（起こしたままの schedule・equipgroups、作業フォルダの外の routes・pivot・dashboard）が 1 版目に寄る"
+     ],
+     "stage4": "④ は 3.118.0（今の予定と同じ）。ただし 3.117.0 の重さしだいで延びる",
+     "stage3_6": "③-6 を 3.117.0 に並べるので、schedule の表は 3.116.0 で焼き、3.117.0 の中で範囲つきに焼き直す（Python と突き合わせてから入れ替える決めは守れる: Python はまだある）",
+     "size": "3.116.0: Rust 1,000〜1,400 行・Python 800〜1,100 行・YAML 60〜90 行（中〜大）。3.117.0: Rust 900〜1,300 行（③-6 を除く）・Python 700〜1,000 行（大）。計は G とほぼ同じで、版の切り替えの手（版・RELEASE・文書）が 1 回多い",
+     "verify": [
+      "中の 8 本の大きさ: pack.json（8 本の計 3.6 MB）。大きい 6 本: pack.json と shrink.json",
+      "時間: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/cargo_times.json（焼いた 21 本 332 → 939 秒）と rx/result.txt、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/ci-win-079947d-times.json（route_reach 1,114.8 秒）、delegates.log の real 2m14s",
+      "ci-shape にかかる時間の目安: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b3115f/run-runner-nopy/*.log の finished の計（21 本で 355 秒）"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "split": {
+      "order": "3.116.0（土台＋中の 8 本）→ 3.117.0（大きい 6 本＋Windows の表＋③-6）→ 3.118.0（段 ④）",
+      "得": "1 版が check-all 60 分に収まる・割れたときに戻す範囲が小さい・Windows と PC の形の弱さを、表が増える前に直せる・Windows の表の持ち方を測った数で決められる",
+      "損": "PR と CI の往復が 1 回増える・3.117.0 が ③-6 と重なる・途中の版では守りの置き換えが 29/35"
+     },
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "弱かった所（速さ・PC に頼る形・Windows）を先に固め、型を中の本で確かめてから大きい本へ進む。割れたときに戻す範囲が小さい。測って見えたこと: (1) この版の目的（④ に入っても答えの元を失わない所まで）には 3.116.0 では届かない（29/35）。大きい 6 本・Windows の表・凍らせる写し・③-6 が 3.117.0 に重なり、③-6（利用者の実物の CM3 とプロキシでの確かめが要る）が延びると全部が延びる。版の数は G と同じ（3.118.0 で ④）。(2) 割った境は大きさで、難しさではない。採点者の測りでは、後へ送る大きい本のうち lotlist・calc は 2 巡の揺れが 0、lists 11・lotdsp 49・settings 75 葉で易しい側。先に作る中の 8 本に難しい物が寄る: routes（尋ねる設備が流すたびに替わる・乱数のキー）・dashboard（今の決まりで残る揺れ 403 葉）・schedule（1,281 葉。CM3 への要求の並びも替わる）。型を固める順としては筋が通るが、1 版目は見かけより重い。(3) 中の 8 本はバイトで 10.4 MB（ui_defaults を作り方にして約 4.0。案 3.6）。(4) 時間の見込みは控えめ: 3.115.0 の直しの後、焼いた 21 本は 905.7 → 92.1 秒（別の係の記録）なので、route_reach の割りと予算の試験の引っ越しをしなくても check-all は 60 分に収まる見込み。(5) calc は G と同じ独立の答え（実装の写しになりやすい）で、pow を元から断つ手を取っていない。揺れの新しい決まりは書かれていない。守りを薄くする所は無い。"
+    },
+    "F 軽く終える: 表は指紋と要約だけ・Windows と競い合いは決めの事例の表で守り、③-6 も入れて ④ を 1 版早める": {
+     "what": [
+      "土台 K1〜K5",
+      "1 14 本とも「歩ごとの指紋＋葉の道 → 型と数の要約＋行ごとの指紋」だけを焼く（全部の答えは持たない。割れたら窓の今の答えを target/tmp/bless-diff に書く）",
+      "3 Windows: 焼かない。posix の表は Windows では比べず、OS で違う所は今ある人の事例の表（ospath_cases・place_cases・fid_cases・oserrors の表）だけで守る",
+      "4 ui_server の試験データ: 触らない（④ で開発用サーバーを窓に替えるときに一緒に）。作業フォルダの外の場面 4 本は場面の写し（b64）",
+      "5 競い合い: 凍らせた Python を持たない。窓どうし（試験の実行ファイルを 2 つ起こす）に替え、前の版の Python との決め（錠のファイルの形・期限・取り直し・起動の初期値の記録）は人の事例の表 tests/fixtures/lock_cases.json に書く",
+      "8 PC に頼る形: 表の字の形の見張り（bless.py --check）だけ",
+      "＋ ③-6（CM3 の https・システムのプロキシ）を同じ版に入れる（TLS の crate・Windows の証明書ストア・ProxyServer／ProxyOverride）。④ を 3.117.0 に前倒しする"
+     ],
+     "numbers": {
+      "delegates": "59 → 8（口 7・道 1。③-6 の 3 と Windows だけの 2 も閉じる）",
+      "tables": "14 本で +約 2〜3.5 MB（歩の指紋 0.1・行の指紋 約 0.9・形の要約 約 1〜1.8・場面の写し 約 1.7）",
+      "time": "手元の cargo-test: K1 で −約 600 秒、14 本で +1〜2 分（指紋を取る前に全部をそろえる）。版が 1 つ減るので check-all と CI の往復が 1 版ぶん（約 3.3 時間）減る"
+     },
+     "risks": [
+      "指紋だけの表は割れた所が見えない（前の採点で −3）。④ の後は 14 本が「窓の指紋を窓の指紋と比べる」だけになり、JSON 列の展開で答えを変えるときに退行と意図した変化を分けられない",
+      "前の版の Python との錠の取り合いを本物で見なくなる。配布の間に起きる事故は共有のマスタの破損に直結する（1 版目の採点が frozen_python を足させた理由）",
+      "Windows の答えを守る物が事例の表だけになる（これまで Windows だけの割れを Windows の Python との比べで見つけてきた: 版 3.57.1 の SQLite の URI・今回の timeval）",
+      "③-6 は実物の CM3・プロキシでの確かめが要る網の仕事で、試験の土台の版と混ぜると、どちらかが延びたときに両方が止まる",
+      "④ が ui-eval の開発用サーバーの置き換え（300〜600 行）と試験データの台本を全部抱える"
+     ],
+     "stage4": "④ を 3.117.0 に前倒し（今の予定より 1 版早い）。その代わり ④ が重くなり、④ の後の守りは A〜E より薄い",
+     "stage3_6": "同じ版に入れる。作り物の CM3（https）とプロキシは schedule_fixture に足し、Python と突き合わせてから入れ替える",
+     "size": "Rust 1,100〜1,500 行（③-6 の 400〜700 行を含む）・Python 400〜600 行・YAML 10 行。中〜大（③-6 を除けばいちばん小さい）",
+     "verify": [
+      "要約の大きさ: measure.json の summaryBytes（14 本で 1.8 MB。並びをまとめすぎた下限）と forms.json の rowHashMB",
+      "失う守り: grep -n 'frozen_python(' desktop/tests/*.rs の 8 試験の名前と、desktop/tests/baked/books.json の why（配布の間だけ凍らせた Python を相手に残す理由）",
+      "Windows だけの割れの例: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/ci-win-079947d.log の schedule_parity（OverflowError: timeout doesn't fit into C timeval）"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 4,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 2,
+      "steps": 8,
+      "effortless": 2,
+      "intuitive": 3,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の what 5「凍らせた Python を持たない。窓どうしに替え、前の版の Python との決めは人の事例の表 lock_cases.json」: frozen_python の 8 試験（appsettings 1・masters 1・mirror 2・place 1・seeds 3。採点者が grep で数えた）が本物の Python を相手にしなくなる。④ の配布の間、前の版の PC の Python との錠・種まき・起動の初期値の取り合いを見る試験が消える（共有のマスタの破損に直結）"
+      },
+      {
+       "kind": "lost",
+       "where": "案の what 3「Windows: 焼かない。posix の表は Windows では比べず、今ある人の事例の表だけ」: ④ で Windows の Python が無くなると、Windows の CI は 35 本の道の答えを何とも比べなくなる（Linux と違う形だけでなく、同じはずの形も）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 1「14 本とも歩ごとの指紋＋要約＋行ごとの指紋だけ」: 割れた所が見えず、④ の後は窓の指紋を窓の指紋と比べるだけ。JSON 列の展開で答えを変えるとき、退行と意図した変化を分けられない（前の採点と同じ減点）"
+      }
+     ],
+     "seen": "今の手間は最小で ④ を 1 版早めるが、守りを 3 か所で捨てる。測って見えたこと: (1) 場面を写しで持つ形は B と同じく、ui_server・ops-bench の乱数のキーと元の id（routes・ops・dashboard）で成り立たない。(2) 指紋を取る前に全部をそろえる手間は同じなので、揺れの新しい決まり（7 本）と順の決まらない歩は同じに要る。指紋はそろえ漏れを「違う」としか言わないので、直すのがいちばん難しい型になる。(3) ③-6（網の仕事）を試験の土台の版に混ぜると、どちらかが延びたとき両方が止まる。④ が開発用サーバーの置き換えと試験データの台本を全部抱える。(4) 利用者の「早く終わらせたい」には沿うが、「守りが薄くなって ④ の後に割れを見逃すのは本末転倒」に正面から当たる。"
+    },
+    "G 流し方を先に直し、本ごとに 3 つの型へ振り分ける（1 版・切る線つき）": {
+     "what": [
+      "土台 K1〜K5",
+      "0 時間と流し方を先に: route_reach を 4 つの実行に割る（場面ごとに環境変数を替えるので糸でなく実行で割る）・任せる歩の予算の確かめを py-tests から外し、cargo の試験が target/tmp に残した答え合わせ役の答えを delegate-count.py --files で数える段を cargo-test の後に置く（py-tests −約 130 秒。CI は desktop の仕事の中。答えが無ければ今までどおり流す）・check-all の制限時間の決めを直す（60 分 → 測った時間に合わせる）",
+      "1 14 本を測った数で 3 つの型に振り分ける。型 1 詰めて全部（12 本: equipgroups・routes・pivot・schedule・conversions・presence・ui_defaults・ops・dashboard・settings・lotlist・lotdsp。中身を失わない。lotlist は 41,917 行のうち違う行が 6,639 なので 31.5 → 2.6 MB）／型 2 場面を減らしてから型 1（lists: 結合の行を 1/5。Python と比べ直してから焼く）／型 3 独立の答え（calc: tools/calc-truth.py がその PC の pow で数える。表には見出しの値〈転写距離・発見時の厚さ・起点の番号・候補の数〉だけ 244 事例ぶん）。指紋だけで持つ本は作らない",
+      "3 Windows: 先に「測るだけの仕事」（desktop.yml の workflow_dispatch。cargo test だけを流し、posix の表と違う歩の鍵と葉の道を artifact に出す。比べて落とさない）で数を出す。違う歩はまずそろえる決まり（区切り・ドライブ・OS の誤りの字の表）で吸収し、残りだけ variants.nt の上書きにする。上書きは同じ仕事が TPA_BLESS=1 で焼き、bless.py --take-nt で取り込む。calc は型 3 なので nt の表に入らない",
+      "4 ui_server の試験データ: stdlib の台本 tests/scenes/ui_scene.py（A と同じ）。台本が作った DB の中身の指紋（表ごとの行の sha256）を焼いた表に持ち、Python の版で乱数の並びが変わったら場面の古さとして止める",
+      "5 競い合い: 凍らせた Python は「前の版の Python が相手」の試験だけに絞る（seeds の前の版の Python・masters の錠の取り合い・share_reader・place の --follow・schedule の受け身）。「窓と今の版の Python」の同時書き・種まき・台帳は窓どうし（試験の実行ファイルを 2 つ起こす）に替える。凍らせる写しは services と repositories の .py だけ（1.6 MB。static 3.4 MB は写さない）",
+      "8 PC に頼る形: check-all に段 ci-shape（root でない利用者・家の下・TZ=Asia/Tokyo・別の TMPDIR・TPA_NO_PYTHON=1。焼いた表が変わった本だけ流す）＋表の字の形の見張り（bless.py --check）＋混んだ中で揺れた試験（2 秒の待ち・種まきの競い合い）は時計を差し替える形に直す",
+      "切る線: 時間が足りなければ型 1 の大きい 3 本（lotlist・lotdsp・settings。計 8.8 MB）を次の版（③-6 と同じ 3.117.0）へ送る。そのときも ④ は 3.118.0"
+     ],
+     "numbers": {
+      "delegates": "59 → 11（口 7・③-6 の 3・道 1）。Windows だけ 2 は ③-6 で",
+      "tables": "14 本で +約 14〜16 MB（型 1 の 12 本 13.8〈ui_defaults を作り方に直して〉・lists 約 1.9・calc 0.2）。nt の上書きは測ってから（上限の目安は道の字・OS の誤りの字を含む歩 15%）",
+      "time": "手元の check-all: cargo-test 1,422 → 約 900〜950 秒（K1 −600・14 本 +1〜2 分）・py-tests 297 → 約 170 秒・ci-shape +2〜6 分 → 約 60〜62 分。Windows の CI: test 約 3,200 → 約 2,000〜2,300 秒（K1 −約 500・route_reach −550〜−800）で仕事の計 約 70〜75 分（上限 90）"
+     },
+     "risks": [
+      "1 版に入れる物が多い（土台・時間・14 本・Windows・競い合いの付け替え）。切る線を使うと E と同じ 2 版になる",
+      "型が 3 つあると決まりが 3 か所に見える（詰める係は 1 つ・減らすのは lists の答え合わせ役の引数だけ・独立の答えは今ある型、と置き場を書いて 1 か所に寄せる）",
+      "calc-truth.py は実装の写しになりやすい（D と同じ）。見出しの値を焼いた第 2 の線と、test_calculator の手で確かめた値で写しの誤りを見る",
+      "Windows の「測るだけの仕事」の結果しだいで手間が変わる（違う歩が多ければ上書きが大きくなる）。測る前は見積もりの幅が広い",
+      "窓どうしの競い合いに替えた試験は、今の版の Python の書き方との取り合い（同じ PC で Python と窓が同時に書く）を見なくなる。段 ④ でその組み合わせ自体が無くなるので、3.116.0〜④ の 2 版の間だけの穴",
+      "台本の乱数（random.Random の choice・randint）は Python の版で並びが変わりうる。指紋で止まるが、止まったときは場面と表を作り直す"
+     ],
+     "stage4": "③-6（3.117.0）→ ④（3.118.0）。④ の時点で: 35 本が Python 無しで流れる・calc と place・builder・capacity は標準の Python の独立の答え・凍らせた Python の相手は 5 試験・route_reach と delegate-count は ④ で消す・開発用サーバーを窓に替える仕事は試験データの台本が済んでいるぶん軽い",
+     "stage3_6": "schedule は型 1。作り物の CM3 を起こす台本を分けてあるので、③-6 は https の作り物とプロキシをそこへ足し、範囲つきに焼き直す。Windows だけの 2 歩もそのとき",
+     "size": "Rust 1,700〜2,300 行（詰める形 300〜400・本ごと 16 ファイル・variants.nt と測る形 120〜180・窓どうしの競い合い 150〜250・route_reach の割り 40）・Python 1,300〜1,800 行（台本 400〜600・calc-truth 400〜450・作り物の切り出し 200〜300・bless.py と check-all 150）・YAML 60〜90 行。特大（切る線で 大 まで下がる）",
+     "verify": [
+      "振り分けの数: pack.json（本ごとの packedMB）・forms.json の lotlist（uniqueRows 6,639/41,917）・shrink.json の lists.joinRows・bulk.json の calc",
+      "速さ: cd /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/rx && D=/home/user/LotScope/desktop/target/debug/deps && rustc --edition 2021 -C opt-level=0 -L dependency=$D --extern regex=$(ls $D/libregex-*.rlib | head -1) -o /tmp/rx-bench rx.rs && /tmp/rx-bench（cargo を使わない。読むだけ）",
+      "時間の塊: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/cargo_times.json・ci-win-1d9e35c-times.json・ci-win-079947d-times.json・delegates.log・b3115f/check8/summary.txt",
+      "ci-shape で見つかる形: b3115f の runall.sh の流し方（RUNAS=daemon・HOME・TZ・TMPDIR）で、CI の 1 回目（家の下）と 3 回目（root でない利用者）が再現できたこと（2026-11-stage3d-built.json の ci_fix・ci_fix2）",
+      "Windows で違う歩の上限: python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e/osdiff.py"
+     ],
+     "visible": "画面の見た目は変わらない（計算の欄が欠けたときの知らせは 1 版目で日本語になっている。窓が同じ言葉を自分で答えるようになる）",
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5「『窓と今の版の Python』の同時書き・種まき・台帳は窓どうしに替える」と risks 5「段 ④ でその組み合わせ自体が無くなるので 2 版の間だけの穴」: ④ の配布の間に現場に残るのは、凍らせる時点の「今の版の Python」。窓どうしに替える place の an_empty_share_is_seeded_once_by_whoever_comes_first・seeds の the_window_and_python_reading_the_record_together_apply_once・the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app は PC をまたぐ取り合いで、相手が Python でなくなったことは試験の名前からは分からない（1 版目の採点が frozen_python を残させた理由と逆向き）"
+      }
+     ],
+     "seen": "この版の目的（④ に入っても答えの元を失わない所まで）に 1 版で届く形で、指紋だけの本を作らず、1 版目の CI で弱かった所（PC に頼る形・Windows・時間）に手を打つ。切る線を使えば E と同じ所へ落とせる。測って見えたこと: (1) 大きさは案より大きい。pack.py は字数で、本当に詰めて UTF-8 のバイトで測ると型 1 の 12 本は 21.65 MB（ui_defaults を作り方にして 15.3。案 13.8）・lists は結合の行を 1/5 にして 3.1 MB（案 1.9）。答えで約 18.6 MB、場面の宣言が約 4 MB（presence の 4 MB の境のファイルを作り方にしなければ +4.2）で、計 22〜27 MB（案 +14〜16）。(2) calc を型 3（独立の答え）にする理由の OS の pow は細い: 頼るのは calculator.py の 2 行と calc.rs の 1 か所だけで、掛け算に替えて流すと変わるのは 732 歩のうち 9 歩・84 葉。Python と窓を同じ版で掛け算にすれば calc-truth.py（400〜450 行・実装の写し）は要らず、calc も型 1 で焼ける（乱数 160 → 40 で 6.4 MB・乱数なし 2.5 MB）。(3) 揺れの見立てが浅い。案は新しい種類を schedule の headers と lotdsp の url だけとするが、分の境をまたいだ 2 巡に今の決まりを当てた後、ops 1,685・schedule 1,281・dashboard 403・routes 165・settings 75・lotdsp 49・lists 11 葉が残る（かかった ms の timing.server・乱数のキーと元の id・/tmp/tpa-ops-*・ポート〈Host の見出し・viewUrl・url〉・変換表の rev の更新時刻 ns・結合の答えのファイル名・80 時間前の更新時刻・changedAt／fetchedAt）。routes の asks[15] は尋ねる設備そのものが替わり、schedule の CM3 への要求は並びが替わる（決まりではそろえられない）。stdlib の台本でキーを決めれば多くは消えるが、案には書かれていない。(4) 切る線が大きさ（lotlist・lotdsp・settings を送る）で引かれているが、この 3 本は揺れ 0・49・75 葉の易しい側。難しいのは ui_server・ops-bench の 4 本と schedule。(5) 時間の手当ては控えめで足りる: 3.115.0 の直し（正規表現を覚える・--no-fail-fast）は採点の時点で作業フォルダに入っており、焼いた 21 本は 905.7 → 92.1 秒（別の係の time21 の記録）。check-all は約 54 分（4,075 − 814 秒）・Windows の仕事は 3.114.0 の 78 分かそれ以下（約 73〜78 分。上限 90 分）の見込みで、route_reach の割り（測っていない見込み・④ で消す試験）と予算の試験の引っ越しは急がない。(6) Windows を「測るだけの仕事」で先に数える・ci-shape を check-all の段にする・DB の指紋で場面の古さを止めるのは、1 版目に落ちた 4 回のうち手元で見つけられた 2 回と Windows の 2 回に、それぞれ当たっている。"
+    }
+   },
+   "measured": {
+    "about": "採点者が自分で測った数（2026-11-18。記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e-score/）。作業フォルダ stage3d は読むだけ。答え合わせ役は nice 19 で 1 本ずつ",
+    "answers14": "run14.py: 14 本の答え 172.7 MB（gzip 12.4）・葉 4,447,232・字の葉 2,323,049。案（171.8 MB・葉 4,399,612）との差は schedule だけ: 1.71 → 2.62 MB・場面 3.95 → 5.38 MB（schedule_oracle.py が案の測りの後の 13:45 に CI の直しで変わった。timeout の境の場面）。ほかの 13 本は案と同じバイト",
+    "packed": "pack2.py（本当に詰めて往復 14/14 を確かめた。T=120・同じ中身は参照・長い繰り返しの字は作り方・16 進は元の字）: UTF-8 のバイトで計 48.51 MB（gzip 4.82）。本ごと: calc 17.58・lists 9.28・ui_defaults 6.47・lotdsp 3.43・lotlist 3.19・settings 3.03・ops 1.59・routes 1.10・dashboard 1.05・pivot 0.55・schedule 0.52・conversions 0.40・equipgroups 0.23・presence 0.09。案の 40.9 MB は pack.py が字数（len）で数えた値で、日本語の多い本ほど小さく出る（lists 7.82・lotlist 2.6・routes 0.76・ui_defaults 2.17）",
+    "g_sizes": "sizes-g.json: 型 1 の 12 本 21.65 MB（うち ui_defaults 6.47。作り方に直せば 15.3）・lists の結合の行を 1/5 にして 3.1 MB・calc は乱数 160 → 40 で 6.41 MB（372 事例）・乱数なしで 2.52 MB。中の 8 本（E の 1 版目）10.41 MB（ui_defaults を直して約 4.0）。G の切る線の 3 本（lotlist・lotdsp・settings）9.65 MB",
+    "scenes": "scene.py: 作業フォルダの下の場面 10 本は計 30.4 MB・同じ中身を 1 つにして 14.9 MB（base64 にすると 19.9 MB）。内訳: lists 6.61（SQLite）・presence 4.21（4 MB の境の ui_state.json）・schedule 1.44（SQLite 0.44）・conversions 1.13・lotlist 0.77（SQLite）・equipgroups 0.31・calc 0.30・lotdsp 0.28・settings 0.12・ui_defaults 0.01。SQLite を台本で作り presence の境のファイルを作り方にして約 3.5〜4 MB（案の「+1.5〜2.5 MB」より大きい。字の中身は JSON の字として入るので引用符の逃がしの分も増える）",
+    "wobble": "wobble2.py（1 巡目 14:02:57〜・2 巡目 14:05:05〜）: 違う葉は dashboard 6,949・ops 3,934・equipgroups 2,338・schedule 1,603・pivot 488・routes 339（葉の集まりも 12 違う）・settings 91・lotdsp 49・ui_defaults 12・conversions 11・lists 11・calc 0・lotlist 0・presence 0。今のそろえる決まりを当てた後に残る葉: ops 1,685（キー 755・remote 733〈/tmp/tpa-ops-*〉・ファイルID 126・cache・data・presence・place・folder 各 14）・schedule 1,281（headers 918〈Host のポート〉・remote 68・body 59・equip 59・viewUrl 54・changedAt 48・fetchedAt 48・server 21・cm3 5・port 1）・dashboard 403（at 135〈80 時間前の更新時刻〉・timing.server 123・キー 65・ファイルID 55・raw・api・key・place・equip・source）・routes 165（query 35・timing.server 30・キー 26・ファイルID 24・key 16・path 14 ほか）・settings 75（conversions.rev 73〈「3:(更新時刻 ns, 大きさ)」〉・/api/sources の本文 2）・lotdsp 49（url 37・search_url 11・base 1）・lists 11（結合の答えのファイル名 k0_<指紋>.sqlite3）。pivot・equipgroups・conversions・ui_defaults は今の決まりで 0",
+    "nondeterministic": "決まりではそろえられない揺れ: routes の phases[0].asks[15] は尋ねる設備が 2 巡で違う（file 実績_BAD.sqlite3 → 実績_SL3.sqlite3・kind copying → missing・答えの鍵が 12 違う。乱数のキーの順に頼る）。schedule の scenarios[1].requests[6] は CM3 への要求の相手が L-3 → L-1（要求の並びが糸の順）。dashboard は panel.source が src:se69fe97c → src:s5d551ca7・panel.equip が乱数のキー（問い合わせそのものが替わる）",
+    "regex": "rxm（debug・regex 1.13.1）: Regex::new は dt_re 7.45 ms・dt_any 9.12 ms・text_of_decl 1.23 ms・user_decl 1.24 ms・decl_cmp 0.87 ms・route_of 0.63 ms・fid_unsub 0.54 ms、組んだ後の replace_all は 0.8〜6 µs（350〜2,500 分の 1）。案の測り（8.8〜11.7 ms）と同じ桁。組んだ後に 14 本の実物の答えへそろえる形（forms 4 つ＋今に近い日時＋日付）を当てると 1 巡で約 19 秒（calc 3.3・lotlist 6.0・lists 2.2・lotdsp 2.0・ui_defaults 1.5 ほか。1 字 2〜3 µs、長い字は長さに比例）・読む 5 秒・比べる 2.5 秒・書く 5 秒。14 本を焼いた後の足しは 1〜2 分の見込み（案の「+1〜3 分」と合う）",
+    "k1_actual": "土台の K1・K4 は採点の時点で作業フォルダ（3.115.0 の CI の直し）に入っていた（desktop/tests/common.rs の re が正規表現を形の字ごとに覚える・ci.yml と desktop.yml と check-all.sh の --no-fail-fast。14:01〜14:16 の更新）。別の係の記録 b3115f/time21-before.log・time21-after.log: 焼いた 21 本の試験の計 905.7 → 92.1 秒（−814 秒。access_parity 65.4 → 9.1・presets_parity 107.2 → 3.9・name_key_cases 73.1 → 14.3）。案の見込み（cargo-test 1,422 → 約 820〜850 秒）より大きく、焼く前の 3.114.0（332 秒）よりも速い。採点者は cargo を流していない（記録を読んだ）",
+    "times": "check-all の記録を数え直した（cargo-times.json）: 試験の時間の計 3.114.0 691.8 → 3.115.0 1,338.9 秒・焼いた 21 本 332.1 → 939.4・2 版目の 16 試験 296.5 → 329.8（案と同じ）。Windows の CI（gh run view）: 1d9e35c の仕事 4,689 秒＝test 2,416・exe 286・自己診断 160・更新の通し 1,668。079947d は test 2,893 秒で落ちた。両方で流れた 52 本 2,115 → 2,710 秒・流れなかった 10 本は 177 秒・route_reach 1,098.8／1,114.8 秒（案と同じ）。route_reach は約 130 場面 × 138 型を順に当てる作り（1 回 Linux 3 ms・Windows 61 ms）。cargo は試験の実行ファイルを順に流すので、割って速くなるのは子のプロセスを並べて流すときだけ（測っていない）",
+    "delegates": "delegate-count.py --check（131 秒）: 計 59 ＝ 口 7・③-6 の 3・計算 48・道 1、Windows だけ 2、道ごとに中身へ回す当たり 135、予算と同じ（案と同じ）。calc の任せる 16 形は 1 場面あたり KeyError 4・IndexError 3・ValueError 3・AttributeError 1・type なし 5（状態 400 が 13・200 が 3）で案と同じ",
+    "pow": "calc-pow.json: program の写しで calculator.py の 210・211 行の 2 乗を掛け算に替えて calc_oracle を流すと、732 歩のうち変わるのは 9 歩・84 葉（from_head_m・inner_length_m・off_front_m・total_off_front_m などの最後の桁）。オフの厚さが 0 でない本文は 480 歩。この PC で x**2 ≠ x*x は 100 万のうち 800。窓で pow を呼ぶのは calc.rs の pow2 の 1 か所（742 行）で、calc.rs のほかの数学の部品は sqrt だけ。案の「nt の上書きが最大 666 歩」は長い小数を含む歩の数で、pow で変わりうる歩の上限ではない。Windows の pow は測れていない",
+    "calc_cases": "calc の 3 場面 × 244 事例のうち乱数は 160（23.3 MB のうち 16.2 MB）。test_calculator.py は 36 試験・確かめ 53（L6183D0 の手で確かめた値）で、④ で Python と一緒に無くなる",
+    "frozen": "frozen_python の印は 8 試験（appsettings_cases 1・masters_parity 1・mirror_parity 2・place_parity 1・seeds_parity 3）で案と同じ",
+    "scene_sources": "ui_server.py は tempfile.mkdtemp(prefix=\"tpa-ui-\")・app の import 10 行、ops-bench.py は mkdtemp(prefix=\"tpa-ops-\") と create_app・MasterStore・shifts・work_log・DbMirror。lotlist_fixture.py・schedule_fixture.py は stdlib だけで TODAY は 2026-10-02 に固定。ui_server.py の 165 行は time.time() − 80 時間の更新時刻を置く（流すたびに変わり、NEAR 2 日の外）",
+    "rows": "rows.json: lotlist の rows は 33,282 行・違う行 3,141（28.5 → 2.6 MB）。lists の結合は 13 本・30,367 行・10.4 MB。案の数（41,917 行のうち 6,639）とは数え方が違うが、行の重なりで lotlist が 1/10 になる結論は同じ"
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-18。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流して測った数と読んだコードで採点した。物差しの読み替えは 2026-11-stage3d.json の採点と同じ: 順序＝版の並びが段 ③→④ の流れとこの版の目的（④ に入っても答えの元を失わない所まで）に沿うか・チャンク＝版の切り方・階層化＝主の狙いが 1 つか・視覚化＝効き目と残り（割れた所）が数で見えるか・ステップ数＝合計の手間と版の数・考えさせない＝落とし穴の少なさ・直感的＝今までの型（事例の表・独立の答え・焼いた表）に沿うか・形と色／言葉と置き場＝決まりと答えの元が 1 か所か・整列＝範囲の釣り合い・調子＝理由の明るさ。減点: 守りが消える −10（機能が消える）・割れた所や確かめた状態が見えない −3（状態が見えない）・焼き直すたびに手が増える −2。流した物（台本と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e-score/。作業フォルダ stage3d は読むだけ・git は使わず・共有の cargo の作業フォルダでは cargo を動かしていない）: (1) run14.py … 残り 14 本の答え合わせ役を nice 19 で 1 本ずつ、分の境をまたいで 2 巡（run14.json・cache1/・cache2/）。(2) pack2.py … 中身を失わない詰め方を本当に作り、UTF-8 のバイトの大きさと往復（詰める → 開く ＝ 元）を見た（pack2-cache1.json・sizes-g.json）。(3) wobble2.py … 2 巡で違う葉を鍵ごとに数え、今のそろえる決まり（settle.json と bake.rs の near の決め）を写して当てた後に残る葉を出した（wobble2.json）。(4) scene.py … 作業フォルダの下に場面を作る 10 本の、場面の宣言の大きさ（同じ中身を 1 つに・base64。scene.json）。(5) rxm/（別の小さなクレート。CARGO_TARGET_DIR は scratchpad）… bake.rs の正規表現を debug で組む手間と、組んだ後に 14 本の実物の答えへ当てる手間（rx-debug.txt・rx-settle-debug.txt）。(6) delegate-count.py --check を自分で流した（dc.log・dc.json。131 秒）。(7) program の写しで calculator.py の 2 乗（2 行）を掛け算に替えて calc_oracle を流し、変わる歩を数えた（calc-pow.json。写しは消した）。(8) check-all の記録（b3114/check2・b3115f/check8）と Windows の CI の記録（gh run view の段の時間・ci-win-*.log）を自分で数え直した（cargo-times.json・ci-win-times.json）。(9) grep で frozen_python の試験・ui_server と ops-bench の一時フォルダと app の import・試験データの乱数と日付・route_reach の作り・CI の流し方を確かめた。測れなかった物: Windows で posix の表と違う歩の数・Windows の pow・14 本を焼いた後の cargo の時間（見込みだけ）",
+ "evaluation": {
+  "verified_claims": [
+   "任せる歩 59（口 7・③-6 の 3・計算 48・道 1）・Windows だけ 2・当たり 135: 正しい（自分で流した）",
+   "1 版目で cargo の試験が 2 倍になった原因が正規表現を呼ぶたびに組むこと: 正しい（Regex::new は dt_re 7.45 ms・組んだ後は 3 µs）。ただし直した後の効き目は案の見込みより大きい（下の食い違い 5）",
+   "check-all と Windows の CI の時間の内訳・CI の 4 回の落ち方: 正しい（記録を数え直した）",
+   "14 本の答えの大きさ: schedule を除き正しい。詰めた後の大きさは字数で数えており、バイトでは 1.19 倍（下の食い違い 1）",
+   "frozen_python 8 試験・ui_server と ops-bench の場面が作業フォルダの外・lotlist_fixture と schedule_fixture が stdlib: 正しい",
+   "calc が OS の pow に頼る: 正しいが、頼る所は 2 行で、変わりうる歩は 9/732（下の食い違い 3）"
+  ],
+  "discrepancies": [
+   "1 詰めた後の大きさ: 案 40.9 MB（字数）→ 採点者 48.5 MB（UTF-8 のバイト。本当に詰めて往復を確かめた）。lists 7.82 → 9.28・ui_defaults 2.17 → 6.47・lotlist 2.6 → 3.19・routes 0.76 → 1.10。G の表の見込み「+14〜16 MB」は答え 約 18.6 MB＋場面 約 4 MB（presence の境のファイルを作り方にしなければ +4.2）で 22〜27 MB",
+   "2 場面の宣言: 案「同じ中身を 1 つにして +1.5〜2.5 MB」→ 同じ中身を 1 つにして 14.9 MB、SQLite を台本に・presence の 4 MB を作り方に逃がして約 3.5〜4 MB",
+   "3 calc の pow: 案「nt の上書きが最大 666 歩」→ pow を掛け算に替えて変わるのは 9 歩・84 葉。pow に頼るのは Python 2 行・窓 1 か所",
+   "4 揺れ: 案「新しい種類は schedule の headers と lotdsp の url・search_url」→ 分の境をまたいだ 2 巡に今の決まりを当てた後、7 本に 3,669 葉が残り、種類は 8 つ（かかった ms・乱数のキーと元の id・/tmp/tpa-ops-*・ポート・rev の更新時刻・結合の答えのファイル名・80 時間前の更新時刻・changedAt／fetchedAt）。ほかに決まりでそろえられない揺れが 2 つ（routes の尋ねる設備・schedule の要求の並び）。schedule の揺れは 934 → 1,603 葉（答え合わせ役が変わった分を含む）",
+   "5 K1 の効き目: 案「cargo-test 1,422 → 約 820〜850 秒（−約 600）」→ 3.115.0 の直しの後、焼いた 21 本だけで 905.7 → 92.1 秒（−814。別の係の記録）。check-all は約 54 分（4,075 − 814 秒）・Windows の仕事は 3.114.0 の 78 分かそれ以下（約 73〜78 分。route_reach の約 1,100 秒は残る）の見込みになり、案の「0 時間と流し方を先に」の 3 つ（route_reach の割り・予算の試験の引っ越し・60 分の決めの直し）は急がない",
+   "6 K1・K4 は 3.116.0 の土台ではなく、もう 3.115.0 の直しに入っている",
+   "7 schedule の答えと場面: 1.71 MB・3.95 MB → 2.62 MB・5.38 MB（案の測りの後に schedule_oracle.py が変わった）",
+   "8 route_reach の割り: 案「Windows 1,100 秒 → 300〜550 秒の見込み」は測っていない。cargo は試験の実行ファイルを順に流すので、子のプロセスを並べる形でないと縮まない。④ で消す試験"
+  ],
+  "rank": "1 位 G（61.4）・2 位 E（59.9）・3 位 A（49.6）・4 位 C（46.8）・5 位 D（42.2）・6 位 B（35.2）・7 位 F（17.4）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しはやり直さず、G に下の first_fixes を入れた形で作る。G を 1 位にした理由: (1) この版の目的（④ に入っても答えの元を失わない所まで）に 1 版で届く形で、届かなくても切る線で E と同じ所へ落とせる（3.117.0 を ③-6 だけに軽くでき、④ を 3.118.0 に保ちやすい）。(2) 指紋だけの本を作らず全部の中身を持つので、④ の後も割れた葉が見える（B・F は見えない）。(3) 1 版目の CI で落ちた 4 回の種類に、それぞれ手がある（ci-shape の段・表の見張り・Windows を測るだけの仕事）。(4) Windows の持ち方を測ってから決める（A・B・D は測らずに上書きを作り、C・F は比べない）。E は僅差の 2 位: 守りを薄くする所が無く切り方は安全だが、この版では 29/35 で止まり、大きい 6 本・Windows の表・凍らせる写しを ③-6 と同じ版に積む。G の足りない点は、揺れの見立て（新しい決まり 8 種と決まりでそろえられない 2 つ）・大きさの数え方（字数）・calc を独立の答えにする理由の細さ・競い合いの付け替えで守りが薄くなること・切る線が大きさで引かれていること。どれも下の指摘で直せる",
+  "first_fixes": [
+   "1 土台を今の形に合わせる: K1（正規表現を覚える）と K4（--no-fail-fast）は 3.115.0 の直しに入ったので 3.116.0 の仕事から外す。what 0 の「route_reach を 4 つに割る・予算の確かめを py-tests から外す・check-all の 60 分の決めを直す」は、3.115.0 が main に入った後の check-all と Windows の CI を 1 回測ってから決める（見込み: check-all 約 54 分・Windows の仕事 約 73〜78 分〈上限 90 分〉。check-all が 60 分に収まり Windows の余りが 10 分より多ければ 3 つともしない。余りが足りなければ route_reach だけを、場面を子のプロセス 4 つに分けて並べて流す形にする。route_reach と delegate-count は ④ で消す）。確かめ: check-all の summary.txt と gh run view の段の時間",
+   "2 揺れを先に全部つぶす（1 版目の割れ 1 を繰り返さない）。本を焼く前に、14 本を分の境をまたいで 5 回流し、今の決まりを当てた後の違いを 0 にする（台本は採点者の wobble2.py を使える）。種類ごとの直し: (a) 乱数のキー・元の id（キー・key・equip=…・src:s…・/api/src/s…）は決まりを足さず、場面の台本（ui_scene.py・ops の台本）が決めた字で書く。(b) /tmp/tpa-ops-* と /tmp/tpa-ui-* は台本が作業フォルダの下に作る（@WORK。@UI の形を広げない）。(c) 作り物のサーバーのポートは、Bake が起こした URL だけを名前つきで置き換える（Ctx::url を複数に: CM3・LotDsp の API・サイト）。Host の見出しの「127.0.0.1:番号」もその番号のときだけ。ポートの形の正規表現は入れない。(d) かかった ms は親の鍵が timing のときの数だけ「@MS」にする（鍵 server だけでは広い）。(e) schedule の changedAt・fetchedAt は timeKeys に足す（今に近い数だけ @T になる今の決め方のまま）。(f) ui_server.py 165 行の「今から 80 時間前」の更新時刻は、台本で決めた日付の os.utime にする（NEAR を広げない）。(g) settings の conversions.rev（「3:(更新時刻 ns, 大きさ)」）は場面の変換表のファイルの更新時刻を台本で決める。(h) lists の結合の答えのファイル名（k0_<指紋>.sqlite3）は指紋の元を調べ、作業フォルダの道なら名前の頭（k0_）と拡張子だけを比べる決まりを本の中に書く。(i) 決まりでそろえられない 2 つ: routes の asks[15]（尋ねる設備が替わる）はキーを決めた後に 5 回流して同じ設備になることを見る。schedule の CM3 への要求の記録は設備ごとに分けて（または並べ替えて）比べる。足した決まりには 1 つずつ bake_selftest の変異を付ける（決まりを外すと揺れが残る・決まりを当てても値の 1 字の違いは落ちる）",
+   "3 大きさを数え直して上限を置く: 目安は UTF-8 のバイトで 答え 約 19 MB・場面 約 4 MB。bless.py が本ごとの表の大きさを出し、--check が上限（例: 本ごと 4 MB・14 本で 30 MB）を見る。答えの鍵を問い合わせ（oracle）から落とす strip を本ごとに決めて books.json に書く（lists・lotlist の expected、pivot の answer、settings の reads、routes・dashboard・ops の body。決めないと Python の答えと窓の答えの両方が表に入り倍になる）。ui_defaults の 2 MB の「ああ…」と presence の 4 MB の境の ui_state.json は、答えにも場面の blobs にも作り方（頭・単位 × 数・尾）を使う",
+   "4 詰める形は差分が動かない作りにする: 参照は通し番号でなく中身の指紋（{\"@same\": 指紋 12 桁}）、初出は表の辞書（scene.blobs と同じ形の parts）に置く。番号や初出の位置に頼ると、1 歩の変化で表の広い範囲が書き換わり、PR の差分が読めず、範囲つきの焼き直しの「範囲の外が変わった」にも誤って当たる。比べるのは開いた後。往復（詰める → 開く ＝ 元）と、参照の先を 1 字変えると落ちることを bake_selftest に足す（採点者の pack2.py は 14 本で往復が通る試し）",
+   "5 calc は型 3（calc-truth.py）をやめ、OS への頼りを元から断って型 1 で焼く: (a) Python の calculator.py 210・211 行の「** 2」と窓 calc.rs の pow2 を、同じ版で掛け算（x * x）に替える（Python が残っている今しかできない。変わるのは 732 歩のうち 9 歩の最後の桁。calc_parity で Python と窓が同じことを見て、pow_is_not_folded の試験は「pow を呼ばない」に替える。CLAUDE.md と calc.rs・calc_oracle.py の冒頭の「焼いた表にしない」を直す）。(b) 乱数の事例は 160 → 40 に減らして詰めて全部を焼く（6.4 MB。pow の違い探しが役目だったので）。(c) 第 2 の線は test_calculator.py の手で確かめた値（L6183D0。36 試験・確かめ 53）を人の事例の表 tests/fixtures/calc_cases.json に写し、窓（cargo test --test calc_cases）と Python が同じ表を読む（④ で test_calculator.py が消えても残る）。利用者が答えの最後の桁を変えたくないと決めたときは、pow のまま型 1 で焼き、Windows の違う歩を測るだけの仕事で数えて（見込み 0〜十数歩）上書きにする。どちらでも calc-truth.py は書かない（Python 400〜450 行が減る）",
+   "6 競い合いの付け替え（what 5）はしない: frozen_python の 8 試験は全部、凍らせた最後の Python を相手に残す（1 版目の決めのまま）。④ の配布の間に現場に残るのは凍らせる時点の今の版の Python で、種まき・起動の初期値の錠の取り合いは PC をまたぐ。絞るかどうか・写しを services と repositories だけにするかは、写しを作る ④ の直前の版で、相手の試験が create_app を要るかを見て決める（この版の Rust 150〜250 行が減る）",
+   "7 Windows は 3.116.0 で必ず「測るだけの仕事」まで: desktop.yml の workflow_dispatch で cargo test を流し、posix の表と違う歩の鍵と葉の道を artifact に出す（落とさない）。PR を開く前に 1 回起こし、数を PR の説明と RUST_PORT_PLAN.md に書く。違いはまずそろえる決まり（区切り・ドライブ・OS の誤りの字）で減らし、残りが少なければ同じ版で variants.nt と「Windows でも表と比べる」に切り替え、多ければ 3.117.0 へ送る。④ の入口の条件として「Windows の CI が表と比べている」を RUST_PORT_PLAN.md に書く。nt を焼いたら、Linux の焼き直しで nt が古くなるのを bless.py --check が止める（nt にも元の指紋）",
+   "8 ci-shape は check-all の段に入れ、全部の焼いた本を流す（root でない利用者・リポジトリが家の下・TZ=Asia/Tokyo・別の TMPDIR・TPA_NO_PYTHON=1、それと偽の python を PATH の先に置いた形）。「表が変わった本だけ」にすると bake.rs だけを直したときに漏れる。3.115.0 の直しの後は 21 本で約 92 秒なので全部で足りる。確かめ: 1 版目の CI の 1 回目（@HOME）と 3 回目（利用者）を変異で戻して、この段が落とすこと",
+   "9 場面の台本（tests/scenes/ui_scene.py・ops の台本・作り物を起こす台本）: ui_server.py と ops-bench.py が同じ台本を呼ぶ形にして、試験データを 2 か所に持たない。Python があるこの版のうちに「台本が作った場面で Python の答えが前と同じ」を 1 回突き合わせる（キーを決めた分だけ答えは変わるので、変わる葉がキーだけであることを見る）。台本の DB の指紋が Python の版の乱数で変わったときの手順（場面と表を同時に焼き直す）を bless.py の知らせに書く。作り物のサーバーを起こす台本は app を import しないことを test_baked_tables が見る",
+   "10 切る線を難しさで引き直す。作る順: (1) 土台（K2・K3・K5・詰める形・場面の台本・ci-shape・表の見張り・Windows を測る仕事）→ (2) 揺れが小さく場面が作業フォルダの下にある 7 本（calc・lotlist・presence・ui_defaults・conversions・lists・settings）→ (3) 起こしたままの 3 本（equipgroups・lotdsp・schedule）→ (4) ui_server・ops-bench の 4 本（pivot・routes・dashboard・ops）。時間が足りなければ (4) の後ろ（ops・dashboard）から 3.117.0（③-6 と同じ版）へ送る。案の切る線（lotlist・lotdsp・settings を送る）は易しい側なので使わない。どこで切っても ④ は 3.118.0。切ったら books.json の phase と RUST_PORT_PLAN.md に残りと理由を書く",
+   "11 K2（計算の 48 歩を窓が答える）の確かめを数で: delegate-count --check が calc 0・total 11、calc_parity の「Python に任せた」が 0、誤りを 2 つ重ねた本文 20〜30 事例を calc_oracle に足して Python の評価の順（どの誤りが先か）と同じ、type つきの 33 がすべて calc_error_cases.json の種類。K3（数でない timeout を HOT から始めたときの要求の数）は 2-(i) の「設備ごとに比べる」と一緒に直す",
+   "12 そろえすぎを数で見せる: bless.py が本ごとに、そろえた印（@T・@URL・@MS・@WORK など）の数と表の大きさを出し、前の表から増えた分を PR の説明に貼る。--check は、字の形の見張り（利用者の名前・一時フォルダ・時差つきの時刻・装置と inode の番号・ポート・ホスト名）に加えて、印の数が answers の葉の 2 割を超える本を知らせる（守りが薄い表を見つける）"
+  ],
+  "cut_line": "1 版に入り切らないとき: (ア) 先に外す物は、route_reach の割り・予算の試験の引っ越し・競い合いの付け替え・calc-truth.py（first_fixes 1・5・6。そもそもしない）。(イ) 次に Windows の上書き（variants.nt）と「Windows でも表と比べる」を 3.117.0 へ（測るだけの仕事は 3.116.0 に残す）。(ウ) それでも足りなければ本を難しい側から送る: ops → dashboard → routes → pivot の順に 3.117.0 へ（first_fixes 10）。送った本は 3.117.0 で ③-6（schedule.rs だけを触る）と並べる。④ は 3.118.0 のままで、入口の条件は「35 本が Python 無しで流れる・Windows の CI が表と比べている・凍らせる写しがある」"
+ },
+ "built_plan": {
+  "about": "作った形（版 3.116.0・ブランチ stage3e）。1 位の案 G に採点の first_fixes 12 件と、利用者・主の決め（2 乗はべき乗のまま・競い合いの付け替えはしない・Windows は測るだけまで・ci-shape を check-all の段に）を入れた。採点の中身（rounds・evaluation）は書き換えていない",
+  "baked": "14 本のうち 7 本を焼いた（calc・lotlist・presence・ui_defaults・conversions・lists・settings〈settings.bundle・settings.pages。route_reach は束の表の場面を借りる〉）。時刻の境をまたぐ 2 回の焼きが同じ。表は 34 ファイル・23.95 MB（前 6.71 MB。7 本で +17.25 MB。UTF-8 のバイト。作った後の直しで calc に場面を足した後の数）",
+  "sent": "3.117.0 へ送った 7 本: equipgroups・schedule・lotdsp（起こしたままの 3 本）と routes・pivot・dashboard・ops（ui_server・ops-bench の 4 本）。採点の切る線（ops → dashboard → routes → pivot の順に送る）より多く送った: 起こしたままの 3 本は、Python 無しの形で作り物を app なしで起こす台本と URL の名前つきの置き換えまで作れなかった。理由は desktop/tests/baked/books.json の why と RUST_PORT_PLAN.md",
+  "first_fixes": {
+   "1": "K1・K4 は外した（3.115.0 に入っている）。route_reach の割り・予算の試験の引っ越しはしていない",
+   "2": "焼いた 7 本は、時刻の境をまたぐ 2 回の焼き（bless.py）と、焼いた後の Python と比べる流し・ci-shape の 3 つの形（root でない利用者・時差・別の TMPDIR・名前を引けない）で違い 0。5 回の流しは 7 本について合わせて 5 回以上（焼き 2・手元 1・ci-shape 3）。settle.json に足したのは 2 つだけ（画面の指紋 @BUILD・名乗りの表の鍵。どちらも作り方そのものと一致するときだけ・変異の試験つき）。calc の問い合わせの名乗り（流した PC の名前）は答え合わせ役から外した。結合の答えのファイル名は本の中で名前の頭と拡張子だけを表に持つ。送った 7 本の揺れ（乱数のキー・/tmp/tpa-ops-*・ポート・要求の並び）は手を付けていない",
+   "3": "bless.py --check が UTF-8 のバイトで本ごと（books.json の maxMB。無ければ 1.5 MB）と計 40 MB の上限を見る。表の問い合わせに Python の答えを持たない（oracle_with・drop）。ui_defaults の 2 MB・presence の 4 MB の境の字は作り方（@rep）",
+   "4": "参照は中身の指紋 12 桁（@same）・初出は parts。bake_selftest の packing_round_trips_and_references_do_not_move（往復・1 歩変えてもほかの歩の字が動かない・参照の先の 1 字で落ちる・参照の先が無ければ分かる言葉）",
+   "5": "利用者の決めのとおり 2 乗は C の pow のまま（Python の ** 2 も窓の pow2 も変えていない）。calc は詰めて全部を焼いた（乱数は Python と 160 件・表に 40 件）。calc-truth.py は作っていない。第 2 の線は人の事例の表 calc_cases.json（31 事例・確かめ 97）",
+   "6": "競い合いの付け替えはしていない（frozen_python の 8 試験はそのまま）",
+   "7": "desktop.yml の Windows の cargo test に TPA_MEASURE を付け、bake.rs が表と違う歩を落とさずに記録し、bless.py --measured がまとめ、成果物 desktop-windows/bake-measure/ に置く。数は push 後の最初の Windows の CI で出る（手元では流せない）。上書き variants.nt は次の版。段 ④ の入口の条件を RUST_PORT_PLAN.md に書いた",
+   "8": "program/tools/ci-shape.py（runner・nopy・nodns の 3 つの形で焼いた本の試験 31 本を全部）を check-all.sh の段 ci-shape にした。作っている途中にこの段が手元の焼きの割れを 4 つ見つけた（画面の指紋・名乗りの鍵の利用者の名前・その sha1 の 6 字・計算の問い合わせの PC の名前）",
+   "9": "場面の台本の仕組み（bk.script・sceneMade・指紋 made_print）を作り、lists（tests/lists_scene.py）と lotlist（tests/lotlist_fixture.py）で使った。ui_server.py・ops-bench.py の台本への切り出しはしていない（4 本を送ったため）",
+   "10": "作る順は 土台 → 易しい 7 本 まで。起こしたままの 3 本と ui_server・ops-bench の 4 本は送った",
+   "11": "calc::calculate を Python の行の順に書き直し、例外の形を calc::Stop::Py と error_message で答える。delegate-count --check は計 11・calc 0、calc_parity は窓が答えた 2,247・任せた 0（作った後の直しで読めないマスタの 16 場面と 0 割りを足した後の数）。誤りを 2 つ重ねた本文と形の違う本文 78・設定とマスタの形が違う場面 23 を足した。K3（数でない timeout を HOT から始めたときの要求の数）は直していない（schedule と一緒に 3.117.0）",
+   "12": "bless.py --stats が本ごとの大きさ・歩・葉・印の数（--base で前の表から増えた分）を出し、--check は印のある葉が 2 割を超える本を知らせる（今は fs だけ: 答えが道そのもの）"
+  },
+  "found_while_building": [
+   "calc の「答えに NaN・inf」は Python が null にして答えていた（web.dumps の _finite）。窓は任せていたので、NaN を持ったまま計算して null で答える形にした",
+   "検査計の有無の names が数・真だと Python は 500 だった。本文の門の欄の型（L）に足した",
+   "大きすぎる数の計算の誤りの言葉が英語のままだった（OverflowError）。日本語の言葉を足した",
+   "check-all.sh は worktree（CARGO_TARGET_DIR）で cargo の作業フォルダを片付けていなかった。窓の通しの前の片付けも道具に入れた"
+  ],
+  "left": [
+   "送った 7 本と K3・ui_server の台本・Windows の上書き",
+   "Windows の測りの数（未知）。calc の pow の最後の桁が Windows で違うかは、その数で分かる",
+   "route_reach は名前を引けない形で 187 秒かかる（ci-shape の nodns）"
+  ],
+  "after_scoring": "作った後の採点（35.5 点・割れ 6）は tools/ui-proposals/2026-11-stage3e-built.json。割れは全部直して試験に足した（built_fixed）"
+ }
+}

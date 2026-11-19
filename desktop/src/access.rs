@@ -549,6 +549,15 @@ impl Place {
         None
     }
 
+    /// rows と同じだが、読めないマスタは Python の MasterUnreadable と同じ理由の言葉（unreadable）で答える（版 3.116.0。計算の道が、
+    /// 読めないマスタを読む所まで進んでからその言葉で答える）
+    pub fn rows_told(&self, name: &str) -> Result<Vec<Value>, String> {
+        match self.unreadable(name) {
+            Some(why) => Err(why),
+            None => self.rows(name),
+        }
+    }
+
     /// マスタの版の番号（MasterStore.revision: {revision} の int。行の配列〈同梱の data/ の昔の形〉・無いファイルは 0）
     pub fn revision(&self, name: &str) -> Result<i64, String> {
         self.doc(name).map(|(_, rev)| rev)

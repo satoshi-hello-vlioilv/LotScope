@@ -1,5 +1,5 @@
 {
- "about": "答え合わせ役 36 本の行き先（版 3.115.0）。phase: 3.115.0 は窓が焼いた表で比べる本・3.116.0 は次の版で焼く本・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）",
+ "about": "答え合わせ役 36 本の行き先（版 3.116.0）。phase: 3.115.0・3.116.0 は窓が焼いた表で比べる本（焼いた版）・3.117.0 は次の版で焼く本（理由は why）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）",
  "books": {
   "name_key": {
    "phase": "3.115.0",
@@ -50,7 +50,8 @@
     "tests/oracle_gate.py",
     "tests/schedule_fixture.py"
    ],
-   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）"
+   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）",
+   "sceneTimesWhy": "場面がわざと置いた時刻（確かめる用のファイル: 時計より先の future.sqlite3・40 時間前の old.sqlite3。今からのずれで持つ）"
   },
   "settings_write": {
    "phase": "3.115.0",
@@ -220,45 +221,50 @@
     "access_parity"
    ],
    "sources": [
-    "tests/access_oracle.py"
+    "tests/access_oracle.py",
+    "tests/scene_files.py"
    ],
    "why": "41 組 × 25 道と切断の指示 69 組を焼く（場面の置き場は同じ中身を 1 つに）"
   },
   "equipgroups": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "equipgroups_write_parity"
    ],
    "sources": [
     "tests/equipgroups_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（作り物の CM3 を起こしたままにする本）。Python 無しの形で作り物の CM3（schedule_fixture.Cm3Server。標準の部品だけ）を app なしで起こす台本と、場面のファイルの中の作り物の URL（ポート）を名前つきで置き換える係（Ctx::url を場面にも）が要る。3.116.0 は場面の台本（指紋）・詰める形・ci-shape までを作り、起こしたままの台本は作っていない"
   },
   "routes": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "routes_parity"
    ],
    "sources": [
     "tests/routes_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面）。場面が作業フォルダの外（/tmp/tpa-ui-*）で、キー・元の id が乱数（尋ねる設備が流すたびに替わる）。場面を標準の部品だけの台本（決めたキー・作業フォルダの下・決めた更新時刻）に出し、ui_server.py も同じ台本を呼ぶ形にしてから焼く（採点の first_fixes 2・9）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる"
   },
   "pivot": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "pivot_parity"
    ],
    "sources": [
     "tests/pivot_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。routes と同じ台本が要る。今のそろえる決まりで揺れは 0 だが、場面が作業フォルダの外なので宣言にできない）"
   },
   "schedule": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "schedule_parity"
    ],
    "sources": [
     "tests/schedule_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（③-6 の schedule.rs の直しと同じ版）。試験が途中で作り物の CM3 に尋ねる（requests・count）ので、Python 無しの形の起こしたままの台本に同じ口が要る。焼く前に直す物: 場面「名前が引けない」の言葉（PC の DNS で変わる。その言葉だけを 1 つの印に）・CM3 への要求の並び（糸の順。設備ごとに比べる）・「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」・Host の見出しと viewUrl のポート・changedAt と fetchedAt"
   },
   "conversions": {
    "phase": "3.116.0",
@@ -267,7 +273,8 @@
    ],
    "sources": [
     "tests/conversions_oracle.py"
-   ]
+   ],
+   "why": "54 場面の歩の答えと終わった後のファイルを詰めた形で焼く（同じ中身の一覧が多い）"
   },
   "presence": {
    "phase": "3.116.0",
@@ -276,7 +283,8 @@
    ],
    "sources": [
     "tests/presence_oracle.py"
-   ]
+   ],
+   "why": "11 場面の歩の答えと終わった後のファイルを詰めた形で焼く（時計は差し替えた固定の時刻。4 MB の境の本文と控えは繰り返しの字の作り方で持つ）"
   },
   "ui_defaults": {
    "phase": "3.116.0",
@@ -284,26 +292,30 @@
     "ui_defaults_parity"
    ],
    "sources": [
-    "tests/ui_defaults_oracle.py"
-   ]
+    "tests/ui_defaults_oracle.py",
+    "tests/oracle_gate.py"
+   ],
+   "why": "9 場面の歩の答えと終わった後のファイルを詰めた形で焼く（2 MB の境の本文は繰り返しの字の作り方で持つ）"
   },
   "ops": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "ops_parity"
    ],
    "sources": [
     "tests/ops_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（tools/ops-bench.py の場面。/tmp/tpa-ops-* と乱数のキー。create_app・MasterStore を使わない台本に出してから焼く）"
   },
   "dashboard": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "dash_parity"
    ],
    "sources": [
     "tests/dashboard_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。panel.source・panel.equip が乱数のキーで問い合わせそのものが替わる・80 時間前の更新時刻。routes と同じ台本が要る）"
   },
   "settings": {
    "phase": "3.116.0",
@@ -313,8 +325,12 @@
     "route_reach"
    ],
    "sources": [
-    "tests/settings_oracle.py"
-   ]
+    "tests/settings_oracle.py",
+    "app/templates/index.html",
+    "app/brand.json"
+   ],
+   "maxMB": 6.0,
+   "why": "束（settings.bundle）と読む道 7 本（settings.pages）を詰めた形で焼く。route_reach は Python 無しの形で束の表の場面と道の型の並びを借りる（答えは数だけ）。変換表の版の印（rev）は窓と Python で別の字なので持たない。画面の字（GET / の HTML の全部）を持つので、画面の型 app/templates/index.html・app/brand.json を変えたら焼き直す（sources に入れてあり、bless.py --check が古いと言う）"
   },
   "calc": {
    "phase": "3.116.0",
@@ -322,8 +338,12 @@
     "calc_parity"
    ],
    "sources": [
-    "tests/calc_oracle.py"
-   ]
+    "tests/calc_oracle.py",
+    "tests/test_calculator.py",
+    "tests/scene_files.py"
+   ],
+   "maxMB": 9.0,
+   "why": "詰めた形で全部の答えを焼く（2 乗は C の pow のまま。利用者の決め 2026-11-18）。乱数の事例は Python とは 160 件を比べ、表には 40 件。人の事例の表 calc_cases.json（test_calculator の手で確かめた値）が第 2 の線。Windows で最後の桁が違う歩は測るだけの仕事が数える"
   },
   "lists": {
    "phase": "3.116.0",
@@ -331,8 +351,12 @@
     "lists_parity"
    ],
    "sources": [
-    "tests/lists_oracle.py"
-   ]
+    "tests/lists_oracle.py",
+    "tests/lists_scene.py",
+    "tests/lotlist_fixture.py"
+   ],
+   "maxMB": 5.0,
+   "why": "46 通り＋結合 13 本の答え（数・列・行の全部）を詰めた形で焼く。場面の SQLite は標準の部品だけの台本 lists_scene.py が作り、表は指紋だけを持つ。結合の基は小さい物（quality_s 160 行・wip_s 120 行・重なりマスタ 480 行）にした"
   },
   "lotlist": {
    "phase": "3.116.0",
@@ -340,17 +364,21 @@
     "lotlist_parity"
    ],
    "sources": [
-    "tests/lotlist_oracle.py"
-   ]
+    "tests/lotlist_oracle.py",
+    "tests/lotlist_fixture.py"
+   ],
+   "maxMB": 5.0,
+   "why": "119 通りの答えを詰めた形で焼く（行の重なりで 1/10）。場面は品質データの SQLite（lotlist_fixture。標準の部品だけ・日付は 2026-10-02 に固定）"
   },
   "lotdsp": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "lotdsp_parity"
    ],
    "sources": [
     "tests/lotdsp_oracle.py"
-   ]
+   ],
+   "why": "3.117.0 へ送った（作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本）。Python 無しの形で lotdsp_cdp_fake.py と作り物の API を app なしで起こす台本と、url・search_url・base のポートの名前つきの置き換え（API・サイトの 2 つ）が要る。10 MB の境の本文は詰める形の繰り返しの字で持てる"
   }
  }
 }

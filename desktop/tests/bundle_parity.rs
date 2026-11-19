@@ -5,6 +5,8 @@
 //! Python と同じ最初の版を置いてから組み、束も置いた中身も Python と同じこと、"broken:節,…" の場面は窓がその節だけを
 //! 理由つきで組まず、ほかの節は Python と同じに組むこと（版 3.102.0）、"pyFollows" の場面は窓が同じ置き場へ引っ越しの印をたどり、
 //! この PC の覚えに書くことを見る。
+//! 版 3.116.0 から窓が組んだ束を焼いた表（tests/baked/settings.bundle.json。詰めた形）にも持ち、Python 無しでは表とだけ比べる
+//! （Python と同じはずの場面は Python と同じときだけ焼く。節を組まない場面・表で決めた場面は窓の束の全部を焼く）。
 
 mod common;
 
@@ -12,10 +14,38 @@ use da_core::bundle::{Builder, Env};
 use serde_json::Value;
 use std::path::PathBuf;
 
+/// 表の問い合わせに持たない鍵（Python の答えそのもの: 束・読む道の本文・置いた物・覚え）。読む道は状態だけ残す
+pub fn strip_python(v: &Value) -> Value {
+    let mut o = v.clone();
+    for sc in o["scenarios"].as_array_mut().unwrap() {
+        let m = sc.as_object_mut().unwrap();
+        for k in ["answer", "shareAfter", "override"] {
+            m.remove(k);
+        }
+        if let Some(reads) = m.get_mut("reads").and_then(Value::as_object_mut) {
+            for r in reads.values_mut() {
+                if !r.is_null() {
+                    *r = serde_json::json!({"status": r["status"]});
+                }
+            }
+        }
+    }
+    o
+}
+
+/// 束を表に持つ形（変換表の版の印は窓と Python で別の字なので持たない）
+fn for_table(v: &Value) -> Value {
+    let mut v = v.clone();
+    v["conversions"]["rev"] = Value::Null;
+    v
+}
+
 #[test]
 fn bundle_is_built_like_python() {
     let work = common::work("bundle");
-    let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open_part("settings", "bundle", &work);
+    bk.pack = true;
+    let o = bk.oracle_with("settings_oracle.py", &[work.to_str().unwrap()], strip_python);
     let mut bad = vec![];
     let (mut same, mut delegated, mut broken_n, mut seeded, mut tabled) = (0, 0, 0, 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
@@ -52,7 +82,7 @@ fn bundle_is_built_like_python() {
                 }
                 v
             };
-            for (f, want) in sc["shareAfter"].as_object().expect("Python が置いた物") {
+            for (f, want) in sc["shareAfter"].as_object().into_iter().flatten() {
                 let mine = std::fs::read(share.join(f)).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);
                 if let Some(d) = common::diff(&strip(want), &strip(&mine), f) {
                     why.push(format!("{name}: 置いた最初の版 {d}"));
@@ -61,10 +91,21 @@ fn bundle_is_built_like_python() {
             for e in std::fs::read_dir(&share).unwrap().flatten() {
                 let f = e.file_name().to_string_lossy().into_owned();
                 let every = da_core::bundle::EVERY_READ.iter().any(|n| f == format!("{n}.json"));
-                if !sc["shareAfter"].as_object().unwrap().contains_key(&f) && !every {
+                if bk.python() && !sc["shareAfter"].as_object().unwrap().contains_key(&f) && !every {
                     why.push(format!("{name}: 窓だけが置いた {f}"));
                 }
             }
+            // 窓が置いた最初の版（更新時刻は除く）を焼く・表と比べる
+            let mut placed = serde_json::Map::new();
+            let mut names: Vec<String> =
+                std::fs::read_dir(&share).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            names.sort();
+            for f in names {
+                let mine = std::fs::read(share.join(&f)).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);
+                placed.insert(f, strip(&mine));
+            }
+            let placed = Value::Object(placed);
+            bk.note_files(&format!("{name} 置いた物"), &placed, &placed);
             why
         });
         for (k, v) in &saved {
@@ -109,6 +150,9 @@ fn bundle_is_built_like_python() {
                 bad.push(format!("{name}: 窓が束を組めない（表 {case} は組む）"));
                 continue;
             };
+            // 表で決めた場面: 窓の束の全部を焼く（Python とは組めた節だけを下で比べる）
+            let whole = for_table(&got);
+            bk.note_files(name, &whole, &whole);
             let mut keys: Vec<(String, String)> = got["broken"]
                 .as_object()
                 .into_iter()
@@ -133,6 +177,9 @@ fn bundle_is_built_like_python() {
                 bad.push(format!("{name}: 節 {keys:?}・段 {stages:?}（表 {case}: {want_keys:?}・{want_stages:?}）"));
             }
             let mut want = sc["answer"].clone();
+            if !bk.python() {
+                continue;
+            }
             if !want.is_null() {
                 for v in [&mut want, &mut got] {
                     v["conversions"]["rev"] = Value::Null;
@@ -165,6 +212,9 @@ fn bundle_is_built_like_python() {
                 bad.push(format!("{name}: 窓が束を組めない（{} の節だけ組まないはず）", want_broken));
                 continue;
             };
+            // 節だけ組まない場面: 窓の束の全部（組まない節の理由も）を焼く（Python とは組めた節だけを下で比べる）
+            let whole = for_table(&got);
+            bk.note_files(name, &whole, &whole);
             let keys: Vec<String> = got["broken"].as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
             let mut want_keys: Vec<String> = want_broken.split(',').map(String::from).collect();
             want_keys.sort();
@@ -184,7 +234,7 @@ fn bundle_is_built_like_python() {
             }
             // ほかの節は Python と同じ（Python の答えが JSON で渡せたとき）
             let mut want = sc["answer"].clone();
-            if !want.is_null() {
+            if bk.python() && !want.is_null() {
                 for v in [&mut want, &mut got] {
                     v["conversions"]["rev"] = Value::Null;
                     v["broken"] = Value::Null;
@@ -207,7 +257,7 @@ fn bundle_is_built_like_python() {
             continue;
         }
         same += 1;
-        let mut want = sc["answer"].clone();
+        let mut want = bk.want(name, || for_table(&sc["answer"]));
         let mut got = match got {
             Ok(v) => v,
             Err(e) => {
@@ -219,18 +269,25 @@ fn bundle_is_built_like_python() {
         for v in [&mut want, &mut got] {
             v["conversions"]["rev"] = Value::Null;
         }
-        if let Some(d) = common::diff(&want, &got, "") {
+        bk.note(name, "bundle", &got, &want);
+        if let Some(d) = common::diff(&bk.s(&want), &bk.s(&got), "") {
             bad.push(format!("{name}: {d}"));
         }
         if sc["pyFollows"] == true {
             let over: Value =
                 serde_json::from_slice(&std::fs::read(p("local").join("master_share.json")).unwrap_or_default()).unwrap_or(Value::Null);
-            if over["dir"] != sc["override"]["dir"] {
-                bad.push(format!("{name}: この PC の覚えの置き場 {} / Python {}", over["dir"], sc["override"]["dir"]));
-            }
-            let (h, ph) = (over["history"].as_array().map(Vec::len), sc["override"]["history"].as_array().map(Vec::len));
-            if h != ph {
-                bad.push(format!("{name}: 覚えの履歴の数 {h:?} / Python {ph:?}"));
+            // この PC の覚え（置き場と履歴の数）を焼く・表と比べる。Python とは下で比べる
+            let h = over["history"].as_array().map(Vec::len);
+            let mine = serde_json::json!({"dir": over["dir"], "history": h});
+            bk.note_files(&format!("{name} 覚え"), &mine, &mine);
+            if bk.python() {
+                if over["dir"] != sc["override"]["dir"] {
+                    bad.push(format!("{name}: この PC の覚えの置き場 {} / Python {}", over["dir"], sc["override"]["dir"]));
+                }
+                let ph = sc["override"]["history"].as_array().map(Vec::len);
+                if h != ph {
+                    bad.push(format!("{name}: 覚えの履歴の数 {h:?} / Python {ph:?}"));
+                }
             }
             // 2 回目は印をたどらない（同じ置き場が履歴に 2 回載らない）
             let again = b.build();
@@ -261,5 +318,6 @@ fn bundle_is_built_like_python() {
         same >= 30 && broken_n >= 2 && seeded >= 2 && tabled >= 3 && delegated == 0,
         "場面が足りません: 同じ {same}・任せる {delegated}・節だけ組まない {broken_n}・種まき {seeded}・表 {tabled}"
     );
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
 }

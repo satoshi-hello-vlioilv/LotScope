@@ -2,11 +2,15 @@
 
     python tools/bless.py 本 …            … 本ごとに TPA_BLESS=1 で窓の突き合わせの試験を流して焼き（Python と同じときだけ書く）、
                                             時刻の境（次の分）をまたいでからもう 1 度焼いて、1 回目と同じかを見る（違えば元の表に戻して止める）
-    python tools/bless.py --all           … 3.115.0 の本すべて（desktop/tests/baked/books.json の phase）
+    python tools/bless.py --all           … 焼く本すべて（desktop/tests/baked/books.json の phase が 3.115.0・3.116.0）
+    python tools/bless.py --stats [--base 版] … 本ごとの表の大きさ（UTF-8 のバイト）・歩・葉・そろえた印（@T・@URL・@WORK など）の数を出す
+                                            （--base は git の版〈例 origin/main〉。前の表から増えた分も出す。PR の説明に貼る）
     python tools/bless.py --user 本 …     … root でない利用者（nobody）で試験の実行ファイルを流し、root と違う歩を variants.user に焼く（fs・place・release_place）
     python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
     python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
                                             tests/test_baked_tables.py からも流れる）。違えば終了コード 1
+    python tools/bless.py --measured フォルダ … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
+                                            本ごとに「焼いた表（posix）と違う歩」の数と、違う葉の鍵・見本を出す（落とさない。終了コード 0）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
 
 焼いた表は desktop/tests/baked/<本>.json。焼くのは窓の試験（desktop/tests/common/bake.rs）で、この道具はそれを流して確かめるだけ。
@@ -27,7 +31,79 @@ PROGRAM = Path(__file__).resolve().parents[1]
 DESKTOP = PROGRAM.parent / "desktop"
 BAKED = DESKTOP / "tests" / "baked"
 BOOKS = json.loads((BAKED / "books.json").read_text(encoding="utf-8"))["books"]
-PHASE = "3.115.0"
+# 焼いてある本の phase（3.115.0 の 21 本・3.116.0 に焼いた本）。それより先の版（3.117.0 など）は、まだ焼いていない本
+PHASES = ("3.115.0", "3.116.0")
+# 表の大きさの上限（UTF-8 のバイト。版 3.116.0 の採点の first_fixes 3）: 本ごと（books.json の maxMB。無ければ 1.5 MB）と全部の計
+MAX_MB = 1.5
+MAX_TOTAL_MB = 40.0
+# そろえた印（desktop/tests/common/bake.rs の settle が答えに置く字）。本ごとに数えて、そろえすぎを数で見せる（first_fixes 12）
+STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@BUILD", "@HOST", "@DAY", "@ABOVE", "@PID", "@UI", "@FID(")
+STAMP_SHARE = 0.2      # 印のある葉が答えの葉のこの割合を超える本は知らせる（守りが薄い表）
+# 場面のファイルの更新時刻「今からのずれ」がこれより大きい物は知らせる（ms。版 3.116.0 の作った後の直し）: 答え合わせ役が作ったファイルは
+# 焼いた時の今（ずれは数秒）。大きいずれは、取り出しのファイルの時刻をそのまま写した（＝取り出してからの日数に頼る表）か、場面が
+# わざと置いた時刻（books.json の sceneTimesWhy に理由を書いた本は知らせない）
+NOW_OFFSET_MS = 10 * 60 * 1000
+NOW_RE = re.compile(r"@NOW\((-?\d+)ms\)")
+
+
+def baked(book):
+    return BOOKS[book]["phase"] in PHASES
+
+
+MARKS = ("@same", "@rep", "@lit")
+
+
+def unpack(v, parts):
+    """詰めた形を開く（desktop/tests/common/bake.rs の unpack と同じ: 参照 @same・繰り返しの字 @rep・印と同じ形の表 @lit）"""
+    if isinstance(v, list):
+        return [unpack(x, parts) for x in v]
+    if isinstance(v, dict):
+        if len(v) == 1 and next(iter(v)) in MARKS:
+            k, x = next(iter(v.items()))
+            if k == "@same":
+                if x not in parts:
+                    raise KeyError(f"詰めた表の参照 {x} の中身が parts にありません")
+                return unpack(parts[x], parts)
+            if k == "@rep":
+                return "".join(s if isinstance(s, str) else s[0] * s[1] for s in x)
+            return {kk: unpack(y, parts) for kk, y in x.items()}
+        return {k: unpack(x, parts) for k, x in v.items()}
+    return v
+
+
+def unpack_table(t):
+    """表を開いた形に（parts を外す。詰めていない表はそのまま）"""
+    if "parts" not in t:
+        return t
+    parts = t["parts"]
+    return {k: (unpack(v, parts) if k in ("oracle", "scene", "answers", "variants") else v) for k, v in t.items() if k != "parts"}
+
+
+def leaves(v):
+    if isinstance(v, dict):
+        for x in v.values():
+            yield from leaves(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from leaves(x)
+    else:
+        yield v
+
+
+def stats_of(path):
+    """表 1 つの数: 大きさ（UTF-8 のバイト）・歩・答えの葉・印のある葉・印ごとの数"""
+    raw = path.read_bytes()
+    t = unpack_table(json.loads(raw))
+    n = stamped = 0
+    by = {}
+    for x in leaves(t.get("answers", {})):
+        n += 1
+        if isinstance(x, str) and "@" in x:
+            hit = [s for s in STAMPS if s in x]
+            stamped += bool(hit)
+            for s in hit:
+                by[s] = by.get(s, 0) + x.count(s)
+    return {"bytes": len(raw), "steps": len(t.get("answers", {})), "leaves": n, "stamped": stamped, "stamps": by}
 
 
 def sources_of(book):
@@ -92,22 +168,28 @@ RESOLVER_WORDS = ("Name or service not known", "Temporary failure in name resolu
 def check(baked=None):
     """→ 食い違いの言葉の並び（空なら古くない）。tests/baked の表を全部（部分の表も）確かめる（版 3.115.0 の作った後の直し: 前は 本.json だけを見た）"""
     bad = []
+    size = {}
     tabs = tables(baked)
     for name, book in tabs.items():
         if book not in BOOKS:
             bad.append(f"{name}: 知らない本の表（books.json に無い）")
             continue
-        if BOOKS[book]["phase"] != PHASE:
+        if BOOKS[book]["phase"] not in PHASES:
             bad.append(f"{name}: 焼く版でない本（phase {BOOKS[book]['phase']}）に表がある")
             continue
         text = ((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")
+        size[book] = size.get(book, 0) + len(text.encode("utf-8"))
         for why, path in local_paths():
             if re.search(re.escape(json.dumps(path)[1:-1]) + r"(?=[/\\\\\"]|$)", text):
                 bad.append(f"{name}: 焼いた PC の{why}（{path}）が字のまま残っている（@REPO・@WORK・@HOME にそろえて焼き直す）")
         for w in RESOLVER_WORDS:
             if w in text:
                 bad.append(f"{name}: PC の名前を引く係の様子で変わる言葉（{w}）が表にある（場面が本物の名前を引いている。引かない形にして焼き直す）")
-        t = json.loads(text)
+        try:
+            t = unpack_table(json.loads(text))
+        except KeyError as e:
+            bad.append(f"{name}: {e.args[0]}")
+            continue
         for k in ("book", "os", "oracle", "scene", "answers", "routes", "sources"):
             if k not in t:
                 bad.append(f"{name}: 表に {k} がありません")
@@ -124,16 +206,58 @@ def check(baked=None):
             if not isinstance(scene.get(k), dict):
                 bad.append(f"{name}: 場面の宣言に {k} がありません")
         for rel, e in scene.get("files", {}).items():
-            if not e.get("fifo") and e.get("blob") not in scene.get("blobs", {}):
+            if not e.get("fifo") and not e.get("made") and e.get("blob") not in scene.get("blobs", {}):
                 bad.append(f"{name}: 場面のファイル {rel} の中身が無い")
         if not isinstance(t.get("answers"), dict) or set(t.get("answers", {})) != set(t.get("routes", {})):
             bad.append(f"{name}: 答えと道の型の鍵が合わない")
         elif not t["answers"] and not name.endswith(".shared"):
             bad.append(f"{name}: 答えが 1 つもありません")
     for book, b in sorted(BOOKS.items()):
-        if b["phase"] == PHASE and book not in tabs:
+        if b["phase"] in PHASES and book not in tabs.values():
             bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
+    # 大きさの上限（UTF-8 のバイト）: 本ごと・全部の計。越えたら、場面と事例を減らすか、books.json の maxMB を理由つきで上げる
+    for book, n in sorted(size.items()):
+        cap = BOOKS[book].get("maxMB", MAX_MB)
+        if n > cap * 1e6:
+            bad.append(f"{book}: 表が大きい（{n / 1e6:.2f} MB > 上限 {cap} MB）")
+    if sum(size.values()) > MAX_TOTAL_MB * 1e6:
+        bad.append(f"焼いた表の計が大きい（{sum(size.values()) / 1e6:.1f} MB > 上限 {MAX_TOTAL_MB} MB）")
     return bad
+
+
+def notices(baked=None):
+    """知らせ（落とさない）: 印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）"""
+    out = []
+    for name, book in tables(baked).items():
+        t = unpack_table(json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")))
+        far = [rel for rel, e in t.get("scene", {}).get("files", {}).items()
+               if (m := NOW_RE.fullmatch(str(e.get("mtime", "")))) and abs(int(m[1])) > NOW_OFFSET_MS]
+        if far and not BOOKS.get(book, {}).get("sceneTimesWhy"):
+            out.append(f"{name}: 場面のファイル {len(far)} 個の更新時刻が今から 10 分より離れている（例 {far[0]}）。取り出しのファイルの時刻を"
+                       "写していないか（tests/scene_files.py を通して写す）。場面がわざと置いた時刻なら books.json の sceneTimesWhy に理由を書く")
+    for name in tables(baked):
+        s = stats_of((baked or BAKED) / f"{name}.json")
+        if s["leaves"] and s["stamped"] > STAMP_SHARE * s["leaves"]:
+            out.append(f"{name}: そろえた印のある葉が {s['stamped']}/{s['leaves']}（{STAMP_SHARE:.0%} を超える。守りが薄い）")
+    return out
+
+
+def stats(base=None):
+    """本ごとの表の大きさ・歩・葉・印の数（--base の版の表から増えた分も）"""
+    rows, total, total0 = [], 0, 0
+    for name in tables():
+        s = stats_of(BAKED / f"{name}.json")
+        old = None
+        if base:
+            r = subprocess.run(["git", "show", f"{base}:desktop/tests/baked/{name}.json"], cwd=PROGRAM.parent, capture_output=True)
+            old = len(r.stdout) if r.returncode == 0 else 0
+            total0 += old
+        total += s["bytes"]
+        marks = " ".join(f"{k}{v}" for k, v in sorted(s["stamps"].items()))
+        grew = "" if old is None else f" 前 {old / 1e6:.2f} MB（{(s['bytes'] - old) / 1e6:+.2f}）"
+        rows.append(f"{name}: {s['bytes'] / 1e6:.2f} MB{grew}・歩 {s['steps']}・葉 {s['leaves']}・印のある葉 {s['stamped']}（{marks or '無し'}）")
+    print("\n".join(rows))
+    print(f"計 {total / 1e6:.2f} MB" + (f"（前 {total0 / 1e6:.2f} MB）" if base else "") + f"・{len(rows)} ファイル")
 
 
 def tests_of(books):
@@ -157,6 +281,7 @@ def cargo(tests, env, filt=None):
 
 def comparable(t):
     """2 回の焼きを比べる形（場面の今からのずれは流すたびに変わる。中身は指紋でなく中身で比べる）"""
+    t = unpack_table(t)
     sc = t["scene"]
     files = {rel: {**e, "blob": sc["blobs"].get(e.get("blob"))} for rel, e in sc["files"].items()}
     s = json.dumps({"oracle": t["oracle"], "answers": t["answers"], "files": files, "dirs": sc["dirs"], "links": sc["links"],
@@ -285,6 +410,36 @@ def _bless_user(books):
     shutil.rmtree(home, ignore_errors=True)
 
 
+def measured(folder):
+    """測るだけの仕事の記録（desktop/tests/common/bake.rs が TPA_MEASURE のフォルダに書いた <表>.json）のまとめ。落とさない"""
+    files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
+    if not files:
+        print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません")
+        return
+    steps = differ = 0
+    for f in files:
+        try:
+            m = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError as e:
+            print(f"{f.stem}: 記録が読めません（{e}）")
+            continue
+        d = m.get("differing", [])
+        steps += m.get("steps", 0)
+        differ += len(d)
+        keys = {}
+        for x in d:
+            k = re.split(r"[.\[]", x.get("diff", "").split(":")[0])[-1].rstrip("]") or "?"
+            keys[k] = keys.get(k, 0) + 1
+        top = " ".join(f"{k}×{n}" for k, n in sorted(keys.items(), key=lambda kv: -kv[1])[:8])
+        extra = "".join(f"・{name} が違う" for name in ("oracle", "scene") if m.get(name))
+        print(f"{f.stem}（{m.get('os', '?')}）: 歩 {m.get('steps', 0)}・表と違う歩 {len(d)}・表にあって答えない歩 {len(m.get('missing', []))}{extra}"
+              + (f"・違う葉の鍵 {top}" if top else ""))
+        for x in d[:3]:
+            print(f"    {x.get('key', '')}（{x.get('route', '')}）: {x.get('diff', '')[:300]}")
+    print(f"計: 表 {len(files)} つ・歩 {steps}・焼いた表（posix）と違う歩 {differ}"
+          + ("（0 なら Windows でも表と比べられる。多ければ上書き variants.nt か、そろえる決まりを足す）"))
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -295,13 +450,21 @@ def main():
             print("  ", line)
         if bad:
             sys.exit(1)
-        print(f"焼いた表は古くありません（{sum(1 for b in BOOKS.values() if b['phase'] == PHASE)} 本・{len(tables())} ファイル）")
+        for line in notices():
+            print("  知らせ:", line)
+        print(f"焼いた表は古くありません（{sum(1 for b in BOOKS if baked(b))} 本・{len(tables())} ファイル）")
         return
-    books = [b for b, v in BOOKS.items() if v["phase"] == PHASE] if "--all" in args else [a for a in args if not a.startswith("--")]
+    if args[0] == "--measured":
+        measured(args[1] if len(args) > 1 else "")
+        return
+    if args[0] == "--stats":
+        stats(args[args.index("--base") + 1] if "--base" in args else None)
+        return
+    books = [b for b in BOOKS if baked(b)] if "--all" in args else [a for a in args if not a.startswith("--")]
     if args[0] == "--scope":
         scope, books = args[1], args[2:]
         sys.exit(cargo(tests_of(books), {"TPA_NO_PYTHON": "1", "TPA_BLESS": scope}))
-    unknown = [b for b in books if b not in BOOKS or BOOKS[b]["phase"] != PHASE]
+    unknown = [b for b in books if b not in BOOKS or not baked(b)]
     if unknown:
         sys.exit(f"焼く本ではありません: {unknown}")
     if "--user" in args:

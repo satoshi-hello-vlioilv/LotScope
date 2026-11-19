@@ -2,6 +2,7 @@
 //! 同じ答えか（版 3.71.0。順 5 の 3 段目）。program/tests/presence_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、
 //! 片方に Python の道で歩みの並びを当てる（1 歩ごとに時計を差し替える）。ここではもう片方に同じ並びを窓の道で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（中身・字下げ・改行。書きかけの残りが無いこと）を突き合わせる。
+//! 版 3.116.0 から窓の答えと終わった後のファイルを焼いた表（tests/baked/presence.json。詰めた形）にも持ち、Python 無しでは表とだけ比べる。
 
 mod common;
 
@@ -58,7 +59,17 @@ fn files(root: &Path) -> Vec<(String, String)> {
 #[test]
 fn presence_matches_python() {
     let base = common::work("presence");
-    let oracle = common::python_json("presence_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("presence", &base);
+    bk.pack = true;
+    // 歩（op を持つ表）の status・json は焼かない。Python の終わった後のファイル（files）も表の問い合わせには持たない
+    bk.strip_in = vec!["op"];
+    let oracle = bk.oracle_with("presence_oracle.py", &[base.to_str().unwrap()], |v| {
+        let mut o = v.clone();
+        for sc in o["scenarios"].as_array_mut().unwrap() {
+            sc.as_object_mut().unwrap().remove("files");
+        }
+        o
+    });
     let version = oracle["version"].as_str().unwrap();
     let mut bad = vec![];
     let mut steps = 0;
@@ -168,30 +179,44 @@ fn presence_matches_python() {
                     text.chars().take(200).collect::<String>()
                 ));
             }
-            if st["json"].to_string().contains("\\ud8") && !text.contains("\\ud8") {
+            let got = swap_root(&got, rs, py);
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            bk.note(
+                &key,
+                &format!("{} {}", st["method"].as_str().unwrap_or("beat"), st["path"].as_str().unwrap_or("")),
+                &json!({"status": status, "json": got}),
+                &json!({"status": w.0, "json": w.1}),
+            );
+            if w.1.to_string().contains("\\ud8") && !text.contains("\\ud8") {
                 bad.push(format!(
                     "{name} [{i}] Python の答えにある \\udXXX の字が窓の答えに無い: {}",
                     text.chars().take(200).collect::<String>()
                 ));
             }
-            let got = swap_root(&got, rs, py);
-            let want = &st["json"];
-            if status as i64 != st["status"].as_i64().unwrap() || common::diff(want, &got, "").is_some() {
+            let (want, got) = (&bk.s(&w.1), bk.s(&got));
+            if status as i64 != w.0 || common::diff(want, &got, "").is_some() {
                 let d = common::diff(want, &got, "").unwrap_or_default();
                 bad.push(format!(
                     "{name} [{i}] {} {}?{}: Python {} / 窓 {status}: {d}\n  Python {}\n  窓     {}",
                     st["op"],
                     st["path"].as_str().unwrap_or(""),
                     st["query"].as_str().unwrap_or(""),
-                    st["status"],
+                    w.0,
                     want.to_string().chars().take(600).collect::<String>(),
                     got.to_string().chars().take(600).collect::<String>()
                 ));
             }
         }
         // 終わった後のファイル: 同じ物があり、窓が書いた物は Python の字下げ・改行と同じ（鍵の並びは問わない）
-        let want = sc["files"].as_object().unwrap();
         let got = files(&rs_root);
+        // 終わった後のファイルを焼く・表と比べる（Python と同じかは下の決まりで見る。Python 無しでは表とだけ）
+        let listed: Value = Value::Object(got.iter().map(|(r, t)| (r.clone(), json!(t))).collect());
+        bk.note_files(&format!("{name} files"), &listed, &listed);
+        if !bk.python() {
+            continue;
+        }
+        let want = sc["files"].as_object().unwrap();
         for (rel, text) in &got {
             if rel.contains(".tmp") {
                 bad.push(format!("{name}: 窓が残した書きかけ {rel}"));
@@ -211,5 +236,6 @@ fn presence_matches_python() {
     }
     assert!(steps >= 100, "歩が少ない: {steps}");
     let _ = std::fs::remove_dir_all(&base);
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

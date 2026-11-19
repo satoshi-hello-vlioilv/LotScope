@@ -74,7 +74,9 @@ def main():
     finally:
         formula.use_tables(None)
     sys.stdout.reconfigure(encoding="utf-8")
-    json.dump({"db": db, "today": today.isoformat(), "tables": tables, "cases": cases, "expected": expected}, sys.stdout, ensure_ascii=False)
+    # sceneMade: 場面の台本（lotlist_fixture.py。標準の部品だけ）が作るファイル。焼いた表は指紋だけを持つ（版 3.116.0）
+    json.dump({"db": db, "today": today.isoformat(), "tables": tables, "cases": cases, "expected": expected,
+               "sceneMade": ["lotlist_fixture.sqlite3"]}, sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

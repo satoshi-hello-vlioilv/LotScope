@@ -1,0 +1,181 @@
+{
+ "title": "Rust 化の段 ③ の 4 つ目の 2 版目: 計算の任せる歩を閉じる・7 本を詰めた形で焼く・場面の台本・CI に似せた流し・Windows を測るだけ。版 3.116.0 の作った後の採点",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3e.json",
+ "applies_note": "版 3.116.0 は 2026-11-stage3e.json の回の 1 位 G（61.4 点・80 に届かず）を、採点の指摘 first_fixes の 12 を入れて作った物（ブランチ stage3e・commit 050d4e6。main は f2fd4b1＝版 3.115.0）。作った係は最後の報告を出す前に止まったので、報告は無い（現物から読んだ）",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-19。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は無いので、git diff f2fd4b1 050d4e6・CLAUDE.md・RUST_PORT_PLAN.md・books.json・bake.rs・bless.py・ci-shape.py・check-all.sh・desktop.yml を読み、試験を自分で流し（Python と比べる形・Python 無し・CI と同じ道と利用者・古い取り出し・測るだけの形）、窓の答え・焼く係・場面の台本・画面の型に変異を当て、計算は自分の乱数の本文 39,825 件で Python と突き合わせた。画面は変えていないので画像は撮らない。加点の 11 項目の読み替えは 2026-11-stage3d-built.json と同じ（作りの分かりやすさ・直しやすさ・決めの揃い方）",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.116.0・commit 050d4e6）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3e-built（画像は撮っていない。測りの記録だけ。メモは notes.md）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "calc_fuzz": "calcfuzz.py（種 1〜5・FZMODE 2・3。計 39,825 件）→ 一時の試験 zz_calcfuzz.rs → fuzzcmp.py。食い違い: 0 割り 2 件（zerodiv-cases.json）・指数の書き方 3 件（fz1.out.json.bad.json）。マスタが読めない 19 場面は calcbroken.py（fzb.json・fzb.out.json）",
+   "both_modes": "11 本（calc・lotlist・presence・ui_defaults・conversions_write・lists・bundle・page の parity と route_reach・bake_selftest・calc_cases）を Python と比べる形・TPA_NO_PYTHON=1 で: 22/22 ok（run1/summary.txt）",
+   "mutations": "変異 A（desktop/src の 8 か所。mutA/）・変異 C（pow2 を掛け算・index.html に 1 字・lists_scene.py の 1 行・TPA_SETTLE_DROP。mutC/）。終わった後に git checkout で戻した",
+   "ci_path": "/home/runner/work/LotScope/LotScope に書き出して利用者 runner で 10 本 × 2 つの形: 20/20 ok（runner/summary.txt）。同じ写しで取り出しを 5 日前に: calc・access が Python と比べる形で落ちる（oldcheckout-*.log）。git archive のままの権限（775/664）: calc が落ちる（umask-calc_parity.log）",
+   "pack": "一時の試験 zz_packfuzz.rs（乱数の表 400）: parts あり 212 は往復 0 件の違い・parts なし 188 は全部違う",
+   "measure": "表と比べない形＋TPA_MEASURE を手元でまねて 9 本: 落ちない・表 10 の記録・違う歩 0（measure/summary.txt）。手間 calc +13 秒・lotlist +8・conversions +4・presence +4（measure/overhead.txt）",
+   "times": "b3116/check1/summary.txt: 計 4,040 秒（py-tests 315・cargo-test 604・ci-shape 881・verify 2,146）。cargo の試験の計は 3.114.0 の 683 秒 → 516 秒（calc 24.6 → 55.7・lotlist 30.6 → 55.3・conversions 13.9 → 20.5・presence 7.4 → 12.9）",
+   "delegates": "delegate-count.py --check: 計 11・予算と同じ（dc.log。2 分 2 秒）",
+   "tables": "bless.py --check・--stats: 28 本・34 ファイル・23.48 MB。test_baked_tables 12 試験 28.6 秒",
+   "untouched": "git status は空（050d4e6）。窓の通しは流し直していない（check1 の記録を読んだ）"
+  },
+  "cracks": [
+   {
+    "name": "1. 焼いた表が「取り出してからの日数」と「取り出しの権限」に頼る。答え合わせ役が program/data を shutil.copytree（copy2・copystat）で場面へ写すので、取り出しのファイルの更新時刻と権限が場面の宣言に入る。表は「@NOW(-4276811ms)」（焼いた時に 71 分前だった取り出しのファイル。calc 127 件・3.115.0 の access 205 件）を持ち、更新時刻が今から 2 日（NEAR）より古い取り出しでは ns の数になって「表が古い」で落ちる。CI（取り出したばかり）は通る",
+    "where": "desktop/tests/common/bake.rs の mtime_decl（今から NEAR の内だけ @NOW）・decl_cmp（ファイルの mtime を比べる）・program/tests/calc_oracle.py の place（shutil.copytree(PROGRAM / \"data\", …)）・3.115.0 の access_oracle.py。program/tools/ci-shape.py の 3 つの形にこの形が無い",
+    "repro": "コミット 050d4e6 を git archive で /home/runner/work/LotScope/LotScope に書き出し（権限は 755/644 に直す）、find program/data -type f -exec touch -d '5 days ago' {} + の後、calc_parity を Python と比べる形で流す → 「表が古い（場面のフォルダが表の宣言と違う）: scene.files.s0/app/data/access_permissions.json.mtime: \"@NOW(~)\" / 1794652569381247500」で FAILED（oldcheckout-calc.py.log）。TPA_NO_PYTHON=1 は ok。access_parity も同じ言葉で FAILED（oldcheckout-access.py.log）、touch で今に戻すと ok。権限: 同じ書き出しを git archive のまま（フォルダ 775・ファイル 664 = umask 002 の取り出しの形）で流すと「scene.dirs.s0/app/data.mode: None / Some(Number(509))」で FAILED（umask-calc_parity.log）",
+    "effect": "作業フォルダ stage3e の program/data は 2026-11-19 01:04（UTC）なので、2026-11-21 01:04 を過ぎると手元の cargo test（check-all の cargo-test・ci-shape の runner）が calc_parity・access_parity で落ち始める。主の作業フォルダ /home/user/LotScope の program/data は 2026-11-11 で、既に 2 日を過ぎている（そこでは流していない。書き出した写しの再現からの見立てで、入れた直後から access・calc が落ちる形）。言葉が「表が古い。tools/bless.py で焼き直す」なので焼き直すと、古い取り出しの ns の数が表に入り、今度は CI（取り出したばかり＝@NOW）が落ちる。時刻の境をまたぐ 2 回の焼きは、どちらの回も同じ更新時刻なので見つけない。1 版目の CI の落ち方（焼いた PC に頼る）と同じ種類が、新しい本（calc）に 1 つ増えた",
+    "fix": "場面に取り出しの更新時刻と権限を持ち込まない: 答え合わせ役の place が写した後に全部のファイルを今の時刻・644／755 にそろえる（共通の部品に。copy2 をやめるだけではフォルダの権限が残る）か、snapshot が「答え合わせ役が書いていない＝取り出しから写しただけ」のファイルの mtime を持たない。ci-shape に「取り出しが古い（program/data を 5 日前に）」「umask 002 の取り出し」の形を足し、bless.py --check が表の場面の @NOW のずれが 10 分より大きいファイル（今は access 205・calc 127・builder の future.sqlite3 2）を知らせる",
+    "reproduced": true,
+    "kind": "lost"
+   },
+   {
+    "name": "2. 計算の「窓がどの形も答える・任せる歩 0」の外に 3 つ残る: (a) 設備マスタ・ロールマスタのファイルが読めない（壊れた字・空・rows が並びでない・null）と、窓の calc_route は place.rows(..).ok()? で答えず Python に任せる。答え合わせ役に場面が無いので delegate-count は 0 と数える（計画書の「窓が答えないのは 3 つだけ」に無い 4 つ目）。(b) Python が 0 割りで ZeroDivisionError（400・type ZeroDivisionError・字は英語の float division by zero）になる本文に、窓は 200 を答える。(c) 利用者の決め「2 乗はべき乗のまま」を守るはずの単体の試験が守っていない",
+    "where": "(a) desktop/src/lot.rs の calc_route（Masters::new(place.rows(\"equipment_master\").ok()?, place.rows(\"roll_master\").ok()?)?）・program/tests/calc_oracle.py（ODD に読めないマスタの場面が無い）・program/docs/RUST_PORT_PLAN.md の 3.116.0 の節。(b) desktop/src/calc.rs の end_back_m の「/ (w * t * density)」2 か所（Python は _end_back_m。t・w・density が各々 0 でなくても積が 0 に潰れる）。(c) desktop/src/calc.rs の tests::pow_is_not_folded（x = 279.01）",
+    "repro": "(a) calcbroken.py（一時の台本。calc_oracle の place で場面を作り、マスタのファイルを 19 通りに替えて Python の道に 5 つの本文を当てる）→ 窓（一時の試験 zz_calcfuzz.rs）: 7 場面（設備マスタが壊れた字・空・rows が数・rows なし・null、ロールマスタが壊れた字・rows が表）で place.rows が Err＝窓は答えない（35 歩）。Python は計算 400「手元の equipment_master.json が読めません…」・検査計 503（ロールマスタだけ壊れた時は 200）・lot 無し 400・欄が無い 400 KeyError（fzb.json・fzb.out.json）。残り 12 場面（行が数・並び・NaN・BOM・大きな整数・id が字・ファイルが無い・版が字）は窓＝Python。(b) calcfuzz.py を FZMODE=2（NaN・無限大・極端に小さい数）で 7,375 件: 2 件が Python 400 ZeroDivisionError / 窓 200（zerodiv-cases.json）。最小の形: 見本 L6183D0 で比重 5e-324・5 番目の工程の幅 1e-05、または 5 番目の厚さ 1e-200・幅 1e-200 → Python は ZeroDivisionError。(c) pow2 を x * x に替える変異: calc::tests::pow_is_not_folded は ok のまま（この PC の glibc では 279.01**2 == 279.01*279.01。注釈の「1 ulp 違う」は合わない）・人の事例の表 calc_cases も ok・焼いた表は 2 歩（乱数 2・乱数 29 の最後の桁）で落ちる（mutC/summary.txt）",
+    "effect": "(a) 段 ④ で Python を外すと、マスタが壊れた PC で計算と検査計の道が答えを失う（ロールマスタだけ壊れた時の検査計は Python が今 200 で答えている）。予算 11 は 1 版目と同じく「数え方の届く範囲」の数。(b) 現場では起こらない大きさの数だが、「Python と同じ順の例外」の写しに ZeroDivisionError が無く、calc_error_cases.json も「知らない種類は字のまま」の事例に使っているだけ。(c) 段 ④ の後、べき乗のままを守るのは表の 2 歩だけで、範囲を決めた焼き直しで消える",
+    "fix": "(a) calc_oracle の ODD に読めないマスタの場面を足し、窓が Python と同じ言葉（計算 400・検査計 503。ロールマスタだけ壊れた検査計は 200）で答えるか、delegate の印を付けて予算に数える。計画書の「3 つだけ」を直す。(b) end_back_m の割る数が 0 なら Stop::Py(\"ZeroDivisionError\", \"float division by zero\") にし、言葉の表に 1 行（大きすぎる数と同じく日本語に）・overlaps に 2 事例。(c) pow と掛け算が違う値を 1 つ決めて（200〜400 の乱数で 0.09% ある。表の「乱数 2」の入力から取れる）assert_ne!(pow2(x), x * x) を Linux に限って足し、人の事例の表にも最後の桁まで比べる 1 件を置く",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "3. 足したそろえる決まり @BUILD は、窓の画面の指紋の作り方（page::fingerprint）そのもので置き換える字を決めるので、指紋の作り方の誤りを焼いた表が守らない。page.rs に指紋の単体の試験も無く、Python 無しの形では第 2 の線が無い",
+    "where": "desktop/tests/common/bake.rs の build_stamp（da_core::page::fingerprint を呼ぶ）と settle_with・desktop/src/page.rs の fingerprint・walk（tests に指紋の試験が無い）",
+    "repro": "変異: page.rs の walk で items.push(format!(\"{}|{}\", rel, m.len()))（更新時刻を指紋に入れない）→ page_parity は Python と比べる形で「74 か所違います」（Python の画面の字と比べて。焼いた表との違いは 0 件）・TPA_NO_PYTHON=1 は ok（mutA/summary.txt・mutA/page_parity.*.log）",
+    "effect": "段 ④ の後、指紋がファイルの変更で変わらなくなる誤り（更新の後も ?v= が同じで、画面が古い JS・CSS を使い続ける。app.js の「版が混ざった」の知らせも出ない）を、どの試験も見ない。名乗りの鍵（who.key）の方は bundle::tests::terminal_keys_are_like_python に決めた字の答えがあるので第 2 の線がある",
+    "fix": "page.rs に人の決めの試験を足す: 小さなフォルダで、同じ中身なら同じ指紋・大きさか更新時刻を 1 つ変えると違う指紋・名前の順によらない・決めた入力に決めた 12 桁（Python の app_build.fingerprint の答えを 1 件写す）。settle.json の about にも「指紋の作り方は page::tests が守る」と書く",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "4. 詰める形の往復が、2 回出る部分の無い表で壊れる。pack_table は重なりが無いと parts を付けないが、@rep（長い繰り返しの字）と @lit（印と同じ形の表）は付ける。unpack_table（bake.rs・bless.py の両方）は parts の無い表を開かずに返す",
+    "where": "desktop/tests/common/bake.rs の pack_table（if !parts.is_empty()）・unpack_table（parts が無ければ t.clone()）・program/tools/bless.py の unpack_table（if \"parts\" not in t: return t）",
+    "repro": "一時の試験 zz_packfuzz.rs（乱数の表 400: 2000 字の境の前後の繰り返しの字・印と同じ形の表・重なる部分木）: parts のある 212 表は 詰める → 開く ＝ 元・書いた字から読み直しても同じ・詰め直しても同じ（0 件）。parts の無い 188 表は全部、開いた後に {\"@rep\": …}・{\"@lit\": …} が残って元と違う",
+    "effect": "今の 7 本は全部 parts があるので表には出ていない（潜んでいる）。小さい本を詰めた形にした時・重なりの無い部分の表で、焼いた直後の比べが「焼いた表と違う」で落ち、原因が詰める係だと分かりにくい。bake_selftest の往復の試験は重なりのある表だけを見ている",
+    "fix": "parts が空でも {} を付ける（詰めた印を「parts がある」で見分ける今の決めのまま）か、表に \"packed\": true を持つ。bake_selftest に「重なりの無い表に長い繰り返しの字と印と同じ形の表」の往復を足す",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "5. check-all が決めの時間を超え、決めの方を直していない。--verify つきは 4,040 秒（67 分）で、CLAUDE.md の「全部で 20〜30 分・背景で流すときは制限時間を 60 分」を超える（--verify 無しでも 31 分）。足した段 ci-shape が 881 秒・py-tests が 205 → 315 秒。ほかに、ci-shape は root でない PC では 3 つの形を全部飛ばして「ci-shape: すべて通りました」と終了コード 0 を出す。Windows の CI（上限 90 分・3.115.0 は約 75 分）の余りは測っていない",
+    "where": "CLAUDE.md 43 行目（直していない）・program/tools/check-all.sh の段 ci-shape・program/tools/ci-shape.py の run_shape と main（流せない形だけのときの言葉）・.github/workflows/desktop.yml（timeout-minutes 90）・案の採点の first_fixes 1（測ってから決める）",
+    "repro": "b3116/check1/summary.txt の段の秒を足す: js 9・cargo-build 37・fmt-clippy 33・py-tests 315・cargo-test 604・ci-shape 881・verify 2,146・verify-local 15 = 4,040 秒。ci-shape の内訳は 09-ci-shape.log（route_reach が名前を引けない形で 184 秒・calc 31〜58 秒・lotlist 45〜47 秒 × 3 つの形）。Windows の見込み: 測るだけの形を手元でまねると（一時の ZZ_NOCHECK）表と比べない形に対して calc +13 秒・lotlist +8・conversions +4・presence +4（measure/overhead.txt）、7 本を焼く手間は Linux で 3.114.0 から +70 秒。Windows の試験は Linux の約 4 倍（案の measured.ci）なので +5〜8 分の見込み（手元では測れない）",
+    "effect": "CLAUDE.md のとおり制限時間 60 分で背景に流すと、窓の通しの途中で切られて summary.txt が出来上がらない（「結果が残らない」と CLAUDE.md が書いている形）。Windows の仕事は 80 分台の見込みで、rust-cache の鍵が変わる版（+約 6 分）では上限に届きうる。root でない開発 PC では ci-shape が何も流さずに緑になる",
+    "fix": "CLAUDE.md の時間の行を今の数（--verify 無し 約 32 分・つき 約 68 分。背景の制限時間は 90 分）に直す。ci-shape は 3 つの形の本を並べて流すか、nodns は名前を引く本（route_reach・builder・schedule）だけに絞る（−約 5 分）。流せた形が 0 のときは「流せませんでした」と言い、check-all のまとめに出す。push の後の最初の Windows の CI の段の時間を RUST_PORT_PLAN.md に書き、余りが 10 分を切れば route_reach を割る（first_fixes 1 の決め）",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "6. 画面の字（GET / の HTML の全部）を表に持つので、画面の型 program/app/templates/index.html を 1 字変えるたびに settings.pages の 74 歩が「焼いた表と違う」で落ち、settings の焼き直しが要る（前は Python の画面の字と比べるだけで、焼き直しは無かった）。settings の元の指紋（books.json の sources）は settings_oracle.py だけなので、bless.py --check（py-tests）は古いと言わない。CLAUDE.md にも書いていない",
+    "where": "desktop/tests/page_parity.rs（bk.note_files に html を入れる）・desktop/tests/baked/books.json の settings の sources・CLAUDE.md の 3.116.0 の行",
+    "repro": "変異: index.html の <title> の後に空白を 1 つ → page_parity は Python と比べる形でも TPA_NO_PYTHON=1 でも「焼いた表との食い違い 74 件」。同じ時の python program/tools/bless.py --check は settings について何も言わない（mutC/summary.txt・mutC/bless-check.tmpl.log）",
+    "effect": "このリポジトリでいちばん多い種類の変更（画面の改良）のたびに、python program/tools/bless.py settings（分の境をまたぐ 2 回の焼き。束・読む道・route_reach で数分）が 1 手増える。知らずに cargo test を流した人には「窓の答えが 74 か所変わった」と見え、窓の割れと見分けにくい",
+    "fix": "settings の sources に app/templates/index.html（と app/brand.json）を足して --check が「元が変わった。bless.py settings」と言うようにし、CLAUDE.md の「program の中身を変えたら」の行の近くに書く。または表には画面の型の指紋と、型に埋めた値（meta・nonce の数・?v= の数・控えの JSON）だけを持つ",
+    "reproduced": true,
+    "kind": "more_steps"
+   }
+  ],
+  "not_cracks": [
+   "計算の 48 歩: 自分で作った乱数の本文 39,825 件（calcfuzz.py。26 場面〈設定とマスタの形が違う 23 場面も〉。欄を消す・変な値〈null・空白・全角・下線・nan・inf・1e400・真偽・並び・表・10^30・10^400・2^63・4,300／4,301 桁〉・工程を組の並びに・同じ鍵 2 回・工程の並び替え・U+001C などの空白の字・同一工程の名前）を Python の道と窓に当て、状態と本文（数は型とビットまで・鍵の順は問わない）を比べた: 違いは 0 割りの 2 件（割れ 2 の b）だけ。字の違いは小数の指数の書き方 3 件（Python 1.4596369531324133e-07 / 窓 …e-7。同じ数）。窓が答えない・落ちる本文は 0",
+   "2 乗はべき乗のまま: Python の calculator.py は差分に無い（** 2 のまま）・窓の pow2 は x.powf(std::hint::black_box(2.0)) のまま（あふれの OverflowError を足しただけ）。掛け算に替える変異は焼いた表が 2 歩で見つける",
+   "新しい 7 本の表は窓の答えを守る: 変異 A（calc の既定の比重 2.7 → 2.71・ui_defaults の上限 +1・presence の TTL 75 → 76・lotlist の組み合わせの並び・conversions の言葉 1 字・lists の空の日の幅 +1）は 6 つとも Python と比べる形・TPA_NO_PYTHON=1 の両方で落ちる（mutA/summary.txt）。bundle の lot_list.page_size の既定 500 → 501 はどちらでも通るが、どの場面も page_size を持つ前からの場面の穴で、3.116.0 の割れには数えない",
+   "場面の台本: lists_scene.py を 1 行変えると、Python と比べる形は「表が古い」・Python 無しは「場面の台本が作ったファイル split.sqlite3 が表の指紋と違います」・bless.py --check も古いと言う。SQLite の版が違う Python（/usr/bin/python3 の 3.45.1 と 3.53.1）でも指紋は同じ",
+   "足したそろえる決まりは要る・狭い: TPA_SETTLE_DROP=@BUILD・who.key で page_parity・bundle_parity が Python 無しで落ち、戻すと通る。名乗りの鍵は lib の terminal_keys_are_like_python が決めた字で守る",
+   "CI と同じ道: コミットを /home/runner/work/LotScope/LotScope に書き出して組み直し、利用者 daemon（名前 runner）・HOME=/home/runner・/usr/bin/python3 で 10 本（7 本の試験 8 つ＋route_reach・bake_selftest）を Python と比べる形・Python 無しで流して全部 ok（runner/summary.txt）。表に焼いた日の字（2026-11-18・19）や焼いた PC の道は残っていない。新しい 7 本の答え合わせ役が今の時刻から作る値は 10 分後の錠の期限だけ",
+   "Windows の測るだけの仕事: workflow は cargo test に TPA_MEASURE を付け、次の段（if: always()・continue-on-error）が bless.py --measured を流し、成果物の段（if: always()）が bake-measure を写す。手元で表と比べない形をまねると（一時の ZZ_NOCHECK）9 本の試験は落ちず、記録が書かれ、まとめは「歩 2813・表と違う歩 0」。足した試験と bake.rs に unix だけの部品は無く、cfg(windows) のコードには触れていない",
+   "任せる歩: python program/tools/delegate-count.py … --check は計 11（口 7・③-6 の 3・道 1）・Windows だけ 2・当たり 135・「予算と同じです」（dc.log）。calc_parity は「窓が答えた 1723・Python に任せた 0」",
+   "焼いた表: bless.py --check は「古くありません（28 本・34 ファイル）」・--stats は計 23.48 MB。計画書の表の settings.pages の印のある葉 308 は今の数 382 と合わない（焼き直した後に表を直していない。小さな食い違い）",
+   "3.117.0 へ送った 7 本: 理由（作り物を app なしで起こす台本と URL の置き換え・ui_server と ops-bench の場面が作業フォルダの外で乱数のキー）は books.json の why と計画書にあり、中身は妥当。段 ④ の入口の条件 3 つ（35 本が Python 無し・Windows の CI が表と比べる・凍らせる写し）も計画書にある。採点の切る線より 3 本多く送ったことは点（順序・ステップ数）に入れた",
+   "作業フォルダは元のまま: 変異（desktop/src の 9 か所・bake.rs・index.html・lists_scene.py）と一時の試験（zz_calcfuzz.rs・zz_packfuzz.rs）はすべて戻し、git status は空（050d4e6）。書き出した写し /home/runner は消した"
+  ],
+  "result": {
+   "score": {
+    "order": 6,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 7,
+    "steps": 5,
+    "effortless": 4,
+    "intuitive": 5,
+    "form": 7,
+    "place": 6,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "1. 焼いた表が「取り出してからの日数」と「取り出しの権限」に頼る。答え合わせ役が program/data を shutil.copytree（copy2・copystat）で場面へ写すので、取り出しのファイルの更新時刻と権限が場面の宣言に入る。表は「@NOW(-4276811ms)」（焼いた時に"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "2. 計算の「窓がどの形も答える・任せる歩 0」の外に 3 つ残る: (a) 設備マスタ・ロールマスタのファイルが読めない（壊れた字・空・rows が並びでない・null）と、窓の calc_route は place.rows(..).ok()? で答えず Python に任せる。答え合わせ役に場"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "3. 足したそろえる決まり @BUILD は、窓の画面の指紋の作り方（page::fingerprint）そのもので置き換える字を決めるので、指紋の作り方の誤りを焼いた表が守らない。page.rs に指紋の単体の試験も無く、Python 無しの形では第 2 の線が無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "4. 詰める形の往復が、2 回出る部分の無い表で壊れる。pack_table は重なりが無いと parts を付けないが、@rep（長い繰り返しの字）と @lit（印と同じ形の表）は付ける。unpack_table（bake.rs・bless.py の両方）は parts の無い表を開かずに返す"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "5. check-all が決めの時間を超え、決めの方を直していない。--verify つきは 4,040 秒（67 分）で、CLAUDE.md の「全部で 20〜30 分・背景で流すときは制限時間を 60 分」を超える（--verify 無しでも 31 分）。足した段 ci-shape が 881"
+    },
+    {
+     "kind": "more_steps",
+     "where": "6. 画面の字（GET / の HTML の全部）を表に持つので、画面の型 program/app/templates/index.html を 1 字変えるたびに settings.pages の 74 歩が「焼いた表と違う」で落ち、settings の焼き直しが要る（前は Python の画面の"
+    }
+   ],
+   "seen": "狙いのうち、土台（詰める形・場面の台本・測るだけ・ci-shape・表の大きさと印の見張り）と、計算の任せる歩を閉じる所は形になっている。計算の写しは出来が良い: 自分の乱数 39,825 件で状態と本文が Python と同じでないのは 0 割りの 2 件だけ、2 乗はべき乗のまま、任せる歩は数え直しても 11。新しい 7 本の表は窓の答えの 1 字・1 桁の変異を両方の形で落とし、CI と同じ道・利用者でも通る。足りないのは次の所。(1) 1 版目と同じ種類の「焼いた PC に頼る形」が 1 つ残り、新しい本（calc）に増えた: 場面が取り出しのファイルの更新時刻と権限を写すので、取り出して 2 日を過ぎた手元ではcalc・access が「表が古い」で落ち、CI は通る（割れ 1）。ci-shape はこの形を持たない。(2) 計算の「どの形も」の外に、読めないマスタ（任せるのに数えていない）・0 割り・べき乗を守らない単体の試験が残る（割れ 2）。(3) 足した決まり @BUILD の先（指紋の作り方）に第 2 の線が無い（割れ 3）。(4) 詰める形は重なりの無い表で往復が壊れる（割れ 4。今の表には出ていない）。(5) check-all --verify が 67 分で 60 分の決めを超え、決めを直していない。Windows の CI の余りは未計測（割れ 5）。(6) 画面の型を変えるたびに settings の焼き直しが要るのに、--check も CLAUDE.md も言わない（割れ 6）。ほかに、この版の目的（④ に入っても答えの元を失わない所まで）には届いていない: 焼いたのは 14 本のうち 7 本で、採点の切る線（難しい 4 本を送る）より 3 本多く送り、3.117.0 に 7 本・③-6・Windows の上書き・K3 が積まれた（理由と段 ④ の入口の条件は計画書と books.json にある）。Windows の測るだけの数は push の後でないと出ない"
+  }
+ },
+ "built_fixed": [
+  {
+   "crack": 1,
+   "fixed": "答え合わせ役が取り出しのファイルを場面へ写す所（calc_oracle の place・access_oracle の 2 か所）を tests/scene_files.py の copy_tree・copy_file に替えた（中身だけを写し、今の時刻・755/644 にそろえる）。access・calc を焼き直した（時刻の境をまたぐ 2 回が同じ）。bless.py --check は場面のファイルの更新時刻が今から 10 分より離れた表を知らせる（わざと置いた時刻の builder は books.json の sceneTimesWhy）。ci-shape の runner の形は、流している間だけ program/data・program/config を「更新時刻 5 日前・775/664」にして、終わったら戻す",
+   "tests": "tests/test_baked_tables.py の test_scenes_do_not_carry_the_checkout_times_and_modes（答え合わせ役の元に取り出しから直に写す形が無い・古い時刻と 775/664 の元を写しても今の時刻と 755/644・場面の時刻を今から 5 日前に変えた表は知らせる）・test_ci_shape_makes_an_old_checkout_and_says_when_nothing_ran・ci-shape の runner の形（古い取り出しで 31 本）"
+  },
+  {
+   "crack": 2,
+   "fixed": "(a) calc::Masters::read が読めない理由の言葉（access::Place::rows_told。Python の MasterUnreadable と同じ字）を持ち、計算がそのマスタを読む所（設備マスタは読み替えの係を作る所・ロールマスタは候補ロールの前）で Stop::Py(\"MasterUnreadable\") → 400、検査計は 503 kind master_unreadable（ロールマスタだけなら 200）。lot.rs の calc_route は読めないマスタでも窓が答える。calc_oracle に RAW の 16 場面（壊れた字・空・無い・行が数と並び・rows が数／なし・null・NaN・id が字・BOM と大きな整数・ロールマスタの 6 形）。(b) end_back_m の割る数（板幅×板厚×比重）が 0 なら Stop::Py(\"ZeroDivisionError\")。言葉は calc_errors の zero「計算の入力に小さすぎる数があります（板幅・板厚・比重を掛けた数が 0 になり、割れません）。」（Python・窓・事例の表）。ほかの割り算は割る数そのものを 0 でないと確かめてから割る形だけ（洗った）。(c) pow_is_not_folded を 279.834 に替え、Linux（glibc）で pow の答えそのものと assert_ne（掛け算）を見る。人の事例の表 calc_cases.json に os: linux の事例（前オフの合計 87.89939487129936。掛け算なら …928）",
+   "tests": "calc_parity（窓が答えた 2,247・任せた 0。読めないマスタの 16 場面・0 割りの 3 事例・オフの厚さ 0.834）・calc::tests の 3 つ（unreadable_masters_answer_where_python_reads_them・a_product_that_collapses_to_zero_is_a_division_by_zero・pow_is_not_folded）・lot::tests::the_window_answers_the_calculation（本物の道で読めないマスタ）・calc_cases（Python・窓）・calc_error_cases。delegate-count --check は計 11・calc 0"
+  },
+  {
+   "crack": 3,
+   "fixed": "page.rs に人の決めの試験を足した（決めた入力〈版 9.8.7・数える 4 つのファイル・決めた大きさと更新時刻〉に決めた 12 桁 9.8.7-33f97779114b〈Python の app_build.fingerprint の答えを写した〉・作る順によらない・大きさ／更新時刻／版／名前を 1 つ変えると違う・vendor と __pycache__ と拡張子の外は入らない）。settle.json の about に書いた",
+   "tests": "page::tests::the_fingerprint_is_the_version_and_the_names_sizes_and_times"
+  },
+  {
+   "crack": 4,
+   "fixed": "pack_table は 2 回出る部分が無くても空の parts を付ける（詰めた表の印。unpack_table・bless.py の unpack_table は parts があれば開く決めのまま）",
+   "tests": "bake_selftest の packing_round_trips_without_repeats_and_for_random_tables（重なりの無い表に長い繰り返しの字と印と同じ形の表・乱数の表 300: 詰める → 開く ＝ 元・書いた字から読み直す・詰め直しても同じ字。重なりのある表と無い表の両方が 50 以上）"
+  },
+  {
+   "crack": 5,
+   "fixed": "CLAUDE.md の「push 前の確かめ」の時間の数だけを直した（約 30 分・--verify つきは約 65 分・背景の制限 120 分）。ci-shape は 1 つの形も流せなければ「流せませんでした」・終了コード 3（check-all は落ちた段にせず、まとめの行に「ただし ci-shape は流せませんでした」と出す）。nodns の形は名前を引く本の試験（NODNS_TESTS）だけ。check-all は窓の通しの前に試験の実行ファイルと incremental を消し、空きが足りなければ窓の通しを始めない。Windows の CI の見込み（+5〜8 分）と、余りが 10 分を切れば route_reach を割る決めを RUST_PORT_PLAN.md に書いた",
+   "tests": "test_baked_tables の test_ci_shape_makes_an_old_checkout_and_says_when_nothing_ran（root でない PC の形で終了コード 3 と言葉）。時間は最後の check-all の summary.txt"
+  },
+  {
+   "crack": 6,
+   "fixed": "books.json の settings の sources に app/templates/index.html・app/brand.json を足した（変えると bless.py --check が「元が変わった。bless.py settings」と言う）。CLAUDE.md の評価関数の行に書いた。あわせて、画面の字の中のアプリの版（見出しの札 VER…）を @VERSION にそろえる（指紋のある字の中だけ。そのままだと版を上げるたびに settings.pages の 74 歩が古くなった。作っている途中に見つけた）",
+   "tests": "bless.py --check（焼き直す前に「元 app/templates/index.html が焼いた時と違う」と言うことを見た）・bake_selftest の the_build_stamp_and_the_terminal_key_are_settled_narrowly（画面の字の中の版・別の版と指紋の無い字はそのまま）"
+  },
+  {
+   "crack": "小さな食い違い",
+   "fixed": "計画書の settings.pages の印のある葉を今の数（382）に直した。lot_list.page_size の既定 500 の場面は足していない（次の版）",
+   "tests": ""
+  }
+ ],
+ "checks_after_fix": "最後の check-all --verify の summary.txt と、ci-shape の全部の形（runner〈古い取り出し〉・nopy・nodns）の結果は主への報告に書く",
+ "ci_fix": {
+  "what": "PR #116 の Linux の CI で bundle_parity・page_parity が落ちた（settings.bundle の「既定の中身だけ（master_defaults）.access.who.key: vm@@USER / runnervm0hi8g@@USER」・settings.pages の「/api/update/settings.json.who.pc: vm / runnervm0hi8g」）。名乗りを決めていない場面の答えの pc は PC の名前（ホスト名）で、焼いた表に手元の PC の名前が入っていた",
+  "repro": "ci-shape がどの形も PC の名前を替えた名前空間（unshare -u・HOST_NAME ci-shape-host）で流すようにし、直す前の表で同じ 2 本が同じ言葉で落ちることを見た（python program/tools/ci-shape.py 記録 --shape nopy）",
+  "fixed": "表の「pc」の欄の値が OS のホスト名そのもの（窓の名乗りの係を通さず OS から直に読む）のときだけ @HOST にそろえ、名乗りの鍵も @HOST で作り直す。settings を焼き直した（2 回の焼きが同じ）。場面は変えていない",
+  "tests": "bake_selftest の the_host_name_is_settled_only_in_the_pc_field（ホスト名に 1 字足した名前・FQDN・ほかの端末の名前・pc でない欄のホスト名はそのまま・決まりを外すと残る）・ci-shape の 3 つの形（PC の名前を替えて 31・31・3 本）",
+  "windows_measure": "PR #116 の Windows の仕事の測り: 表 34・歩 5,807・焼いた表（posix）と違う歩 206（release_place 83・place 64・fs 24・builder 9・worklog_write 9・mirror 5・calc 3・settings.bundle 3・settings_write 3・settings.pages 2・masters 1・ほか 23 表は 0）。Windows の仕事は 80 分 11 秒（余り 9 分 49 秒）"
+ }
+}

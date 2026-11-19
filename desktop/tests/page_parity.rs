@@ -36,6 +36,36 @@ const TABLE_ANSWERS: [(&str, &str); 1] = [
 /// （Python は空の置き場と答える。窓は更新の係の控えを残す: appsettings_cases の @unknown）
 const UPDATE_UNKNOWN: [&str; 2] = ["束に出ない項目の段が字", "更新の段が null で参照先に更新の置き場"];
 
+/// 表の問い合わせに持たない鍵（Python の答えそのもの。読む道は状態だけ残す。bundle_parity の strip_python と同じ）
+fn strip_python(v: &Value) -> Value {
+    let mut o = v.clone();
+    for sc in o["scenarios"].as_array_mut().unwrap() {
+        let m = sc.as_object_mut().unwrap();
+        for k in ["answer", "shareAfter", "override"] {
+            m.remove(k);
+        }
+        if let Some(reads) = m.get_mut("reads").and_then(Value::as_object_mut) {
+            for r in reads.values_mut() {
+                if !r.is_null() {
+                    *r = serde_json::json!({"status": r["status"]});
+                }
+            }
+        }
+    }
+    o
+}
+
+/// 見に行った時刻で決まる写しの様子（/api/sources の mirror の欄）を除く
+fn without_mirror_times(v: &mut Value) {
+    for it in v["items"].as_array_mut().into_iter().flatten() {
+        if let Some(m) = it.get_mut("mirror").and_then(Value::as_object_mut) {
+            for k in ["checkedAt", "copiedAt", "unreachable", "reason", "ageHours"] {
+                m.remove(k);
+            }
+        }
+    }
+}
+
 fn short(v: &Value) -> String {
     v.to_string().chars().take(400).collect()
 }
@@ -43,7 +73,11 @@ fn short(v: &Value) -> String {
 #[test]
 fn page_and_first_reads_are_like_python() {
     let work = common::work("page");
-    let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
+    // 版 3.116.0: 窓の答え（状態・画面の字・本文）を焼いた表（tests/baked/settings.pages.json。詰めた形）にも持つ。Python と同じかは
+    // この試験の決まりで見て（食い違いがあれば焼かない）、Python 無しでは表とだけ比べる
+    let mut bk = common::bake::Bake::open_part("settings", "pages", &work);
+    bk.pack = true;
+    let o = bk.oracle_with("settings_oracle.py", &[work.to_str().unwrap()], strip_python);
     let mut bad = vec![];
     let (mut same, mut delegated, mut refused) = (std::collections::BTreeMap::<&str, usize>::new(), 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
@@ -98,6 +132,14 @@ fn page_and_first_reads_are_like_python() {
                 }
                 continue;
             };
+            {
+                let mut tv = v.clone();
+                if path == "/api/sources" {
+                    without_mirror_times(&mut tv);
+                }
+                let mine = serde_json::json!({"status": status, "html": html, "json": tv});
+                bk.note_files(&format!("{name} {path}"), &mine, &mine);
+            }
             // 版 3.102.0: 束の組めない節を使う道は、窓が理由（どのファイル・どの行）を添えて 503 kind settings で断る（ほかの道は答え続ける）。
             // Python は表でない行を飛ばす・窓の読めない字を読むので 200 のことがある。断るのは窓の束に組めない節があるときだけ
             if path == "/api/update/settings" && UPDATE_UNKNOWN.contains(&name) {
@@ -144,6 +186,9 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             *same.entry(path).or_default() += 1;
+            if !bk.python() {
+                continue; // Python 無し: 上で表と比べた
+            }
             let text = py["body"].as_str().unwrap();
             if path == "/" {
                 if html != text {
@@ -168,13 +213,7 @@ fn page_and_first_reads_are_like_python() {
                         // だけは比べない: 窓の写しの係は場面の前の道（画面・設備の木）で動き始めていることがあり、動いている係の値が答え。
                         // 周回の様子のファイル（state.json）を受け身の係が読むことは lot::tests::the_window_answers_the_sources_list
                         for x in [&mut want, &mut v] {
-                            for it in x["items"].as_array_mut().into_iter().flatten() {
-                                if let Some(m) = it.get_mut("mirror").and_then(Value::as_object_mut) {
-                                    for k in ["checkedAt", "copiedAt", "unreachable", "reason", "ageHours"] {
-                                        m.remove(k);
-                                    }
-                                }
-                            }
+                            without_mirror_times(x);
                         }
                     }
                     if let Some(d) = common::diff(&want, &v, "") {
@@ -202,5 +241,6 @@ fn page_and_first_reads_are_like_python() {
     ] {
         assert!(same.get(path).copied().unwrap_or(0) >= n, "{path} を窓が答えた場面が足りません: {same:?}");
     }
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
 }
