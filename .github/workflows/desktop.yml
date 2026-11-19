@@ -1,6 +1,11 @@
-# デスクトップ版（desktop/・Tauri）を Windows で本番の作り方（--release）で作り、本物の WebView2 で自己診断する。
-# 更新の通し（verify.py）を流し、通った exe・配る ZIP（release.json・.sha256 つき）・自己診断の結果を Artifacts に置く。
-# main に入ったとき（と手で動かしたとき）は、確かめ終えた配る ZIP を GitHub の Releases にも版の札（v<版>）で載せる（release）。
+# デスクトップ版（desktop/・Tauri）を Windows で確かめる。仕事は 2 つ（版 3.117.0 で 1 つの仕事 windows を割った。並んで流れる）:
+# - windows-test: Rust の試験（cargo test。debug）と、Windows の本物で流す Python の試験・焼いた表との違いの測り（測るだけ）
+# - windows-exe: 本番の作り方（--release）で exe を作り、本物の WebView2 で自己診断し、更新の通し（verify.py）を流して、
+#   通った exe・配る ZIP（release.json・.sha256 つき）・自己診断の結果を Artifacts（desktop-windows）に置く
+# main に入ったとき（と手で全部を動かしたとき）は、両方が通った後に、確かめ終えた配る ZIP を GitHub の Releases にも版の札（v<版>）で載せる（release）。
+# 割った訳: 1 つの仕事は約 80 分（cargo test 約 40 分〈route_reach だけで約 19 分〉・release の組み立て 6 分・自己診断 3 分・更新の通し 約 28 分）で、
+# 上限 90 分に余りが約 10 分しか無かった（PR #116）。試験（debug）と exe（release）は別の組み立てなので、割っても組み直しは増えない
+# （取り出しと道具の支度が 2 回になるだけ）。見込みは windows-test 約 44 分・windows-exe 約 39 分。
 name: desktop
 
 on:
@@ -10,15 +15,21 @@ on:
     branches: [main]
     paths: ["desktop/**", "program/**", ".github/workflows/desktop.yml"]
   workflow_dispatch:
+    inputs:
+      only:
+        description: "流す仕事（all: 全部。windows-test: Rust の試験と測りだけ。exe・更新の通し・Releases は流さない）"
+        type: choice
+        options: [all, windows-test]
+        default: all
 
 permissions:
   contents: read
 
 jobs:
-  windows:
+  # Rust の試験（debug）と、Windows の本物で流す Python の試験。exe は作らない（windows-exe）
+  windows-test:
+    # 上限は割る前と同じ 90 分（見込みは約 44 分。rust-cache の鍵〈Cargo.toml・Cargo.lock〉が変わった版は全部を組み直して数分増える）
     runs-on: windows-latest
-    # 版 3.111.0 で 60 → 90 分: 更新の通しに 4b〜4e を足して約 24 分になり、Rust の試験（約 20 分）・exe（約 5 分）と合わせて 4e の失敗で終わった所が 54 分（PR #111）。
-    # 通れば配る ZIP と成果物で約 2 分、rust-cache の鍵（Cargo.toml）が変わった版は全部を組み直して約 6 分増え（試験 +2.5 分・release +3.4 分。版 3.96.0 で 45 → 60 分にした訳）、60 分に余りが無い
     timeout-minutes: 90
     defaults:
       run:
@@ -36,6 +47,8 @@ jobs:
       # 手元・ci.yml と同じ版（版 3.104.0。stable のままだと Rust 1.100.0 で std の Unicode の大文字の表が新しくなり、
       # Python 3.13 と比べる name_key_cases が落ちた）。上げるときは手元・ci.yml と一緒に上げ、key-split-table.py で表を焼き直す
       - uses: dtolnay/rust-toolchain@1.97.0
+      # 組んだ物の控え。鍵には仕事の名前が自動で入る（rust-cache の既定）ので、windows-test は debug・windows-exe は release を別々に持つ
+      # （割る前の仕事 windows の控えは鍵が違うので使われない。割った後の最初の 1 回は両方とも空から組む）
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop
@@ -70,6 +83,39 @@ jobs:
       - name: 壊れた設定・マスタと正規表現の事例（Python・Windows）
         working-directory: program
         run: python -m unittest tests.test_broken_masters tests.test_equip_regex tests.test_bundle_sections -v
+      # 測りの記録（<表>.json）は小さな成果物（desktop-windows-measure）に置く。配る物の成果物（desktop-windows。windows-exe）とは別
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-windows-measure
+          path: ${{ runner.temp }}/bake-measure/
+          if-no-files-found: warn
+
+  # 本番の作り方（--release）の exe・本物の WebView2 の自己診断・更新の通し・配る ZIP。手で windows-test だけを選んだときは流さない
+  windows-exe:
+    if: github.event_name != 'workflow_dispatch' || inputs.only != 'windows-test'
+    # 上限は割る前と同じ 90 分（見込みは約 39 分: release の組み立て 6 分・自己診断 3 分・更新の通し 約 28 分）
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONIOENCODING: utf-8
+      TPA_PYTHON: python
+      # exe が名乗る「作ったコミット」（/__desktop/info の commit）
+      TPA_BUILD_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"          # Windows の機械には 3.13.18 がまだ無い（3.13.17 まで）。焼いた html.parser の表はこの job で流さず、LotDsp は窓が読むので修正版を決めない
+      # 手元・ci.yml と同じ版（版 3.104.0。stable のままだと Rust 1.100.0 で std の Unicode の大文字の表が新しくなり、
+      # Python 3.13 と比べる name_key_cases が落ちた）。上げるときは手元・ci.yml と一緒に上げ、key-split-table.py で表を焼き直す
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
       - name: exe を作る
         working-directory: desktop
         run: cargo build --release --locked
@@ -110,7 +156,6 @@ jobs:
           New-Item -ItemType Directory -Force $out | Out-Null
           if (Test-Path "desktop\target\release\$env:EXE") { Copy-Item "desktop\target\release\$env:EXE" $out }
           if (Test-Path "$env:RUNNER_TEMP\selftest.json") { Copy-Item "$env:RUNNER_TEMP\selftest.json" $out }
-          if (Test-Path "$env:RUNNER_TEMP\bake-measure") { Copy-Item -Recurse "$env:RUNNER_TEMP\bake-measure" "$out\bake-measure" }
           Get-ChildItem "$env:RUNNER_TEMP\release" -File -ErrorAction SilentlyContinue | Copy-Item -Destination $out
       - uses: actions/upload-artifact@v4
         if: always()
@@ -120,9 +165,10 @@ jobs:
           if-no-files-found: warn
 
   # 確かめ終えた配る ZIP を GitHub の Releases に載せる（main だけ。PR では動かない）。説明はその版の更新履歴から作る（bundle.py notes）。
+  # 2 つの仕事（windows-test・windows-exe）が両方通った後にだけ流れる（手で windows-test だけを選んだときは、windows-exe が流れないので流れない）。
   # 書き込みの権限はこの job にだけ渡す。同じ版の札が既にあれば上書きしない（版を上げずに入った変更。配った ZIP と指紋を変えない）。
   release:
-    needs: windows
+    needs: [windows-test, windows-exe]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
