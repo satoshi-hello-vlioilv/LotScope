@@ -220,7 +220,8 @@
     "access_parity"
    ],
    "sources": [
-    "tests/access_oracle.py"
+    "tests/access_oracle.py",
+    "tests/scene_files.py"
    ],
    "why": "41 組 × 25 道と切断の指示 69 組を焼く（場面の置き場は同じ中身を 1 つに）"
   },
@@ -335,7 +336,8 @@
    ],
    "sources": [
     "tests/calc_oracle.py",
-    "tests/test_calculator.py"
+    "tests/test_calculator.py",
+    "tests/scene_files.py"
    ],
    "maxMB": 9.0,
    "why": "詰めた形で全部の答えを焼く（2 乗は C の pow のまま。利用者の決め 2026-11-18）。乱数の事例は Python とは 160 件を比べ、表には 40 件。人の事例の表 calc_cases.json（test_calculator の手で確かめた値）が第 2 の線。Windows で最後の桁が違う歩は測るだけの仕事が数える"

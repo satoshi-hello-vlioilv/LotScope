@@ -125,7 +125,10 @@ fn same(a: &Value, b: &Value) -> bool {
 fn the_window_satisfies_the_human_table() {
     let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/calc_cases.json")).unwrap();
     let masters = Masters::new(rows("equipment_master.json"), rows("roll_master.json")).expect("同梱のマスタ");
-    let cases = table["cases"].as_array().unwrap();
+    // os のある事例はその OS だけ（C の数学の部品の答えを最後の桁まで決める事例。べき乗のままを守る）
+    let all = table["cases"].as_array().unwrap();
+    assert!(all.iter().any(|c| c["os"] == "linux"), "べき乗のままを守る事例がある");
+    let cases: Vec<&Value> = all.iter().filter(|c| c["os"].is_null() || c["os"] == std::env::consts::OS).collect();
     let results: Vec<(String, Value)> = cases
         .iter()
         .map(|c| {
@@ -139,7 +142,7 @@ fn the_window_satisfies_the_human_table() {
         .collect();
     let of = |name: &str| &results.iter().find(|(n, _)| n == name).unwrap_or_else(|| panic!("事例 {name} が無い")).1;
     let (mut bad, mut n) = (vec![], 0);
-    for c in cases {
+    for c in &cases {
         let name = c["name"].as_str().unwrap();
         let res = of(name);
         for ch in c["checks"].as_array().unwrap() {
@@ -152,6 +155,7 @@ fn the_window_satisfies_the_human_table() {
                 "~" => close(one, Some(&ch[2]), 6),
                 "!~" => !close(one, Some(&ch[2]), 3),
                 "=" => same(if many { &listed } else { one.unwrap_or(&Value::Null) }, &ch[2]) && (many || one.is_some()),
+                "!=" => one.is_some_and(|v| !same(v, &ch[2])),
                 ">" => got.iter().all(|x| x.and_then(Value::as_f64).is_some_and(|v| v > ch[2].as_f64().unwrap())),
                 "null" => one == Some(&Value::Null),
                 "absent" => got.iter().all(Option::is_none),

@@ -1,6 +1,6 @@
 {
- "about": "転写距離・ピッチ計算の誤りの言葉の事例（版 3.115.0。人が仕様から書いた。Python の services/calc_errors.message と窓の calc::error_message が同じ表を読む。tests/test_calc_errors.py・cargo test --test calc_error_cases）。kinds は例外の種類 → 言葉の形の 5 種（欄が無い・数でない・並びが短い・字でない・大きすぎる数〈版 3.116.0〉）。type の欄（例外のクラスの名前）は API の名残で、画面は読まない（今のまま答える）",
- "kinds": {"KeyError": "missing", "ValueError": "number", "IndexError": "short", "AttributeError": "text", "TypeError": "text", "OverflowError": "large"},
+ "about": "転写距離・ピッチ計算の誤りの言葉の事例（版 3.115.0。人が仕様から書いた。Python の services/calc_errors.message と窓の calc::error_message が同じ表を読む。tests/test_calc_errors.py・cargo test --test calc_error_cases）。kinds は例外の種類 → 言葉の形の 6 種（欄が無い・数でない・並びが短い・字でない・大きすぎる数・小さすぎて割れない数〈版 3.116.0〉）。読めないマスタ（MasterUnreadable）は種類に無く、読めない理由の言葉のまま。type の欄（例外のクラスの名前）は API の名残で、画面は読まない（今のまま答える）",
+ "kinds": {"KeyError": "missing", "ValueError": "number", "IndexError": "short", "AttributeError": "text", "TypeError": "text", "OverflowError": "large", "ZeroDivisionError": "zero"},
  "cases": [
   {"why": "欄が無い（ロットの厚み）", "type": "KeyError", "str": "'thickness'", "want": "計算の入力に「thickness」がありません。"},
   {"why": "欄が無い（入力の表）", "type": "KeyError", "str": "'inputs'", "want": "計算の入力に「inputs」がありません。"},
@@ -22,6 +22,8 @@
   {"why": "数でない（4,300 桁を超える字。値は言わない）", "type": "ValueError", "str": "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit", "want": "計算の入力に数で読めない値があります。"},
   {"why": "数でない（組の並びの長さ）", "type": "ValueError", "str": "dictionary update sequence element #0 has length 1; 2 is required", "want": "計算の入力に数で読めない値があります。"},
   {"why": "字でない（回せない値）", "type": "TypeError", "str": "'int' object is not iterable", "want": "計算の入力に字でない値があります（字で送ってください）。"},
-  {"why": "知らない種類は字のまま", "type": "ZeroDivisionError", "str": "float division by zero", "want": "float division by zero"}
+  {"why": "小さすぎて割れない数（板幅・板厚・比重の積が 0 に潰れる）", "type": "ZeroDivisionError", "str": "float division by zero", "want": "計算の入力に小さすぎる数があります（板幅・板厚・比重を掛けた数が 0 になり、割れません）。"},
+  {"why": "知らない種類は字のまま（読めないマスタの理由の言葉）", "type": "MasterUnreadable", "str": "手元の equipment_master.json が読めません（JSON として読めません（1 行目））", "want": "手元の equipment_master.json が読めません（JSON として読めません（1 行目））"},
+  {"why": "知らない種類は字のまま", "type": "RuntimeError", "str": "思いがけない誤り", "want": "思いがけない誤り"}
  ]
 }

@@ -1446,7 +1446,7 @@ impl Lot {
         self.presence.handle_with_place(&me, &crate::access::Place::from_json(&s.access["place"]), method, path, query, body)
     }
 
-    /// 転写距離・ピッチ計算と検査計の有無（版 3.72.0。src/calc.rs）。設定の calculation・置き場が無い・マスタを読めない・
+    /// 転写距離・ピッチ計算と検査計の有無（版 3.72.0。src/calc.rs）。設定の calculation・置き場が無い・
     /// engine=python は Python が答える。版 3.116.0 から本文の形（Python が例外で答える形・大きな整数）はどれも窓が答える
     fn calc_route(&self, path: &str, query: &str, body: &[u8]) -> Option<(u16, Value)> {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
@@ -1458,7 +1458,8 @@ impl Lot {
             return None;
         }
         let place = crate::access::Place::from_json(&s.access["place"]);
-        let masters = crate::calc::Masters::new(place.rows("equipment_master").ok()?, place.rows("roll_master").ok()?)?;
+        // 読めないマスタは、読めない理由の言葉のまま渡す（計算がそのマスタを読む所で答える。前は窓が答えず任せた）
+        let masters = crate::calc::Masters::read(place.rows_told("equipment_master"), place.rows_told("roll_master"));
         crate::calc::handle(path, body, calculation, &masters)
     }
 
@@ -4677,6 +4678,17 @@ mod tests {
         assert_eq!((st, v["processes"][0]["equipment_flag"].as_i64()), (200, Some(2)), "大きな整数の番号も桁のまま比べる: {v}");
         let (st, v) = ans("/api/equipment/inspection", r#"{"names": 5}"#);
         assert_eq!((st, v["kind"].as_str()), (400, Some("body")), "names が数は本文の門が断る: {v}");
+        // 版 3.116.0 の作った後の直し: 読めないマスタでも窓が答える（計算は読む所まで進んで 400・検査計は 503。前は任せた）
+        std::fs::write(data.join("equipment_master.json"), "{ broken").unwrap();
+        let lot2 = Lot::new(dir.join("l3").join("db_cache"));
+        let ans = |path: &str, b: &[u8]| lot2.handle_body_with("POST", path, "", b, &ask).expect("読めないマスタでも窓が答える");
+        let (st, v) = ans("/api/calculate", &b);
+        assert_eq!((st, v["type"].as_str()), (400, Some("MasterUnreadable")), "{v}");
+        assert_eq!(v["error"], "手元の equipment_master.json が読めません（JSON として読めません（1 行目））");
+        let (st, v) = ans("/api/calculate", br#"{"lot": {"processes": []}, "inputs": {}}"#);
+        assert_eq!((st, v["type"].as_str()), (400, Some("KeyError")), "マスタを読む前の誤りが先: {v}");
+        let (st, v) = ans("/api/equipment/inspection", br#"{"names": ["TLV"]}"#);
+        assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "{v}");
         let old = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
         assert!(
             Lot::new(dir.join("l2").join("db_cache")).handle_body_with("POST", "/api/calculate", "", &b, &old).is_none(),

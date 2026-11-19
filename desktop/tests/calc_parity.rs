@@ -35,7 +35,8 @@ fn calc_matches_python() {
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let place = Place::from_json(&sc["conf"]["place"]);
-        let masters = Masters::new(place.rows("equipment_master").unwrap(), place.rows("roll_master").unwrap()).expect("マスタ");
+        // 読めないマスタの場面は、読めない理由の言葉のまま渡す（本物の道 Lot::calc_route と同じ）
+        let masters = Masters::read(place.rows_told("equipment_master"), place.rows_told("roll_master"));
         // 設定の calculation は束の値のまま（版 3.116.0: null・並びも Python と同じ例外の答えになる。前は null を {} にして渡した）
         let calc = sc["calculation"].clone();
         for c in sc["cases"].as_array().unwrap() {
@@ -65,7 +66,9 @@ fn calc_matches_python() {
             if let Some(ty) = want["type"].as_str() {
                 typed += 1;
                 let e = want["error"].as_str().unwrap_or("");
-                if !kinds.contains_key(ty) || !e.starts_with("計算の入力") {
+                // 読めないマスタは種類に無く、読めない理由の言葉のまま（「手元の … が読めません（…）」）
+                let unreadable = ty == "MasterUnreadable" && e.contains("が読めません");
+                if !unreadable && (!kinds.contains_key(ty) || !e.starts_with("計算の入力")) {
                     bad.push(format!("{case}: 例外の答えが事例の表に無い {ty}: {e}"));
                 }
             }

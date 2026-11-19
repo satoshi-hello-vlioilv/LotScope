@@ -34,6 +34,7 @@ from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity, presence  # noqa: E402
 from app.web import Request, _app_var, _request_var  # noqa: E402
+from tests import scene_files  # noqa: E402
 
 NOW = datetime(2026, 11, 3, 10, 0, 0, 250000)
 PATHS = [("POST", "/api/masters/equipment"), ("PUT", "/api/masters/rolls/3"), ("POST", "/api/masters/access"),
@@ -161,7 +162,7 @@ def place_files(root, share, rows, tabs, mode):
         for p in (share / f"{name}.json", cache / f"{name}.json", data / f"{name}.json"):
             p.unlink(missing_ok=True)
         if body is None:
-            shutil.copy(PROGRAM / "data" / f"{name}.json", data / f"{name}.json") if (PROGRAM / "data" / f"{name}.json").exists() else None
+            scene_files.copy_file(PROGRAM / "data" / f"{name}.json", data / f"{name}.json") if (PROGRAM / "data" / f"{name}.json").exists() else None
             continue
         if body == "broken":
             (share / f"{name}.json").write_text("{", encoding="utf-8")
@@ -251,7 +252,7 @@ def run(tmp):
             root = tmp / f"c{len(out)}"
             share = root / "share"
             share.mkdir(parents=True)
-            shutil.copytree(PROGRAM / "data", root / "app" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
+            scene_files.copy_tree(PROGRAM / "data", root / "app" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
             place_files(root, share, rows, tabs, mode)
             settings = {"refresh_seconds": 0, **({} if mode == "local" else {"dir": str(share)})}
             store = MasterStore(root / "app", local_root=root / "local", settings=settings)

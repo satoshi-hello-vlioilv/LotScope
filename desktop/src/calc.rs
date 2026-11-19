@@ -412,29 +412,53 @@ impl<'a> Resolver<'a> {
     }
 }
 
-/// 計算が読むマスタ（設備マスタ・ロールマスタ。読むときの形をそろえた物）
+/// 計算が読むマスタ（設備マスタ・ロールマスタ。読むときの形をそろえた物）。読めないマスタ（壊れた字・空・rows が並びでない）は、
+/// 読めない理由の言葉のまま持ち、Python と同じく「計算がそのマスタを読む所」まで進んでから答える（版 3.116.0 の作った後の直し:
+/// 前は窓が答えず任せた。計算は 400・type MasterUnreadable、検査計は 503・kind master_unreadable。ロールマスタだけ読めないときの
+/// 検査計は答える）
 pub struct Masters {
-    equipment: Vec<Row>,
-    rolls: Vec<Row>,
+    equipment: Result<Vec<Row>, String>,
+    rolls: Result<Vec<Row>, String>,
+}
+
+fn unreadable(e: &str) -> Stop {
+    Stop::Py("MasterUnreadable", e.to_string())
 }
 
 impl Masters {
     /// 行（置き場から読んだ物）→ 旧い列名を読み替える（巻出し方向 → 巻取方向。master_repository._normalize）
     pub fn new(equipment: Vec<Value>, rolls: Vec<Value>) -> Option<Masters> {
-        let rows = |v: Vec<Value>| v.into_iter().map(|r| r.as_object().cloned()).collect::<Option<Vec<Row>>>();
-        let mut equipment = rows(equipment)?;
-        for r in equipment.iter_mut() {
-            if let Some(v) = r.remove("巻出し方向") {
-                r.entry("巻取方向").or_insert(v);
+        Some(Masters::read(Ok(equipment), Ok(rolls)))
+    }
+
+    /// 置き場の読み（access::Place::rows の答え。Err は読めない理由の言葉）から
+    pub fn read(equipment: Result<Vec<Value>, String>, rolls: Result<Vec<Value>, String>) -> Masters {
+        // 表でない行は置き場の読みが隔ててある（row_check）。残っていても計算は読まない
+        let rows = |v: Vec<Value>| v.into_iter().filter_map(|r| r.as_object().cloned()).collect::<Vec<Row>>();
+        let equipment = equipment.map(|v| {
+            let mut e = rows(v);
+            for r in e.iter_mut() {
+                if let Some(v) = r.remove("巻出し方向") {
+                    r.entry("巻取方向").or_insert(v);
+                }
             }
-        }
-        Some(Masters { equipment, rolls: rows(rolls)? })
+            e
+        });
+        Masters { equipment, rolls: rolls.map(rows) }
+    }
+
+    fn equipment(&self) -> R<&[Row]> {
+        self.equipment.as_deref().map_err(|e| unreadable(e))
+    }
+
+    fn rolls(&self) -> R<&[Row]> {
+        self.rolls.as_deref().map_err(|e| unreadable(e))
     }
 
     /// 設備名 → {rewind, line_direction}（equipment_map。字でない値は Python と同じ AttributeError）
     fn equipment_map(&self) -> R<HashMap<String, (String, String)>> {
         let mut out = HashMap::new();
-        for r in &self.equipment {
+        for r in self.equipment()? {
             let key = sstrip(r.get("設備名"))?;
             if !key.is_empty() {
                 out.insert(key, (sstrip(r.get("巻取方向"))?, sstrip(r.get("ライン方向"))?));
@@ -443,15 +467,16 @@ impl Masters {
         Ok(out)
     }
 
-    /// 設備名ごとに「検査計がある設備か」（inspection_of）
-    pub fn inspection_of(&self, names: &[String]) -> Value {
-        let res = Resolver::new(&self.equipment);
+    /// 設備名ごとに「検査計がある設備か」（inspection_of）。設備マスタが読めなければ、その理由の言葉
+    pub fn inspection_of(&self, names: &[String]) -> Result<Value, String> {
+        let equipment = self.equipment.as_deref().map_err(String::clone)?;
+        let res = Resolver::new(equipment);
         let mut out = Map::new();
         for n in names {
-            let ok = res.resolve(n).is_some_and(|i| pyfmt::strip(&text(self.equipment[i].get("検査計"))) == "有");
+            let ok = res.resolve(n).is_some_and(|i| pyfmt::strip(&text(equipment[i].get("検査計"))) == "有");
             out.insert(n.clone(), json!(ok));
         }
-        Value::Object(out)
+        Ok(Value::Object(out))
     }
 }
 
@@ -548,6 +573,12 @@ impl Calc<'_> {
         }
         let split = at_least_1(p.get("design_split"))?;
         let vs = at_least_1(p.get("vertical_split"))?;
+        // 板幅・板厚・比重は各々 0 でなくても、掛けた数が 0 に潰れることがある（5e-324 × 1e-05 など）。Python の float の割り算は
+        // ZeroDivisionError（版 3.116.0 の作った後の直し: 前は窓が inf → null で 200 を答えた）。ほかの割り算は、割る数そのものを
+        // 0 でないと確かめてから割る（after_length は積で確かめる・厚さ・発見の厚さ・1 周）ので、ここだけ
+        if w * t * density == 0.0 {
+            return Err(Stop::Py("ZeroDivisionError", "float division by zero".into()));
+        }
         let length = n0(p.get("weight"))? * 1000.0 / (w * t * density) / split * vs;
         let dw = n0(Some(item(prev, "width")?))? - w;
         let edge_kg = if dw > 0.0 { dw * t * density * length * split / vs / 1000.0 } else { 0.0 };
@@ -597,7 +628,7 @@ pub fn calculate(cfg: &Value, m: &Masters, lot: &Value, inputs: &Value) -> R<Val
         _ => None,
     };
     let actual_v = actual.map(fl).unwrap_or(Value::Null);
-    let resolver = Resolver::new(&m.equipment);
+    let resolver = Resolver::new(m.equipment()?);
     let ratio_mode = c.get("trace_ratio")?.cloned().unwrap_or(json!("adjacent"));
     let found_mode = ratio_mode == json!("found");
     let no_of = |p: &Row| py_int_value(item(p, "no")?);
@@ -874,6 +905,7 @@ pub fn calculate(cfg: &Value, m: &Masters, lot: &Value, inputs: &Value) -> R<Val
     }
 
     // ⑤ ピッチと候補ロール（_pitches・_candidates）
+    let rolls = m.rolls()?;
     let mut previous_out: Option<Value> = None;
     for i in 0..ps.len() {
         let eq = &eqs[i];
@@ -886,7 +918,7 @@ pub fn calculate(cfg: &Value, m: &Masters, lot: &Value, inputs: &Value) -> R<Val
         let din = if truthy_f(&pin) { fl(fv(&pin) / PI) } else { int0() };
         let pout = if !an { out_pitch } else { int0() };
         let dout = if truthy_f(&pout) { fl(fv(&pout) / PI) } else { int0() };
-        let cands = candidates(eq, fv(&din), fv(&dout), &m.rolls, tol, &resolver)?;
+        let cands = candidates(eq, fv(&din), fv(&dout), rolls, tol, &resolver)?;
         let p = &mut ps[i];
         p.insert("pitch_in_mm".into(), pin);
         p.insert("diameter_in_mm".into(), din);
@@ -992,7 +1024,11 @@ pub fn handle(path: &str, body: &[u8], calculation: &Value, masters: &Masters) -
                 Some(_) => return None,
             };
             let names: Vec<String> = names.into_iter().take(100).collect();
-            Some((200, json!({"inspection": masters.inspection_of(&names)})))
+            match masters.inspection_of(&names) {
+                Ok(v) => Some((200, json!({"inspection": v}))),
+                // 設備マスタが読めない（Python の master_call の 503）
+                Err(e) => Some((503, json!({"error": e, "kind": "master_unreadable"}))),
+            }
         }
         _ => None,
     }
@@ -1019,6 +1055,7 @@ pub fn error_message(type_name: &str, text: &str) -> String {
         "IndexError" => "計算の入力の並び（工程・候補）が足りません。".into(),
         "AttributeError" | "TypeError" => "計算の入力に字でない値があります（字で送ってください）。".into(),
         "OverflowError" => "計算の入力に大きすぎる数があります。".into(),
+        "ZeroDivisionError" => "計算の入力に小さすぎる数があります（板幅・板厚・比重を掛けた数が 0 になり、割れません）。".into(),
         _ => text.into(),
     }
 }
@@ -1042,10 +1079,47 @@ mod tests {
 
     #[test]
     fn pow_is_not_folded() {
-        // x*x と C の pow が違う値（Python の (x)**2 は pow）
-        let x = 279.01_f64;
+        // 利用者の決め（2026 年 11 月）: 2 乗は C の pow のまま（Python の (x)**2）。掛け算 x * x に替えてはいけない
+        let x = 279.834_f64;
         assert_eq!(pow2(x).unwrap().to_bits(), x.powf(std::hint::black_box(2.0)).to_bits());
-        // 利用者の決め（2026-11-18）: 2 乗はべき乗のまま。掛け算と違うビットになる値（この値は glibc の pow で 1 ulp 違う）を持つ
         assert!(pow2(1e200).is_err(), "有限の数の 2 乗があふれたら OverflowError");
+        // glibc の pow は丸めが掛け算と違う値がある（279.834: pow は 78307.06755600001・掛け算は 78307.067556）。pow2 を掛け算に替えると
+        // ここで落ちる（版 3.116.0 の作った後の直し: 前の 279.01 は pow と掛け算が同じ値で、替えても通った）。同じ値を人の事例の表
+        // calc_cases.json の「オフの厚さ 0.834」が答えの最後の桁まで見る。数学の部品が違う OS（Windows の CRT）では比べない
+        #[cfg(all(target_os = "linux", target_env = "gnu"))]
+        {
+            assert_eq!(pow2(x).unwrap(), 78307.06755600001, "C の pow の答え（glibc）");
+            assert_ne!(pow2(x).unwrap().to_bits(), (x * x).to_bits(), "pow2 が掛け算に替わっている（べき乗のままにする）");
+        }
+    }
+
+    #[test]
+    fn a_product_that_collapses_to_zero_is_a_division_by_zero() {
+        // 各々 0 でない板幅・板厚・比重の積が 0 に潰れる: Python は ZeroDivisionError（窓も同じ誤りで答える）
+        let p: Row = json!({"thickness": 0.8, "width": 1e-5, "weight": 6000}).as_object().unwrap().clone();
+        let prev: Row = json!({"thickness": 1.3, "width": 1200, "weight": 6214}).as_object().unwrap().clone();
+        assert_eq!(Calc::end_back_m(&p, Some(&prev), 5e-324), Err(Stop::Py("ZeroDivisionError", "float division by zero".into())));
+        let wide: Row = json!({"thickness": 0.8, "width": 1200, "weight": 6000}).as_object().unwrap().clone();
+        assert!(matches!(Calc::end_back_m(&wide, Some(&prev), 2.7), Ok(Some(_))), "ふつうの数は後オフを出す");
+        assert!(error_message("ZeroDivisionError", "float division by zero").starts_with("計算の入力に小さすぎる数"));
+    }
+
+    #[test]
+    fn unreadable_masters_answer_where_python_reads_them() {
+        let lot = json!({"processes": [{"no": 1, "equipment": "TLV", "thickness": 1, "width": 1, "weight": 1}]});
+        let ok_in = json!({"found_equipment": "1:TLV", "found_pitch_mm": 610});
+        let why = "手元の equipment_master.json が読めません（JSON として読めません（1 行目））";
+        let m = Masters::read(Err(why.into()), Ok(vec![]));
+        // マスタを読む前に出る誤り（欄が無い）が先。読む所まで進むと読めない言葉
+        assert_eq!(calculate(&json!({}), &m, &lot, &json!({})), Err(Stop::Py("KeyError", "'found_equipment'".into())));
+        assert_eq!(calculate(&json!({}), &m, &lot, &ok_in), Err(Stop::Py("MasterUnreadable", why.into())));
+        assert_eq!(m.inspection_of(&["TLV".into()]), Err(why.to_string()));
+        // ロールマスタだけ読めない: 検査計は答え、計算は候補ロールを引く所で読めない言葉
+        let m = Masters::read(Ok(vec![json!({"設備名": "TLV", "検査計": "有"}), json!(5)]), Err("ロールが読めません".into()));
+        assert_eq!(m.inspection_of(&["TLV".into()]), Ok(json!({"TLV": true})));
+        assert_eq!(calculate(&json!({}), &m, &lot, &ok_in), Err(Stop::Py("MasterUnreadable", "ロールが読めません".into())));
+        let body = serde_json::to_vec(&json!({"lot": lot, "inputs": ok_in})).unwrap();
+        let (st, v) = handle("/api/calculate", &body, &json!({}), &m).unwrap();
+        assert_eq!((st, v), (400, json!({"error": "ロールが読めません", "type": "MasterUnreadable"})));
     }
 }

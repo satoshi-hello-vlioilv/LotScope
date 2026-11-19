@@ -11,7 +11,8 @@ import re
 
 # 例外の種類 → 言葉の形
 KINDS = {"KeyError": "missing", "ValueError": "number", "IndexError": "short", "AttributeError": "text", "TypeError": "text",
-         "OverflowError": "large"}       # 版 3.116.0: 400 桁の整数・2 乗があふれる数（前は英語の例外の字のまま）
+         "OverflowError": "large",       # 版 3.116.0: 400 桁の整数・2 乗があふれる数（前は英語の例外の字のまま）
+         "ZeroDivisionError": "zero"}    # 版 3.116.0: 板幅・板厚・比重の積が 0 に潰れる（5e-324 × 1e-05 など。前は英語の例外の字のまま）
 _LITERAL = re.compile(r": '(.*)'$", re.S)
 
 
@@ -30,6 +31,8 @@ def message(type_name, text):
         return "計算の入力に字でない値があります（字で送ってください）。"
     if kind == "large":
         return "計算の入力に大きすぎる数があります。"
+    if kind == "zero":
+        return "計算の入力に小さすぎる数があります（板幅・板厚・比重を掛けた数が 0 になり、割れません）。"
     return text
 
 

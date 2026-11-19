@@ -4,6 +4,7 @@ import copy
 import json
 import math
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -75,6 +76,8 @@ def holds(got, op, args, results):
         return not close(got, args[0], 3)
     if op == "=":
         return got == args[0] and not (isinstance(got, bool) ^ isinstance(args[0], bool))
+    if op == "!=":
+        return got != args[0]
     if op == ">":
         return all(x is not ABSENT and x > args[0] for x in each)
     if op == "null":
@@ -94,10 +97,13 @@ class CalcCases(unittest.TestCase):
         self.assertGreaterEqual(len(TABLE["cases"]), 30)
         self.assertGreaterEqual(sum(len(c["checks"]) for c in TABLE["cases"]), 90)
         results = {}
-        for c in TABLE["cases"]:
+        # os のある事例はその OS だけ（C の数学の部品の答えを最後の桁まで決める事例）
+        cases = [c for c in TABLE["cases"] if c.get("os") in (None, sys.platform)]
+        self.assertTrue(any(c.get("os") == "linux" for c in TABLE["cases"]), "べき乗のままを守る事例がある")
+        for c in cases:
             settings = {"calculation": copy.deepcopy(c["cfg"])} if "cfg" in c else {}
             results[c["name"]] = Calculator(settings, MasterRepository(ROOT)).calculate(lot_of(c.get("lot")), inputs_of(c))
-        for c in TABLE["cases"]:
+        for c in cases:
             res = {**results, None: results[c["name"]]}
             for path, op, *args in c["checks"]:
                 with self.subTest(case=c["name"], path=path, op=op):

@@ -26,6 +26,7 @@ os.environ.pop("TPA_SHELL", None)
 
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
+import scene_files  # noqa: E402
 from test_calculator import CORRECT_EQUIPMENT, inputs, lot_l6183d0  # noqa: E402
 
 
@@ -252,6 +253,11 @@ def overlaps():
             ("発見ピッチが nan の字", body(lot_l6183d0(), {**inputs(), "found_pitch_mm": "nan"})),
             ("比重が 1e308 の字（長さが 0 に近い）", body({**lot_l6183d0(), "density": "1e308"}, inputs())),
             ("幅が 1e308（掛け算があふれて inf）", body(lot_with(lambda ps: ps[2].update(width=1e308)), inputs())),
+            # 0 割り（版 3.116.0 の作った後の採点の割れ 2b）: 板幅・板厚・比重は各々 0 でないのに積が 0 に潰れる → ZeroDivisionError
+            ("比重 5e-324 × 5 番目の幅 1e-05（積が 0 に潰れる）", body({**lot_with(lambda ps: ps[4].update(width=1e-05)), "density": 5e-324}, inputs())),
+            ("5 番目の厚さ 1e-200 × 幅 1e-200（積が 0 に潰れる）", body(lot_with(lambda ps: ps[4].update(thickness=1e-200, width=1e-200)), inputs())),
+            ("比重 5e-324（どの冷延の工程でも積が 0・最初に当たる所で割れない）× 番号が読めない（後ろ）", body({**lot_with(lambda ps: ps[9].update(no="x")), "density": 5e-324}, inputs())),
+            ("オフの厚さ 0.834（279.834 の 2 乗は C の pow と掛け算で最後の桁が違う）", body(lot_with(lambda ps: ps[7].update(off_front_thickness_mm=0.834)), inputs())),
     ):
         out.append((name, "/api/calculate", text, True))
     return out
@@ -288,10 +294,24 @@ ODD = [("設定が並び", EQUIP_PLAIN, [1]), ("設定が null", EQUIP_PLAIN, No
        ("設備マスタの設備名が数", EQUIP_NUM, CFG_DEFAULT),
        ("設備マスタの巻取方向が数・ライン方向が並び", EQUIP_DIR, CFG_DEFAULT),
        ("ロールマスタの設備が数・入出位置が 0・径が大きな整数", (EQUIP_PLAIN, ROLL_NUM), CFG_DEFAULT)]
+# 読めないマスタ・形の違うマスタのファイル（版 3.116.0 の作った後の採点の割れ 2a。前は窓が答えず任せ、場面も無かった）。
+# (名前, ファイル, 中身〈None は消す〉)。計算は、マスタを読む所まで進んでから読めない言葉で 400（その前に出る誤りが先）、検査計は 503
+RAW = [("設備マスタが壊れた字", "equipment_master.json", "{ broken"), ("設備マスタが空のファイル", "equipment_master.json", ""),
+       ("設備マスタが無い", "equipment_master.json", None), ("設備マスタの行が数・並び", "equipment_master.json", j([5, [1, 2], {"id": 1, "設備名": "TLV", "巻取方向": "上", "検査計": "有"}])),
+       ("設備マスタが表（rows が数）", "equipment_master.json", j({"rows": 5})), ("設備マスタが表（rows なし）", "equipment_master.json", j({"x": 1})),
+       ("設備マスタが null", "equipment_master.json", "null"),
+       ("設備マスタに NaN", "equipment_master.json", '[{"id": 1, "設備名": "TLV", "巻取方向": "上", "x": NaN}]'),
+       ("設備マスタの id が字・無い", "equipment_master.json", j([{"id": "x", "設備名": "TLV", "巻取方向": "上"}, {"設備名": "L-1", "巻取方向": "下", "検査計": "有"}])),
+       ("設備マスタに BOM と大きな整数", "equipment_master.json", "\ufeff" + '[{"id": 1, "設備名": "TLV", "巻取方向": "下", "検査計": "有", "x": 123456789012345678901234567890}]'),
+       ("ロールマスタが壊れた字", "roll_master.json", "[{"), ("ロールマスタが無い", "roll_master.json", None),
+       ("ロールマスタの行が字", "roll_master.json", j(["x", {"id": 1, "設備": "TLV", "入出位置": "出側", "ロール径MAX": 194.2}])),
+       ("ロールマスタが表（rows が表）", "roll_master.json", j({"rows": {"a": 1}})),
+       ("ロールマスタの径が並び・表", "roll_master.json", j([{"id": 1, "設備": "TLV", "入出位置": "出側", "ロール径MAX": [1]}, {"id": 2, "設備": "TLV", "入出位置": {"a": 1}}])),
+       ("ロールマスタの版が字", "roll_master.json", j({"rev": "x", "rows": [{"id": 1, "設備": "TLV", "入出位置": "出側", "ロール径MAX": 194.2}]}))]
 
 
 def place(root, equipment):
-    shutil.copytree(PROGRAM / "data", root / "app" / "data")
+    scene_files.copy_tree(PROGRAM / "data", root / "app" / "data")       # 取り出しの更新時刻と権限を場面に持ち込まない
     if isinstance(equipment, tuple):
         equipment, rolls = equipment
         base = json.loads((PROGRAM / "data" / "roll_master.json").read_text(encoding="utf-8"))
@@ -313,9 +333,14 @@ def main():
     from app.routes.lotlist import _access_place
     from app.web import Request, _app_var, _request_var
     out = []
-    for i, (name, equipment, cfg) in enumerate(SCENARIOS + ODD):
+    for i, (name, equipment, cfg) in enumerate(SCENARIOS + ODD + [(n, (f, text), CFG_DEFAULT) for n, f, text in RAW]):
         root = base / f"s{i}"
-        place(root, equipment)
+        if i >= len(SCENARIOS) + len(ODD):                # 読めないマスタの場面: ふつうの置き場を作ってから、そのファイルを替える
+            place(root, EQUIP_PLAIN)
+            target = root / "app" / "data" / equipment[0]
+            target.unlink() if equipment[1] is None else target.write_text(equipment[1], encoding="utf-8")
+        else:
+            place(root, equipment)
         app = create_app({"TESTING": True, "MASTER_STORE": MasterStore(root / "app", local_root=root / "local", settings={"refresh_seconds": 0})})
         app.config["APP_SETTINGS"]["calculation"] = copy.deepcopy(cfg)
         client = app.test_client()
