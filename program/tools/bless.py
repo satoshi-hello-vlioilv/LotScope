@@ -37,8 +37,7 @@ PHASES = ("3.115.0", "3.116.0")
 MAX_MB = 1.5
 MAX_TOTAL_MB = 40.0
 # そろえた印（desktop/tests/common/bake.rs の settle が答えに置く字）。本ごとに数えて、そろえすぎを数で見せる（first_fixes 12）
-STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@DAY", "@ABOVE", "@PID", "@UI", "@FID(",
-          "@CM3", "@API", "@SITE", "@NAME?")
+STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@BUILD", "@DAY", "@ABOVE", "@PID", "@UI", "@FID(")
 STAMP_SHARE = 0.2      # 印のある葉が答えの葉のこの割合を超える本は知らせる（守りが薄い表）
 
 

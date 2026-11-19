@@ -88,7 +88,9 @@ fn walk<'a>(v: &'a Value, path: &str) -> (Vec<Option<&'a Value>>, bool) {
             match (sel, x) {
                 (None, _) | (_, None) => nxt.push(x),
                 (Some("*"), Some(x)) => nxt.extend(x.as_array().unwrap().iter().map(Some)),
-                (Some(s), Some(x)) if s.starts_with("has=") => nxt.extend(x.as_array().unwrap().iter().filter(|e| e.get(&s[4..]).is_some()).map(Some)),
+                (Some(s), Some(x)) if s.starts_with("has=") => {
+                    nxt.extend(x.as_array().unwrap().iter().filter(|e| e.get(&s[4..]).is_some()).map(Some))
+                }
                 (Some(s), Some(x)) if s.starts_with("no=") => {
                     let n: i64 = s[3..].parse().unwrap();
                     nxt.extend(x.as_array().unwrap().iter().filter(|e| e["no"].as_i64() == Some(n)).map(Some))
@@ -129,7 +131,8 @@ fn the_window_satisfies_the_human_table() {
         .map(|c| {
             let name = c["name"].as_str().unwrap().to_string();
             let cfg = c.get("cfg").cloned().unwrap_or(json!({}));
-            let r = calculate(&cfg, &masters, &lot_of(&c["lot"]), &inputs_of(c)).unwrap_or_else(|e| panic!("{name}: 窓が計算できない {e:?}"));
+            let r =
+                calculate(&cfg, &masters, &lot_of(&c["lot"]), &inputs_of(c)).unwrap_or_else(|e| panic!("{name}: 窓が計算できない {e:?}"));
             // 画面へ返す字（NaN は null・大きな整数は桁のまま）にしてから比べる
             (name, serde_json::from_slice(&da_core::held::reply_bytes(&r)).unwrap())
         })

@@ -886,5 +886,35 @@
    "12 そろえすぎを数で見せる: bless.py が本ごとに、そろえた印（@T・@URL・@MS・@WORK など）の数と表の大きさを出し、前の表から増えた分を PR の説明に貼る。--check は、字の形の見張り（利用者の名前・一時フォルダ・時差つきの時刻・装置と inode の番号・ポート・ホスト名）に加えて、印の数が answers の葉の 2 割を超える本を知らせる（守りが薄い表を見つける）"
   ],
   "cut_line": "1 版に入り切らないとき: (ア) 先に外す物は、route_reach の割り・予算の試験の引っ越し・競い合いの付け替え・calc-truth.py（first_fixes 1・5・6。そもそもしない）。(イ) 次に Windows の上書き（variants.nt）と「Windows でも表と比べる」を 3.117.0 へ（測るだけの仕事は 3.116.0 に残す）。(ウ) それでも足りなければ本を難しい側から送る: ops → dashboard → routes → pivot の順に 3.117.0 へ（first_fixes 10）。送った本は 3.117.0 で ③-6（schedule.rs だけを触る）と並べる。④ は 3.118.0 のままで、入口の条件は「35 本が Python 無しで流れる・Windows の CI が表と比べている・凍らせる写しがある」"
+ },
+ "built_plan": {
+  "about": "作った形（版 3.116.0・ブランチ stage3e）。1 位の案 G に採点の first_fixes 12 件と、利用者・主の決め（2 乗はべき乗のまま・競い合いの付け替えはしない・Windows は測るだけまで・ci-shape を check-all の段に）を入れた。採点の中身（rounds・evaluation）は書き換えていない",
+  "baked": "14 本のうち 7 本を焼いた（calc・lotlist・presence・ui_defaults・conversions・lists・settings〈settings.bundle・settings.pages。route_reach は束の表の場面を借りる〉）。時刻の境をまたぐ 2 回の焼きが同じ。表は 34 ファイル・23.48 MB（前 6.71 MB。7 本で +16.78 MB。UTF-8 のバイト）",
+  "sent": "3.117.0 へ送った 7 本: equipgroups・schedule・lotdsp（起こしたままの 3 本）と routes・pivot・dashboard・ops（ui_server・ops-bench の 4 本）。採点の切る線（ops → dashboard → routes → pivot の順に送る）より多く送った: 起こしたままの 3 本は、Python 無しの形で作り物を app なしで起こす台本と URL の名前つきの置き換えまで作れなかった。理由は desktop/tests/baked/books.json の why と RUST_PORT_PLAN.md",
+  "first_fixes": {
+   "1": "K1・K4 は外した（3.115.0 に入っている）。route_reach の割り・予算の試験の引っ越しはしていない",
+   "2": "焼いた 7 本は、時刻の境をまたぐ 2 回の焼き（bless.py）と、焼いた後の Python と比べる流し・ci-shape の 3 つの形（root でない利用者・時差・別の TMPDIR・名前を引けない）で違い 0。5 回の流しは 7 本について合わせて 5 回以上（焼き 2・手元 1・ci-shape 3）。settle.json に足したのは 2 つだけ（画面の指紋 @BUILD・名乗りの表の鍵。どちらも作り方そのものと一致するときだけ・変異の試験つき）。calc の問い合わせの名乗り（流した PC の名前）は答え合わせ役から外した。結合の答えのファイル名は本の中で名前の頭と拡張子だけを表に持つ。送った 7 本の揺れ（乱数のキー・/tmp/tpa-ops-*・ポート・要求の並び）は手を付けていない",
+   "3": "bless.py --check が UTF-8 のバイトで本ごと（books.json の maxMB。無ければ 1.5 MB）と計 40 MB の上限を見る。表の問い合わせに Python の答えを持たない（oracle_with・drop）。ui_defaults の 2 MB・presence の 4 MB の境の字は作り方（@rep）",
+   "4": "参照は中身の指紋 12 桁（@same）・初出は parts。bake_selftest の packing_round_trips_and_references_do_not_move（往復・1 歩変えてもほかの歩の字が動かない・参照の先の 1 字で落ちる・参照の先が無ければ分かる言葉）",
+   "5": "利用者の決めのとおり 2 乗は C の pow のまま（Python の ** 2 も窓の pow2 も変えていない）。calc は詰めて全部を焼いた（乱数は Python と 160 件・表に 40 件）。calc-truth.py は作っていない。第 2 の線は人の事例の表 calc_cases.json（31 事例・確かめ 97）",
+   "6": "競い合いの付け替えはしていない（frozen_python の 8 試験はそのまま）",
+   "7": "desktop.yml の Windows の cargo test に TPA_MEASURE を付け、bake.rs が表と違う歩を落とさずに記録し、bless.py --measured がまとめ、成果物 desktop-windows/bake-measure/ に置く。数は push 後の最初の Windows の CI で出る（手元では流せない）。上書き variants.nt は次の版。段 ④ の入口の条件を RUST_PORT_PLAN.md に書いた",
+   "8": "program/tools/ci-shape.py（runner・nopy・nodns の 3 つの形で焼いた本の試験 31 本を全部）を check-all.sh の段 ci-shape にした。作っている途中にこの段が手元の焼きの割れを 4 つ見つけた（画面の指紋・名乗りの鍵の利用者の名前・その sha1 の 6 字・計算の問い合わせの PC の名前）",
+   "9": "場面の台本の仕組み（bk.script・sceneMade・指紋 made_print）を作り、lists（tests/lists_scene.py）と lotlist（tests/lotlist_fixture.py）で使った。ui_server.py・ops-bench.py の台本への切り出しはしていない（4 本を送ったため）",
+   "10": "作る順は 土台 → 易しい 7 本 まで。起こしたままの 3 本と ui_server・ops-bench の 4 本は送った",
+   "11": "calc::calculate を Python の行の順に書き直し、例外の形を calc::Stop::Py と error_message で答える。delegate-count --check は計 11・calc 0、calc_parity は窓が答えた 1,723・任せた 0。誤りを 2 つ重ねた本文と形の違う本文 78・設定とマスタの形が違う場面 23 を足した。K3（数でない timeout を HOT から始めたときの要求の数）は直していない（schedule と一緒に 3.117.0）",
+   "12": "bless.py --stats が本ごとの大きさ・歩・葉・印の数（--base で前の表から増えた分）を出し、--check は印のある葉が 2 割を超える本を知らせる（今は fs だけ: 答えが道そのもの）"
+  },
+  "found_while_building": [
+   "calc の「答えに NaN・inf」は Python が null にして答えていた（web.dumps の _finite）。窓は任せていたので、NaN を持ったまま計算して null で答える形にした",
+   "検査計の有無の names が数・真だと Python は 500 だった。本文の門の欄の型（L）に足した",
+   "大きすぎる数の計算の誤りの言葉が英語のままだった（OverflowError）。日本語の言葉を足した",
+   "check-all.sh は worktree（CARGO_TARGET_DIR）で cargo の作業フォルダを片付けていなかった。窓の通しの前の片付けも道具に入れた"
+  ],
+  "left": [
+   "送った 7 本と K3・ui_server の台本・Windows の上書き",
+   "Windows の測りの数（未知）。calc の pow の最後の桁が Windows で違うかは、その数で分かる",
+   "route_reach は名前を引けない形で 187 秒かかる（ci-shape の nodns）"
+  ]
  }
 }

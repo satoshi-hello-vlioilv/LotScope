@@ -563,13 +563,21 @@ fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
         assert_eq!(settle(&who(pc, key(u, pc)), &ctx, &[]), who(pc, key("@USER", pc)), "{pc}: 利用者を @USER にして作り直す");
     }
     assert!(key(u, "PC 1:北").contains('-') && key("@USER", "PC 1:北") != key(u, "PC 1:北"), "使えない字の端末は sha1 の 6 字つき");
-    assert_ne!(settle(&who("PC-1", key(u, "PC-1")), &ctx, &[]), settle(&who("PC-2", key(u, "PC-2")), &ctx, &[]), "端末の名前の違いは落ちる");
+    assert_ne!(
+        settle(&who("PC-1", key(u, "PC-1")), &ctx, &[]),
+        settle(&who("PC-2", key(u, "PC-2")), &ctx, &[]),
+        "端末の名前の違いは落ちる"
+    );
     let stranger = format!("{u}x");
     assert_eq!(settle(&who("PC-1", key(&stranger, "PC-1")), &ctx, &[]), who("PC-1", key(&stranger, "PC-1")), "別の利用者はそのまま");
     // sha1 の 6 字が違う鍵（作り方の誤り）はそろえない＝表との比べで落ちる
     let wrong = format!("{}-000000", key(u, "PC 1:北").rsplit_once('-').unwrap().0);
     assert_eq!(settle(&who("PC 1:北", wrong.clone()), &ctx, &[]), who("PC 1:北", wrong), "違う sha1 はそのまま");
     assert_eq!(settle(&json!({"key": key(u, "PC-1")}), &ctx, &[]), json!({"key": key(u, "PC-1")}), "となりに pc の無い鍵はそのまま");
-    assert_eq!(settle_with(&who("PC-1", key(u, "PC-1")), &ctx, &[], Some("who.key")), who("PC-1", key(u, "PC-1")), "決まりを外すと利用者の名前が残る");
+    assert_eq!(
+        settle_with(&who("PC-1", key(u, "PC-1")), &ctx, &[], Some("who.key")),
+        who("PC-1", key(u, "PC-1")),
+        "決まりを外すと利用者の名前が残る"
+    );
     let _ = std::fs::remove_dir_all(&base);
 }

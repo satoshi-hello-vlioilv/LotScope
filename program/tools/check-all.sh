@@ -31,7 +31,9 @@ cd "$ROOT" || exit 2
 free_gb() { df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}'; }
 
 # 1) 古い作り物を片付ける（今の試験の実行ファイルは cargo が作り直す。rlib などの依存は消さない＝作り直しは軽い）
-T="$ROOT/desktop/target/debug"
+# cargo の作業フォルダを替えている（CARGO_TARGET_DIR。worktree で主の作業フォルダを共にする）ときは、そこを片付ける（版 3.116.0。前は
+# worktree の中の無いフォルダを見て、何も片付けなかった）
+T="${CARGO_TARGET_DIR:-$ROOT/desktop/target}/debug"
 if [ -d "$T" ]; then
   find "$T/deps" -maxdepth 1 -type f -perm -u+x ! -name "*.*" -mmin +120 -delete 2>/dev/null
   rm -rf "$T/incremental" "$T/examples"
@@ -81,7 +83,20 @@ step cargo-test bash -c "cd desktop && cargo test --locked --no-fail-fast"
 step ci-shape python program/tools/ci-shape.py "$OUT/ci-shape"
 # 5) 窓の通し（起動・更新・配布の流れを変えたとき）
 if [ $VERIFY -eq 1 ]; then
+  # 窓の通しは版を何度も写して 7〜10 GB 使う。cargo の試験が済んだので、試験の実行ファイルと incremental を消して空きを作る
+  # （版 3.116.0。前は手で消していた。窓の通しが使う exe〈debug/LotScope〉は deps の外なので残る）
+  if [ -d "$T" ]; then
+    find "$T/deps" -maxdepth 1 -type f -perm -u+x ! -name "*.*" -delete 2>/dev/null
+    rm -rf "$T/incremental"
+  fi
   echo "空き（窓の通しの前）: $(free_gb) GB" | tee -a "$OUT/summary.txt"
+  if [ "$(free_gb)" -lt "$KEEP" ]; then
+    echo "空きが足りないので窓の通しを始めません（必要 ${KEEP} GB）。" | tee -a "$OUT/summary.txt"
+    FAIL=1
+    VERIFY=0
+  fi
+fi
+if [ $VERIFY -eq 1 ]; then
   W="$OUT/verify-work"
   rm -rf "$W"
   # cargo の作業フォルダを替えている（CARGO_TARGET_DIR。worktree で主の作業フォルダを共にする）ときは、そこに組んだ exe（版 3.98.0）

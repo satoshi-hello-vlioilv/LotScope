@@ -132,7 +132,11 @@ fn work_and_source_lists_answer_like_python() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|r| Right { path: r[0].as_str().unwrap().into(), table: r[1].as_str().unwrap().into(), name: r[2].as_str().unwrap().into() })
+            .map(|r| Right {
+                path: r[0].as_str().unwrap().into(),
+                table: r[1].as_str().unwrap().into(),
+                name: r[2].as_str().unwrap().into(),
+            })
             .collect();
         let dest = work.join("joins_rs").join(format!("j{i}.sqlite3"));
         let got = match build(&dest, &base, "仕掛", &items, &rights) {

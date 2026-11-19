@@ -97,7 +97,8 @@ fn bundle_is_built_like_python() {
             }
             // 窓が置いた最初の版（更新時刻は除く）を焼く・表と比べる
             let mut placed = serde_json::Map::new();
-            let mut names: Vec<String> = std::fs::read_dir(&share).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            let mut names: Vec<String> =
+                std::fs::read_dir(&share).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
             names.sort();
             for f in names {
                 let mine = std::fs::read(share.join(&f)).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);

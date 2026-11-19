@@ -380,7 +380,9 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             }
             Value::Object(o) => {
                 let mut out: Map<String, Value> = o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect();
-                if let (true, Some(k), Some(pc), Some(u)) = (cx.who_key, o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user()) {
+                if let (true, Some(k), Some(pc), Some(u)) =
+                    (cx.who_key, o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user())
+                {
                     if k == da_core::bundle::terminal_key(u, pc) {
                         out.insert("key".into(), json!(da_core::bundle::terminal_key("@USER", pc)));
                     }
@@ -636,7 +638,9 @@ pub fn unpack(v: &Value, parts: &Map<String, Value>) -> Value {
                         })
                         .unwrap_or_default(),
                 ),
-                _ => Value::Object(x.as_object().map(|m| m.iter().map(|(k, y)| (k.clone(), unpack(y, parts))).collect()).unwrap_or_default()),
+                _ => {
+                    Value::Object(x.as_object().map(|m| m.iter().map(|(k, y)| (k.clone(), unpack(y, parts))).collect()).unwrap_or_default())
+                }
             }
         }
         Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), unpack(x, parts))).collect()),
@@ -1251,8 +1255,9 @@ impl Bake {
         };
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
         let path = baked_dir().join(format!("{file}.json"));
-        let table =
-            std::fs::read(&path).ok().map(|b| unpack_table(&super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display()))));
+        let table = std::fs::read(&path)
+            .ok()
+            .map(|b| unpack_table(&super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display()))));
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
             panic!("焼いた表 {} がありません（TPA_BLESS=1 で焼く）", path.display());
         }
@@ -1360,7 +1365,8 @@ impl Bake {
     pub fn took(&mut self, v: &Value) {
         let ex: Vec<&str> = self.exclude.clone();
         // 場面の台本が作ったファイル（答え合わせ役が同じ台本を呼んで作り、その相対の道を sceneMade で答える）
-        let made: Vec<String> = v["sceneMade"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+        let made: Vec<String> =
+            v["sceneMade"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
         self.scene = snapshot_with(&self.base, &self.ctx, &ex, &made);
         let ctx = self.ctx.clone();
         // 今に近い時刻（答え合わせ役の now・錠や切断の指示の時刻）は場面と同じく今からのずれで持つ（作り直す時に今へずらす）
@@ -1645,7 +1651,8 @@ impl Bake {
     /// 測るだけの記録を書く（TPA_MEASURE のフォルダ。表と比べない PC だけ。書けなくても試験は続ける）
     fn write_measure(&self) {
         let (Some(dir), Some(t), false, Mode::Python) = (&self.measure, &self.table, self.check, self.mode) else { return };
-        let missing: Vec<&String> = t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
+        let missing: Vec<&String> =
+            t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
         let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "steps": self.answers.len(),
                            "tableSteps": t["answers"].as_object().map(|o| o.len()).unwrap_or(0),
                            "differing": self.measured, "missing": missing});

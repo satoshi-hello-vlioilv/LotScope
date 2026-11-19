@@ -2457,8 +2457,8 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   `_finite` と `held::reply_bytes`）、設定の calculation・設備マスタ・ロールマスタの形が違う場面も同じ例外の答え。組の並びで書いた工程
   （`dict(p)`）と、字でない鍵の工程（答えを書くときに鍵を並べられない TypeError）も写した。検査計の有無の `names` が数・真・表は本文の門
   （`body_rules.TYPES`）が断る（前は 500）。大きすぎる数（400 桁の整数・2 乗があふれる数）の言葉を足した（`calc_errors.KINDS` の
-  OverflowError。前は英語の例外の字）。`calc_oracle.py` に誤りを 2 つ重ねた本文 31・形の違う本文 48・設定とマスタの形が違う場面 23 を足し、
-  窓が答えた 1,843 歩・任せた 0（`calc_parity`）。
+  OverflowError。前は英語の例外の字）。`calc_oracle.py` に誤りを 2 つ重ねた本文と形の違う本文（`overlaps`。78 件）・設定とマスタの形が
+  違う場面 23（`ODD`）を足し、窓が答えた 1,723 歩・任せた 0（`calc_parity`）。
 - **2 乗は C の pow のまま**（利用者の決め。2026 年 11 月）。Python の `** 2` も窓の `pow2` も掛け算に替えない（数値を 1 桁も変えない）。
   Windows で最後の桁が違う歩は、下の測るだけの仕事が数える。独立の答え calc-truth.py は作らない。第 2 の線は、`test_calculator.py` の手で
   確かめた値を写した人の事例の表 `tests/fixtures/calc_cases.json`（31 事例・確かめ 97。Python `tests/test_calc_cases.py`・窓
@@ -2480,7 +2480,8 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   lists の結合の基は小さくした（quality_s 160 行・wip_s 120 行・重なりマスタ 480 行。結合の答えの行を全部持つため）。calc の乱数の事例は
   Python とは 160 件を比べ、表には 40 件を持つ。
 - **表の大きさ**（UTF-8 のバイト。`bless.py --stats`）: 下の「表の大きさ」の表。`bless.py --check` が本ごと（`books.json` の maxMB。無ければ
-  1.5 MB）と全部の計（40 MB）の上限を見る。印のある葉が答えの葉の 2 割を超える本は知らせる（`notices`。今は 0 本）。
+  1.5 MB）と全部の計（40 MB）の上限を見る。印のある葉が答えの葉の 2 割を超える本は知らせる（`notices`。今は fs だけ: 答えがフォルダの道
+  そのものの本で、@WORK は道の頭だけを替える）。
 - **CI に似せた流し**（`program/tools/ci-shape.py`。`check-all.sh` の段 ci-shape）: 焼いた本の試験を全部、runner（root でない利用者 daemon・
   名前 runner・家は一時フォルダ・TMPDIR は /dev/shm・`/usr/bin/python3`・Python と比べる形）・nopy（root でない利用者・リポジトリが家の下・
   TZ=Asia/Tokyo・`TPA_NO_PYTHON=1`。Python の呼び出しを記録し、呼ばれた台本が app を import しない物だけかを見る。PATH の先に偽の python）・
@@ -2493,9 +2494,24 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 - **段 ④ の入口の条件**（採点の cut_line）: (1) 36 本のうち keep を除く 35 本が Python 無しで流れる（今は 28 本）・(2) **Windows の CI が焼いた表と
   比べている**（今は測るだけ）・(3) 凍らせる Python の写しがある。どれか欠けたら ④ に入らない。
 
-#### 版 3.116.0 の表の大きさ（焼いた 28 本・35 ファイル）
+#### 版 3.116.0 の表の大きさ（焼いた 28 本・34 ファイル。UTF-8 のバイト）
 
-@SIZES@
+| 本（表） | 大きさ（MB） | 歩 | 答えの葉 | そろえた印のある葉 |
+|---|---|---|---|---|
+| calc | 7.54 | 1,363 | 545,189 | 12（@HELD:） |
+| lotlist | 3.55 | 119 | 1,348,799 | 0 |
+| lists | 3.12 | 59 | 431,425 | 0 |
+| settings.pages | 1.05 | 447 | 98,571 | 308（@WORK・@USER・@BUILD ほか） |
+| conversions | 0.98 | 431 | 159,217 | 366（@USER・@HELD:・@T） |
+| settings.bundle | 0.39 | 85 | 25,157 | 549（@WORK・@USER・@REPO） |
+| presence | 0.11 | 147 | 2,322 | 22 |
+| ui_defaults | 0.04 | 52 | 747 | 12（@T） |
+| 7 本の計 | 16.78 | 2,703 | — | — |
+| 3.115.0 の 21 本（26 ファイル。変えていない） | 6.71 | 2,775 | — | — |
+| **全部の計（34 ファイル）** | **23.48** | 5,478 | — | — |
+
+採点の見込み（答え 約 19 MB・場面 約 4 MB）に対し、7 本で 16.8 MB（場面は台本の指紋にしたのでほぼ 0）。上限は calc 9・lotlist 5・lists 5・settings 6・
+ほか 1.5 MB、計 40 MB（`bless.py --check`）。数は `python program/tools/bless.py --stats --base origin/main`。
 
 #### 版 3.116.0 の後に残る任せる歩（11）と転送（比べる口 135）
 

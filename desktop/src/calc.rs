@@ -79,7 +79,8 @@ fn item<'a>(p: &'a Row, k: &str) -> R<&'a Value> {
 /// 鍵が字でない組（数・真偽・null の鍵）は、計算が引く鍵（字）に当たらないので外し、あったことを mixed に記す: 計算が最後まで進むと、
 /// 答えを書くとき（web.dumps の sort_keys）に字の鍵と比べられず TypeError になる（calculate の終わりで答える）
 fn py_dict(p: &Value, mixed: &mut bool) -> R<Row> {
-    let short = |i: usize, n: usize| Stop::Py("ValueError", format!("dictionary update sequence element #{i} has length {n}; 2 is required"));
+    let short =
+        |i: usize, n: usize| Stop::Py("ValueError", format!("dictionary update sequence element #{i} has length {n}; 2 is required"));
     match p {
         Value::Object(o) => Ok(o.clone()),
         Value::String(_) if crate::held::is_held(p) => Err(not_iterable(p)),
@@ -106,7 +107,9 @@ fn py_dict(p: &Value, mixed: &mut bool) -> R<Row> {
                         (json!(ks.next().unwrap()), json!(ks.next().unwrap()))
                     }
                     Value::Object(o) => return Err(short(i, o.len())),
-                    _ => return Err(Stop::Py("TypeError", format!("cannot convert dictionary update sequence element #{i} to a sequence"))),
+                    _ => {
+                        return Err(Stop::Py("TypeError", format!("cannot convert dictionary update sequence element #{i} to a sequence")))
+                    }
                 };
                 match k {
                     Value::String(s) if !crate::held::is_held(&Value::String(s.clone())) => {
@@ -815,7 +818,8 @@ pub fn calculate(cfg: &Value, m: &Masters, lot: &Value, inputs: &Value) -> R<Val
                 Some(j) => (n0(ps[j].get("width"))? - n0(p.get("width"))? * hs) / 2.0,
                 None => 0.0,
             };
-            let mark = |v: f64| json!({"from_head_m": fl(from_head(v)), "inner_length_m": fl(from_head(v)), "wall_mm": fl(wall(from_head(v)))});
+            let mark =
+                |v: f64| json!({"from_head_m": fl(from_head(v)), "inner_length_m": fl(from_head(v)), "wall_mm": fl(wall(from_head(v)))});
             let eqp = sstrip(p.get("equipment"))?;
             steps.push(json!({
                 "no": p["no"], "equipment": p["equipment"], "thickness": fl(t), "width": fl(n0(p.get("width"))?),

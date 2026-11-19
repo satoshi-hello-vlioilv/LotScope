@@ -182,8 +182,12 @@ fn presence_matches_python() {
             let got = swap_root(&got, rs, py);
             let key = format!("{name} #{i}");
             let w = bk.want_step(&key, st);
-            bk.note(&key, &format!("{} {}", st["method"].as_str().unwrap_or("beat"), st["path"].as_str().unwrap_or("")),
-                &json!({"status": status, "json": got}), &json!({"status": w.0, "json": w.1}));
+            bk.note(
+                &key,
+                &format!("{} {}", st["method"].as_str().unwrap_or("beat"), st["path"].as_str().unwrap_or("")),
+                &json!({"status": status, "json": got}),
+                &json!({"status": w.0, "json": w.1}),
+            );
             if w.1.to_string().contains("\\ud8") && !text.contains("\\ud8") {
                 bad.push(format!(
                     "{name} [{i}] Python の答えにある \\udXXX の字が窓の答えに無い: {}",

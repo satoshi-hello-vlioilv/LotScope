@@ -4667,7 +4667,8 @@ mod tests {
         let ans = |path: &str, b: &str| lot.handle_body_with("POST", path, "", b.as_bytes(), &ask).expect("窓が答える");
         let (st, v) = ans("/api/calculate", r#"{"lot": {"processes": []}}"#);
         assert_eq!((st, v["error"].as_str(), v["type"].as_str()), (400, Some("計算の入力に「inputs」がありません。"), Some("KeyError")));
-        let (st, v) = ans("/api/calculate", r#"{"lot": {"processes": [{"no": "x"}]}, "inputs": {"found_equipment": "1", "found_pitch_mm": 1}}"#);
+        let (st, v) =
+            ans("/api/calculate", r#"{"lot": {"processes": [{"no": "x"}]}, "inputs": {"found_equipment": "1", "found_pitch_mm": 1}}"#);
         assert_eq!((st, v["type"].as_str()), (400, Some("ValueError")), "{v}");
         assert_eq!(v["error"], "計算の入力に数で読めない値「x」があります（整数で書いてください）。");
         let big = r#"{"lot": {"processes": [{"no": 123456789012345678901234567890, "equipment": "TLV", "thickness": 1, "width": 1, "weight": 1}]},

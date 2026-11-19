@@ -55,7 +55,7 @@ class BakedTables(unittest.TestCase):
                 shutil.copy(p, tmp / p.name)
             t = json.loads((tmp / "presence.json").read_text(encoding="utf-8"))
             t["parts"].pop(next(iter(t["parts"])))
-            (tmp / "presence.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+            (tmp / "presence.json").write_text(json.dumps(t), encoding="utf-8")       # 対の無い代用字は \\udXXX のまま書く
             self.assertTrue(any(x.startswith("presence:") and "parts にありません" in x for x in bless.check(tmp)))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -68,7 +68,8 @@ class BakedTables(unittest.TestCase):
         self.assertLess(s["stamped"], s["leaves"] * bless.STAMP_SHARE, "計算の答えに印はほとんど無い")
         s = bless.stats_of(bless.BAKED / "settings.bundle.json")
         self.assertIn("@WORK", s["stamps"])
-        self.assertEqual(bless.notices(), [], "印のある葉が 2 割を超える本は無い")
+        # 知らせ（落とさない）: 印のある葉が 2 割を超えるのは fs だけ（答えがフォルダの道そのものの本。@WORK は道の頭だけを替え、後ろの段は比べる）
+        self.assertEqual([x.split(":")[0] for x in bless.notices()], ["fs"])
 
     def test_scene_scripts_and_truths_do_not_import_the_app(self):
         """場面の台本（Python 無しの形でも流す標準の Python）と独立の答えは program/app を import しない（版 3.116.0。ci-shape.py の確かめと同じ）"""
