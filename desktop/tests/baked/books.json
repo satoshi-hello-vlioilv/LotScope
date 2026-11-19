@@ -261,13 +261,14 @@
    ]
   },
   "conversions": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "conversions_write_parity"
    ],
    "sources": [
     "tests/conversions_oracle.py"
-   ]
+   ],
+   "why": "54 場面の歩の答えと終わった後のファイルを詰めた形で焼く（同じ中身の一覧が多い）"
   },
   "presence": {
    "phase": "3.116.0",
