@@ -2554,6 +2554,41 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 
 直していない物: 前からの場面の穴（lot_list.page_size の既定 500 がどの場面にも無い）は足していない（次の版で settings_oracle に場面を足す）。
 
+#### PR #116 の CI の直し（Linux の bundle_parity・page_parity）と、Windows の測りの数
+
+- **落ち方**: Linux の CI で `settings.bundle`「既定の中身だけ（master_defaults）.access.who.key: "vm@@USER" / "runnervm0hi8g@@USER"」・
+  `settings.pages`「…/api/update/settings.json.who.pc: "vm" / "runnervm0hi8g"」。名乗りを決めていない場面（配った設定の identity が空）の答えの
+  pc は PC の名前（ホスト名）で、焼いた表に手元の PC の名前「vm」が入っていた。手元の ci-shape の 3 つの形は PC の名前が同じで見つけられなかった。
+- **再現**: ci-shape がどの形も PC の名前を替えた名前空間（`unshare -u`。HOST_NAME = ci-shape-host）で流すようにし、直す前の表で同じ 2 本が同じ
+  言葉で落ちることを見た（`b3116/ci-shape5.log`）。
+- **直し**: 表の「pc」の欄の値が OS のホスト名そのもの（窓の名乗りの係を通さず /proc/sys/kernel/hostname から読む）のときだけ `@HOST` にそろえ、
+  名乗りの鍵も `@HOST` で作り直す（`bake.rs` の host_name。bake_selftest の `the_host_name_is_settled_only_in_the_pc_field`: ホスト名に 1 字足した
+  名前・FQDN・ほかの欄のホスト名はそのまま＝窓がホスト名を読み違えたら表との比べで落ちる）。settings を焼き直した。場面は変えていない
+  （ホスト名から名乗りを決める道を Python と突き合わせる場面なので、名前を固定しない）。
+- **Windows の測りの数**（PR #116 の Windows の仕事の `bless.py --measured` の出力。表 34・歩 5,807・**焼いた表（posix）と違う歩 206**）:
+
+| 表 | 歩 | 違う歩 | 違いの中身 |
+|---|---|---|---|
+| release_place | 122 | 83（ほかに表にあって答えない歩 104） | 道の区切り「\」・Windows だけの決め（装置の名前 COM0・相対の道）・権限 |
+| place | 81 | 64（答えない歩 2） | 置き場の道の書き方・Windows の道の門の言葉 |
+| fs | 46 | 24（答えない歩 8） | asked の区切り・短い名前 RUNNER~1 |
+| builder | 108 | 9 | OS の誤りの字（Errno 2 … / WinError 3 …） |
+| worklog_write | 165 | 9 | OS の誤りの字 |
+| mirror | 41 | 5 | OS の誤りの字 |
+| calc | 1,887 | **3** | 答えの最後の桁（乱数 2・24・29。C の pow などの数学の部品） |
+| settings.bundle | 85 | 3 | PC の名前（上で直した）・ログイン ID の読み方（Windows は USERNAME）・改行で 54 → 58 バイト |
+| settings_write | 105 | 3 | ブラウザの置き場の決め（Windows の道） |
+| settings.pages | 447 | 2 | PC の名前（上で直した）・ログイン ID |
+| masters | 50 | 1 | 道の区切り |
+| ほか 23 表 | 2,670 | 0 | — |
+
+  release_place.tables は答えない歩 84（Windows では流さない歩）。場面と問い合わせ（scene・oracle）は多くの表で違う（道・改行・権限）。
+  次の版の材料: 0 の 23 表は Windows でもそのまま表と比べられる。calc の 3 歩は上書き（variants.nt）、OS の誤りの字は「Errno n 言葉／WinError n 言葉」を
+  1 つの印にそろえる決まり（狭く・変異つき）か上書き、place・release_place・fs は上書きが大きい（道の書き方が違う）ので本ごとに決める。
+- **Windows の仕事の時間**（PR #116）: 80 分 11 秒（上限 90 分。余り 9 分 49 秒）。cargo test 40 分 32 秒（試験の計 2,237 秒。うち route_reach
+  1,120 秒）・release の組み立て 6 分・更新の通し 28 分。**余りが 10 分の目安に当たった**ので、次の版（3.117.0）の最初に route_reach を子の
+  プロセスに割る（採点の first_fixes 1 の決め）。3.116.0 の直しでは Windows の試験の時間を増やしていない（そろえる決まり 1 つと ci-shape だけ）。
+
 #### 時間（手元の check-all と CI の見込み）
 
 - 手元の check-all（`b3116/check1`・直す前）: js 9・cargo-build 37・fmt-clippy 33・py-tests 315・cargo-test 604・ci-shape 881・verify 2,146・

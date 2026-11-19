@@ -170,5 +170,12 @@
    "tests": ""
   }
  ],
- "checks_after_fix": "最後の check-all --verify の summary.txt と、ci-shape の全部の形（runner〈古い取り出し〉・nopy・nodns）の結果は主への報告に書く"
+ "checks_after_fix": "最後の check-all --verify の summary.txt と、ci-shape の全部の形（runner〈古い取り出し〉・nopy・nodns）の結果は主への報告に書く",
+ "ci_fix": {
+  "what": "PR #116 の Linux の CI で bundle_parity・page_parity が落ちた（settings.bundle の「既定の中身だけ（master_defaults）.access.who.key: vm@@USER / runnervm0hi8g@@USER」・settings.pages の「/api/update/settings.json.who.pc: vm / runnervm0hi8g」）。名乗りを決めていない場面の答えの pc は PC の名前（ホスト名）で、焼いた表に手元の PC の名前が入っていた",
+  "repro": "ci-shape がどの形も PC の名前を替えた名前空間（unshare -u・HOST_NAME ci-shape-host）で流すようにし、直す前の表で同じ 2 本が同じ言葉で落ちることを見た（python program/tools/ci-shape.py 記録 --shape nopy）",
+  "fixed": "表の「pc」の欄の値が OS のホスト名そのもの（窓の名乗りの係を通さず OS から直に読む）のときだけ @HOST にそろえ、名乗りの鍵も @HOST で作り直す。settings を焼き直した（2 回の焼きが同じ）。場面は変えていない",
+  "tests": "bake_selftest の the_host_name_is_settled_only_in_the_pc_field（ホスト名に 1 字足した名前・FQDN・ほかの端末の名前・pc でない欄のホスト名はそのまま・決まりを外すと残る）・ci-shape の 3 つの形（PC の名前を替えて 31・31・3 本）",
+  "windows_measure": "PR #116 の Windows の仕事の測り: 表 34・歩 5,807・焼いた表（posix）と違う歩 206（release_place 83・place 64・fs 24・builder 9・worklog_write 9・mirror 5・calc 3・settings.bundle 3・settings_write 3・settings.pages 2・masters 1・ほか 23 表は 0）。Windows の仕事は 80 分 11 秒（余り 9 分 49 秒）"
+ }
 }

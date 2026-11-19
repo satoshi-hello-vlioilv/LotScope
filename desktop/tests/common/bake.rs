@@ -75,6 +75,19 @@ pub fn build_stamp() -> &'static str {
     B.get_or_init(|| da_core::page::fingerprint(&super::program()))
 }
 
+/// この PC の名前（ホスト名）。窓の名乗りの係（bundle::pc_name）を通さず、OS から直に読む（Linux は /proc/sys/kernel/hostname・
+/// Windows は COMPUTERNAME）。名乗りを決めていない場面（配った設定の identity が空）の答えの pc はこの名前になるので、焼いた PC の名前を
+/// 表に持たないよう @HOST にそろえる（版 3.116.0 の PR #116 の CI の直し: 表に手元の「vm」が入り、CI の runner の名前で落ちた）
+pub fn host_name() -> Option<&'static str> {
+    static H: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    H.get_or_init(|| {
+        let name =
+            if cfg!(windows) { std::env::var("COMPUTERNAME").ok() } else { std::fs::read_to_string("/proc/sys/kernel/hostname").ok() };
+        name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty())
+    })
+    .as_deref()
+}
+
 /// OS の利用者の名前（Python の getpass.getuser と同じ順: LOGNAME・USER・LNAME・USERNAME）
 pub fn os_user() -> Option<&'static str> {
     static U: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -325,6 +338,8 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
     // 名乗りの表（{key, pc, …}）の鍵は「端末@利用者」（使えない字があれば _ にして sha1 の 6 字を足す。bundle::terminal_key）。
     // 鍵が「OS の利用者の名前と、となりの pc」から作った字そのもののときだけ、利用者を @USER にして作り直した字にそろえる
     let who_key = drop != Some("who.key");
+    // 名乗りの表の pc がこの PC の名前（ホスト名）そのもののときだけ @HOST に（名乗りを決めていない場面。鍵も @HOST で作り直す）
+    let host = drop != Some("@HOST");
     let today = chrono::Local::now().date_naive();
     let s = |t: &str| -> String {
         // 大きな整数の印（起動ごとの乱数つき）は @HELD: に。書いた人の言葉の「PC／名前 が」の名前は @USER に
@@ -364,6 +379,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
         keys: &'a [&'a str],
         names: &'a [&'a str],
         who_key: bool,
+        host: bool,
         near: bool,
         s: &'a dyn Fn(&str) -> String,
     }
@@ -384,11 +400,15 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             }
             Value::Object(o) => {
                 let mut out: Map<String, Value> = o.iter().map(|(k, x)| ((cx.s)(k), go(x, k, cx))).collect();
-                if let (true, Some(k), Some(pc), Some(u)) =
-                    (cx.who_key, o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user())
-                {
+                // この PC の名前（ホスト名）そのものの pc は @HOST（表の「pc」の欄だけ。ほかの欄・ほかの名前はそのまま比べる）
+                let pc = o.get("pc").and_then(Value::as_str);
+                let is_host = cx.host && pc.is_some() && pc == host_name();
+                if is_host {
+                    out.insert("pc".into(), json!("@HOST"));
+                }
+                if let (true, Some(k), Some(pc), Some(u)) = (cx.who_key, o.get("key").and_then(Value::as_str), pc, os_user()) {
                     if k == da_core::bundle::terminal_key(u, pc) {
-                        out.insert("key".into(), json!(da_core::bundle::terminal_key("@USER", pc)));
+                        out.insert("key".into(), json!(da_core::bundle::terminal_key("@USER", if is_host { "@HOST" } else { pc })));
                     }
                 }
                 Value::Object(out)
@@ -396,7 +416,7 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
             _ => v.clone(),
         }
     }
-    go(v, "", &Cx { keys: &keys, names: &names, who_key, near, s: &s })
+    go(v, "", &Cx { keys: &keys, names: &names, who_key, host, near, s: &s })
 }
 
 /// 区切り（crumbs: {name, path} の並び）のうち作業フォルダより上の段は 1 つの @ABOVE にまとめる（作業フォルダの深さ〈一時フォルダの場所〉に頼らない）

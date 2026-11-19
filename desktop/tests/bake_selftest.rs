@@ -650,3 +650,28 @@ fn packing_round_trips_without_repeats_and_for_random_tables() {
     }
     assert!(with_parts >= 50 && without >= 50, "重なりのある表 {with_parts}・無い表 {without} の両方を見る");
 }
+
+/// この PC の名前（ホスト名）は、表の「pc」の欄の値がホスト名そのもののときだけ @HOST にそろえる（PR #116 の CI の直し: 名乗りを決めて
+/// いない場面の答えに焼いた PC の名前が入り、CI の runner で落ちた）。名乗りの鍵も @HOST で作り直す。ほかの端末の名前・ほかの欄の
+/// ホスト名はそのまま比べる（窓の名乗りの係が違う名前を答えたら、表との比べで落ちる）。決まりを外すとホスト名が残る
+#[test]
+fn the_host_name_is_settled_only_in_the_pc_field() {
+    let base = common::work("bake-host");
+    let ctx = Ctx::new(&base);
+    let (Some(host), Some(u)) = (common::bake::host_name(), common::bake::os_user()) else { return };
+    let key = da_core::bundle::terminal_key;
+    let who = |pc: &str| json!({"who": {"key": key(u, pc), "pc": pc, "source": "ホスト名"}});
+    assert_eq!(settle(&who(host), &ctx, &[]), json!({"who": {"key": key("@USER", "@HOST"), "pc": "@HOST", "source": "ホスト名"}}));
+    // ほかの名前（窓がホスト名を読み違えた形: 先頭だけ・FQDN）はそのまま
+    for other in [format!("{host}x"), format!("{host}.example.invalid"), "PC-ORACLE".to_string()] {
+        assert_eq!(settle(&who(&other), &ctx, &[])["who"]["pc"], json!(other), "ほかの名前はそのまま");
+        assert_eq!(settle(&who(&other), &ctx, &[])["who"]["key"], json!(key("@USER", &other)));
+    }
+    // pc でない欄のホスト名・字の中のホスト名はそのまま
+    assert_eq!(
+        settle(&json!({"name": host, "text": format!("{host} から")}), &ctx, &[]),
+        json!({"name": host, "text": format!("{host} から")})
+    );
+    assert_eq!(settle_with(&who(host), &ctx, &[], Some("@HOST"))["who"]["pc"], json!(host), "決まりを外すとホスト名が残る");
+    let _ = std::fs::remove_dir_all(&base);
+}
