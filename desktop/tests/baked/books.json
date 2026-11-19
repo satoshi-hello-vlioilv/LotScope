@@ -310,7 +310,7 @@
    ]
   },
   "settings": {
-   "phase": "3.117.0",
+   "phase": "3.116.0",
    "tests": [
     "bundle_parity",
     "page_parity",
@@ -318,7 +318,9 @@
    ],
    "sources": [
     "tests/settings_oracle.py"
-   ]
+   ],
+   "maxMB": 6.0,
+   "why": "束（settings.bundle）と読む道 7 本（settings.pages）を詰めた形で焼く。route_reach は Python 無しの形で束の表の場面と道の型の並びを借りる（答えは数だけ）。変換表の版の印（rev）は窓と Python で別の字なので持たない"
   },
   "calc": {
    "phase": "3.116.0",

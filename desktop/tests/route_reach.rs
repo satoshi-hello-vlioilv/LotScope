@@ -106,7 +106,13 @@ fn forwarded(env: Env, routes: &[(String, String)]) -> Vec<String> {
 #[test]
 fn only_the_listed_route_types_go_to_python() {
     let work = common::work("reach");
-    let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
+    // 版 3.116.0: Python 無しの形（TPA_NO_PYTHON=1）では、束の焼いた表（tests/baked/settings.bundle.json）の場面と道の型の並びを借りる
+    // （この試験の答えは当たりの数だけで、予算 delegates_budget.json と比べる。表には書かない）
+    let o = if std::env::var("TPA_NO_PYTHON").is_ok_and(|v| !v.is_empty() && v != "0") {
+        common::bake::Bake::open_part("settings", "bundle", &work).oracle("settings_oracle.py", &[work.to_str().unwrap()])
+    } else {
+        common::python_json("settings_oracle.py", &[work.to_str().unwrap()])
+    };
     let budget: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/delegates_budget.json")).unwrap();
     let table = common::json_keep(include_bytes!("../../program/tests/fixtures/appsettings_cases.json")).unwrap();
     let allow = budget["routerForward"].as_array().expect("routerForward");
