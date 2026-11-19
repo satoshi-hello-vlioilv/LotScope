@@ -7,7 +7,7 @@
 （POST /api/calculate・POST /api/equipment/inspection）に本文を当てた答え（状態・本文）を出す。窓の試験は同じ置き場・設定で
 desktop/src/calc.rs に同じ本文を当て、窓が答えた物は Python と同じか、答えなかった物（Python に任せる形）は must でないかを見る。
     {"scenarios": [{"name", "conf": 窓へ渡す {who, place}, "calculation": 設定, "cases": [{"name", "path", "body": 字, "must", "status", "json"}]}]}
-2 乗は C の pow のまま（利用者の決め 2026-11-18。掛け算に替えない）。版 3.116.0 から窓の答えを焼いた表（desktop/tests/baked/calc.json）にも持つ。
+2 乗は C の pow のまま（利用者の決め。2026 年 11 月。掛け算に替えない）。版 3.116.0 から窓の答えを焼いた表（desktop/tests/baked/calc.json）にも持つ。
 Windows で最後の桁が違う歩は、Windows の測るだけの仕事（desktop.yml）が数える。
 """
 import copy

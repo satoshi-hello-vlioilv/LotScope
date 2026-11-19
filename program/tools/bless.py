@@ -9,6 +9,8 @@
     python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
     python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
                                             tests/test_baked_tables.py からも流れる）。違えば終了コード 1
+    python tools/bless.py --measured フォルダ … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
+                                            本ごとに「焼いた表（posix）と違う歩」の数と、違う葉の鍵・見本を出す（落とさない。終了コード 0）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
 
 焼いた表は desktop/tests/baked/<本>.json。焼くのは窓の試験（desktop/tests/common/bake.rs）で、この道具はそれを流して確かめるだけ。
@@ -397,6 +399,36 @@ def _bless_user(books):
     shutil.rmtree(home, ignore_errors=True)
 
 
+def measured(folder):
+    """測るだけの仕事の記録（desktop/tests/common/bake.rs が TPA_MEASURE のフォルダに書いた <表>.json）のまとめ。落とさない"""
+    files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
+    if not files:
+        print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません")
+        return
+    steps = differ = 0
+    for f in files:
+        try:
+            m = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError as e:
+            print(f"{f.stem}: 記録が読めません（{e}）")
+            continue
+        d = m.get("differing", [])
+        steps += m.get("steps", 0)
+        differ += len(d)
+        keys = {}
+        for x in d:
+            k = re.split(r"[.\[]", x.get("diff", "").split(":")[0])[-1].rstrip("]") or "?"
+            keys[k] = keys.get(k, 0) + 1
+        top = " ".join(f"{k}×{n}" for k, n in sorted(keys.items(), key=lambda kv: -kv[1])[:8])
+        extra = "".join(f"・{name} が違う" for name in ("oracle", "scene") if m.get(name))
+        print(f"{f.stem}（{m.get('os', '?')}）: 歩 {m.get('steps', 0)}・表と違う歩 {len(d)}・表にあって答えない歩 {len(m.get('missing', []))}{extra}"
+              + (f"・違う葉の鍵 {top}" if top else ""))
+        for x in d[:3]:
+            print(f"    {x.get('key', '')}（{x.get('route', '')}）: {x.get('diff', '')[:300]}")
+    print(f"計: 表 {len(files)} つ・歩 {steps}・焼いた表（posix）と違う歩 {differ}"
+          + ("（0 なら Windows でも表と比べられる。多ければ上書き variants.nt か、そろえる決まりを足す）"))
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -410,6 +442,9 @@ def main():
         for line in notices():
             print("  知らせ:", line)
         print(f"焼いた表は古くありません（{sum(1 for b in BOOKS if baked(b))} 本・{len(tables())} ファイル）")
+        return
+    if args[0] == "--measured":
+        measured(args[1] if len(args) > 1 else "")
         return
     if args[0] == "--stats":
         stats(args[args.index("--base") + 1] if "--base" in args else None)

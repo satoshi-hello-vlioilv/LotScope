@@ -7,6 +7,7 @@
 #   空きが --keep-free（既定 8 GB）より少なければ、確かめを始めずに止める（窓の通しは版を何度も写すので、空きが尽きると
 #   取り込みの段が「No space left on device」で落ち、コードの割れと見分けにくい）。
 # - 段ごとの記録は 記録のフォルダ/NN-名前.log。結果は終了コードと「Ran … / OK / FAILED」「test result」の行で読む（最後の 1 行で読まない）。
+# - 段 ci-shape（版 3.116.0）は、焼いた本の試験を CI に似せた形（root でない利用者・Python 無し・名前を引けない）で流す。
 # - --verify は窓の通し（desktop/bundle/verify.py の update と local〈Python の無い PC。版 3.111.0〉。起動・更新・配布の流れを変えたとき）も流し、終わったら作業フォルダを消す。
 # - どれか 1 つでも落ちれば終了コード 1（push しない）。
 set -u
@@ -75,6 +76,9 @@ step py-tests bash -c "cd program && python -m unittest discover -s tests -t ."
 step bundle-tests python -m unittest discover -s desktop/bundle -t desktop/bundle
 # --no-fail-fast: 落ちた本で止めず、全部の本を流す（CI と同じ。落ちた本があれば終了コードは 0 でない）
 step cargo-test bash -c "cd desktop && cargo test --locked --no-fail-fast"
+# 4b) CI に似せた形（版 3.116.0。root でない利用者・別の TMPDIR・SQLite の版が違う Python・リポジトリが家の下・時差・Python 無し・
+#     名前を引けない）で、焼いた本の試験を全部流す（program/tools/ci-shape.py。手元と CI の違いで初めて CI で落ちる形を先に見つける）
+step ci-shape python program/tools/ci-shape.py "$OUT/ci-shape"
 # 5) 窓の通し（起動・更新・配布の流れを変えたとき）
 if [ $VERIFY -eq 1 ]; then
   echo "空き（窓の通しの前）: $(free_gb) GB" | tee -a "$OUT/summary.txt"
