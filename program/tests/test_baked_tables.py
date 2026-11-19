@@ -187,6 +187,40 @@ class BakedTables(unittest.TestCase):
             shutil.rmtree(sys.argv[1], ignore_errors=True)
             ci.test_bins, os.geteuid, sys.argv = old
 
+    def test_ci_shape_runs_with_the_env_shape(self):
+        """ci-shape の環境変数の形（版 3.117.0）: プロキシは閉じた口・TLS の根の置き場は空・PC の名前を替える・nopy は umask 077 と LANG=C。
+        足す環境変数（bless の 2 回目の焼きの TPA_BLESS など）と、利用者を替えない形（as_root）も渡る。root でない・unshare の無い PC では流せない"""
+        import importlib.util
+        import os
+        spec = importlib.util.spec_from_file_location("ci_shape", PROGRAM / "tools" / "ci-shape.py")
+        ci = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ci)
+        if ci.cannot_run():
+            self.skipTest(f"形を流せない PC（{ci.cannot_run()}）")
+        tmp = Path(tempfile.mkdtemp(dir="/dev/shm" if Path("/dev/shm").is_dir() else None))
+        try:
+            os.chmod(tmp, 0o755)
+            dump = tmp / "dump.sh"       # 試験の実行ファイルの代わり: 環境変数・umask・PC の名前・利用者を書く
+            dump.write_text('#!/bin/sh\nenv\necho "umask=$(umask)"\necho "host=$(cat /proc/sys/kernel/hostname)"\necho "uid=$(id -u)"\n')
+            os.chmod(dump, 0o755)
+            import contextlib
+            import io
+            with contextlib.redirect_stdout(io.StringIO()):      # 「NG dump」（試験の実行ファイルでないので test result が無い）は出さない
+                ci.run_shape("nopy", {"dump": str(dump)}, tmp, False)
+            text = (tmp / "nopy-dump.log").read_text(encoding="utf-8")
+            for want in ("http_proxy=http://127.0.0.1:9", "HTTPS_PROXY=http://127.0.0.1:9", "no_proxy=", "LANG=C", "TPA_NO_PYTHON=1",
+                         "umask=0077", "host=ci-shape-host", "TZ=Asia/Tokyo"):
+                self.assertIn(want + "\n", text)
+            self.assertRegex(text, r"SSL_CERT_FILE=\S+/empty-cert\.pem\n")
+            self.assertNotIn("uid=0\n", text, "root でない利用者で流す")
+            with contextlib.redirect_stdout(io.StringIO()):
+                ci.run_shape("nopy", {"dump": str(dump)}, tmp, False, {"TPA_BLESS": "1", "TPA_BAKE_OUT": "/x"}, as_root=True)
+            text = (tmp / "nopy-dump.log").read_text(encoding="utf-8")
+            for want in ("TPA_BLESS=1", "TPA_BAKE_OUT=/x", "USER=root", "uid=0", "host=ci-shape-host"):
+                self.assertIn(want + "\n", text)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_the_windows_measure_summary_reads_the_records(self):
         """Windows の測るだけの仕事の記録のまとめ（bless.py --measured。落とさない）。流した形（Python と比べる形・表だけの形）ごとに
         別の行で出し、--json の行（仕事の記録）から記録を戻せる（版 3.117.0）"""
