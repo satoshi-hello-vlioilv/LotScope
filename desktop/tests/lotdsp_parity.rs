@@ -3,6 +3,11 @@
 //! 学びの覚え）と、作り物のブラウザ（tests/lotdsp_cdp_fake.py）で見えない Edge の係を通した答え・送った DevTools の命令の並びを出す。
 //! ここでは同じ設定・同じ設備マスタ・同じ作り物で窓の係に同じ本文を当て、答え・覚え・命令の並びが同じか（時刻と秒は伏せる）を見る。
 //! 窓は 9 本のどの形も自分で答える（Python に任せない）ことも確かめる。
+//!
+//! 版 3.117.0: 窓の答えを焼いた表（tests/baked/lotdsp.json）に持つ。Python 無しの形（TPA_NO_PYTHON=1）では、作り物の LotDsp の API と
+//! サイトを app を import しない台本（program/tests/fakes_serve.py lotdsp）で起こしたままにして、焼いた答えと比べる。作り物の URL
+//! （流すたびに変わるポート）は、表では名前つきの印 @URL(lotdsp)。作り物のブラウザを起こす包み（sh の台本）と、実行できないブラウザの
+//! 見本は、窓の試験の側（作業フォルダの rs/）に作る（答え合わせ役の側 py/ は Python だけの写しで、表の場面に持たない）。
 
 mod common;
 
@@ -28,6 +33,29 @@ fn hex(s: &str) -> Vec<u8> {
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
 }
 
+/// 作り物のブラウザ（program/tests/lotdsp_cdp_fake.py）を Edge として起こす包み（sh の台本）を dir/browser/chromium に作る → その道。
+/// 答え合わせ役（lotdsp_oracle.py の wrapper）と同じ形。Python は TPA_PYTHON（無ければ python3）
+fn wrapper(dir: &Path) -> String {
+    let d = dir.join("browser");
+    std::fs::create_dir_all(&d).unwrap();
+    let exe = d.join("chromium");
+    let py = common::bake::stdlib_python();
+    let fake = common::program().join("tests").join("lotdsp_cdp_fake.py");
+    std::fs::write(&exe, format!("#!/bin/sh\nexec \"{py}\" \"{}\" \"$@\"\n", fake.display())).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    exe.to_string_lossy().into_owned()
+}
+
+/// JSON の字の中の形（引用符の内側）
+fn esc(s: &str) -> String {
+    let t = serde_json::to_string(s).unwrap();
+    t[1..t.len() - 1].to_string()
+}
+
 fn lotdsp(local: &Path) -> Arc<Lotdsp> {
     let l = Arc::new(Lotdsp::new(local.to_path_buf(), Direct::real()));
     l.sync_learn.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -37,7 +65,16 @@ fn lotdsp(local: &Path) -> Arc<Lotdsp> {
 #[test]
 fn lotdsp_matches_python() {
     let base = common::work("lotdsp");
-    let (mut live, oracle) = common::Live::start("lotdsp_oracle.py", &["serve", base.join("py").to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("lotdsp", &base);
+    bk.pack = true;
+    // 表の問い合わせに Python の答えを持たない（歩の状態・本文・学びの覚え、見えない Edge の答え・命令の並び・残り・閉じた時期・かかった秒。
+    // 窓の答えは answers に持つ。かかった秒は流すたびに変わるので焼かない）
+    bk.strip = ["status", "json", "map", "result", "log", "left", "seconds", "closed"].iter().map(|s| s.to_string()).collect();
+    bk.strip_in = vec!["method", "name"];
+    // Python 無しの形では、作り物の LotDsp（API とサイト）を起こしたままの相手の台本で起こす
+    bk.fakes = Some(("fakes_serve.py", vec!["lotdsp".to_string()]));
+    let (live, oracle) = bk.live("lotdsp_oracle.py", &["serve", base.join("py").to_str().unwrap()]);
+    let mut live = live.expect("作り物の LotDsp を起こしたままにする相手");
     let mut bad: Vec<String> = vec![];
     let mut steps = 0;
     // ---------------------------------------------------------------- 道（作り物の API）
@@ -52,7 +89,7 @@ fn lotdsp_matches_python() {
         let l = lotdsp(&local);
         let mut li = sc["li"].clone();
         let equipment = sc["equipment"].as_array().unwrap().clone();
-        for st in sc["steps"].as_array().unwrap() {
+        for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
             if let Some(x) = st.get("li") {
                 li = x.clone();
@@ -69,26 +106,43 @@ fn lotdsp_matches_python() {
                 l.handle(route, st["query"].as_str().unwrap_or(""), &hex(st["body_hex"].as_str().unwrap()), &inp, &move || {
                     t0.elapsed().as_secs_f64()
                 });
-            if status as i64 != st["status"].as_i64().unwrap() {
+            let map = std::fs::read_to_string(local.join("lotdsp_api_map.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok());
+            let map = map.map(|m| mask(&m)).unwrap_or(Value::Null);
+            let key = format!("{name} #{i} {}", st.get("name").and_then(Value::as_str).unwrap_or(path));
+            let w = bk.want(&key, || json!({"status": st["status"], "json": st["json"], "map": st["map"]}));
+            let g = json!({"status": status, "json": mask(&got), "map": map});
+            bk.note(&key, &format!("{method} {path}"), &g, &w);
+            let (g, w) = (bk.s(&g), bk.s(&w));
+            if g["status"] != w["status"] {
                 bad.push(format!(
                     "{case}: 状態 Python {} / 窓 {status}: {}",
-                    st["status"],
+                    w["status"],
                     got.to_string().chars().take(300).collect::<String>()
                 ));
                 continue;
             }
-            if let Some(d) = common::diff(&st["json"], &mask(&got), "") {
+            if let Some(d) = common::diff(&w["json"], &g["json"], "") {
                 bad.push(format!("{case}: {d}"));
             }
-            let map = std::fs::read_to_string(local.join("lotdsp_api_map.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok());
-            let map = map.map(|m| mask(&m)).unwrap_or(Value::Null);
-            if let Some(d) = common::diff(&st["map"], &map, "") {
+            if let Some(d) = common::diff(&w["map"], &g["map"], "") {
                 bad.push(format!("{case}: 学びの覚え {d}"));
             }
         }
     }
     // ---------------------------------------------------------------- 見えない Edge（作り物のブラウザ）
-    let browser = oracle["browser"].as_str().unwrap().to_string();
+    // 作り物のブラウザの包みと、実行できないブラウザの見本は窓の試験の側（rs/）に作る。答え合わせ役の場面の設定（li）の道（py/）は rs/ に読み替え、
+    // 窓の答えの中の道は py/ に戻してから比べる（Python の答えと同じ字・表も同じ字）
+    let browser = wrapper(&base.join("rs"));
+    let noexec = base.join("rs").join("noexec").join("chromium");
+    std::fs::create_dir_all(noexec.parent().unwrap()).unwrap();
+    std::fs::write(&noexec, "not a program\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&noexec, std::fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    let (py_dir, rs_dir) = (esc(&base.join("py").to_string_lossy()), esc(&base.join("rs").to_string_lossy()));
+    let swap = |v: &Value, from: &str, to: &str| -> Value { serde_json::from_str(&v.to_string().replace(from, to)).unwrap() };
     let site = format!("{}/LotDspWeb/", oracle["base"].as_str().unwrap());
     for (i, sc) in oracle["direct"].as_array().unwrap().iter().enumerate() {
         let name = sc["name"].as_str().unwrap();
@@ -102,16 +156,30 @@ fn lotdsp_matches_python() {
                 }
                 continue;
             }
-            if let Some(x) = watch_scenario(sc, &browser, &site, &base.join("rs").join("direct-watch")) {
-                bad.push(format!("見えない Edge / {name}: {x}"));
+            let key = format!("見えない Edge / {name}");
+            let w = bk.want(&key, || json!({"closed": sc["closed"], "log": sc["log"]}));
+            match watch_scenario(sc, &browser, &site, &base.join("rs").join("direct-watch")) {
+                Err(x) => bad.push(format!("見えない Edge / {name}: {x}")),
+                Ok(g) => {
+                    bk.note(&key, "direct watch", &g, &w);
+                    let (g, w) = (bk.s(&g), bk.s(&w));
+                    if g["closed"] != w["closed"] {
+                        bad.push(format!("見えない Edge / {name}: 閉じた時期 Python {} / 窓 {}", w["closed"], g["closed"]));
+                    }
+                    if let Some(x) = common::diff(&w["log"], &g["log"], "") {
+                        bad.push(format!("見えない Edge / {name}: 送った命令 {x}"));
+                    }
+                }
             }
             continue;
         }
         let d = base.join("rs").join(format!("direct-{i}"));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
+        // 台本つきの場面（作り物のブラウザを起こす）は、一時プロファイルの残りと送った命令の並びも比べる
+        let scripted = sc.get("script").is_some();
         let li = match sc.get("li") {
-            Some(li) => li.clone(),
+            Some(li) => swap(li, &py_dir, &rs_dir),
             None => {
                 let mut script = sc["script"].clone();
                 script["href"] = json!(format!("{site}#/lotdsp"));
@@ -138,30 +206,40 @@ fn lotdsp_matches_python() {
         };
         direct.shutdown();
         let left = temp_profiles(&tmp).len();
-        if let Some(x) = common::diff(&sc["result"], &got, "") {
+        let log: Vec<Value> =
+            std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+        let key = format!("見えない Edge / {name}");
+        let w = bk.want(&key, || json!({"result": sc["result"], "left": sc["left"], "log": sc["log"]}));
+        let g = if scripted {
+            json!({"result": got, "left": left, "log": log})
+        } else {
+            json!({"result": swap(&got, &rs_dir, &py_dir), "left": null, "log": null})
+        };
+        bk.note(&key, "direct", &g, &w);
+        let (g, w) = (bk.s(&g), bk.s(&w));
+        if let Some(x) = common::diff(&w["result"], &g["result"], "") {
             bad.push(format!("見えない Edge / {name}: 答え {x}"));
         }
-        if sc.get("left").is_some() && left as i64 != sc["left"].as_i64().unwrap() {
-            bad.push(format!("見えない Edge / {name}: 一時プロファイルの残り Python {} / 窓 {left}", sc["left"]));
+        if scripted && g["left"] != w["left"] {
+            bad.push(format!("見えない Edge / {name}: 一時プロファイルの残り Python {} / 窓 {}", w["left"], g["left"]));
         }
-        if sc.get("log").is_some() {
-            let log: Vec<Value> =
-                std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
-            if let Some(x) = common::diff(&sc["log"], &Value::Array(log.clone()), "") {
-                bad.push(format!("見えない Edge / {name}: 送った命令 {x}\n  Python {}\n  窓     {}", sc["log"], Value::Array(log)));
+        if scripted {
+            if let Some(x) = common::diff(&w["log"], &g["log"], "") {
+                bad.push(format!("見えない Edge / {name}: 送った命令 {x}\n  Python {}\n  窓     {}", w["log"], g["log"]));
             }
         }
     }
     live.send("");
     drop(live);
-    let _ = std::fs::remove_dir_all(&base);
     println!("道 {steps} 歩・見えない Edge {} 場面", oracle["direct"].as_array().unwrap().len());
     assert!(steps >= 150, "歩が少ない: {steps}");
+    bk.finish(&bad);
+    let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
 /// 差し替えた時計（本物の時計＋進めた秒）で、見張りが Browser.close を出す時期が Python と同じか（作った後の採点の足りない突き合わせ）
-fn watch_scenario(sc: &Value, browser: &str, site: &str, d: &Path) -> Option<String> {
+fn watch_scenario(sc: &Value, browser: &str, site: &str, d: &Path) -> Result<Value, String> {
     use std::sync::{Condvar, Mutex};
     let _ = std::fs::remove_dir_all(d);
     std::fs::create_dir_all(d).unwrap();
@@ -192,7 +270,7 @@ fn watch_scenario(sc: &Value, browser: &str, site: &str, d: &Path) -> Option<Str
     let cfg = Cfg::from(&li, d).unwrap();
     let closed = || std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().contains("Browser.close");
     if let Err(e) = direct.fetch("L7150C0", &cfg, false) {
-        return Some(format!("読めない {e:?}"));
+        return Err(format!("読めない {e:?}"));
     }
     let mut got = vec![closed()];
     for s in sc["steps"].as_array().unwrap() {
@@ -202,12 +280,9 @@ fn watch_scenario(sc: &Value, browser: &str, site: &str, d: &Path) -> Option<Str
         got.push(closed());
     }
     direct.shutdown();
-    if json!(got) != sc["closed"] {
-        return Some(format!("閉じた時期 Python {} / 窓 {}", sc["closed"], json!(got)));
-    }
     let log: Vec<Value> =
         std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
-    common::diff(&sc["log"], &Value::Array(log), "").map(|x| format!("送った命令 {x}"))
+    Ok(json!({"closed": got, "log": log}))
 }
 
 fn temp_profiles(dir: &Path) -> Vec<std::path::PathBuf> {

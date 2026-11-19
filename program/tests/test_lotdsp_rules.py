@@ -487,20 +487,7 @@ class Routes(unittest.TestCase):
 
 
 # ------------------------------------------------------------------ 作った後の採点（版 3.98.0）で見つけた割れ
-def with_cells(cells):
-    """見本の画面の実績の行（上から）の、板厚・板幅・重量の字を替える。cells: [(板厚, 板幅, 重量) か None]"""
-    import re
-    from tests.test_lotdsp_api import ACTUAL_ROW, FIXTURE
-    s = FIXTURE
-    for row, c in zip(ACTUAL_ROW.findall(FIXTURE), cells):
-        if c is None:
-            continue
-        new = row
-        for cls, v in zip(("prog-jbx", "prog-jby", "prog-jbrw"), c):
-            if v is not None:
-                new = re.sub(r'(<span class="' + cls + r' ng-binding">)[^<]*', lambda m, v=v: m.group(1) + v, new, count=1)
-        s = s.replace(row, new, 1)
-    return s
+from tests.lotdsp_samples import with_cells  # noqa: E402  （見本は app を import しない置き場に。版 3.117.0）
 
 
 class Units(unittest.TestCase):

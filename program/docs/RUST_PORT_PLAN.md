@@ -2493,6 +2493,8 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   少なければ次の版で上書き（`variants.nt`）と「Windows でも表と比べる」に切り替える。
 - **段 ④ の入口の条件**（採点の cut_line）: (1) 36 本のうち keep を除く 35 本が Python 無しで流れる（今は 28 本）・(2) **Windows の CI が焼いた表と
   比べている**（今は測るだけ）・(3) 凍らせる Python の写しがある。どれか欠けたら ④ に入らない。
+  （版 3.117.0 で書き直した: (2) は「Windows の CI が **Python 無しの形（TPA_NO_PYTHON=1）で**焼いた表と比べている」・(4) ③-6 が現場で 1 回通った、を足した。
+  下の「段 ④ の入口まで」）
 
 #### 版 3.116.0 の表の大きさ（焼いた 28 本・34 ファイル。UTF-8 のバイト）
 
@@ -2612,6 +2614,107 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   焼く。Python があるうちに「台本が作った場面で変わる葉がキーだけ」を 1 回突き合わせる（採点の first_fixes 9）。
 - Windows の上書き（`variants.nt`）と「Windows でも表と比べる」: 測るだけの仕事の数を見てから。
 - `/api/sources/a%2Fb/columns` の道なしの 404 は段 ④。
+
+### 段 ④ の入口まで（小さい版 4 つ）の 1 つ目: 時間の手当て・土台・Windows の測り直し・起こしたままの相手 — 版 3.117.0
+
+案と採点は `tools/ui-proposals/2026-11-stage3f.json`（決まり 2026-11-06。1 位は案 G「小さい版を 4 つ刻む」・60.0 点。届かないので、採点の指摘
+first_fixes の 16 を入れた形で作る。作った形はファイルの `built_plan`）。3.115.0・3.116.0 は太い版が途中で切れ、焼いた表が焼いた PC に頼る割れ
+（12 種のうち 8 種）を CI で初めて知った。そこで、段 ④（Python を外す。3.118.0）の入口までを **どこで止まっても main に入る順の 4 版**に刻む。
+
+| 版 | 入れる物 | 焼く本（Python 無しで流れる本の数） |
+|---|---|---|
+| **3.117.0（この版）** | Windows の仕事を 2 つに割る・Windows の測りを ④ の後の形でも取る・土台（別の PC の形で 2 回目を焼く・PC の指紋の見張り・環境変数の形）・起こしたままの相手 | equipgroups・lotdsp（@BOOKS@/35） |
+| 3.117.1 | ③-6（CM3 の https・システムのプロキシを窓が取る。native-tls・戻り道の設定つき）・schedule の直し | schedule |
+| 3.117.2 | 場面の台本（ui_server.build・ops-bench の場面を作業フォルダの下・決めたキーで。routes の inode の使い回しを止める） | pivot・routes・dashboard・ops（35/35） |
+| 3.117.3 | Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書 | — |
+
+**段 ④ の入口の条件**（どれか欠けたら ④ に入らない）:
+1. 36 本のうち keep を除く 35 本が Python 無しで流れる（この版で @BOOKS@ 本）
+2. **Windows の CI が、Python 無しの形（`TPA_NO_PYTHON=1`。表の宣言から場面を作る形）で焼いた表と比べている**（Python と比べる形は ④ まで残す）。
+   前の書き方「Windows の CI が焼いた表と比べている」は、どちらの形かを決めていなかった。④ の後に残るのは表の宣言から場面を作る形だけで、
+   その形は Windows で 1 度も流れていなかった（3.116.0 の測りは Windows の Python が場面を作る形だけ。PR #116 の記録では 34 表のうち
+   問い合わせが違う 27・場面が違う 12）。この版から、その形の数を毎回の Windows の CI が出す（測るだけ）
+3. 凍らせる Python の写しがある（3.117.3 に 1 回だけ写す）
+4. ③-6 が現場の PC で 1 回通った（利用者の確認。3.117.1 を配った後）
+
+#### ① Windows の仕事を 2 つに割った（`.github/workflows/desktop.yml`）
+
+1 つの仕事 windows は約 80 分で、上限 90 分に余りが約 10 分しか無かった（PR #116: cargo test 40.5 分〈route_reach 1,120 秒〉・release の組み立て 6 分・
+自己診断 3 分・更新の通し 28 分）。試験（debug）と exe（release）は別の組み立てなので、割っても組み直しは増えない。
+
+| 仕事 | 段 | 見込み |
+|---|---|---|
+| `windows-test` | cargo test（`TPA_MEASURE`。Python と比べる形）→ 焼いた本を `TPA_NO_PYTHON=1` でもう 1 回（測るだけ・落ちても続ける）→ 2 つの形の数 → Windows の本物で流す Python の試験 4 段 → 測りの記録の成果物 `desktop-windows-measure` | 約 44 分＋表だけの形 数分 |
+| `windows-exe` | release の exe → 自己診断（本物の WebView2）→ 更新の通し → 配る ZIP → 成果物 `desktop-windows`（名前は前と同じ） | 約 39 分 |
+| `release` | `needs: [windows-test, windows-exe]`（main だけ） | — |
+
+手で起こすとき（workflow_dispatch）は入力 `only=windows-test` で試験と測りだけを流せる。rust-cache の鍵には仕事の名前が入るので、割った後の最初の 1 回は
+両方とも空から組む。**実際の時間は、この版の最初の CI の記録で確かめる**（手元では流せない。yml は PyYAML で読み、仕事・段・needs・if を読み直した）。
+
+#### ② Windows の測りを ④ の後の形でも取る
+
+- `bake.rs`: 測りの記録（`TPA_MEASURE`）を、表の宣言から場面を作る形（`Mode::Baked`）でも書く（記録の `form`: python／table）。その形では試験そのものが
+  表（posix の答え）と比べて落ちるので、記録は finish に届かなくても手放すとき（Drop）に書き（`finished: false`）、場面を作れなかった理由は
+  `sceneError` に残す（`bake_selftest` の `measuring_counts_the_steps_that_differ_without_failing`）。
+- `bless.py --measured フォルダ… [--json]`: 形ごとに別の行で「違う歩・答えない歩・場面を作れなかった表・終わりまで流れなかった表」を出す。`--json` は記録そのものを
+  1 表 1 行でも出し、`bless.py --from-log 記録 出力フォルダ` で仕事の記録から戻せる（PR #116 は成果物の置き場に届かず、記録の出力から数えた）。
+- 改行の元（first_fixes 5）: settings.bundle の「途中で切れた（54／58 バイト）」は、取り出しの CRLF ではなく**答え合わせ役の write_text の改行の変換**
+  （Windows の text mode が `\n` を `\r\n` にする。`settings_oracle.write` が indent つきの JSON を書き、場面が read_bytes の半分で切る）。
+  → `settings_oracle.write` は `newline="\n"`。あわせて、取り出しのマスタを場面へ写す本のために `.gitattributes` で
+  program/data・config・app/master_defaults・tests/fixtures・desktop/tests/baked の `*.json` を `-text` にした（配る物の要約は前から改行を LF にそろえて数える）。
+  ほかの答え合わせ役の write_text（約 200 か所）は直していない: 表だけの形では場面を表の宣言（posix のバイト）から作るので、④ の後には残らない違い。
+
+#### ③ 土台（採点の K1〜K4。first_fixes 7・8）
+
+- **K1 2 回目の焼きを別の PC の形で**（薄い作り）: `bless.py` の 2 回目は、`ci-shape.py` の runner の形（PC の名前を替えた名前空間・TMPDIR は /dev/shm・
+  `/usr/bin/python3`〈SQLite の版が違う〉・取り出しは 5 日前の 775/664・プロキシと TLS の根の環境変数）を呼ぶだけ（`run_shape(…, extra, as_root=True)`。
+  名前空間の作りは ci-shape の 1 つ）。利用者は root のまま（表の本の答えは root で焼く。root でない利用者の歩は `--user` と ci-shape の runner の形）。
+  流せない PC（root でない・unshare が無い）では焼かない。**確かめ**: そろえる決まり @HOST を外して（`TPA_SETTLE_DROP=@HOST`）settings を焼くと、
+  2 回目が「1 回目と 2 回目（別の PC の形）が違う: …access.who.key: vm@@USER / ci-shape-host@@USER」で止め、元の表に戻した（PR #116 の割れを焼くときに知る形）。
+- **K2 PC の指紋の見張り**: `bless.py --check`（py-tests で毎回）と焼いた直後に、表の字に残った焼いた PC の指紋を落とす。測りで実際に残りかけた 4 種:
+  この PC の名前・一時フォルダの下の作業フォルダ（da-・tpa-）・流すたびに変わるポート（127.0.0.1 の 4〜5 桁。場面が決めた閉じた口 :1 はそのまま）・
+  ファイルID（装置:inode）。`tests/test_baked_tables.py` の `test_tables_keep_no_marks_of_the_baking_pc`（1 つずつ書き込むと落ちる・許す形は落ちない）。
+  採点の K2 にあった「指紋を表の bakedOn に持つ」は入れていない（34 表の全部を書き換える。名前と一時フォルダは焼いた PC で流したときに効けば足りる）。
+- **K3 場面で決める**（この版の分）: (e) 窓の試験は頭でプロキシ（名前が _proxy で終わる環境変数）と TLS の根の置き場（SSL_CERT_FILE・SSL_CERT_DIR）を外す
+  （`common::clean_env`。答え合わせ役・場面の台本を起こす所も外す）。`oracle_gate.py` は変えていない（16 本の元の指紋で、変えると 16 本を焼き直す。
+  答え合わせ役は窓の試験が起こすので、起こす所の 1 か所で足りる）。(b) lotdsp のかかった秒（direct[].seconds）は表の問い合わせから落とす。
+  (a)(c)(d)（キー 2 つの差し替え・dashboard の at・@UI と @OPS を消す）は 3.117.2。
+- **K4 ci-shape に環境変数の形**: どの形も、プロキシは閉じた口・TLS の根の置き場は空で流す（試験が外し忘れた道はここで落ちる）。runner は LANG=ja_JP.UTF-8、
+  ほかは LANG=C。nopy は umask 077。名前を引く本（nodns）に lotdsp を足した。
+- そろえる決まり（settle.json）は足していない。足したのは名前つきの URL（下）だけ。
+
+#### ④ 起こしたままの相手（first_fixes 14）
+
+窓の突き合わせの試験のうち 3 本（equipgroups・lotdsp・schedule）は、答え合わせ役を起こしたまま、同じ作り物のサーバーに問い合わせる。
+④ の後も作り物は試験の道具として残るので、起こす所を app から切り離した。
+
+- `tests/fakes_serve.py`（app を import しない入口）: `python tests/fakes_serve.py 種類` が `tests/fakes_<種類>.py` の start() を呼び、最初の 1 行に
+  `{"urls": {名前: URL}}` を書いて標準入力が閉じるまで起こしたままにする（尋ねられる口 ask があれば 1 行ごとに答える。schedule の requests・count 用）。
+  種類を足しても入口は変わらない（入口は equipgroups・lotdsp の元の指紋に入っている）。
+  - `fakes_equipgroups.py`: 作り物の CM3（L-1 の予定 6 行。`schedule_fixture`）
+  - `fakes_lotdsp.py`: 作り物の LotDsp の API とサイト。答えの表は焼いた見本 `tests/fixtures/lotdsp_fake_tables.json`
+- 答え合わせ役（`equipgroups_oracle.py`・`lotdsp_oracle.py`）も同じ start() で同じ作り物を起こし、答えの `urls` で名乗る（作り物の中身は 1 か所）。
+  切り出しの前後で lotdsp の答え合わせ役の答え（30.5 MB）はポートとかかった秒（2 葉）のほか同じ。
+- `bake.rs`: `Bake::fakes`（Python 無しの形で、答え合わせ役の代わりにこの台本を標準の Python〈-I〉で起こしたままにする）・名前つきの URL
+  （`Ctx::url_named`。場面・問い合わせ・答えの中の URL は `@URL(名前)`、種類の付かない番地:ポートは `@ADDR(名前)`。作り直すときに今の URL へ戻す。
+  そろえるのは起こした URL そのものだけで、ほかのポート・桁の続くポートはそのまま。`bake_selftest` の `urls_of_live_fakes_are_settled_by_name_and_come_back`）。
+  変異: 起こしたままの相手を起こさないと、Python 無しの形の equipgroups が落ちる。
+- **lotdsp の見本**: 採点の「見本（FIXTURE・entity_of・html_with_offs・with_cells）を app を import しない置き場へ移す」のうち、**entity_of は移せない**
+  （画面の見本を app の読み手 lotdsp_progress で読んで作り物の API の JSON を作る。採点の測りは import だけを見ていた）。→ 見本と崩し方
+  （FIXTURE・html_with_offs・with_cells・to_moment）は `tests/lotdsp_samples.py`（app なし）へ移し、作り物の API の答えは表に焼いた
+  （`tests/fixtures/lotdsp_fake_tables.json`。焼くのは `python program/tools/lotdsp-fake-tables.py`、古い表は `tests/test_lotdsp_fake_tables.py` が止める）。
+- **schedule の作り物（World・blackhole）の切り出しは 3.117.1**（schedule を焼く版。入口 `fakes_serve.py` はそのまま使え、`fakes_schedule.py` を足すだけ）。
+
+#### ⑤⑥ 焼いた本
+
+@BAKED@
+
+#### この版の後に残る物
+
+- 任せる歩は 11 のまま（比べる口 7・③-6 の 3・戻したキーに / がある道 1。Windows だけ 2）。③-6（3.117.1）で 11 → 8・Windows だけ 2 → 0。
+- 3.117.1: ③-6・K5（schedule を焼く前の直し 3 つ）・schedule・`fakes_schedule.py`。3.117.2: `tests/scenes/ui_scene.py`（inode の直し）と pivot・routes・dashboard・ops。
+  3.117.3: Windows の切り替え・凍らせる写し。
+- Windows の測りの 2 つの形の数と、仕事を割った後の時間は、この版の最初の Windows の CI の記録から読む（`bless.py --from-log`）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

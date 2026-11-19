@@ -15,7 +15,7 @@ spec.loader.exec_module(bless)
 
 
 # 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
-BOOKS_3117 = {"3.117.0": ["equipgroups"], "3.117.1": ["lotdsp", "schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
+BOOKS_3117 = {"3.117.0": ["equipgroups", "lotdsp"], "3.117.1": ["schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
 
 
 class BakedTables(unittest.TestCase):
@@ -88,6 +88,7 @@ class BakedTables(unittest.TestCase):
         spec.loader.exec_module(ci)
         # 版 3.117.0: 起こしたままの相手の台本（作り物の CM3 など）と、その作り物も
         for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py", "tests/fakes_serve.py", "tests/schedule_fixture.py", "tests/lotdsp_cdp_fake.py"] \
+                + [f"tests/{p.name}" for p in (PROGRAM / "tests").glob("fakes_*.py")] \
                 + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
             self.assertIsNone(ci.imports_app(PROGRAM / rel), rel)
         self.assertEqual(ci.imports_app(PROGRAM / "tests" / "lists_oracle.py"), "lists_oracle.py", "答え合わせ役は app を import する（見つける側の確かめ）")
@@ -309,6 +310,38 @@ class BakedTables(unittest.TestCase):
             t["routes"]["x"] = "GET /x"
             (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
             self.assertTrue(any(x.startswith("builder: 焼いた PC の指紋") and "ポート" in x for x in bless.check(tmp)))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_two_bakes_compare_sqlite_files_by_content(self):
+        """2 回の焼きの比べは、場面の SQLite のファイルを作った SQLite の版によらない形で比べる（版 3.117.0。2 回目は SQLite の版が違う Python で流す）。
+        頭の版の番号・変更の数だけが違うファイルは同じ・行が 1 つ違えば違う・SQLite でない物はバイトのまま"""
+        import base64
+        import sqlite3
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            def db(name, rows):
+                c = sqlite3.connect(tmp / name)
+                c.execute("CREATE TABLE t (a, b)")
+                c.executemany("INSERT INTO t VALUES (?, ?)", rows)
+                c.commit()
+                c.close()
+                return (tmp / name).read_bytes()
+            one = db("a.sqlite3", [(1, "x"), (2, "y")])
+            # 別の版の SQLite が書いた形: 頭の「書いた版の番号」（96〜99）と「変更の数」（24〜27・92〜95）だけを変える
+            other = bytearray(one)
+            other[96:100] = (3045001).to_bytes(4, "big")
+            other[24:28] = other[92:96] = (9).to_bytes(4, "big")
+            two = db("b.sqlite3", [(1, "x"), (2, "z")])
+
+            def table(data):
+                return {"oracle": {}, "answers": {}, "scene": {"files": {"x.sqlite3": {"blob": "h"}}, "dirs": {}, "links": {},
+                                                               "blobs": {"h": {"b64": base64.b64encode(bytes(data)).decode()}}}}
+            self.assertNotEqual(bytes(other), one)
+            self.assertIsNone(bless.first_diff(bless.comparable(table(one)), bless.comparable(table(other))))
+            self.assertIsNotNone(bless.first_diff(bless.comparable(table(one)), bless.comparable(table(two))))
+            self.assertIsNone(bless.sqlite_logical(b"SQLite format 3\0" + b"x" * 200), "開けない物は None（バイトのまま比べる）")
+            self.assertIsNotNone(bless.first_diff(bless.comparable(table(b"abc")), bless.comparable(table(b"abd"))))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

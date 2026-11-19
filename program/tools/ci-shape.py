@@ -128,6 +128,9 @@ def python_calls_ok(log):
             continue
         s = script_of(args)
         hit = imports_app(s) if s else None
+        if s and Path(s).name == "fakes_serve.py" and not hit:
+            # 起こしたままの相手の入口: 種類ごとの作り物（tests/fakes_<種類>.py。名前で読む）も見る
+            hit = next((h for a in args for h in [imports_app(Path(s).with_name(f"fakes_{a}.py"))] if h), None)
         if hit:
             bad.append(f"Python 無しの形で program/app を import する台本が呼ばれた: {s}（{hit}）")
     return bad

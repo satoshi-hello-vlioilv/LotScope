@@ -4,7 +4,8 @@
     python tests/lotdsp_oracle.py serve 作業フォルダ
 
 作り物の LotDsp の API（道 /<札>/service/lotdsp/search//searchAction・ロット番号ごとの答え）と、作り物の LotDsp のサイト（届くかの
-確かめ用）を起こし、場面ごとに Python の道（routes/lots.py。Flask の試験の口）へ同じ本文を当てた答え（状態・本文）と、1 歩ごとの
+確かめ用）を起こし（版 3.117.0 から、app を import しない台本 tests/fakes_serve.py の種類 lotdsp＝tests/fakes_lotdsp.py。Python 無しの形の
+窓の試験も同じ台本を起こす。答えの表は焼いた見本 tests/fixtures/lotdsp_fake_tables.json）、場面ごとに Python の道（routes/lots.py。Flask の試験の口）へ同じ本文を当てた答え（状態・本文）と、1 歩ごとの
 学びの覚え（lotdsp_api_map.json）を出す。窓の試験は同じ設定・同じ設備マスタ・同じ作り物で窓の係（src/lotdsp.rs）に同じ本文を当て、
 答えと覚えが同じかを見る（時刻・秒は伏せる）。見えない Edge の係は、作り物のブラウザ（tests/lotdsp_cdp_fake.py）を Edge として起こし、
 答え・送った DevTools の命令の並びを出す（窓は同じ台本で同じ並びを送るか）。最初の 1 行（JSON）を出したあとは、標準入力が閉じるまで
@@ -18,7 +19,6 @@ import sys
 import tempfile
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
@@ -29,57 +29,11 @@ from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import lotdsp_api as api  # noqa: E402
 from app.services import lotdsp_direct as D  # noqa: E402
-from tests.test_lotdsp_api import FIXTURE, entity_of, html_with_offs  # noqa: E402
-from tests.test_lotdsp_rules import with_cells  # noqa: E402
+from tests import fakes_serve, lotdsp_samples  # noqa: E402
+from tests.lotdsp_samples import FIXTURE, with_cells  # noqa: E402
 
-OFFS = [("12.5", "3.0"), ("", "4.5"), ("7.2", ""), ("1.1", "2.2")] + [("", "")] * 6
 TAB = ('<table><tr><td><a class="MniTabLnk">ICAS情報</a></td><td class="MniTabTblSelTd"><div class="MniTabSelTxt" title="Current Selection:">'
        '<span class=" disabled TabPad">進度情報</span></div></td></tr></table>')
-
-# ------------------------------------------------------------------ 作り物の LotDsp の API
-TABLES = {}          # 札 → {ロット番号: (状態, 本文のバイト, 待つ秒)}
-
-
-def jb(x):
-    return json.dumps(x, ensure_ascii=False).encode("utf-8")
-
-
-class Api(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.0"
-
-    def do_POST(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(n)
-        try:
-            lot = json.loads(raw or b"{}").get("lotNo")
-        except ValueError:
-            lot = None
-        tag = self.path.strip("/").split("/", 1)[0]
-        status, body, wait = TABLES.get(tag, {}).get(lot, (200, jb({"status": "OK", "entity": {"searchKeyInfos": []}}), 0))
-        time.sleep(wait)
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        with contextlib.suppress(OSError):           # 時間切れの場面では相手が先に切る
-            self.wfile.write(body)
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Length", "2")
-        self.end_headers()
-        self.wfile.write(b"ok")
-
-    def log_message(self, *a):
-        pass
-
-
-def start_server():
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), Api)
-    srv.daemon_threads = True
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
-
 
 # ------------------------------------------------------------------ 場面
 def mask(v):
@@ -222,15 +176,9 @@ def scenarios(work, base):
     rows.append({"id": 990, "設備名": 7, "同一工程": "SEVEN"})
     alias = FIXTURE.replace(">CAL<", ">CAF2<").replace(">L-1<", ">LONE<", 1).replace(">TLV<", ">SEVEN<", 1)
     # 3. 学ぶ・API で読む・調べる
+    # ロット番号ごとの答えは作り物（tests/fakes_lotdsp.py）が焼いた表から返す（札 a: 3 ロットと、誤りの形 E500・EJSON・…）
     tag = "a"
-    h1, h2, h3 = html_with_offs(OFFS), html_with_offs(OFFS, lot_no="L7151C0", thickness_shift=0.5), html_with_offs(OFFS, lot_no="L7152C0", thickness_shift=1.0)
-    TABLES[tag] = {
-        "L7150C0": (200, jb(entity_of(h1)), 0), "L7151C0": (200, jb(entity_of(h2)), 0), "L7152C0": (200, jb(entity_of(h3)), 0),
-        "E500": (500, b"oops", 0), "EJSON": (200, b"<html>login</html>", 0), "EBIZ": (200, jb({"status": "ERROR", "errorMessage": "業務の誤り"}), 0),
-        "EBIZ2": (200, jb({"status": "ERROR"}), 0), "EARR": (200, b"[1, 2]", 0), "EBOM": (200, b"\xef\xbb\xbf" + jb(entity_of(h1)), 0),
-        "ENOENT": (200, jb({"status": "OK"}), 0), "ESLOW": (200, jb(entity_of(h1)), 2.5), "ENOTDICT": (200, jb({"entity": [1]}), 0),
-        "EMIS": (200, jb(entity_of(h2)), 0), "E307": (307, b"", 0),
-    }
+    h1, h2, h3 = lotdsp_samples.scene_htmls()
     li = {"url": site, "api": {"search_url": f"{base}/{tag}/service/lotdsp/search//searchAction", "timeout_seconds": 2}}
     tab_h1 = TAB + h1
     steps = [
@@ -258,11 +206,8 @@ def scenarios(work, base):
     out.append(run_steps(work, "学ぶ・API・調べる", li, steps, equipment=rows))
 
     # 4. 応答の書き方の違い（項目名 b・経過ミリ秒・ずれつき・比重が別の所・同じ比重が 2 か所）
-    for name, kw in (("項目名 b", {"key_style": "b"}), ("経過ミリ秒", {"date_style": "epoch"}), ("ずれつき", {"date_style": "utc"}),
-                     ("比重が別の所", {"density_elsewhere": True}), ("同じ比重が 2 か所", {"density_twice": True})):
-        tag = "v" + str(len(out))
-        lots = [(html_with_offs(OFFS, lot_no=f"L715{i}C0", thickness_shift=0.5 * i), f"L715{i}C0") for i in range(3)]
-        TABLES[tag] = {no: (200, jb(entity_of(h, **kw)), 0) for h, no in lots}
+    for name, tag, _kw in lotdsp_samples.STYLES:
+        lots = lotdsp_samples.style_lots()
         lv = {"url": site, "api": {"search_url": f"{base}/{tag}/service/lotdsp/search//searchAction", "timeout_seconds": 2}}
         steps = []
         for h, no in lots:
@@ -272,8 +217,6 @@ def scenarios(work, base):
 
     # 5. 応答が替わって決め直す・保存に失敗する
     tag = "c"
-    TABLES[tag] = {"L7150C0": (200, jb(entity_of(h1)), 0), "L7151C0": (200, jb(entity_of(h2)), 0)}
-    TABLES["c2"] = {"L7151C0": (200, jb(entity_of(h2, key_style="b")), 0)}
     lc = {"url": site, "api": {"search_url": f"{base}/{tag}/service/lotdsp/search//searchAction", "timeout_seconds": 2}}
     lc2 = {"url": site, "api": {"search_url": f"{base}/c2/service/lotdsp/search//searchAction", "timeout_seconds": 2}}
     steps = [P(IMPORT, {"html": h1, "lot_no": "L7150C0"}), P(IMPORT, {"html": h2, "lot_no": "L7151C0"}), G(STATUS),
@@ -284,7 +227,6 @@ def scenarios(work, base):
         (local / "lotdsp_api_map.json").mkdir()
     out.append(run_steps(work, "保存に失敗", lc, [P(IMPORT, {"html": h1, "lot_no": "L7150C0"}), G(STATUS)], setup=unwritable))
     # 6. # の URL（API の問い合わせ先）
-    TABLES["LotDspWeb"] = {"L7150C0": (200, jb(entity_of(h1)), 0)}
     lh = {"url": base + "/LotDspWeb/#/lotdsp"}
     out.append(run_steps(work, "# の URL", lh, [G(SURVEY, "lot=L7150C0")]))
     # 7. 使わない設定・届かない
@@ -450,14 +392,16 @@ def main():
     # 見えない Edge の一時プロファイルはこの係のフォルダに作る（同時に流れるほかの試験の一時プロファイルと混ざらない）
     (work / "tmp").mkdir(exist_ok=True)
     tempfile.tempdir = str(work / "tmp")
-    srv, base = start_server()
-    data = {"base": base, "browser": str(wrapper(work)), "fake": str(PROGRAM / "tests" / "lotdsp_cdp_fake.py"),
+    fake = fakes_serve.start("lotdsp")
+    base = fake["urls"]["lotdsp"]
+    # urls: 作り物の URL（名前つき）。焼いた表では @URL(名前) にそろえる（流すたびに変わるポートを表に持たない）
+    data = {"base": base, "urls": fake["urls"], "browser": str(wrapper(work)), "fake": str(PROGRAM / "tests" / "lotdsp_cdp_fake.py"),
             "api": scenarios(work, base), "direct": direct_scenarios(work, base)}
     sys.stdout.write(json.dumps(data, ensure_ascii=False) + "\n")
     sys.stdout.flush()
     with contextlib.suppress(Exception):
         sys.stdin.read()
-    srv.shutdown()
+    fake["close"]()
 
 
 if __name__ == "__main__":

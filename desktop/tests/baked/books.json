@@ -235,9 +235,10 @@
     "tests/equipgroups_oracle.py",
     "tests/oracle_gate.py",
     "tests/fakes_serve.py",
+    "tests/fakes_equipgroups.py",
     "tests/schedule_fixture.py"
    ],
-   "why": "作り物の CM3 を起こしたままにする本（版 3.117.0 で焼いた）。作り物は app を import しない台本 tests/fakes_serve.py（equipgroups）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする。場面の配った設定の中の作り物の URL（流すたびに変わるポート）は名前つきの印 @URL(cm3)。詰めた形"
+   "why": "作り物の CM3 を起こしたままにする本（版 3.117.0 で焼いた）。作り物は app を import しない台本 tests/fakes_serve.py（種類 equipgroups。中身は tests/fakes_equipgroups.py）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする。場面の配った設定の中の作り物の URL（流すたびに変わるポート）は名前つきの印 @URL(cm3)。詰めた形"
   },
   "routes": {
    "phase": "3.117.2",
@@ -374,14 +375,22 @@
    "why": "119 通りの答えを詰めた形で焼く（行の重なりで 1/10）。場面は品質データの SQLite（lotlist_fixture。標準の部品だけ・日付は 2026-10-02 に固定）"
   },
   "lotdsp": {
-   "phase": "3.117.1",
+   "phase": "3.117.0",
    "tests": [
     "lotdsp_parity"
    ],
    "sources": [
-    "tests/lotdsp_oracle.py"
+    "tests/lotdsp_oracle.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_lotdsp.py",
+    "tests/lotdsp_samples.py",
+    "tests/lotdsp_cdp_fake.py",
+    "tests/fixtures/lotdsp_fake_tables.json",
+    "tests/fixtures/lotdsp_progress_L7150C0.html",
+    "tests/fixtures/lotdsp_html_cases.json"
    ],
-   "why": "3.117.0 へ送った（作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本）。Python 無しの形で lotdsp_cdp_fake.py と作り物の API を app なしで起こす台本と、url・search_url・base のポートの名前つきの置き換え（API・サイトの 2 つ）が要る。10 MB の境の本文は詰める形の繰り返しの字で持てる"
+   "why": "作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本（版 3.117.0 で焼いた）。API とサイトは app を import しない台本 tests/fakes_serve.py（種類 lotdsp。中身は tests/fakes_lotdsp.py・答えは焼いた見本 tests/fixtures/lotdsp_fake_tables.json）が起こし、作り物のブラウザ（tests/lotdsp_cdp_fake.py）は窓の試験が包みを作って起こす。作り物の URL は名前つきの印 @URL(lotdsp)。詰めた形。表が大きいのは問い合わせの本文（画面の見本 100 KB を 16 進にした字が約 25 通り。10 MB の境の本文は繰り返しの字で持つ）。かかった秒（direct[].seconds）は持たない",
+   "maxMB": 7.0
   }
  }
 }

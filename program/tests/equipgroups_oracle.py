@@ -418,7 +418,8 @@ def main():
         shutil.rmtree(base)
     # 作り物の CM3 は、app を import しない台本 tests/fakes_serve.py が起こす（版 3.117.0。Python 無しの形の窓の試験も同じ台本を起こす）
     from tests import fakes_serve
-    closers, urls = fakes_serve.start("equipgroups")
+    fake = fakes_serve.start("equipgroups")
+    urls = fake["urls"]
     CM3["url"] = urls["cm3"]
     out = []
     for i, sc in enumerate(SCENARIOS):
@@ -444,8 +445,7 @@ def main():
     if "--serve" in sys.argv:              # 窓が同じ作り物の CM3 に問い合わせる間は起こしておく（標準入力が閉じるまで）
         for _ in sys.stdin:
             pass
-    for close in closers:
-        close()
+    fake["close"]()
 
 
 if __name__ == "__main__":

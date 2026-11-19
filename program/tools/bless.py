@@ -326,11 +326,43 @@ def cargo(tests, env, filt=None):
     return r.returncode
 
 
+def sqlite_logical(data):
+    """SQLite のファイルの中身を、作った SQLite の版によらない形（頭の決め・表の定義・行）にする（desktop/tests/common/bake.rs の sqlite_logical と
+    同じ考え）。SQLite のファイルの頭には、最後に書いた SQLite の版の番号と、その版が数えた変更の数が入る。2 回目の焼きは SQLite の版が違う Python
+    （/usr/bin/python3）で流すので、答え合わせ役が作る場面の SQLite はバイトが違う（版 3.117.0。別の PC の形の 2 回目で初めて見えた）。
+    SQLite として開けない物は None（バイトのまま比べる）"""
+    import sqlite3
+    if not data.startswith(b"SQLite format 3\0") or len(data) < 100:
+        return None
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "x.sqlite3"
+        f.write_bytes(data)
+        try:
+            c = sqlite3.connect(f"file:{f}?mode=ro", uri=True)
+            try:
+                schema = c.execute("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY rowid").fetchall()
+                rows = {name: [[x.hex() if isinstance(x, bytes) else x for x in r] for r in c.execute('SELECT * FROM "' + name.replace('"', '""') + '"')]
+                        for kind, name, _t, _s in schema if kind == "table"}
+                pragmas = [c.execute(f"PRAGMA {n}").fetchall() for n in ("user_version", "application_id")]
+            finally:
+                c.close()
+        except sqlite3.Error:
+            return None
+    return {"sqlite": {"schema": schema, "rows": rows, "pragmas": pragmas}, "head": (data[16:24] + data[56:60]).hex()}
+
+
 def comparable(t):
-    """2 回の焼きを比べる形（場面の今からのずれは流すたびに変わる。中身は指紋でなく中身で比べる）"""
+    """2 回の焼きを比べる形（場面の今からのずれは流すたびに変わる。中身は指紋でなく中身で比べる。SQLite のファイルは作った SQLite の版に
+    よらない形で比べる）"""
+    import base64
     t = unpack_table(t)
     sc = t["scene"]
-    files = {rel: {**e, "blob": sc["blobs"].get(e.get("blob"))} for rel, e in sc["files"].items()}
+
+    def blob(e):
+        b = sc["blobs"].get(e.get("blob"))
+        logical = sqlite_logical(base64.b64decode(b["b64"])) if isinstance(b, dict) and "b64" in b else None
+        return logical or b
+    files = {rel: {**e, "blob": blob(e)} for rel, e in sc["files"].items()}
     s = json.dumps({"oracle": t["oracle"], "answers": t["answers"], "files": files, "dirs": sc["dirs"], "links": sc["links"],
                     "variants": t.get("variants")}, ensure_ascii=False, sort_keys=True)
     # 今からのずれ（場面の @NOW と答えの @T の秒）と、Python が場面を作るときに引く乱数（instance_id の uuid4 の 32 字）は比べない
