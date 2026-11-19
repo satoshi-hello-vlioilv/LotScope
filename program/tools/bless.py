@@ -1,7 +1,11 @@
 """窓が自分の答えを焼く（bless。版 3.115.0。Rust 化の段 ③ の 4 つ目・案 G の 1 版目）。app を import しない（標準の部品だけ）。
 
     python tools/bless.py 本 …            … 本ごとに TPA_BLESS=1 で窓の突き合わせの試験を流して焼き（Python と同じときだけ書く）、
-                                            時刻の境（次の分）をまたいでからもう 1 度焼いて、1 回目と同じかを見る（違えば元の表に戻して止める）
+                                            時刻の境（次の分）をまたいでからもう 1 度焼いて、1 回目と同じかを見る（違えば元の表に戻して止める）。
+                                            2 回目は「別の PC の形」で流す（版 3.117.0。tools/ci-shape.py の runner の形: PC の名前を替えた名前空間・
+                                            TMPDIR は別のファイル系・SQLite の版が違う Python・取り出しは 5 日前の 775/664・プロキシと TLS の根の
+                                            環境変数。利用者は root のまま）。焼いた PC に頼る葉があれば、CI でなく焼くときに止まる。
+                                            流せない PC（root でない・unshare が無い）では焼かない。終わりに焼いた PC の指紋が表に無いかも見る
     python tools/bless.py --all           … 焼く本すべて（desktop/tests/baked/books.json の phase が 3.115.0・3.116.0）
     python tools/bless.py --stats [--base 版] … 本ごとの表の大きさ（UTF-8 のバイト）・歩・葉・そろえた印（@T・@URL・@WORK など）の数を出す
                                             （--base は git の版〈例 origin/main〉。前の表から増えた分も出す。PR の説明に貼る）
@@ -35,8 +39,8 @@ PROGRAM = Path(__file__).resolve().parents[1]
 DESKTOP = PROGRAM.parent / "desktop"
 BAKED = DESKTOP / "tests" / "baked"
 BOOKS = json.loads((BAKED / "books.json").read_text(encoding="utf-8"))["books"]
-# 焼いてある本の phase（3.115.0 の 21 本・3.116.0 に焼いた本）。それより先の版（3.117.0 など）は、まだ焼いていない本
-PHASES = ("3.115.0", "3.116.0")
+# 焼いてある本の phase（3.115.0 の 21 本・3.116.0 の 7 本・3.117.0 の本）。それより先の版（3.117.1・3.117.2）は、まだ焼いていない本
+PHASES = ("3.115.0", "3.116.0", "3.117.0")
 # 表の大きさの上限（UTF-8 のバイト。版 3.116.0 の採点の first_fixes 3）: 本ごと（books.json の maxMB。無ければ 1.5 MB）と全部の計
 MAX_MB = 1.5
 MAX_TOTAL_MB = 40.0
@@ -169,6 +173,43 @@ RESOLVER_WORDS = ("Name or service not known", "Temporary failure in name resolu
                   "getaddrinfo failed", "nodename nor servname provided")
 
 
+# 焼いた PC の指紋（版 3.117.0。採点の K2・first_fixes 8。測りで実際に表に残りかけた 4 種）。焼いた表に字のまま残っていてはいけない:
+# - この PC の名前（ホスト名）: 名乗りを決めていない場面の pc は @HOST にそろえる（PR #116 は表に手元の「vm」が入り、CI の runner の名前で落ちた）
+# - 一時フォルダの下の作業フォルダ（試験の da-名前-番号・開発用サーバーの tpa-ui-*・tpa-ops-*）: 作業フォルダは @WORK、場面は作業フォルダの下に作る
+# - 流すたびに変わるポート（作り物のサーバーの 127.0.0.1:番号）: 名前つきの @URL(名前) にそろえる。場面が決めた閉じた口（:1 など 4 桁に
+#   届かない番号）はそのまま
+# - ファイルID（装置:inode）: @FID(場面の道) にそろえる
+# 名前と一時フォルダは「今の PC」の値なので、焼いた PC で流したとき（焼いた直後の bless と、手元の py-tests）に効く。ポートとファイルID は字の形
+PC_PORT = re.compile(r"(?:127\.0\.0\.1|localhost):(\d{4,5})(?!\d)")
+PC_FID = re.compile(r"(?<![\d:.T\- /])(\d{2,6}):(\d{3,})(?![\d:.])")
+PC_TMP = r"/(?:da|tpa|ci-shape|bless)-[A-Za-z0-9_.-]+"
+
+
+def pc_marks(text, host=None, tmp=None):
+    """表の字（ファイルの中身）に残った焼いた PC の指紋 → [(種類, 見本)]。host・tmp は試験が決める（無ければこの PC の名前・一時フォルダ）"""
+    import socket
+    host = socket.gethostname() if host is None else host
+    tmps = {"/tmp", "/dev/shm", "/var/tmp", (tempfile.gettempdir() if tmp is None else tmp).rstrip("/")}
+    out = []
+
+    def hit(why, m):
+        out.append((why, text[max(0, m.start() - 40):m.end() + 20].replace("\n", " ")))
+    if len(host) >= 2:
+        m = re.search(r"(?<![A-Za-z0-9_.-])" + re.escape(json.dumps(host)[1:-1]) + r"(?![A-Za-z0-9_.-])", text)
+        if m:
+            hit(f"この PC の名前（{host}。@HOST にそろえるか、場面で identity.pc_name を決める）", m)
+    m = re.search("(?:" + "|".join(re.escape(json.dumps(t)[1:-1]) for t in sorted(tmps) if t) + ")" + PC_TMP, text)
+    if m:
+        hit("一時フォルダの下の作業フォルダ（@WORK にそろえるか、場面を作業フォルダの下に作る）", m)
+    m = PC_PORT.search(text)
+    if m:
+        hit("流すたびに変わるポート（作り物のサーバーは名前つきの @URL(名前) にそろえる）", m)
+    m = PC_FID.search(text)
+    if m:
+        hit("ファイルID（装置:inode。@FID(場面の道) にそろえる）", m)
+    return out
+
+
 def check(baked=None):
     """→ 食い違いの言葉の並び（空なら古くない）。tests/baked の表を全部（部分の表も）確かめる（版 3.115.0 の作った後の直し: 前は 本.json だけを見た）"""
     bad = []
@@ -186,6 +227,8 @@ def check(baked=None):
         for why, path in local_paths():
             if re.search(re.escape(json.dumps(path)[1:-1]) + r"(?=[/\\\\\"]|$)", text):
                 bad.append(f"{name}: 焼いた PC の{why}（{path}）が字のまま残っている（@REPO・@WORK・@HOME にそろえて焼き直す）")
+        for why, sample in pc_marks(text):
+            bad.append(f"{name}: 焼いた PC の指紋が表に残っている: {why} …{sample}…")
         for w in RESOLVER_WORDS:
             if w in text:
                 bad.append(f"{name}: PC の名前を引く係の様子で変わる言葉（{w}）が表にある（場面が本物の名前を引いている。引かない形にして焼き直す）")
@@ -315,8 +358,37 @@ def first_diff(a, b, p=""):
     return None if a == b else f"{p}: {str(a)[:200]} / {str(b)[:200]}"
 
 
+def ci_shape():
+    """tools/ci-shape.py（名前空間の作りはそこの 1 つ。名前に - があるので場所から読む）"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("ci_shape", PROGRAM / "tools" / "ci-shape.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def second_pass(tests, out):
+    """2 回目の焼き: 別の PC の形（ci-shape の runner の形・利用者は root のまま）で試験の実行ファイルを流し、表を out へ書く → 落ちた試験の並び"""
+    ci = ci_shape()
+    logs = Path(tempfile.mkdtemp(prefix="bless-pass2-"))
+    extra = {"TPA_BLESS": "1", "TPA_BAKE_OUT": str(out)}
+    if os.environ.get("TPA_SETTLE_DROP"):
+        extra["TPA_SETTLE_DROP"] = os.environ["TPA_SETTLE_DROP"]       # 変異（そろえる決まりを 1 つ外して焼く）は 2 回目にも渡す
+    bins = {t: exe for t, exe in ci.test_bins(tests).items() if t in tests}
+    _, failed, why = ci.run_shape("runner", bins, logs, False, extra, as_root=True)
+    if why:
+        sys.exit(f"2 回目の焼き（別の PC の形）を流せません（{why}）")
+    for t in failed:
+        sys.stderr.write((logs / f"runner-{t}.log").read_text(encoding="utf-8", errors="replace")[-6000:])
+    shutil.rmtree(logs, ignore_errors=True)
+    return failed
+
+
 def bless(books):
     tests = tests_of(books)
+    why = ci_shape().cannot_run()
+    if why:
+        sys.exit(f"焼きません: 2 回目の焼きを別の PC の形（tools/ci-shape.py の runner の形）で流せない PC です（{why}）。root で流してください")
     near = [x for b in books for x in near_dates(b)]
     if near:
         sys.exit("答え合わせ役の元に今日から 3 日の内の固定の日付があります（焼くと今に近い時刻と読まれ、日がたつと表が古くなる）。遠い日付に替えてください:\n"
@@ -330,9 +402,11 @@ def bless(books):
     print(f"時刻の境をまたぐまで {wait:.0f} 秒待ちます", flush=True)
     time.sleep(wait)
     with tempfile.TemporaryDirectory() as out:
-        if cargo(tests, {"TPA_BLESS": "1", "TPA_BAKE_OUT": out}):
+        os.chmod(out, 0o755)
+        failed = second_pass(tests, out)
+        if failed:
             restore(books, keep)
-            sys.exit("2 回目の焼きが止まりました。元の表に戻しました")
+            sys.exit(f"2 回目の焼き（別の PC の形）が止まりました: {' '.join(failed)}。元の表に戻しました")
         bad = []
         for b in books:
             for p in files_of(b):
@@ -342,11 +416,19 @@ def bless(books):
                 one, two = (json.loads(f.read_text(encoding="utf-8")) for f in (p, Path(out) / p.name))
                 d = first_diff(comparable(one), comparable(two))
                 if d:
-                    bad.append(f"{p.stem}: 1 回目と 2 回目が違う（そろえる決まりが足りない）: {d}")
+                    bad.append(f"{p.stem}: 1 回目と 2 回目（別の PC の形）が違う（焼いた PC かその瞬間に頼る葉がある。場面で決めるか、"
+                               f"そろえる決まりを狭く足す）: {d}")
         if bad:
             restore(books, keep)
             sys.exit("\n".join(bad) + "\n元の表に戻しました")
-    print("2 回の焼きが同じです:", " ".join(books))
+    # 焼いた PC の指紋（PC の名前・一時フォルダの下の作業フォルダ・流すたびに変わるポート・ファイルID）が表に残っていないか
+    names = {p.stem for b in books for p in files_of(b)}
+    left = [x for x in check() if x.split(":")[0] in names and "焼いた PC" in x]
+    if left:
+        restore(books, keep)
+        sys.exit("\n".join(left) + "\n元の表に戻しました")
+    print("2 回の焼き（2 回目は別の PC の形）が同じです:", " ".join(books))
+    print("続けて、CI に似せた 3 つの形でも流してください: python program/tools/ci-shape.py --book " + ",".join(books))
 
 
 def restore(books, keep):

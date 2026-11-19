@@ -121,6 +121,15 @@ fn passwd_name() -> Option<String> {
 #[derive(Clone)]
 pub struct Ctx {
     pub subs: Vec<(String, String)>,
+    /// 起こしたままの相手（作り物のサーバー）の名前つきの URL（版 3.117.0）: (名前, URL〈種類://番地:ポート〉)。場面・問い合わせ・答えの中の
+    /// URL は @URL(名前)、種類の付かない番地:ポート（Host の見出しなど）は @ADDR(名前) にそろえ、作り直すときに今の URL へ戻す。
+    /// そろえるのは Bake が起こした（答え合わせ役が urls で名乗った）URL そのものだけ（ほかのポートはそのまま比べ、bless.py --check が残りを落とす）
+    pub urls: Vec<(String, String)>,
+}
+
+/// URL の番地:ポート（種類:// の後ろ）
+fn authority(url: &str) -> &str {
+    url.split_once("://").map(|(_, a)| a).unwrap_or(url).trim_end_matches('/')
 }
 
 /// 道の字の段の境か（前の字・後ろの字が道の続きでない）
@@ -183,7 +192,39 @@ impl Ctx {
             }
         }
         subs.dedup();
-        Ctx { subs }
+        Ctx { subs, urls: vec![] }
+    }
+
+    /// 起こしたままの相手の URL を名前つきで覚える（同じ名前は差し替える）
+    pub fn url_named(&mut self, name: &str, url: &str) {
+        let url = url.trim_end_matches('/');
+        if !url.is_empty() {
+            self.urls.retain(|(n, _)| n != name);
+            self.urls.push((name.to_string(), url.to_string()));
+        }
+    }
+
+    /// 名前つきの URL を印に（URL は @URL(名前)。残った番地:ポートは、前が数字・点でなく後ろが数字でない所だけ @ADDR(名前)）
+    fn sub_urls(&self, s: &str) -> String {
+        let mut t = s.to_string();
+        for (name, url) in &self.urls {
+            if !t.contains(authority(url)) {
+                continue;
+            }
+            t = replace_bounded(&t, url, &format!("@URL({name})"));
+            t = replace_bounded(&t, authority(url), &format!("@ADDR({name})"));
+        }
+        t
+    }
+
+    /// 名前つきの印を今の URL に戻す
+    fn unsub_urls(&self, s: &str) -> String {
+        if !s.contains("@URL(") && !s.contains("@ADDR(") {
+            return s.to_string();
+        }
+        self.urls.iter().fold(s.to_string(), |t, (name, url)| {
+            t.replace(&format!("@URL({name})"), url).replace(&format!("@ADDR({name})"), authority(url))
+        })
     }
     /// 作り物のサーバーの URL（組む所の CM3）を @URL にそろえる
     pub fn url(&mut self, url: &str) {
@@ -206,7 +247,7 @@ impl Ctx {
     fn sub_with(&self, s: &str, slash: bool) -> String {
         let mut subs: Vec<&(String, String)> = self.subs.iter().collect();
         subs.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
-        let mut t = s.to_string();
+        let mut t = if self.urls.is_empty() { s.to_string() } else { self.sub_urls(s) };
         for (a, b) in subs {
             if !t.contains(a.as_str()) {
                 continue;
@@ -238,8 +279,24 @@ impl Ctx {
     }
     /// 置き換えを戻す（作業フォルダとリポジトリの根。家と URL は戻さない: 家は答えの字にだけ出る・URL は作り直す時に新しい物を当てる）
     fn unsub(&self, s: &str) -> String {
-        s.replace("@WORK", &self.subs[0].0).replace("@REPO", &self.subs[1].0)
+        self.unsub_urls(s).replace("@WORK", &self.subs[0].0).replace("@REPO", &self.subs[1].0)
     }
+}
+
+/// a を b に置き換える。ただし前の字が数字・点、後ろの字が数字の所はそのまま（ポート 4123 が 41234 に、番地 127.0.0.1 が 10.127.0.0.1 に当たらない）
+fn replace_bounded(s: &str, a: &str, b: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find(a) {
+        let before = if i > 0 { rest[..i].chars().last() } else { out.chars().last() };
+        let after = rest[i + a.len()..].chars().next();
+        out.push_str(&rest[..i]);
+        let edge = !before.is_some_and(|c| c.is_ascii_digit() || c == '.') && !after.is_some_and(|c| c.is_ascii_digit());
+        out.push_str(if edge { b } else { a });
+        rest = &rest[i + a.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 fn map_strings(v: &Value, f: &dyn Fn(&str) -> String) -> Value {
@@ -1212,6 +1269,10 @@ pub struct Bake {
     /// 場面の台本（標準の部品だけの Python。program/tests からの相対の道と引数。版 3.116.0）。Python 無しの形では、表の宣言から場面を
     /// 作る前にこれを流す。台本が作るファイルは、答え合わせ役の答えの "sceneMade"（場面の相対の道の並び）で知る
     pub script: Option<(&'static str, Vec<String>)>,
+    /// 起こしたままの相手の台本（app を import しない標準の Python。program/tests からの相対の道と引数。版 3.117.0）。Python 無しの形では、
+    /// 答え合わせ役の代わりにこれを起こしたままにする（live）。最初の 1 行の {"urls": {名前: URL}} を名前つきの URL として覚える。
+    /// Python と比べる形では、答え合わせ役が同じ台本の関数で同じ作り物を起こし、答えの "urls" で名乗る
+    pub fakes: Option<(&'static str, Vec<String>)>,
     /// 測るだけ（版 3.116.0。環境変数 TPA_MEASURE=フォルダ）: 焼いた表と比べない PC（Windows。表は posix の答え）で、窓の答えが表と違う歩を
     /// 試験を落とさずに数え、終わりに <フォルダ>/<表>.json へ書く（.github/workflows/desktop.yml の Windows の仕事が成果物に置き、
     /// tools/bless.py --measured がまとめる）。違う歩が少なければ Windows の上書き（variants.nt）を作って Windows でも表と比べる。
@@ -1270,6 +1331,7 @@ impl Bake {
     /// 本の部分（表は tests/baked/<本>.<部分>.json）
     pub fn open_part(book: &str, part: &str, base: &Path) -> Bake {
         let file = if part.is_empty() { book.to_string() } else { format!("{book}.{part}") };
+        super::clean_env();
         // 焼く・比べるときの時差は UTC に決める（版 3.115.0 の作った後の直し: 答え合わせ役の場面の地方時の日時〈fs の 2026-01-01〉が、焼いた PC と
         // 比べる PC の時差で違う更新時刻になった）。窓も答え合わせ役（子のプロセス）も同じ TZ で流れる
         if std::env::var("TZ").as_deref() != Ok("UTC") {
@@ -1321,6 +1383,7 @@ impl Bake {
             drop: vec!["rootUser"],
             pack: false,
             script: None,
+            fakes: None,
             measure: None,
             measure_done: false,
             measured: vec![],
@@ -1382,14 +1445,30 @@ impl Bake {
         }
     }
 
-    /// 起こしたままにする答え合わせ役（common::Live）。焼いた表で流すときは None
+    /// 起こしたままにする答え合わせ役（common::Live）。焼いた表で流すときは、起こしたままの相手の台本（fakes。app を import しない）を
+    /// 起こしたままにする（fakes が無ければ None）。どちらも作り物の URL を名前つきで覚えてから、場面と問い合わせを写す・作り直す
     pub fn live(&mut self, script: &str, args: &[&str]) -> (Option<super::Live>, Value) {
         if self.python() {
             let (l, v) = super::Live::start(script, args);
+            self.name_urls(&v);
             self.took(&v);
             (Some(l), v)
+        } else if let Some((fakes, fargs)) = self.fakes.clone() {
+            let fargs: Vec<&str> = fargs.iter().map(String::as_str).collect();
+            let (l, v) = super::Live::start_stdlib(fakes, &fargs);
+            self.name_urls(&v);
+            (Some(l), self.rebuild_from_table())
         } else {
             (None, self.rebuild_from_table())
+        }
+    }
+
+    /// 答えの "urls"（{名前: URL}）を名前つきの URL として覚える
+    fn name_urls(&mut self, v: &Value) {
+        for (name, url) in v["urls"].as_object().into_iter().flatten() {
+            if let Some(u) = url.as_str() {
+                self.ctx.url_named(name, u);
+            }
         }
     }
 
@@ -1487,7 +1566,8 @@ impl Bake {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.rebuild_inner())) {
             Ok(v) => v,
             Err(e) => {
-                let why = e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
+                let why =
+                    e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
                 self.measured_decl.insert("sceneError".into(), json!(cut(&why)));
                 std::panic::resume_unwind(e)
             }
@@ -1499,7 +1579,7 @@ impl Bake {
         if let Some((script, args)) = &self.script {
             // 場面の台本（app を import しない標準の Python。独立の答えと同じく段 ④ の後も残す）
             let py = stdlib_python();
-            let out = std::process::Command::new(&py)
+            let out = super::clean_command(&mut std::process::Command::new(&py))
                 .arg("-I")
                 .arg(super::program().join("tests").join(script))
                 .args(args)

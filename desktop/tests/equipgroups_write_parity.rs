@@ -7,6 +7,10 @@
 //! 直すの誤りや錠では設備グループの写しも置かない。これまでの窓の道と同じ扱い）。共有・data/ のマスタのファイルの名前は全部の場面で比べ、
 //! 任せる歩では窓が何も置かないことを見る。共有にまだ無い数える材料（作業実績・設備マスタ・データ元）は、版 3.105.0 から窓も Python と
 //! 同じ最初の版を置く（種まき。置いた中身も突き合わせる）。
+//!
+//! 版 3.117.0: 窓の答えを焼いた表（tests/baked/equipgroups.json）に持つ。Python 無しの形（TPA_NO_PYTHON=1）では、場面を表の宣言から作り、
+//! 作り物の CM3 は app を import しない台本（program/tests/fakes_serve.py equipgroups）を起こしたままにして、焼いた答えと比べる。
+//! 場面の配った設定の中の作り物の URL（流すたびに変わるポート）は、表では名前つきの印 @URL(cm3)。
 
 mod common;
 
@@ -70,8 +74,14 @@ fn names(root: &Path) -> Vec<String> {
 #[test]
 fn equipment_groups_match_python() {
     let base = common::work("equipgroups-write");
-    // 作り物の CM3 は窓が問い合わせる間も起こしておく（版 3.96.0 から窓がスケジュールの係）
-    let (live, oracle) = common::Live::start("equipgroups_oracle.py", &[base.to_str().unwrap(), "--serve"]);
+    let mut bk = common::bake::Bake::open("equipgroups", &base);
+    bk.pack = true;
+    // 表の問い合わせに Python の答えを持たない（歩の状態と本文・Python が置いた最初の版・Python が置いたファイルの名前。窓の答えは answers に持つ）
+    bk.strip.extend(["absentPlaced".to_string(), "delegatedFiles".to_string()]);
+    bk.strip_in.push("steps");
+    // 作り物の CM3 は窓が問い合わせる間も起こしておく（版 3.96.0 から窓がスケジュールの係）。Python 無しの形では起こしたままの相手の台本を起こす
+    bk.fakes = Some(("fakes_serve.py", vec!["equipgroups".to_string()]));
+    let (live, oracle) = bk.live("equipgroups_oracle.py", &[base.to_str().unwrap(), "--serve"]);
     let mut bad = vec![];
     let (mut steps, mut delegated, mut seen, mut placed_by_python, mut cm3_cases) = (0, 0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -98,6 +108,8 @@ fn equipment_groups_match_python() {
             let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
             t[1..t.len() - 1].to_string()
         };
+        // 一覧（最初の歩）の答えで、スケジュールの設備を数えたか（下の CM3 の場面の確かめ）
+        let mut first_seen = Value::Null;
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
             let Some((status, got)) = call(st) else {
@@ -105,19 +117,25 @@ fn equipment_groups_match_python() {
                 continue;
             };
             let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
-            let want = &st["json"];
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            bk.note_step(&key, st, status, &got, &w);
+            let (got, want) = (bk.s(&got), &bk.s(&w.1));
+            if i == 0 {
+                first_seen = want["seen"].clone();
+            }
             // データ元の設備の列から数えた設備（出どころが場面のデータ元）がある答えを数える（数え方の突き合わせが空振りしていないか）
             if want["seen"].as_array().into_iter().flatten().any(|x| x["from"].as_array().is_some_and(|f| f.contains(&json!("仕掛")))) {
                 seen += 1;
             }
-            if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want), &norm(&got), "").is_some() {
+            if status as i64 != w.0 || common::diff(&norm(want), &norm(&got), "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {}?{} {}: Python {} {} / 窓 {status} {}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["query"].as_str().unwrap(),
                     st["body"],
-                    st["status"],
+                    w.0,
                     common::diff(&norm(want), &norm(&got), "").unwrap_or_default(),
                     norm(&got).to_string().chars().take(300).collect::<String>()
                 ));
@@ -138,7 +156,11 @@ fn equipment_groups_match_python() {
             }
         }
         // 置かれたマスタのファイル: 窓（答えた歩＋任せた歩）と Python（答えた歩）で同じ名前。任せた歩で Python が最初の版を置くマスタは、窓は置かない
-        let (np, nr) = (names(Path::new(sc["py"].as_str().unwrap())), names(&rs));
+        let nr = names(&rs);
+        let nkey = format!("{name} 置かれたファイルの名前");
+        let np = bk.want(&nkey, || json!(names(Path::new(sc["py"].as_str().unwrap()))));
+        bk.note_files(&nkey, &json!(nr), &np);
+        let np: Vec<String> = np.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect();
         if np != nr {
             let only = |a: &[String], b: &[String]| a.iter().filter(|x| !b.contains(x)).cloned().collect::<Vec<_>>();
             bad.push(format!("{name}: 置かれたファイル Python だけ {:?} / 窓だけ {:?}", only(&np, &nr), only(&nr, &np)));
@@ -152,10 +174,13 @@ fn equipment_groups_match_python() {
                 .ok()
                 .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
                 .and_then(|v| serde_json::from_str::<Value>(&v.to_string().replace(&esc("rs"), &esc("py"))).ok());
-            match (&sc["absentPlaced"], mine) {
+            let akey = format!("{name} 置いた最初の版");
+            let want = bk.want(&akey, || sc["absentPlaced"].clone());
+            bk.note_files(&akey, mine.as_ref().unwrap_or(&Value::Null), &want);
+            match (bk.s(&want), mine.map(|m| bk.s(&m))) {
                 (Value::Null, _) => bad.push(format!("{name}: {f} を Python が置かない")),
                 (_, None) => bad.push(format!("{name}: {f} を窓が置かない")),
-                (want, Some(got)) => match common::diff(&norm(want), &norm(&got), &f) {
+                (want, Some(got)) => match common::diff(&norm(&want), &norm(&got), &f) {
                     Some(d) => bad.push(format!("{name}: 置いた最初の版 {d}")),
                     None => placed_by_python += 1,
                 },
@@ -164,16 +189,23 @@ fn equipment_groups_match_python() {
         // スケジュールの元がある場面（版 3.94.0。CI の自己診断で見つけた）: 選べる設備は CM3 に届くかで変わる（届けばスケジュールの設備も数える）。
         // 版 3.96.0 から窓がスケジュールの係なので、一覧も書ける歩も窓が答え、上で Python と同じ答え。ここでは数えたかが場面どおりかを見る
         if let Some(cm3) = sc["cm3"].as_str() {
-            let list = &sc["steps"][0]["json"]["seen"];
-            let counted =
-                list.as_array().into_iter().flatten().any(|x| x["from"].as_array().is_some_and(|f| f.contains(&json!("スケジュール"))));
+            let counted = first_seen
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|x| x["from"].as_array().is_some_and(|f| f.contains(&json!("スケジュール"))));
             if counted == (cm3 == "up") {
                 cm3_cases += 1;
             } else {
                 bad.push(format!("{name}: CM3 {cm3} で Python がスケジュールの設備を数えた {counted}"));
             }
         }
-        let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap())), files(&rs));
+        let fr = files(&rs);
+        let fkey = format!("{name} ファイル");
+        let fp = bk.want(&fkey, || Value::Object(files(Path::new(sc["py"].as_str().unwrap()))));
+        bk.note_files(&fkey, &Value::Object(fr.clone()), &fp);
+        let fp = bk.s(&fp).as_object().cloned().unwrap_or_default();
+        let fr: Map<String, Value> = bk.s(&Value::Object(fr)).as_object().cloned().unwrap();
         for (k, v) in &fp {
             if let Some(d) = common::diff(v, fr.get(k).unwrap_or(&Value::Null), k) {
                 bad.push(format!("{name}: ファイル {d}"));
@@ -185,8 +217,8 @@ fn equipment_groups_match_python() {
         for d in ["share", "base/data"] {
             for e in std::fs::read_dir(rs.join(d)).into_iter().flatten().flatten() {
                 let f = e.file_name().to_string_lossy().into_owned();
-                // 場面が置いたほかの PC の錠（Python の側にも同じ物がある）は窓が残した物ではない
-                let placed = Path::new(sc["py"].as_str().unwrap()).join(d).join(&f).exists();
+                // 場面が置いたほかの PC の錠（Python の側にも同じ物がある）は窓が残した物ではない（場面の写しは窓が答える前に取ってある）
+                let placed = bk.in_scene(&rs.join(d).join(&f));
                 if !placed && (f.ends_with(".lock.json") || f.contains(".tmp") || f.contains(".gone")) {
                     bad.push(format!("{name}: 窓が残した {d}/{f}"));
                 }
@@ -203,6 +235,7 @@ fn equipment_groups_match_python() {
     assert!(placed_by_python >= 6, "共有にまだ無いマスタを窓と Python が同じに置く場面が空振り: {placed_by_python}");
     assert!(cm3_cases >= 2, "スケジュールの元の場面が空振り: {cm3_cases}");
     assert!(seen >= 40, "データ元の設備の列から数えた答えが少ない: {seen}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

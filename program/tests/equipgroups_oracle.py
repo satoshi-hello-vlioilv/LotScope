@@ -416,12 +416,10 @@ def main():
     base = Path(sys.argv[1])
     if base.exists():
         shutil.rmtree(base)
-    from datetime import datetime as dt, timedelta as td, timezone as tz
-    from tests import schedule_fixture
-    lots = [(f"S{n}", "CR1", "L-1 LS3") for n in range(6)]
-    rows = schedule_fixture.schedule_rows("L-1", lots, dt(2026, 10, 3, 8, 12, tzinfo=tz(td(hours=9))), 1)
-    srv, CM3["url"] = schedule_fixture.serve({"L-1": {"status": "SUCCESS", "entity": {"setsubiName": "L-1", "termKbn": "4", "updateTs": 0,
-                                                                                        "error": False, "errorMessage": "", "meisaiList": rows}}})
+    # 作り物の CM3 は、app を import しない台本 tests/fakes_serve.py が起こす（版 3.117.0。Python 無しの形の窓の試験も同じ台本を起こす）
+    from tests import fakes_serve
+    closers, urls = fakes_serve.start("equipgroups")
+    CM3["url"] = urls["cm3"]
     out = []
     for i, sc in enumerate(SCENARIOS):
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
@@ -440,12 +438,14 @@ def main():
                     "absentPlaced": (json.loads((py / "share" / f"{sc['absent']}.json").read_text(encoding="utf-8"))
                                      if sc.get("absent") and (py / "share" / f"{sc['absent']}.json").exists() else None),
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
-    sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False) + "\n")
+    # urls: 作り物の URL（名前つき）。焼いた表では @URL(名前) にそろえる（流すたびに変わるポートを表に持たない）
+    sys.stdout.write(json.dumps({"scenarios": out, "urls": urls}, ensure_ascii=False) + "\n")
     sys.stdout.flush()
     if "--serve" in sys.argv:              # 窓が同じ作り物の CM3 に問い合わせる間は起こしておく（標準入力が閉じるまで）
         for _ in sys.stdin:
             pass
-    srv.shutdown()
+    for close in closers:
+        close()
 
 
 if __name__ == "__main__":

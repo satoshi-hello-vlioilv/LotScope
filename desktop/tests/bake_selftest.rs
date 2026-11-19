@@ -508,6 +508,75 @@ fn files_made_by_a_scene_script_are_declared_by_their_fingerprint() {
     }
 }
 
+/// 起こしたままの相手（作り物のサーバー）の URL は名前つきの印にそろえる（版 3.117.0）: 覚えた URL そのものは @URL(名前)、種類の付かない
+/// 番地:ポートは @ADDR(名前)。ほかのポート・桁の続くポート・別の番地はそのまま（＝窓が別の口へつなぎに行ったら表との比べで落ちる）。
+/// 場面の宣言の中の URL も印で持ち、作り直すときに今の URL へ戻す（流すたびに変わるポートを表に持たない）
+#[test]
+fn urls_of_live_fakes_are_settled_by_name_and_come_back() {
+    let base = common::work("bake-urls");
+    let mut ctx = Ctx::new(&base);
+    ctx.url_named("cm3", "http://127.0.0.1:41234");
+    ctx.url_named("site", "http://127.0.0.1:41299/");
+    let v = json!({"url": "http://127.0.0.1:41234/api/init", "Host": "127.0.0.1:41234", "ws": "ws://127.0.0.1:41234/devtools",
+                   "site": "http://127.0.0.1:41299/LotDspWeb/#/lotdsp", "other": "http://127.0.0.1:41235/x", "longer": "http://127.0.0.1:412345/x",
+                   "pre": "10.127.0.0.1:41234", "closed": "http://127.0.0.1:1", "text": "CM3（http://127.0.0.1:41234）に接続できません"});
+    let got = settle(&v, &ctx, &[]);
+    assert_eq!(
+        got,
+        json!({"url": "@URL(cm3)/api/init", "Host": "@ADDR(cm3)", "ws": "ws://@ADDR(cm3)/devtools", "site": "@URL(site)/LotDspWeb/#/lotdsp",
+               "other": "http://127.0.0.1:41235/x", "longer": "http://127.0.0.1:412345/x", "pre": "10.127.0.0.1:41234",
+               "closed": "http://127.0.0.1:1", "text": "CM3（@URL(cm3)）に接続できません"})
+    );
+    // 覚えていなければそのまま（＝流すたびに変わるポートが表に残り、bless.py --check の指紋の見張りが落とす）
+    assert_eq!(settle(&v, &Ctx::new(&base), &[]), v);
+    // 場面の宣言: 中身の URL は印で持ち、別のポートで起こした相手の URL に戻る
+    let a = base.join("a");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::write(a.join("config.json"), r#"{"schedule": {"cm3_base_url": "http://127.0.0.1:41234"}, "x": "http://127.0.0.1:41235"}"#)
+        .unwrap();
+    let mut ca = Ctx::new(&a);
+    ca.url_named("cm3", "http://127.0.0.1:41234");
+    let decl = snapshot(&a, &ca, &[]);
+    let text = decl.to_string();
+    assert!(text.contains("@URL(cm3)") && !text.contains("41234") && text.contains("41235"), "{text}");
+    let b = base.join("b");
+    let mut cb = Ctx::new(&b);
+    cb.url_named("cm3", "http://127.0.0.1:50001");
+    materialize(&decl, &b, &cb);
+    assert_eq!(
+        std::fs::read_to_string(b.join("config.json")).unwrap(),
+        r#"{"schedule": {"cm3_base_url": "http://127.0.0.1:50001"}, "x": "http://127.0.0.1:41235"}"#
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 流す PC の環境変数のうち答えを PC ごとに変える物（プロキシ・TLS の信じる根の置き場）は、試験の頭で外す（版 3.117.0。common::clean_env）。
+/// 関係のない変数（名前が _proxy で終わらない）は残す
+#[test]
+fn proxy_and_cert_variables_are_removed_before_the_tests() {
+    // SAFETY: この実行ファイルのほかの試験はこれらの変数を読まない（work() が同じく外すだけ）
+    unsafe {
+        std::env::set_var("https_proxy", "http://127.0.0.1:9");
+        std::env::set_var("ALL_PROXY", "http://127.0.0.1:9");
+        std::env::set_var("npm_config_https_proxy", "http://127.0.0.1:9");
+        std::env::set_var("SSL_CERT_FILE", "/無い/ca.pem");
+        std::env::set_var("TPA_PROXY_LIKE", "残す");
+    }
+    let names = common::pc_env_names();
+    for k in ["https_proxy", "ALL_PROXY", "npm_config_https_proxy", "SSL_CERT_FILE"] {
+        assert!(names.iter().any(|n| n == k), "{k}: {names:?}");
+    }
+    assert!(!names.iter().any(|n| n == "TPA_PROXY_LIKE" || n == "PATH"), "{names:?}");
+    let mut c = std::process::Command::new(if cfg!(windows) { "cmd" } else { "env" });
+    if cfg!(windows) {
+        c.args(["/C", "set"]);
+    }
+    let out = String::from_utf8_lossy(&common::clean_command(&mut c).output().unwrap().stdout).into_owned();
+    let has = |k: &str| out.lines().any(|l| l.split('=').next() == Some(k));
+    assert!(!has("https_proxy") && !has("ALL_PROXY") && !has("SSL_CERT_FILE") && has("TPA_PROXY_LIKE"), "{out}");
+    unsafe { std::env::remove_var("TPA_PROXY_LIKE") };
+}
+
 /// 測るだけ（TPA_MEASURE。表と比べない PC〈Windows〉）: 表と違う歩を試験を落とさずに数えて記録に書く
 #[test]
 fn measuring_counts_the_steps_that_differ_without_failing() {

@@ -14,6 +14,10 @@ bless = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bless)
 
 
+# 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
+BOOKS_3117 = {"3.117.0": ["equipgroups"], "3.117.1": ["lotdsp", "schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
+
+
 class BakedTables(unittest.TestCase):
     def test_tables_are_not_stale(self):
         self.assertEqual(bless.check(), [])
@@ -23,14 +27,18 @@ class BakedTables(unittest.TestCase):
         self.assertEqual(set(bless.BOOKS), oracles)
         self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "3.115.0"), 21)
         self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "keep"), 1)
-        # 版 3.116.0: 2 版目で焼いた 7 本と、次の版（3.117.0）へ送った 7 本（送った理由を why に書く）
+        # 版 3.116.0: 2 版目で焼いた 7 本
         self.assertEqual(sorted(k for k, b in bless.BOOKS.items() if b["phase"] == "3.116.0"),
                          ["calc", "conversions", "lists", "lotlist", "presence", "settings", "ui_defaults"])
-        sent = sorted(k for k, b in bless.BOOKS.items() if b["phase"] == "3.117.0")
-        self.assertEqual(sent, ["dashboard", "equipgroups", "lotdsp", "ops", "pivot", "routes", "schedule"])
-        for k in sent:
-            self.assertTrue(bless.BOOKS[k].get("why"), f"{k}: 次の版へ送った理由が無い")
-        self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0", "3.117.0", "keep"})
+        # 版 3.117.0（段 ④ の入口までを小さい版 4 つに刻む 1 つ目）: 起こしたままの相手の本を焼き、残りは後の版（送った理由を why に書く）
+        by = {ph: sorted(k for k, b in bless.BOOKS.items() if b["phase"] == ph) for ph in ("3.117.0", "3.117.1", "3.117.2")}
+        self.assertEqual(by, BOOKS_3117)
+        for k in by["3.117.1"] + by["3.117.2"]:
+            self.assertTrue(bless.BOOKS[k].get("why"), f"{k}: 後の版へ送った理由が無い")
+        self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0", "keep"} | {ph for ph, ks in by.items() if ks})
+        # 焼く版（bless.py・ci-shape.py の PHASES）は同じ並び
+        self.assertEqual(bless.PHASES, ("3.115.0", "3.116.0", "3.117.0"))
+        self.assertEqual(bless.ci_shape().PHASES, bless.PHASES)
 
     def test_packed_tables_open_and_stay_under_the_size_limits(self):
         """詰めた表（版 3.116.0。parts・@same・@rep）は開ける・大きさ（UTF-8 のバイト）は上限の内。変異: 上限を下げる・参照の先を消すと落ちる"""
@@ -78,7 +86,9 @@ class BakedTables(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("ci_shape", PROGRAM / "tools" / "ci-shape.py")
         ci = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(ci)
-        for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py"] + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
+        # 版 3.117.0: 起こしたままの相手の台本（作り物の CM3 など）と、その作り物も
+        for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py", "tests/fakes_serve.py", "tests/schedule_fixture.py", "tests/lotdsp_cdp_fake.py"] \
+                + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
             self.assertIsNone(ci.imports_app(PROGRAM / rel), rel)
         self.assertEqual(ci.imports_app(PROGRAM / "tests" / "lists_oracle.py"), "lists_oracle.py", "答え合わせ役は app を import する（見つける側の確かめ）")
         log = Path(tempfile.mkdtemp()) / "calls.log"
@@ -268,6 +278,37 @@ class BakedTables(unittest.TestCase):
             t["oracle"]["x"] = str(PROGRAM / "app" / "master_defaults")
             (tmp / "settings_write.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
             self.assertTrue(any("settings_write: 焼いた PC のリポジトリの根" in x for x in bless.check(tmp)))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_tables_keep_no_marks_of_the_baking_pc(self):
+        """焼いた表に、焼いた PC の指紋（PC の名前・一時フォルダの下の作業フォルダ・流すたびに変わるポート・ファイルID）が字のまま残っていない
+        （版 3.117.0。採点の K2）。変異: 1 つずつ書き込むと --check が落ちる。許す形（場面が決めた閉じた口・時刻・@ の印）は落ちない"""
+        import socket
+        self.assertEqual([x for x in bless.check() if "焼いた PC の指紋" in x], [])
+        host = socket.gethostname()
+        marks = {"この PC の名前": [f'{{"pc": "{host}"}}', f'{{"key": "{host}@root"}}', f'{{"error": "PC {host} が保存中"}}'],
+                 "一時フォルダ": ['{"dir": "/tmp/da-fs-1234/share"}', '{"file": "/tmp/tpa-ui-abc/【New】実績/x.sqlite3"}', '{"a": "/dev/shm/da-x-9"}'],
+                 "ポート": ['{"url": "http://127.0.0.1:43211/api"}', '{"Host": "127.0.0.1:8123"}'],
+                 "ファイルID": ['{"fid": "2049:1234567"}', '{"files": {"26:4411": "実績_L1.sqlite3"}}']}
+        for why, texts in marks.items():
+            for text in texts:
+                hit = [w for w, _ in bless.pc_marks(text)]
+                self.assertTrue(len(hit) == 1 and why in hit[0], f"{text}: {hit}")
+        for ok in ('{"url": "http://127.0.0.1:1"}', '{"at": "2026-10-02 10:30:00.123"}', '{"t": "10:30"}', '{"url": "@URL(cm3)/x", "fid": "@FID(a/b)"}',
+                   '{"dir": "/tmp/x/../y"}', '{"dir": "@WORK/share"}', f'{{"pc": "{host}x", "who": "x{host}"}}', '{"range": "1:1000 の比"}',
+                   '{"span": "2026-10-02T10:30:00/2026-10-03T08:15:30"}'):
+            self.assertEqual(bless.pc_marks(ok), [], ok)
+        # 表に書き込むと --check が落ちる
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            for p in bless.BAKED.glob("*.json"):
+                shutil.copy(p, tmp / p.name)
+            t = json.loads((tmp / "builder.json").read_text(encoding="utf-8"))
+            t["answers"]["x"] = {"url": "http://127.0.0.1:43211/api"}
+            t["routes"]["x"] = "GET /x"
+            (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+            self.assertTrue(any(x.startswith("builder: 焼いた PC の指紋") and "ポート" in x for x in bless.check(tmp)))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
