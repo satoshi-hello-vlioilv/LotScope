@@ -445,6 +445,176 @@ pub fn diff_tol(a: &Value, b: &Value, path: &str) -> Option<String> {
     }
 }
 
+// ------------------------------------------------------------------ 詰める形（版 3.116.0。大きい本の表）
+
+/// これより長い字（JSON の字の長さ）で、表の中に 2 回以上出る部分（表・並び・字）は参照にする
+pub const PACK_MIN: usize = 120;
+/// これより長い字で、同じ単位の繰り返しが半分を超える字は作り方（頭・単位 × 数・尾）で持つ
+pub const REP_MIN: usize = 2000;
+const MARKS: [&str; 3] = ["@same", "@rep", "@lit"];
+
+/// 指紋を取る字（中身の字。大きな整数・NaN は桁のまま）
+fn canon(v: &Value) -> String {
+    if da_core::held::has_held(v) || da_core::held::has_nonfinite(v) || da_core::held::has_lone(v) {
+        da_core::held::to_text(v, None)
+    } else {
+        serde_json::to_string(v).unwrap()
+    }
+}
+
+fn print_of(text: &str) -> String {
+    use sha2::Digest;
+    format!("{:x}", sha2::Sha256::digest(text.as_bytes()))[..12].to_string()
+}
+
+/// 詰める印と同じ形の表（鍵が 1 つで @same・@rep・@lit）か
+fn marked(o: &Map<String, Value>) -> bool {
+    o.len() == 1 && o.keys().next().is_some_and(|k| MARKS.contains(&k.as_str()))
+}
+
+/// 長い字の作り方: 真ん中から同じ単位（1〜64 字）の繰り返しを左右へ伸ばし、字の半分を超えれば {head, unit, n, tail}
+fn rep_of(s: &str) -> Option<Value> {
+    let c: Vec<char> = s.chars().collect();
+    if c.len() <= REP_MIN {
+        return None;
+    }
+    let mid = c.len() / 2;
+    for u in 1..=64usize {
+        if mid + u >= c.len() {
+            break;
+        }
+        let (mut l, mut r) = (mid, mid);
+        while l > 0 && c[l - 1] == c[l - 1 + u] {
+            l -= 1;
+        }
+        while r + u < c.len() && c[r] == c[r + u] {
+            r += 1;
+        }
+        // [l, r + u) が周期 u の区間
+        let n = (r + u - l) / u;
+        if n * u > c.len() / 2 && n * u >= REP_MIN {
+            let text = |a: usize, b: usize| c[a..b].iter().collect::<String>();
+            return Some(json!({"@rep": {"head": text(0, l), "unit": text(l, l + u), "n": n, "tail": text(l + n * u, c.len())}}));
+        }
+    }
+    None
+}
+
+/// 詰める: sections（表の answers・oracle・scene・variants）の中で 2 回以上出る部分を {"@same": 中身の指紋 12 桁} にし、中身は parts
+/// （指紋 → 中身。scene.blobs と同じ形）に 1 つだけ置く。参照は通し番号でも初出の位置でもなく中身の指紋なので、1 歩が変わっても
+/// ほかの歩の行は動かない（PR の差分と、範囲を決めた焼き直しの「範囲の外が変わった」が誤って当たらない）。長い繰り返しの字は作り方
+/// {"@rep": …}。印と同じ形の表は {"@lit": …} で包む。比べるのはいつも開いた後（unpack）
+pub fn pack(sections: &mut [&mut Value]) -> Map<String, Value> {
+    use std::collections::HashMap;
+    fn scan(v: &Value, counts: &mut HashMap<String, u32>) {
+        match v {
+            Value::Array(a) => a.iter().for_each(|x| scan(x, counts)),
+            Value::Object(o) => o.values().for_each(|x| scan(x, counts)),
+            _ => {}
+        }
+        if matches!(v, Value::Array(_) | Value::Object(_) | Value::String(_)) {
+            let t = canon(v);
+            if t.len() > PACK_MIN {
+                *counts.entry(print_of(&t)).or_default() += 1;
+            }
+        }
+    }
+    fn go(v: &Value, counts: &HashMap<String, u32>, parts: &mut BTreeMap<String, Value>, texts: &mut HashMap<String, String>) -> Value {
+        let inner = match v {
+            Value::Array(a) => Value::Array(a.iter().map(|x| go(x, counts, parts, texts)).collect()),
+            Value::Object(o) => {
+                let m: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), go(x, counts, parts, texts))).collect();
+                if marked(o) {
+                    json!({"@lit": m})
+                } else {
+                    Value::Object(m)
+                }
+            }
+            Value::String(s) => rep_of(s).unwrap_or_else(|| v.clone()),
+            _ => return v.clone(),
+        };
+        let t = canon(v);
+        if t.len() <= PACK_MIN {
+            return inner;
+        }
+        let h = print_of(&t);
+        if counts.get(&h).copied().unwrap_or(0) < 2 {
+            return inner;
+        }
+        match texts.get(&h) {
+            Some(old) => assert!(*old == t, "指紋 {h} が 2 つの中身に当たりました"),
+            None => {
+                texts.insert(h.clone(), t);
+                parts.insert(h.clone(), inner);
+            }
+        }
+        json!({"@same": h})
+    }
+    let mut counts = HashMap::new();
+    sections.iter().for_each(|s| scan(s, &mut counts));
+    let (mut parts, mut texts) = (BTreeMap::new(), HashMap::new());
+    for s in sections.iter_mut() {
+        **s = go(s, &counts, &mut parts, &mut texts);
+    }
+    parts.into_iter().collect()
+}
+
+/// 開く（pack の逆）。参照の先が parts に無ければ分かる言葉で落とす
+pub fn unpack(v: &Value, parts: &Map<String, Value>) -> Value {
+    match v {
+        Value::Array(a) => Value::Array(a.iter().map(|x| unpack(x, parts)).collect()),
+        Value::Object(o) if marked(o) => {
+            let (k, x) = o.iter().next().unwrap();
+            match k.as_str() {
+                "@same" => {
+                    let h = x.as_str().unwrap_or("");
+                    unpack(parts.get(h).unwrap_or_else(|| panic!("詰めた表の参照 {h} の中身が parts にありません")), parts)
+                }
+                "@rep" => {
+                    let s = |k: &str| x[k].as_str().unwrap_or("");
+                    Value::String(format!("{}{}{}", s("head"), s("unit").repeat(x["n"].as_u64().unwrap_or(0) as usize), s("tail")))
+                }
+                _ => Value::Object(x.as_object().map(|m| m.iter().map(|(k, y)| (k.clone(), unpack(y, parts))).collect()).unwrap_or_default()),
+            }
+        }
+        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), unpack(x, parts))).collect()),
+        _ => v.clone(),
+    }
+}
+
+/// 表を開いた形にする（parts を外す。詰めていない表はそのまま）
+pub fn unpack_table(t: &Value) -> Value {
+    let Some(parts) = t.get("parts").and_then(Value::as_object) else { return t.clone() };
+    let mut out = Map::new();
+    for (k, v) in t.as_object().unwrap() {
+        if k != "parts" {
+            out.insert(k.clone(), if PACKED.contains(&k.as_str()) { unpack(v, parts) } else { v.clone() });
+        }
+    }
+    Value::Object(out)
+}
+
+/// 詰める段（表の上の鍵）
+const PACKED: [&str; 4] = ["oracle", "scene", "answers", "variants"];
+
+/// 表を詰めた形にする（PACKED の段を詰め、parts を足す。2 回出る部分が無ければ parts は付けない）
+pub fn pack_table(t: &Value) -> Value {
+    let mut t = unpack_table(t);
+    let o = t.as_object_mut().unwrap();
+    let mut held: Vec<(String, Value)> = PACKED.iter().filter_map(|k| o.get(*k).map(|v| (k.to_string(), v.clone()))).collect();
+    let parts = {
+        let mut refs: Vec<&mut Value> = held.iter_mut().map(|(_, v)| v).collect();
+        pack(&mut refs)
+    };
+    for (k, v) in held {
+        o.insert(k, v);
+    }
+    if !parts.is_empty() {
+        o.insert("parts".into(), Value::Object(parts));
+    }
+    t
+}
+
 // ------------------------------------------------------------------ 場面の宣言（フォルダの写し）
 
 fn b64(b: &[u8]) -> String {
@@ -918,6 +1088,8 @@ pub struct Bake {
     pub url_key: Option<&'static str>,
     /// 答え合わせ役の答えの上の段で、焼かない鍵（root で流したか など利用者で変わる印）
     pub drop: Vec<&'static str>,
+    /// 表を詰めた形（pack_table）で書くか（版 3.116.0 の大きい本。小さい 21 本は今の形のまま）
+    pub pack: bool,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -982,7 +1154,8 @@ impl Bake {
         };
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
         let path = baked_dir().join(format!("{file}.json"));
-        let table = std::fs::read(&path).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display())));
+        let table =
+            std::fs::read(&path).ok().map(|b| unpack_table(&super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", path.display()))));
         if (mode == Mode::Baked || mode == Mode::BlessScope) && table.is_none() {
             panic!("焼いた表 {} がありません（TPA_BLESS=1 で焼く）", path.display());
         }
@@ -1012,6 +1185,7 @@ impl Bake {
             fid_key: None,
             url_key: None,
             drop: vec!["rootUser"],
+            pack: false,
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -1337,10 +1511,15 @@ impl Bake {
             t
         };
         t["sources"] = sources_of(&self.book);
+        // 大きい本（版 3.116.0）は詰めた形で書く。前の表が詰めてあれば同じく詰める。要約は開いた形で出す
+        let plain = t.clone();
+        if self.pack {
+            t = pack_table(&t);
+        }
         let text = lines(&t, 0) + "\n";
         std::fs::write(&path, text).unwrap();
         // 変わった葉の要約（道の型ごとの数・鍵・前 → 後の見本 3）。PR の説明に貼る
-        eprintln!("{}", summary(&self.file, &old, &t).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
+        eprintln!("{}", summary(&self.file, &old, &plain).lines().map(|l| format!("bless| {l}")).collect::<Vec<_>>().join("\n"));
         eprintln!("bless| {} に書きました", path.display());
     }
 }
@@ -1348,7 +1527,10 @@ impl Bake {
 /// 表の字: 段 2 までは 1 項目 1 行（歩ごと・ファイルごとの差分が読める）、その下は詰めて書く（oracle は場面ごとに 1 行）
 pub fn lines(v: &Value, depth: usize) -> String {
     let pad = |d: usize| " ".repeat(d);
+    // 詰めた表（parts がある）の oracle は場面ごとの歩が参照になっているので、1 段深く 1 項目 1 行にする
+    let packed = v.get("parts").is_some();
     let deep = |k: &str| match k {
+        "oracle" if packed => 5,
         "oracle" => 4,
         "scene" => 3,
         _ => 2,

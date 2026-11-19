@@ -1,5 +1,5 @@
 {
- "about": "答え合わせ役 36 本の行き先（版 3.115.0）。phase: 3.115.0 は窓が焼いた表で比べる本・3.116.0 は次の版で焼く本・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）",
+ "about": "答え合わせ役 36 本の行き先（版 3.116.0）。phase: 3.115.0・3.116.0 は窓が焼いた表で比べる本（焼いた版）・3.117.0 は次の版で焼く本（理由は why）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）",
  "books": {
   "name_key": {
    "phase": "3.115.0",
@@ -225,7 +225,7 @@
    "why": "41 組 × 25 道と切断の指示 69 組を焼く（場面の置き場は同じ中身を 1 つに）"
   },
   "equipgroups": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "equipgroups_write_parity"
    ],
@@ -234,7 +234,7 @@
    ]
   },
   "routes": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "routes_parity"
    ],
@@ -243,7 +243,7 @@
    ]
   },
   "pivot": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "pivot_parity"
    ],
@@ -252,7 +252,7 @@
    ]
   },
   "schedule": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "schedule_parity"
    ],
@@ -261,7 +261,7 @@
    ]
   },
   "conversions": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "conversions_write_parity"
    ],
@@ -270,7 +270,7 @@
    ]
   },
   "presence": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "presence_parity"
    ],
@@ -279,7 +279,7 @@
    ]
   },
   "ui_defaults": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "ui_defaults_parity"
    ],
@@ -288,7 +288,7 @@
    ]
   },
   "ops": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "ops_parity"
    ],
@@ -297,7 +297,7 @@
    ]
   },
   "dashboard": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "dash_parity"
    ],
@@ -306,7 +306,7 @@
    ]
   },
   "settings": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "bundle_parity",
     "page_parity",
@@ -322,11 +322,14 @@
     "calc_parity"
    ],
    "sources": [
-    "tests/calc_oracle.py"
-   ]
+    "tests/calc_oracle.py",
+    "tests/test_calculator.py"
+   ],
+   "maxMB": 9.0,
+   "why": "詰めた形で全部の答えを焼く（2 乗は C の pow のまま。利用者の決め 2026-11-18）。乱数の事例は Python とは 160 件を比べ、表には 40 件。人の事例の表 calc_cases.json（test_calculator の手で確かめた値）が第 2 の線。Windows で最後の桁が違う歩は測るだけの仕事が数える"
   },
   "lists": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "lists_parity"
    ],
@@ -335,7 +338,7 @@
    ]
   },
   "lotlist": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "lotlist_parity"
    ],
@@ -344,7 +347,7 @@
    ]
   },
   "lotdsp": {
-   "phase": "3.116.0",
+   "phase": "3.117.0",
    "tests": [
     "lotdsp_parity"
    ],

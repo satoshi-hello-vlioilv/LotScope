@@ -337,8 +337,10 @@ def main():
                 ans = None
             # 版 3.116.0: 窓はどの形も答える（must でない歩は無い。前は Python が例外で答える形・大きな整数・NaN の出る形を任せた）。
             # 答えの字はそのまま（大きな整数の桁を json.loads → dumps で保つ。NaN は web.dumps が null にしてある）
+            # 乱数の事例は Python とは 160 件を比べ、焼いた表には 40 件を持つ（"bake": False は焼かない。採点の first_fixes 5）
+            unbaked = cname.startswith("乱数 ") and int(cname.split()[1]) >= 40
             cases.append({"name": cname, "path": path, "body": text, "must": must, "status": r.status_code, "json": ans,
-                          **({} if must else {"delegate": True})})
+                          **({} if must else {"delegate": True}), **({"bake": False} if unbaked else {})})
         out.append({"name": name, "conf": conf, "calculation": calc, "cases": cases})
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))
 
