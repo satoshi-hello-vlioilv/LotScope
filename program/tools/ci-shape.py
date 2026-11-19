@@ -6,15 +6,19 @@
 ここでは焼いた本の試験の実行ファイル（desktop/tests/baked/books.json の焼いた本の tests と bake_selftest）を、手元と違う形で流す:
 
     runner … root でない利用者（daemon。名前は runner）・家は新しい一時フォルダ・TMPDIR は別のファイル系（/dev/shm）・
-              Python は /usr/bin/python3（SQLite の版が違う）・Python と比べる形
+              Python は /usr/bin/python3（SQLite の版が違う）・Python と比べる形。流している間だけ、取り出しの program/data・program/config を
+              「古い取り出し」（更新時刻を 5 日前）・「umask 002 の取り出し」（フォルダ 775・ファイル 664）の形にする（終わったら元へ戻す。
+              版 3.116.0 の作った後の直し: 焼いた表が取り出してからの日数と権限に頼ると、ここで落ちる）
     nopy   … root でない利用者・リポジトリが家の下（HOME=リポジトリの 2 つ上）・TZ=Asia/Tokyo・TMPDIR は /dev/shm・TPA_NO_PYTHON=1。
               Python の呼び出しを記録し、呼ばれた台本が program/app を import しない物（独立の答え tools/*-truth.py と場面の台本）だけかを見る。
               PATH の先には偽の python（呼ぶと記録して 127 で落ちる）を置く（TPA_PYTHON を通らない呼び出しを見つける）
-    nodns  … 名前を引く先に届かない名前空間（unshare -m で /etc/resolv.conf を差し替える）・TPA_NO_PYTHON=1
+    nodns  … 名前を引く先に届かない名前空間（unshare -m で /etc/resolv.conf を差し替える）・TPA_NO_PYTHON=1。名前を引く場面のある本の
+              試験（NODNS_TESTS）だけを流す（全部を流すと route_reach だけで 3 分かかる。名前を引かない本は nopy と同じ流しになる）
 
 どれも試験の実行ファイルを直に流す（--test-threads=1）。落ちた本があれば終了コード 1。root で流す（利用者を替える・名前空間を作るため）。
-root でない・runuser や unshare が無い PC では、流せない形を「流せない」と書いて飛ばす（終了コードは流せた形だけで決める）。
-check-all.sh の段 ci-shape から流れる。
+root でない・runuser や unshare が無い PC では、流せない形を「流せない」と書いて飛ばす。終了コード: 0 は流した形がすべて通った・
+1 は落ちた形がある・3 は 1 つの形も流せなかった（「流せませんでした」。通ったことにしない）。
+check-all.sh の段 ci-shape から流れる（3 のときは、まとめに「流せませんでした」と出す）。
 """
 import json
 import os
@@ -33,6 +37,11 @@ DESKTOP = REPO / "desktop"
 BOOKS = json.loads((DESKTOP / "tests" / "baked" / "books.json").read_text(encoding="utf-8"))["books"]
 PHASES = ("3.115.0", "3.116.0")
 SHAPES = ("runner", "nopy", "nodns")
+# 名前を引く場面のある本の試験（nodns の形で流す）: 組む所の CM3・スケジュールの元のある設定の場面
+NODNS_TESTS = ("builder_parity", "page_parity", "bundle_parity", "equipgroups_write_parity", "schedule_parity")
+# 「古い取り出し」「umask 002 の取り出し」の形にする取り出しのフォルダ（答え合わせ役が場面へ写す元）
+CHECKOUT_DIRS = ("data", "config")
+OLD_DAYS = 5
 USER = "daemon"
 BAD = re.compile(r"test result: FAILED|panicked at|表が古い|焼いた表と違う|食い違い")
 IMPORT_APP = re.compile(r"^\s*(?:from\s+app[\s.]|import\s+app\b)", re.M)
@@ -112,7 +121,45 @@ def python_calls_ok(log):
     return bad
 
 
+class OldCheckout:
+    """取り出しのフォルダを、流している間だけ「古い取り出し」（更新時刻を OLD_DAYS 日前）・「umask 002 の取り出し」（775/664）の形にする。
+    抜けるときに元の更新時刻と権限へ戻す"""
+
+    def __enter__(self):
+        self.saved = []
+        old = time.time() - OLD_DAYS * 86400
+        for d in CHECKOUT_DIRS:
+            root = PROGRAM / d
+            paths = [root] + [Path(dp) / n for dp, dirs, files in os.walk(root) for n in dirs + files] if root.is_dir() else []
+            for p in paths:
+                if p.is_symlink():
+                    continue
+                st = p.stat()
+                self.saved.append((p, st.st_mode, st.st_atime_ns, st.st_mtime_ns))
+                os.chmod(p, 0o775 if p.is_dir() else 0o664)
+                os.utime(p, (old, old))
+        return self
+
+    def __exit__(self, *exc):
+        for p, mode, at, mt in reversed(self.saved):
+            try:
+                os.chmod(p, stat.S_IMODE(mode))
+                os.utime(p, ns=(at, mt))
+            except OSError:
+                pass
+        return False
+
+
 def run_shape(shape, bins, out, keep):
+    if shape == "runner":
+        with OldCheckout():
+            return _run_shape(shape, bins, out, keep)
+    if shape == "nodns":
+        bins = {k: v for k, v in bins.items() if k in NODNS_TESTS}
+    return _run_shape(shape, bins, out, keep)
+
+
+def _run_shape(shape, bins, out, keep):
     """→ (流した数, 落ちた試験の名前の並び, 流せなかった理由)"""
     root = os.geteuid() == 0
     if not root or not shutil.which("runuser"):
@@ -195,15 +242,22 @@ def main():
         sys.exit(f"知らない形: {unknown}（{', '.join(SHAPES)}）")
     bins = test_bins(tests_of(opt("--book")))
     print(f"焼いた本の試験 {len(bins)} 本を CI に似せた形で流します（記録 {out}）", flush=True)
-    rc = 0
+    rc, done, skipped = 0, 0, []
     for s in shapes:
         ran, failed, why = run_shape(s, bins, out, "--keep" in args)
         if why:
             print(f"[{s}] 流せない（{why}）")
+            skipped.append(s)
             continue
+        done += 1
         print(f"[{s}] 流した {ran} 本・落ちた {len(failed)} 本" + (f": {' '.join(failed)}" if failed else ""), flush=True)
         rc |= bool(failed)
-    print("ci-shape: " + ("落ちた形があります" if rc else "すべて通りました"))
+    if not done:
+        # 1 つの形も流せなかった: 通ったことにしない（版 3.116.0 の作った後の直し: 前は「すべて通りました」・終了コード 0 だった）
+        print("ci-shape: 流せませんでした（root で流してください。CI に似せた形の確かめはしていません）")
+        sys.exit(3)
+    print("ci-shape: " + ("落ちた形があります" if rc else "流した形はすべて通りました")
+          + (f"（流せなかった形: {' '.join(skipped)}）" if skipped else ""))
     sys.exit(rc)
 
 

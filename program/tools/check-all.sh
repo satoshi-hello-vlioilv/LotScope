@@ -46,6 +46,8 @@ fi
 
 N=0
 FAIL=0
+NOTE=""
+LAST_RC=0
 step() {
   N=$((N + 1))
   local name="$1"; shift
@@ -58,7 +60,13 @@ step() {
   local ran fails
   ran=$(grep -E "^Ran [0-9]+ tests" "$log" | tr '\n' ' ')
   fails=$(grep -E "^FAILED|test result: FAILED|^error(\[|:)" "$log" | head -3 | tr '\n' ' ')
-  [ $rc -ne 0 ] && FAIL=1
+  LAST_RC=$rc
+  # ci-shape の終了コード 3 は「1 つの形も流せなかった」（root でない PC）。落ちた段にはしないが、まとめに出す（下の NOTE）
+  if [ "$name" = ci-shape ] && [ $rc -eq 3 ]; then
+    NOTE="ci-shape は流せませんでした（root でない PC。CI に似せた形の確かめはしていません）"
+  elif [ $rc -ne 0 ]; then
+    FAIL=1
+  fi
   printf '%-14s 終了コード %-3s %4ss %s %s\n' "$name" "$rc" "$((SECONDS - t0))" "$ran" "$fails" | tee -a "$OUT/summary.txt"
 }
 
@@ -114,7 +122,7 @@ if [ $VERIFY -eq 1 ]; then
 fi
 
 if [ $FAIL -eq 0 ]; then
-  echo "すべて通りました" | tee -a "$OUT/summary.txt"
+  echo "すべて通りました${NOTE:+。ただし $NOTE}" | tee -a "$OUT/summary.txt"
 else
   echo "落ちた段があります（push しない）。記録: $OUT" | tee -a "$OUT/summary.txt"
 fi

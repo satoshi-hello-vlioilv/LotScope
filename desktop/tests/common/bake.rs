@@ -331,6 +331,10 @@ pub fn settle_with(v: &Value, ctx: &Ctx, extra_keys: &[String], drop: Option<&st
         let mut t = ctx.sub_slash(t).replace(da_core::held::mark(), "@HELD:");
         if stamp && t.contains(build_stamp()) {
             t = t.replace(build_stamp(), "@BUILD");
+            // 画面の字（指紋のある字）の中のアプリの版（見出しの札「VER3.116.0」）も @VERSION に（版を上げるたびに表が古くならないように。
+            // 値がアプリの版そのものの欄は下の go が @VERSION にする）。前後が数字・点でない所だけ。指紋の無い字の中の版はそのまま比べる
+            let ver = super::re(&format!(r"(^|[^0-9.]){}([^0-9.]|$)", regex::escape(app_version())));
+            t = ver.replace_all(&t, "${1}@VERSION${2}").into_owned();
         }
         if let Some(u) = os_user() {
             if t.contains(&format!("／{u} ")) {
@@ -663,7 +667,7 @@ pub fn unpack_table(t: &Value) -> Value {
 /// 詰める段（表の上の鍵）
 const PACKED: [&str; 4] = ["oracle", "scene", "answers", "variants"];
 
-/// 表を詰めた形にする（PACKED の段を詰め、parts を足す。2 回出る部分が無ければ parts は付けない）
+/// 表を詰めた形にする（PACKED の段を詰め、parts を足す。2 回出る部分が無くても空の parts を付ける＝詰めた表の印）
 pub fn pack_table(t: &Value) -> Value {
     let mut t = unpack_table(t);
     let o = t.as_object_mut().unwrap();
@@ -675,9 +679,9 @@ pub fn pack_table(t: &Value) -> Value {
     for (k, v) in held {
         o.insert(k, v);
     }
-    if !parts.is_empty() {
-        o.insert("parts".into(), Value::Object(parts));
-    }
+    // parts はいつも付ける（空でも。詰めた表の印: 開く側は parts があれば開く。版 3.116.0 の作った後の直し: 前は 2 回出る部分が
+    // 無いと付けず、長い繰り返しの字 @rep・印と同じ形の表 @lit だけがある表が開かれなかった）
+    o.insert("parts".into(), Value::Object(parts));
     t
 }
 

@@ -555,6 +555,11 @@ fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
     let other = format!("{ver}-{}", if hex.starts_with('0') { "1".repeat(12) } else { "0".repeat(12) });
     assert_eq!(settle(&page(&other), &ctx, &[]), page(&other), "別の指紋はそのまま");
     assert_ne!(settle_with(&page(stamp), &ctx, &[], Some("@BUILD")), settled, "決まりを外すと指紋の字が残る");
+    // 画面の字（指紋のある字）の中のアプリの版（見出しの札）も @VERSION に。別の版・指紋の無い字の中の版はそのまま
+    let badge = |s: &str, v: &str| json!({"html": format!("<meta content=\"{s}\"><button>VER{v}</button> 1{v} {v}.1")});
+    assert_eq!(settle(&badge(stamp, ver), &ctx, &[]), json!({"html": format!("<meta content=\"@BUILD\"><button>VER@VERSION</button> 1{ver} {ver}.1")}));
+    assert_eq!(settle(&badge(stamp, "0.0.1"), &ctx, &[])["html"], json!(format!("<meta content=\"@BUILD\"><button>VER0.0.1</button> 10.0.1 0.0.1.1")));
+    assert_eq!(settle(&json!({"text": format!("VER{ver} の画面")}), &ctx, &[]), json!({"text": format!("VER{ver} の画面")}), "指紋の無い字の中の版はそのまま");
     // 名乗りの表の鍵（端末@利用者。使えない字があれば _ にして sha1 の 6 字）
     let Some(u) = common::bake::os_user() else { return };
     let key = da_core::bundle::terminal_key;
@@ -580,4 +585,58 @@ fn the_build_stamp_and_the_terminal_key_are_settled_narrowly() {
         "決まりを外すと利用者の名前が残る"
     );
     let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 詰める形の往復は、2 回出る部分の無い表でも、乱数で作った表でも成り立つ（版 3.116.0 の作った後の採点の割れ 4: 前は parts の無い表が
+/// 開かれず、長い繰り返しの字・印と同じ形の表が詰めた形のまま残った）
+#[test]
+fn packing_round_trips_without_repeats_and_for_random_tables() {
+    use common::bake::{pack_table, unpack_table, PACK_MIN, REP_MIN};
+    // 重なりの無い表に、長い繰り返しの字と、印と同じ形の表
+    let t = table(
+        json!({"a": {"status": 200, "json": {"body": "い".repeat(REP_MIN + 5), "mark": {"@rep": [1]}, "lit": {"@lit": {"@same": "x"}}}}}),
+        json!({"a": "GET /a"}),
+    );
+    let packed = pack_table(&t);
+    assert_eq!(packed["parts"], json!({}), "2 回出る部分が無くても、詰めた表の印として空の parts を付ける");
+    assert!(serde_json::to_string(&packed).unwrap().contains("\"@rep\":[["), "長い繰り返しの字は作り方");
+    assert_eq!(unpack_table(&packed), t, "重なりの無い表も 詰める → 開く ＝ 元");
+    assert_eq!(pack_table(&unpack_table(&packed)), packed);
+    // 乱数の表（決めた種。2000 字の境の前後の繰り返しの字・印と同じ形の表・重なる部分木・重ならない部分木）
+    let mut seed = 0x2545F4914F6CDD1Du64;
+    let mut rnd = move |n: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % n
+    };
+    fn gen(depth: u32, rnd: &mut dyn FnMut(u64) -> u64) -> Value {
+        match rnd(if depth > 3 { 5 } else { 9 }) {
+            0 => json!(rnd(1000)),
+            1 => json!(["あ", "ab", "x"][rnd(3) as usize].repeat((REP_MIN - 3 + rnd(7) as usize) / [1, 2, 1][rnd(3) as usize])),
+            2 => json!("字".repeat(rnd(2 * PACK_MIN as u64) as usize)),
+            3 => json!({["@same", "@rep", "@lit"][rnd(3) as usize]: rnd(5)}),
+            4 => json!({"k": "重なる部分".repeat(PACK_MIN / 4), "n": rnd(2)}),
+            5 | 6 => Value::Array((0..rnd(4)).map(|_| gen(depth + 1, rnd)).collect()),
+            _ => Value::Object((0..rnd(4)).map(|i| (format!("k{i}"), gen(depth + 1, rnd))).collect()),
+        }
+    }
+    let (mut with_parts, mut without) = (0, 0);
+    for i in 0..300 {
+        let answers: serde_json::Map<String, Value> = (0..1 + rnd(4)).map(|k| (format!("s{k}"), gen(0, &mut rnd))).collect();
+        let routes: serde_json::Map<String, Value> = answers.keys().map(|k| (k.clone(), json!("GET /x"))).collect();
+        let t = table(Value::Object(answers), Value::Object(routes));
+        let packed = pack_table(&t);
+        if packed["parts"].as_object().is_some_and(|p| p.is_empty()) {
+            without += 1;
+        } else {
+            with_parts += 1;
+        }
+        assert_eq!(unpack_table(&packed), t, "乱数の表 {i}: 詰める → 開く ＝ 元");
+        // 書いた字から読み直しても同じ・詰め直しても同じ
+        let reread: Value = serde_json::from_str(&common::bake::lines(&packed, 0)).unwrap();
+        assert_eq!(unpack_table(&reread), t, "乱数の表 {i}: 書いた字から読み直す");
+        assert_eq!(pack_table(&unpack_table(&reread)), packed, "乱数の表 {i}: 詰め直しても同じ字");
+    }
+    assert!(with_parts >= 50 && without >= 50, "重なりのある表 {with_parts}・無い表 {without} の両方を見る");
 }

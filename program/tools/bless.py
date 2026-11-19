@@ -39,6 +39,11 @@ MAX_TOTAL_MB = 40.0
 # そろえた印（desktop/tests/common/bake.rs の settle が答えに置く字）。本ごとに数えて、そろえすぎを数で見せる（first_fixes 12）
 STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@BUILD", "@DAY", "@ABOVE", "@PID", "@UI", "@FID(")
 STAMP_SHARE = 0.2      # 印のある葉が答えの葉のこの割合を超える本は知らせる（守りが薄い表）
+# 場面のファイルの更新時刻「今からのずれ」がこれより大きい物は知らせる（ms。版 3.116.0 の作った後の直し）: 答え合わせ役が作ったファイルは
+# 焼いた時の今（ずれは数秒）。大きいずれは、取り出しのファイルの時刻をそのまま写した（＝取り出してからの日数に頼る表）か、場面が
+# わざと置いた時刻（books.json の sceneTimesWhy に理由を書いた本は知らせない）
+NOW_OFFSET_MS = 10 * 60 * 1000
+NOW_RE = re.compile(r"@NOW\((-?\d+)ms\)")
 
 
 def baked(book):
@@ -223,6 +228,13 @@ def check(baked=None):
 def notices(baked=None):
     """知らせ（落とさない）: 印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）"""
     out = []
+    for name, book in tables(baked).items():
+        t = unpack_table(json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")))
+        far = [rel for rel, e in t.get("scene", {}).get("files", {}).items()
+               if (m := NOW_RE.fullmatch(str(e.get("mtime", "")))) and abs(int(m[1])) > NOW_OFFSET_MS]
+        if far and not BOOKS.get(book, {}).get("sceneTimesWhy"):
+            out.append(f"{name}: 場面のファイル {len(far)} 個の更新時刻が今から 10 分より離れている（例 {far[0]}）。取り出しのファイルの時刻を"
+                       "写していないか（tests/scene_files.py を通して写す）。場面がわざと置いた時刻なら books.json の sceneTimesWhy に理由を書く")
     for name in tables(baked):
         s = stats_of((baked or BAKED) / f"{name}.json")
         if s["leaves"] and s["stamped"] > STAMP_SHARE * s["leaves"]:
