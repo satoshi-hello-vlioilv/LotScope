@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -86,6 +87,94 @@ class BakedTables(unittest.TestCase):
         log.write_text(f"TPA\t{PROGRAM / 'tests' / 'calc_oracle.py'}\tx\nPATH\t-V\n", encoding="utf-8")
         self.assertEqual(len(ci.python_calls_ok(log)), 2, "app を import する台本と PATH の python は見つける")
         shutil.rmtree(log.parent, ignore_errors=True)
+
+    def test_scenes_do_not_carry_the_checkout_times_and_modes(self):
+        """場面は取り出しのファイルの更新時刻と権限を持ち込まない（版 3.116.0 の作った後の採点の割れ 1: 持ち込むと、取り出してから 2 日を過ぎた
+        作業フォルダ・umask 002 の取り出しで「表が古い」と落ちた）。答え合わせ役は取り出しから直に写さず tests/scene_files.py を通す。
+        変異: 古い時刻・775/664 の元を写しても、写した物は今の時刻・755/644。表の場面に今から離れた時刻があれば知らせる"""
+        import os
+        import re
+        import time
+        from tests import scene_files
+        direct = re.compile(r"shutil\.(copytree|copy2|copy|copyfile)\(\s*\(?\s*(PROGRAM|ROOT|BASE)\b")
+        for p in sorted((PROGRAM / "tests").glob("*_oracle.py")):
+            self.assertIsNone(direct.search(p.read_text(encoding="utf-8")), f"{p.name}: 取り出しから直に写している（scene_files を通す）")
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            src = tmp / "src"
+            (src / "sub").mkdir(parents=True)
+            for f in (src / "a.json", src / "sub" / "b.json"):
+                f.write_text("{}", encoding="utf-8")
+            old = time.time() - 5 * 86400
+            for p in (src / "a.json", src / "sub" / "b.json", src / "sub", src):
+                os.chmod(p, 0o775 if p.is_dir() else 0o664)
+                os.utime(p, (old, old))
+            scene_files.copy_tree(src, tmp / "dst")
+            scene_files.copy_file(src / "a.json", tmp / "one.json")
+            for p in (tmp / "dst", tmp / "dst" / "sub", tmp / "dst" / "a.json", tmp / "dst" / "sub" / "b.json", tmp / "one.json"):
+                st = p.stat()
+                self.assertEqual(st.st_mode & 0o777, 0o755 if p.is_dir() else 0o644, p)
+                self.assertLess(abs(st.st_mtime - time.time()), 60, p)
+            self.assertLess(abs((src / "a.json").stat().st_mtime - old), 2, "元は変えない")
+            # 表の場面に今から離れた更新時刻があれば知らせる（sceneTimesWhy のある本〈builder〉は知らせない）
+            for p in bless.BAKED.glob("*.json"):
+                shutil.copy(p, tmp / p.name)
+            self.assertEqual([x.split(":")[0] for x in bless.notices(tmp)], ["fs"])
+            t = json.loads((tmp / "shifts.json").read_text(encoding="utf-8"))
+            rel = next(iter(t["scene"]["files"]))
+            t["scene"]["files"][rel]["mtime"] = "@NOW(-432000000ms)"
+            (tmp / "shifts.json").write_text(json.dumps(t), encoding="utf-8")
+            far = [x for x in bless.notices(tmp) if x.startswith("shifts:")]
+            self.assertTrue(far and "今から 10 分より離れている" in far[0], bless.notices(tmp))
+            self.assertTrue(bless.BOOKS["builder"].get("sceneTimesWhy"))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_ci_shape_makes_an_old_checkout_and_says_when_nothing_ran(self):
+        """ci-shape.py（版 3.116.0 の作った後の直し）: 取り出しを「古い・775/664」の形にして、抜けるときに元へ戻す。1 つの形も流せない PC
+        （root でない）では「流せませんでした」・終了コード 3（通ったことにしない）"""
+        import contextlib
+        import importlib.util
+        import io
+        import os
+        import time
+        spec = importlib.util.spec_from_file_location("ci_shape", PROGRAM / "tools" / "ci-shape.py")
+        ci = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ci)
+        tmp = Path(tempfile.mkdtemp())
+        old_program = ci.PROGRAM
+        try:
+            (tmp / "data" / "sub").mkdir(parents=True)
+            f = tmp / "data" / "sub" / "x.json"
+            f.write_text("{}", encoding="utf-8")
+            os.chmod(f, 0o644)
+            before = (f.stat().st_mode & 0o777, f.stat().st_mtime_ns)
+            ci.PROGRAM = tmp
+            with ci.OldCheckout():
+                st = f.stat()
+                self.assertEqual(st.st_mode & 0o777, 0o664)
+                self.assertEqual((tmp / "data" / "sub").stat().st_mode & 0o777, 0o775)
+                self.assertGreater(time.time() - st.st_mtime, (ci.OLD_DAYS - 1) * 86400)
+            self.assertEqual((f.stat().st_mode & 0o777, f.stat().st_mtime_ns), before, "元の権限と更新時刻へ戻す")
+        finally:
+            ci.PROGRAM = old_program
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertIn("builder_parity", ci.NODNS_TESTS)
+        # root でない PC: どの形も流せない → 終了コード 3 と「流せませんでした」
+        old = (ci.test_bins, os.geteuid, sys.argv)
+        out = io.StringIO()
+        try:
+            ci.test_bins = lambda tests: {"bake_selftest": "/bin/true"}
+            os.geteuid = lambda: 1000
+            sys.argv = ["ci-shape.py", tempfile.mkdtemp()]
+            with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as e:
+                ci.main()
+            self.assertEqual(e.exception.code, 3)
+            self.assertIn("流せませんでした", out.getvalue())
+            self.assertNotIn("すべて通りました", out.getvalue())
+        finally:
+            shutil.rmtree(sys.argv[1], ignore_errors=True)
+            ci.test_bins, os.geteuid, sys.argv = old
 
     def test_the_windows_measure_summary_reads_the_records(self):
         """Windows の測るだけの仕事の記録のまとめ（bless.py --measured。落とさない）"""
