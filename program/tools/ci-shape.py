@@ -15,6 +15,8 @@
     nodns  … 名前を引く先に届かない名前空間（unshare -m で /etc/resolv.conf を差し替える）・TPA_NO_PYTHON=1。名前を引く場面のある本の
               試験（NODNS_TESTS）だけを流す（全部を流すと route_reach だけで 3 分かかる。名前を引かない本は nopy と同じ流しになる）
 
+どの形も、PC の名前（ホスト名）を HOST_NAME に替えた名前空間（unshare -u）で流す（版 3.116.0 の PR #116 の CI の直し: 焼いた表に
+焼いた PC の名前「vm」が入り、CI の runner の名前で bundle_parity・page_parity が落ちた。手元の 3 つの形は PC の名前が同じで見つけられなかった）。
 どれも試験の実行ファイルを直に流す（--test-threads=1）。落ちた本があれば終了コード 1。root で流す（利用者を替える・名前空間を作るため）。
 root でない・runuser や unshare が無い PC では、流せない形を「流せない」と書いて飛ばす。終了コード: 0 は流した形がすべて通った・
 1 は落ちた形がある・3 は 1 つの形も流せなかった（「流せませんでした」。通ったことにしない）。
@@ -42,6 +44,8 @@ NODNS_TESTS = ("builder_parity", "page_parity", "bundle_parity", "equipgroups_wr
 # 「古い取り出し」「umask 002 の取り出し」の形にする取り出しのフォルダ（答え合わせ役が場面へ写す元）
 CHECKOUT_DIRS = ("data", "config")
 OLD_DAYS = 5
+# 流している間の PC の名前（ホスト名）。焼いた PC の名前と違う名前にする（CI の runner は runnervm… の名前）
+HOST_NAME = "ci-shape-host"
 USER = "daemon"
 BAD = re.compile(r"test result: FAILED|panicked at|表が古い|焼いた表と違う|食い違い")
 IMPORT_APP = re.compile(r"^\s*(?:from\s+app[\s.]|import\s+app\b)", re.M)
@@ -164,7 +168,7 @@ def _run_shape(shape, bins, out, keep):
     root = os.geteuid() == 0
     if not root or not shutil.which("runuser"):
         return 0, [], "root でない・runuser が無い"
-    if shape == "nodns" and not shutil.which("unshare"):
+    if not shutil.which("unshare"):
         return 0, [], "unshare が無い"
     work = Path(tempfile.mkdtemp(prefix=f"ci-shape-{shape}-", dir="/dev/shm" if Path("/dev/shm").is_dir() else None))
     os.chmod(work, 0o755)
@@ -173,7 +177,8 @@ def _run_shape(shape, bins, out, keep):
         d.mkdir()
         os.chmod(d, 0o1777)
     env = {"PATH": os.environ.get("PATH", ""), "TMPDIR": str(tmp), "USER": "runner", "LOGNAME": "runner", "PYTHONDONTWRITEBYTECODE": "1"}
-    pre, user = [], USER
+    # PC の名前を替えた名前空間（unshare -u。この流しの中だけ）で流す
+    setup, flags, user = f'echo {HOST_NAME} > /proc/sys/kernel/hostname', "-u", USER
     log = work / "python-calls.log"
     if shape == "runner":
         env.update(HOME=str(home), TPA_PYTHON="/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable)
@@ -198,7 +203,8 @@ def _run_shape(shape, bins, out, keep):
             env.update(HOME=str(home))
             dead = work / "resolv.conf"
             dead.write_text("nameserver 192.0.2.1\noptions timeout:1 attempts:1\n")
-            pre, user = ["unshare", "-m", "sh", "-c", f'mount --bind "{dead}" /etc/resolv.conf && exec "$@"', "sh"], None
+            setup, flags, user = f'{setup} && mount --bind "{dead}" /etc/resolv.conf', "-um", None
+    pre = ["unshare", flags, "sh", "-c", f'{setup} && exec "$@"', "sh"]
     failed, ran = [], 0
     for name, exe in bins.items():
         cmd = ["env", "-i"] + [f"{k}={v}" for k, v in env.items()] + [exe, "--test-threads=1"]
