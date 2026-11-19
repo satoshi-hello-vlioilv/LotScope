@@ -2623,13 +2623,13 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 
 | 版 | 入れる物 | 焼く本（Python 無しで流れる本の数） |
 |---|---|---|
-| **3.117.0（この版）** | Windows の仕事を 2 つに割る・Windows の測りを ④ の後の形でも取る・土台（別の PC の形で 2 回目を焼く・PC の指紋の見張り・環境変数の形）・起こしたままの相手 | equipgroups・lotdsp（@BOOKS@/35） |
+| **3.117.0（この版）** | Windows の仕事を 2 つに割る・Windows の測りを ④ の後の形でも取る・土台（別の PC の形で 2 回目を焼く・PC の指紋の見張り・環境変数の形）・起こしたままの相手 | equipgroups・lotdsp（30/35） |
 | 3.117.1 | ③-6（CM3 の https・システムのプロキシを窓が取る。native-tls・戻り道の設定つき）・schedule の直し | schedule |
 | 3.117.2 | 場面の台本（ui_server.build・ops-bench の場面を作業フォルダの下・決めたキーで。routes の inode の使い回しを止める） | pivot・routes・dashboard・ops（35/35） |
 | 3.117.3 | Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書 | — |
 
 **段 ④ の入口の条件**（どれか欠けたら ④ に入らない）:
-1. 36 本のうち keep を除く 35 本が Python 無しで流れる（この版で @BOOKS@ 本）
+1. 36 本のうち keep を除く 35 本が Python 無しで流れる（この版で 30 本）
 2. **Windows の CI が、Python 無しの形（`TPA_NO_PYTHON=1`。表の宣言から場面を作る形）で焼いた表と比べている**（Python と比べる形は ④ まで残す）。
    前の書き方「Windows の CI が焼いた表と比べている」は、どちらの形かを決めていなかった。④ の後に残るのは表の宣言から場面を作る形だけで、
    その形は Windows で 1 度も流れていなかった（3.116.0 の測りは Windows の Python が場面を作る形だけ。PR #116 の記録では 34 表のうち
@@ -2710,7 +2710,28 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 
 #### ⑤⑥ 焼いた本
 
-@BAKED@
+`python program/tools/bless.py settings equipgroups lotdsp`（2 回目は別の PC の形）で、分の境をまたいで同じ。`ci-shape` の 3 つの形（runner＝root でない利用者・
+プロキシと TLS の根の環境変数・LANG=ja_JP.UTF-8／nopy＝Python 無し・umask 077・時差・リポジトリが家の下／nodns）でも通る。
+
+| 表 | 大きさ | 歩 | 葉 | そろえた印のある葉 | 備考 |
+|---|---|---|---|---|---|
+| equipgroups | 0.46 MB | 429 | 58,754 | 4,946（@T 2,338・@USER 2,463・@HELD 142・@WORK 6） | 詰めた形。場面 481 ファイル。配った設定の中の作り物の URL は @URL(cm3) |
+| lotdsp | 5.96 MB（上限 7） | 202 | 18,436 | 14（@URL(lotdsp)） | 詰めた形。問い合わせの本文（画面の見本 100 KB を 16 進にした字 約 25 通り）が 5 MB。場面のファイルは持たない |
+| settings.bundle・settings.pages | 0.39・1.05 MB（前と同じ） | 85・447 | — | — | `settings_oracle.write` の改行の直しで元の指紋が変わったので焼き直した（答えの葉は 0 変わり） |
+
+計 30.37 MB（前 23.95 MB。36 ファイル。上限 40 MB）。3.117.1〜3.117.2 の 5 本の見込みは詰めて +4.8 MB と場面の宣言 1〜2 MB で 約 36〜37 MB。
+足りなくなる前の手: lotdsp の問い合わせの本文を 16 進でなく字で持てば（字として読めない本文だけ 16 進）約 2.5 MB 減る（この版では入れていない）。
+
+- equipgroups: 表の問い合わせに Python の答え（歩の状態と本文・Python が置いた最初の版・置いたファイルの名前）を持たない。Python の側のフォルダ（py・pd）は
+  場面に持たない。
+- lotdsp: かかった秒（direct[].seconds）と Python の答え（result・log・left・closed）は表の問い合わせから落とす。答え合わせ役の側のフォルダ（py/）は場面に
+  持たないので、作り物のブラウザの包み（sh の台本。答え合わせ役のは sys.executable の道を持ち PC ごとに違う）と実行できないブラウザの見本は、窓の試験が
+  rs/ に作る（場面の設定の py/ の道は rs/ に読み替え、窓の答えの中の道は py/ に戻して比べる）。
+- **別の PC の形の 2 回目が、最初の焼きで割れを 1 つ見つけた**: equipgroups の場面の `仕掛.sqlite3`（答え合わせ役の Python が作る）が、SQLite の版が違う Python
+  （/usr/bin/python3）でバイトが違い、`bless.py` の 2 回の比べが止めた（窓の表との比べは 3.115.0 から版によらない形 `decl_cmp`。2 回の比べだけが
+  バイトで比べていた）→ `bless.sqlite_logical`（頭の決め・表の定義・行で比べる）。`test_two_bakes_compare_sqlite_files_by_content`。
+- 任せる歩は 11 のまま（`python program/tools/delegate-count.py 作業フォルダ --check`: 予算と同じ）。
+
 
 #### この版の後に残る物
 

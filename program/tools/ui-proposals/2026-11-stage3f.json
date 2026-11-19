@@ -1044,5 +1044,34 @@
    "見込み（測りから）: 1 往復の決まった手間は check-all 26〜31 分（verify つきは 63〜67 分）・CI は Linux 約 20 分と Windows 約 45 分（割った後。並んで流れる）。4 版で作る係の区切りは 約 2.5＋3＋2.5＋1.5（G の見込み 8 に、戻り道・Windows の本物・inode の直しの分を足した）"
   ],
   "note": "1 位は 60.0 点で合格点 80 に届かない。決まり 2026-11-06 のとおり案出しはやり直さず、1 位の G に first_fixes を入れた形で作る。足りない 20 点の主な所: 往復が 4 回かかる（ステップ数）・Windows の ④ の後の形と現場の ③-6 が、作る前には数で見えない（減点 2 つ）・ui の 4 本の場面に inode の割れが残っている（どの案にも共通）"
+ },
+ "built_plan": {
+  "about": "作った形（版 3.117.0・ブランチ stage3f）。1 位の案 G に採点の first_fixes 16 件のうち 3.117.0 に当たる物（1・2・3・5・7 の一部・8・14・15）を入れた。4 版の割りは first_fixes 1 のとおり（3.117.0 時間の手当て・土台・Windows の測り直し・起こしたままの相手・equipgroups・lotdsp／3.117.1 ③-6・schedule／3.117.2 場面の台本・pivot・routes・dashboard・ops／3.117.3 Windows の切り替え・凍らせる写し）。採点の中身（rounds・evaluation）は書き換えていない",
+  "cut_line": "切る線の ①〜⑥ を全部入れた（① desktop.yml を割る〈最初のコミット〉→ ② Windows の表だけの形の測り・.gitattributes → ③ K1 薄く・K2・K3 (b)(e)・K4 → ④ fakes_serve.py・Bake::fakes・名前つきの URL → ⑤ equipgroups → ⑥ lotdsp）。送った物は無い（schedule の作り物 World・blackhole も fakes_schedule.py へ切り出した。schedule を焼くのは割りどおり 3.117.1）",
+  "baked": "equipgroups・lotdsp を焼いた（焼いた本は 30/35）。2 回目は別の PC の形（ci-shape の runner の形・root）で、分の境をまたいで同じ。表は 36 ファイル・30.37 MB（前 23.95 MB。equipgroups 0.46・lotdsp 5.96。上限 40 MB）。ci-shape の 3 つの形でも通る。任せる歩は 11 のまま",
+  "first_fixes": {
+   "1": "4 版の割りを books.json の phase（3.117.0・3.117.1・3.117.2）と RUST_PORT_PLAN.md の表に書いた。入口の条件の数は 30/35",
+   "2": "最初のコミットは .github/workflows/desktop.yml だけ（windows-test・windows-exe・release は両方を needs・workflow_dispatch の入力 only=windows-test）。時間は最初の CI の記録で確かめる（手元では流せない）",
+   "3": "bake.rs の測りの記録を表だけの形（Mode::Baked）でも書く（form・finished・sceneError。Drop でも書く）。windows-test に焼いた本を TPA_NO_PYTHON=1 で流す段（route_reach は流さない・落ちても続ける）。bless.py --measured が 2 つの形を別の行で出し、--json の行から --from-log で戻せる。入口の条件 (2) を「Python 無しの形で焼いた表と比べている」に書き直した",
+   "4": "3.117.3（入れていない）",
+   "5": "元は答え合わせ役の write_text の改行の変換（settings_oracle.write が indent つきの JSON を書き、場面が read_bytes の半分で切る。記録の 54／58 バイト＝改行 8 つ）。settings_oracle.write を newline=\\n にして settings を焼き直した（答えの葉は 0 変わり）。取り出しの JSON は .gitattributes で -text（場面へ写す取り出しのマスタ）",
+   "6": "3.117.2（入れていない）",
+   "7": "(b) lotdsp の direct[].seconds は表の問い合わせから落とす（strip）。(e) 窓の試験の頭でプロキシと SSL_CERT_FILE・SSL_CERT_DIR を外す（common::clean_env。oracle_gate.py は 16 本の元の指紋なので変えず、答え合わせ役を起こす 1 か所で外す）。(a)(c)(d) は 3.117.2。run7b.py の 3 つの形の代わりに、bless の 2 回目（別の PC の形）と ci-shape の 3 つの形で equipgroups・lotdsp の残る葉 0 を見た",
+   "8": "K1 は bless.py の 2 回目が ci-shape.run_shape(\"runner\", …, as_root=True) を呼ぶだけ（名前空間の作りは ci-shape の 1 つ）。利用者は root のまま（daemon にすると表の本の答えでなく variants.user に書く形になるため。root でない利用者は --user と ci-shape の runner の形が見る）。確かめ: TPA_SETTLE_DROP=@HOST で settings を焼くと 2 回目が止めた。K2 は 4 種（PC の名前・一時フォルダの下の作業フォルダ・ポート・ファイルID）。K4 の環境変数の形は主の指示でこの版に入れた（プロキシは閉じた口・TLS の根は空・LANG・nopy は umask 077）。bakedOn は入れていない",
+   "9": "3.117.1（入れていない）",
+   "10": "3.117.1（入れていない）",
+   "11": "3.117.1（入れていない）",
+   "12": "3.117.1（入れていない）",
+   "13": "3.117.1（入れていない）",
+   "14": "tests/fakes_serve.py（入口）・fakes_equipgroups.py・fakes_lotdsp.py。Bake::fakes が表だけの形で起こす。URL は @URL(cm3)・@URL(lotdsp)（@ADDR(名前) も）。lotdsp の見本は tests/lotdsp_samples.py へ移したが、entity_of は app の読み手を使うので移せず、作り物の API の答えを表 lotdsp_fake_tables.json に焼いた（採点の測りは import だけを見ていた）。切り出しの前後で lotdsp の答え合わせ役の答えはポートと秒のほか同じ。World・blackhole（schedule）は fakes_schedule.py へ（前後で違う葉は時刻・かかった ms・要求の並び＝前からの揺れだけ。schedule_parity は Python と比べる形で通る）",
+   "15": "check-all --verify を流した（desktop.yml と試験の道具だけの版だが、主の指示どおり）",
+   "16": "3.117.3（入れていない）"
+  },
+  "found_while_building": [
+   "K1（別の PC の形の 2 回目）が最初の焼きで割れを 1 つ見つけた: equipgroups の場面の 仕掛.sqlite3 が SQLite の版でバイトが違う（bless.py の 2 回の比べがバイトで比べていた）→ 2 回の比べを SQLite の版によらない形に（bless.sqlite_logical。窓の表との比べは前から decl_cmp が同じ形）",
+   "lotdsp の entity_of は app の読み手（lotdsp_progress）で作り物の JSON を作る（見本を移すだけでは app が残る）→ 答えを表に焼いた",
+   "lotdsp の表は 6 MB（見込み 3.4 MB）: 問い合わせの本文（画面の見本の 16 進）が約 25 通り。books.json の maxMB 7",
+   "答え合わせ役の場面（py/）の作り物のブラウザの包みは sys.executable の道を持つ（PC ごとに違う）→ 窓の試験が rs/ に作る"
+  ]
  }
 }
