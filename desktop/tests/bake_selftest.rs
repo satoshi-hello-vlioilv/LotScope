@@ -410,3 +410,130 @@ fn a_scene_comes_back_from_its_declaration() {
     }
     let _ = std::fs::remove_dir_all(&base);
 }
+
+// ------------------------------------------------------------------ 版 3.116.0: 詰める形・場面の台本の指紋・測るだけ
+
+/// 詰める → 開く ＝ 元（往復）。参照は中身の指紋で、1 歩が変わってもほかの歩の行（詰めた字）は動かない。参照の先を 1 字変えると、
+/// 開いた答えが変わって表との比べが落ちる。印と同じ形の表・長い繰り返しの字も元に戻る
+#[test]
+fn packing_round_trips_and_references_do_not_move() {
+    use common::bake::{pack_table, unpack_table, PACK_MIN, REP_MIN};
+    let long = |c: &str| c.repeat(PACK_MIN);
+    let big = format!("{{\"k\": \"{}\", \"m\": \"{}\"}}", "あ".repeat(REP_MIN + 10), "ab".repeat(REP_MIN));
+    let answers = json!({
+        "a": {"status": 200, "json": {"rows": [long("x"), long("y")], "lot": {"n": long("z")}}},
+        "b": {"status": 200, "json": {"rows": [long("x"), long("y")], "lot": {"n": long("z")}, "extra": 1}},
+        "c": {"status": 200, "json": {"@same": "印と同じ形の表"}},
+        "d": {"status": 200, "json": {"body": big.clone(), "again": big}},
+    });
+    let t = table(answers.clone(), json!({"a": "GET /a", "b": "GET /b", "c": "GET /c", "d": "GET /d"}));
+    let packed = pack_table(&t);
+    let text = serde_json::to_string(&packed).unwrap();
+    assert!(packed["parts"].as_object().is_some_and(|p| !p.is_empty()), "2 回出る部分は parts に置く");
+    assert!(text.len() < serde_json::to_string(&t).unwrap().len() / 2, "詰めた表は小さい: {}", text.len());
+    assert!(text.contains("\"@rep\"") && text.contains("\"@lit\""), "長い繰り返しの字は作り方・印と同じ形の表は包む");
+    assert_eq!(unpack_table(&packed), t, "詰める → 開く ＝ 元");
+    assert_eq!(pack_table(&unpack_table(&packed)), packed, "開く → 詰める ＝ 同じ字（焼き直しで差分が出ない）");
+    // 1 歩（b）だけを変えても、ほかの歩（a・c・d）の詰めた字と、変わらない部分の参照は動かない
+    let mut changed = t.clone();
+    changed["answers"]["b"]["json"]["extra"] = json!(2);
+    let p2 = pack_table(&changed);
+    for k in ["a", "c", "d"] {
+        assert_eq!(p2["answers"][k], packed["answers"][k], "歩 {k} の詰めた字が動いた");
+    }
+    assert_eq!(p2["answers"]["b"]["json"]["rows"], packed["answers"]["b"]["json"]["rows"], "変わらない部分の参照は同じ指紋");
+    // 参照の先（parts の中身）を 1 字変えると、開いた答えが変わる
+    let mut tampered = packed.clone();
+    let key = packed["answers"]["a"]["json"]["lot"]["@same"].as_str().expect("lot は参照").to_string();
+    tampered["parts"][key.as_str()]["n"] = json!(long("z").replacen('z', "Z", 1));
+    assert_ne!(unpack_table(&tampered)["answers"]["a"], t["answers"]["a"], "参照の先の 1 字の違いは開いた答えに出る");
+    // 参照の先が無い表は分かる言葉で落ちる
+    let mut broken = packed.clone();
+    broken["parts"].as_object_mut().unwrap().remove(&key);
+    let e = catch_unwind(AssertUnwindSafe(|| unpack_table(&broken))).expect_err("参照の先が無い");
+    let e = e.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(e.contains("parts にありません"), "{e}");
+    // 詰めた表でも、窓の答えの 1 字の違いは落ちる（比べるのは開いた後）
+    let base = common::work("bake-packed");
+    let same = |text: &str| {
+        let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(unpack_table(&packed)), &base);
+        bk.check = true;
+        let _ = bk.oracle("unused.py", &[]);
+        for k in ["a", "b", "c", "d"] {
+            let mut got = answers[k].clone();
+            if k == "a" {
+                got["json"]["lot"]["n"] = json!(text);
+            }
+            let want = bk.want(k, || Value::Null);
+            bk.note(k, &format!("GET /{k}"), &got, &want);
+        }
+        finished(bk)
+    };
+    assert!(same(&long("z")).is_ok(), "同じ答えは通る");
+    assert!(same(&long("z").replacen('z', "Z", 1)).expect_err("1 字違う").contains("焼いた表と違う"));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 場面の台本が作るファイルは、表に中身でなく指紋を持つ: 同じ中身なら同じ指紋（SQLite は作った版によらない形）・1 行違えば違う指紋・
+/// 宣言から作り直すときは台本の作った物に触らない
+#[test]
+fn files_made_by_a_scene_script_are_declared_by_their_fingerprint() {
+    use common::bake::{made_print, snapshot_with};
+    let base = common::work("bake-made");
+    let db = |name: &str, rows: &[i64]| {
+        let p = base.join(name);
+        let _ = std::fs::remove_file(&p);
+        let c = rusqlite::Connection::open(&p).unwrap();
+        c.execute_batch("CREATE TABLE t (a)").unwrap();
+        for r in rows {
+            c.execute("INSERT INTO t VALUES (?1)", [r]).unwrap();
+        }
+        p
+    };
+    let (a, b, c) = (db("a.sqlite3", &[1, 2, 3]), db("b.sqlite3", &[1, 2, 3]), db("c.sqlite3", &[1, 2, 4]));
+    assert_eq!(made_print(&a), made_print(&b), "同じ中身は同じ指紋");
+    assert_ne!(made_print(&a), made_print(&c), "1 行違えば違う指紋");
+    std::fs::write(base.join("plain.txt"), "中身").unwrap();
+    let ctx = Ctx::new(&base);
+    let decl = snapshot_with(&base, &ctx, &[], &["a.sqlite3".to_string()]);
+    assert_eq!(decl["files"]["a.sqlite3"], json!({"made": made_print(&a)}), "台本の作る物は指紋だけ（中身も更新時刻も持たない）");
+    assert!(decl["files"]["b.sqlite3"]["blob"].is_string() && decl["files"]["plain.txt"]["blob"].is_string());
+    assert!(!serde_json::to_string(&decl["blobs"]).unwrap().is_empty());
+    // 作り直す: 台本の作る物（a）は書かない（台本が先に作る）。ほかは宣言から戻る
+    let again = common::work("bake-made-again");
+    materialize(&decl, &again, &Ctx::new(&again));
+    assert!(!again.join("a.sqlite3").exists() && again.join("b.sqlite3").exists() && again.join("plain.txt").exists());
+    for d in [&base, &again] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}
+
+/// 測るだけ（TPA_MEASURE。表と比べない PC〈Windows〉）: 表と違う歩を試験を落とさずに数えて記録に書く
+#[test]
+fn measuring_counts_the_steps_that_differ_without_failing() {
+    let base = common::work("bake-measure");
+    let out = base.join("measure");
+    let t = table(
+        json!({"same": {"status": 200, "json": {"a": 1}}, "differs": {"status": 200, "json": {"a": "posix の答え"}}, "gone": {"status": 200, "json": {}}}),
+        json!({"same": "GET /s", "differs": "GET /d", "gone": "GET /g"}),
+    );
+    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t), &base);
+    bk.check = false; // 表と比べない PC（Windows）の形
+    bk.measure = Some(out.clone());
+    bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
+    bk.note("differs", "GET /d", &json!({"status": 200, "json": {"a": "nt の答え"}}), &Value::Null);
+    bk.note("new", "GET /n", &json!({"status": 200, "json": {}}), &Value::Null);
+    assert!(finished(bk).is_ok(), "測るだけは落とさない");
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("measured.json")).expect("測りの記録")).unwrap();
+    assert_eq!((m["steps"].as_u64(), m["tableSteps"].as_u64()), (Some(3), Some(3)));
+    let keys: Vec<&str> = m["differing"].as_array().unwrap().iter().map(|x| x["key"].as_str().unwrap()).collect();
+    assert_eq!(keys, ["differs", "new"], "違う歩と表に無い歩だけ: {m}");
+    assert!(m["differing"][0]["diff"].as_str().unwrap().contains("posix の答え"), "{m}");
+    assert_eq!(m["missing"], json!(["gone"]), "表にあって答えなかった歩");
+    // 比べる PC（check）では測りの記録を書かない（表と違えば今までどおり落ちる）
+    let mut bk = Bake::with("selftest", "checked", Mode::Python, vec![], Some(table(json!({}), json!({}))), &base);
+    bk.check = true;
+    bk.measure = Some(out.clone());
+    assert!(finished(bk).is_ok() && !out.join("checked.json").exists());
+    let _ = std::fs::remove_dir_all(&base);
+}

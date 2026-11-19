@@ -1157,6 +1157,12 @@ pub struct Bake {
     /// 場面の台本（標準の部品だけの Python。program/tests からの相対の道と引数。版 3.116.0）。Python 無しの形では、表の宣言から場面を
     /// 作る前にこれを流す。台本が作るファイルは、答え合わせ役の答えの "sceneMade"（場面の相対の道の並び）で知る
     pub script: Option<(&'static str, Vec<String>)>,
+    /// 測るだけ（版 3.116.0。環境変数 TPA_MEASURE=フォルダ）: 焼いた表と比べない PC（Windows。表は posix の答え）で、窓の答えが表と違う歩を
+    /// 試験を落とさずに数え、終わりに <フォルダ>/<表>.json へ書く（.github/workflows/desktop.yml の Windows の仕事が成果物に置き、
+    /// tools/bless.py --measured がまとめる）。違う歩が少なければ Windows の上書き（variants.nt）を作って Windows でも表と比べる
+    pub measure: Option<PathBuf>,
+    measured: Vec<Value>,
+    measured_decl: Map<String, Value>,
     oracle: Value,
     scene: Value,
     answers: BTreeMap<String, Value>,
@@ -1228,6 +1234,7 @@ impl Bake {
         }
         let mut bk = Bake::with(book, &file, mode, scope, table, base);
         bk.variant = variant();
+        bk.measure = std::env::var("TPA_MEASURE").ok().filter(|s| !s.is_empty()).map(PathBuf::from);
         bk
     }
 
@@ -1254,6 +1261,9 @@ impl Bake {
             drop: vec!["rootUser"],
             pack: false,
             script: None,
+            measure: None,
+            measured: vec![],
+            measured_decl: Map::new(),
             oracle: Value::Null,
             scene: Value::Null,
             answers: BTreeMap::new(),
@@ -1365,6 +1375,28 @@ impl Bake {
             self.scene = map_strings(&self.scene, &f);
             self.oracle = map_strings(&self.oracle, &f);
         }
+        if self.mode == Mode::Python && !self.check && self.measure.is_some() {
+            // 測るだけ: 場面と問い合わせが表と違うか（落とさない。比べる途中で落ちても試験は続ける）
+            if let Some(t) = self.table.clone() {
+                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let now_free = |v: &Value| {
+                        let re = super::re(r"@NOW\(-?\d+ms");
+                        settle(&map_strings(v, &|s| re.replace_all(s, "@NOW(~").into_owned()), &self.ctx, &self.keys)
+                    };
+                    (
+                        diff_tol(&now_free(&t["oracle"]), &now_free(&self.oracle), "oracle"),
+                        super::diff(&decl_cmp(&t["scene"]), &decl_cmp(&self.scene), "scene"),
+                    )
+                }));
+                let (o, s) = r.unwrap_or((Some("（測りが落ちた）".into()), Some("（測りが落ちた）".into())));
+                if let Some(d) = o {
+                    self.measured_decl.insert("oracle".into(), json!(cut(&d)));
+                }
+                if let Some(d) = s {
+                    self.measured_decl.insert("scene".into(), json!(cut(&d)));
+                }
+            }
+        }
         if self.mode == Mode::Python && self.check {
             let Some(t) = &self.table else {
                 self.bad.push(format!("焼いた表 tests/baked/{}.json がありません（TPA_BLESS=1 で焼く）", self.file));
@@ -1467,6 +1499,16 @@ impl Bake {
                 self.bad.push(format!("そろえた後の窓の答えが Python と違う（焼かない）: {}", cut(&d)));
             }
         }
+        if !self.check && self.measure.is_some() && self.table.is_some() && self.mode == Mode::Python {
+            // 測るだけ（表と比べない PC）: 表と違う歩を記す（落とさない）
+            let d = match self.table_answer(&key) {
+                None => Some("<表に無い歩>".to_string()),
+                Some(t) => diff_tol(&t, &g, ""),
+            };
+            if let Some(d) = d {
+                self.measured.push(json!({"key": key, "route": route, "diff": cut(&d)}));
+            }
+        }
         if self.check && self.table.is_some() && self.mode != Mode::BlessScope {
             match self.table_answer(&key) {
                 None => self.bad.push(format!("表に無い歩（表が古い。tools/bless.py で焼き直す）: {key}")),
@@ -1502,6 +1544,7 @@ impl Bake {
 
     /// 終わり: 焼く・表と比べた食い違いを知らせる。test_bad は試験そのものの食い違い（Python と比べた分）
     pub fn finish(mut self, test_bad: &[String]) {
+        self.write_measure();
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
                 let mut missing: Vec<&String> =
@@ -1573,6 +1616,20 @@ impl Bake {
                 }
             }
         }
+    }
+
+    /// 測るだけの記録を書く（TPA_MEASURE のフォルダ。表と比べない PC だけ。書けなくても試験は続ける）
+    fn write_measure(&self) {
+        let (Some(dir), Some(t), false, Mode::Python) = (&self.measure, &self.table, self.check, self.mode) else { return };
+        let missing: Vec<&String> = t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
+        let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "steps": self.answers.len(),
+                           "tableSteps": t["answers"].as_object().map(|o| o.len()).unwrap_or(0),
+                           "differing": self.measured, "missing": missing});
+        for (k, d) in &self.measured_decl {
+            v[k.as_str()] = d.clone();
+        }
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::write(dir.join(format!("{}.json", self.file)), serde_json::to_string_pretty(&v).unwrap_or_default());
     }
 
     fn dump_diff(&self) {
