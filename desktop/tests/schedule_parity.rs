@@ -203,10 +203,20 @@ fn schedule_matches_python() {
             req_cmp += pr.len();
             if wr != pr {
                 let at = pr.iter().zip(&wr).position(|(a, b)| a != b);
+                let names = |v: &[Value]| -> Vec<String> {
+                    v.iter()
+                        .map(|x| {
+                            let b: Value = serde_json::from_str(x["body"].as_str().unwrap_or("null")).unwrap_or(Value::Null);
+                            format!("{}{}", b["setsubiName"].as_str().unwrap_or("?"), b["termKbn"].as_str().unwrap_or(""))
+                        })
+                        .collect()
+                };
                 bad.push(format!(
-                    "{name}: CM3 への要求 Python {} 本 / 窓 {} 本。最初の違い {:?}: {} / {}",
+                    "{name}: CM3 への要求 Python {} 本 {:?} / 窓 {} 本 {:?}。最初の違い {:?}: {} / {}",
                     pr.len(),
+                    names(&pr),
                     wr.len(),
+                    names(&wr),
                     at,
                     at.map(|i| pr[i].to_string()).unwrap_or_default(),
                     at.map(|i| wr[i].to_string()).unwrap_or_default()
@@ -383,14 +393,14 @@ fn set_schedule(env: &Value, text: &str, more: &Value) {
     std::fs::write(env["config"].as_str().unwrap(), serde_json::to_string_pretty(&v).unwrap()).unwrap();
 }
 
-/// 窓が係を降りた後に受け身の Python が取り、窓が係に戻る 2 つの形（2 回目だけ NaN の答えで 1 回だけ降りる・システムのプロキシの設定で降りて戻す）。
+/// 窓が係を降りた後に受け身の Python が取り、窓が係に戻る 2 つの形（2 回目だけ i64 に入らない整数の答えで 1 回だけ降りる〈版 3.115.0 まで NaN〉・システムのプロキシの設定で降りて戻す）。
 /// 戻った窓の一覧・データの札（/source）が状態のファイル〈Python がいちばん新しく取った答え。カードもここを読む〉と同じで、CM3 へ取り直さない
 /// （Python だけの形でも、取ったばかりの答えを使う）。戻った窓が 2 回置き直すと、Python の世代は残らず、置き場は今の世代と 1 つ前の 2 つ
 /// （Python だけの形と同じ）。1 回目の置き直しでは、Python の今の世代は「1 つ前」として残る（読んでいる途中の問い合わせが開ける）
 fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: &mut Vec<String>) {
     let code = "L-1";
     let mut steps = 0;
-    for (runner, scene, how) in [("f0", "flip", "nan"), ("f1", "change", "proxy")] {
+    for (runner, scene, how) in [("f0", "flip", "big"), ("f1", "change", "proxy")] {
         let (_root, env, text) = own_root(base, change, runner, scene);
         let lot = lot_for(&env);
         let url = serde_json::from_str::<Value>(&text).unwrap()["schedule"]["cm3_base_url"].as_str().unwrap().to_string();
@@ -420,8 +430,8 @@ fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: 
         if list0.as_ref().map(|x| x.0) != Some(200) || first.as_ref().map(|x| x.0) != Some(200) {
             bad.push(format!("{} 窓の最初の答え {first:?}", tag(0)));
         }
-        // 1: 窓が降りる（NaN の答え・窓の取れない設定）
-        let down = if how == "nan" {
+        // 1: 窓が降りる（i64 に入らない整数の答え・窓の取れない設定）
+        let down = if how == "big" {
             get("/api/src/sch/refresh", "POST")
         } else {
             set_schedule(&env, &text, &json!({"use_system_proxy": true}));

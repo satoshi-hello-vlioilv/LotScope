@@ -28,7 +28,11 @@ fn mask(v: &mut Value) {
 #[test]
 fn the_window_leaves_the_same_files_as_python() {
     let base = common::work("seeds-parity");
-    let oracle = common::python_json("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
+    // 場面の置き場は窓が事例の表の走らせる形（run）から作る（seeds_store）ので、宣言には持たない（答え合わせ役の作業フォルダ oracle は除く）
+    let mut bk = common::bake::Bake::open("seeds", &base);
+    bk.exclude.push("oracle");
+    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], vec!["run"]);
+    let oracle = bk.oracle("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let scenes = oracle["scenarios"].as_array().unwrap();
     assert!(scenes.len() >= 11, "事例の表の 8 と足した 3");
     for (i, sc) in scenes.iter().enumerate() {
@@ -37,15 +41,18 @@ fn the_window_leaves_the_same_files_as_python() {
         let root = base.join(format!("{i}-rs"));
         let store = common::seeds_store(&root, run, "rs");
         let o = seeds::run(&store, &|_: Duration| {});
-        assert_eq!(json!(o.applied), sc["applied"], "{name}: 当てた初期値");
+        let w = bk.want(name, || json!({"applied": sc["applied"], "files": sc["files"]}));
+        assert_eq!(json!(o.applied), w["applied"], "{name}: 当てた初期値");
         let mut rs = Value::Object(common::seeds_files(&root, run));
-        let mut py = sc["files"].clone();
+        let mut py = w["files"].clone();
         mask(&mut rs);
         mask(&mut py);
-        if let Some(d) = common::diff(&py, &rs, name) {
+        bk.note(name, "seeds", &json!({"applied": o.applied, "files": rs}), &json!({"applied": w["applied"], "files": py}));
+        if let Some(d) = common::diff(&bk.s(&py), &bk.s(&rs), name) {
             panic!("{name}: 終わった後のファイルが Python と違う: {d}");
         }
     }
+    bk.finish(&[]);
     let _ = std::fs::remove_dir_all(&base);
 }
 
@@ -170,6 +177,9 @@ fn with_python(old: bool, tag: &str) -> Vec<PathBuf> {
 
 #[test]
 fn the_window_and_python_reading_the_record_together_apply_once() {
+    if !common::bake::frozen_python("the_window_and_python_reading_the_record_together_apply_once") {
+        return;
+    }
     for share in with_python(false, "窓と今の版の Python") {
         once_each(&share, "窓と今の版の Python");
     }
@@ -177,6 +187,9 @@ fn the_window_and_python_reading_the_record_together_apply_once() {
 
 #[test]
 fn the_window_never_adds_a_second_record_even_beside_the_old_python() {
+    if !common::bake::frozen_python("the_window_never_adds_a_second_record_even_beside_the_old_python") {
+        return;
+    }
     // 前の版の Python は見直さないので記録が 2 行になりうる（今の版の窓・Python どうしは塞がる）。窓は自分より先の記録があれば足さない
     for share in with_python(true, "窓と前の版の Python") {
         contents_once(&share, "窓と前の版の Python");
@@ -208,9 +221,13 @@ fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
     // 作った後の採点の割れ 2: 配った設定に NaN・Infinity・i64 を超える整数があっても、窓は置き場の材料だけで当て、終わった後の共有は
     // Python が空の共有に当てた形（答えの元の最初の場面）と同じ
     let base = common::work("seeds-cfg");
-    let oracle = common::python_json("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open_part("seeds", "cfg", &base);
+    bk.exclude.push("oracle");
+    (bk.strip, bk.strip_in) = (vec!["applied".into(), "files".into()], vec!["run"]);
+    let oracle = bk.oracle("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let first = &oracle["scenarios"][0];
     assert!(first["name"].as_str().unwrap().contains("空の共有"));
+    let first = bk.want("空の共有", || json!({"applied": first["applied"], "files": first["files"]}));
     let mut py = first["files"].clone();
     mask(&mut py);
     for (i, extra) in ["NaN", "Infinity", "100000000000000000000"].iter().enumerate() {
@@ -228,17 +245,37 @@ fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
                 .collect(),
         );
         mask(&mut rs);
+        if i == 0 {
+            // 焼いた表には窓が NaN の配った設定で当てた形を記す（ほかの 2 つも同じ形かは下で見る）
+            let four = |v: &Value| -> Value {
+                ["app_seeds", "equipment_master", "access_permissions", "conversions"]
+                    .iter()
+                    .map(|n| (n.to_string(), v[*n].clone()))
+                    .collect()
+            };
+            bk.note(
+                "空の共有",
+                "seeds",
+                &json!({"applied": o.applied, "files": four(&rs)}),
+                &json!({"applied": first["applied"], "files": four(&py)}),
+            );
+        }
+        let (py, rs) = (bk.s(&py), bk.s(&rs));
         for name in ["app_seeds", "equipment_master", "access_permissions", "conversions"] {
             if let Some(d) = common::diff(&py[name], &rs[name], name) {
                 panic!("{extra}: {name} が Python と違う: {d}");
             }
         }
     }
+    bk.finish(&[]);
     let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app() {
+    if !common::bake::frozen_python("the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app") {
+        return;
+    }
     // 作った後の採点の割れ 3: 起動の同じ瞬間に、窓の束の種まき（Builder::inputs。warm・最初の画面・更新の係の道）と Python の create_app
     // （起動の参照先の読み＝ path_settings の種まき）が同じ空の共有で錠を取り合っても、初期値は 5 回の待ちの中で当たり、中身は 1 つずつ・
     // 錠は残らない

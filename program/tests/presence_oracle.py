@@ -178,16 +178,16 @@ SCENARIOS = [
         F(at(57730, 30), "settings.json", {"historyDays": 99999}),
         R(at(57730, 30), BOSS, "POST", "/api/presence/prune"),
     ]},
-    # 版 3.104.0 の作った後の採点: 月の名前の年が datetime の外（i64 に入らない数・10000 年）。Python の _month_after は datetime で例外になる:
-    # 心拍の _prune_own は touch の糸を例外で終える（利用状況の履歴を書かない）・prune_all は 500（窓は答えず Python に任せる。delegate）
-    {"name": "月の名前の年が datetime の外（Python は例外）", "steps": [
+    # 版 3.104.0 の作った後の採点: 月の名前の年が datetime の外（i64 に入らない数・10000 年）。版 3.115.0 から Python の _month_after も
+    # 読めない名前（None）にする（前は datetime の例外で心拍の掃除の糸が終わり、prune_all が 500。窓は答えずに任せた）
+    {"name": "月の名前の年が datetime の外（読めない名前）", "steps": [
         F(at(0), "sessions/PC-9@u1/99999999999999999999-12.json", {"key": "PC-9@u1", "login": "u1", "pc": "PC-9", "sessions": []}),
         B(at(10)),
         R(at(20), BOSS, "GET", "/api/presence/sessions"),
-        dict(R(at(30), BOSS, "POST", "/api/presence/prune"), delegate=True),
+        R(at(30), BOSS, "POST", "/api/presence/prune"),
         F(at(40), "sessions/PC-9@u1/99999999999999999999-12.json", None),
         F(at(40), "sessions/PC-9@u1/9999-12.json", {"key": "PC-9@u1", "login": "u1", "pc": "PC-9", "sessions": []}),
-        dict(R(at(50), BOSS, "POST", "/api/presence/prune"), delegate=True),
+        R(at(50), BOSS, "POST", "/api/presence/prune"),
         F(at(60), "sessions/PC-9@u1/9999-12.json", None),
         R(at(70), BOSS, "POST", "/api/presence/prune"),
     ]},

@@ -135,7 +135,13 @@ def place(root, d, folder, perm_rows):
     cfg = {"lot_list": {"source": str(d / "品質.sqlite3"), "table": ""}, "desktop": {"lotlist_engine": "rust"},
            "work_log": {"folder": str(folder), "pattern": "実績_*.sqlite3"},
            "identity": {"pc_name": "PC-ORACLE"}, "sources": {"wip": {"source": str(d / "仕掛.sqlite3")}},
-           "master_share": {"dir": str(share), "refresh_seconds": 0}}
+           "master_share": {"dir": str(share), "refresh_seconds": 0},
+           # スケジュールの元（CM3）の場所は、この PC の中の閉じた口に決める（版 3.115.0 の PR #115 の CI の直し）。前は決めずに既定の
+           # 社内の名前（nlmfangyweb1a）のままで、/api/data/columns の歩が本物の名前を引きに行った。引けない名前の誤りの言葉は PC の
+           # 名前を引く係の様子で変わる（引く先が「無い」と答える PC は [Errno -2] Name or service not known、引く先に届かない PC は
+           # [Errno -3] Temporary failure in name resolution）ので、手元で焼いた表が CI で食い違った。閉じた口の答えはどの PC でも
+           # 「接続を断られた」。引けない名前の言葉そのものは schedule_parity の「名前が引けない」が Python と窓を突き合わせる
+           "schedule": {"cm3_base_url": "http://127.0.0.1:1"}}
     (root / "config.json").write_text(j(cfg), encoding="utf-8")
 
 
@@ -228,6 +234,8 @@ def steps_of(d, cm3):
         S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": "ftp://x"}),
         S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": "  "}),
         S("POST", "/api/settings/check", {"key": "lotdsp_import.url", "value": ""}),
+        # 空白だけの値も空（上の schedule.cm3_base_url の「  」は、場面が CM3 の場所を決めてからは配った設定の値を確かめる歩になった）
+        S("POST", "/api/settings/check", {"key": "lotdsp_import.url", "value": "  "}),
         S("POST", "/api/settings/check", {"key": "lotdsp_import.url", "value": "http://127.0.0.1:1/x#y"}),
         S("POST", "/api/settings/check", {"key": "lotdsp_import.direct.browser", "value": "C:\\x\\notepad.exe"}),
         S("POST", "/api/settings/check", {"key": "知らない", "value": "x"}),
@@ -237,14 +245,16 @@ def steps_of(d, cm3):
     ]
 
 
-def delegates_of():
+def closed_of():
+    """版 3.115.0 まで窓が答えず Python に任せた本文の形（予算外の任せる歩 9 と、門が断る [1] の 3）。窓と Python が同じ版で同じに答える:
+    表でない本文・NaN・並びの欄・数の cols は本文の門（services/body_rules の ROUTES・TYPES）が断り、字の欄の数・真偽は str(値 or "")、
+    知らない元の列（百分率符号の道）は 404"""
     F = "/api/dashboard/fields"
     return [
         S("POST", F, "[1]"),
         S("POST", F, {"source": 5}),
         S("POST", F, {"source": "work", "equips": [1, "CR1"]}),
         S("POST", F, '{"source": "work", "x": NaN}'),
-        S("GET", F, query="source=lot&engine=python"),
         S("POST", "/api/sources/check", "[1]"),
         S("POST", "/api/sources/check", {"place": ["x"]}),
         S("POST", "/api/sources/join/preview", {"key": "wip", "joins": [{"with": "m1", "on": [["合金", "材質"]], "cols": 5}]}),
@@ -253,7 +263,25 @@ def delegates_of():
         S("GET", "/api/sources/%E7%84%A1/columns"),
         S("POST", "/api/settings/check", "[1]"),
         S("POST", "/api/settings/check", {"key": ["lot_list.source"]}),
+        # 版 3.115.0 の作った後の直し（採点の割れ 2 (b)）: 字の欄の i64・u64 を超える整数は Python の str(int) の桁・道の全体の百分率符号を戻す
+        S("POST", F, '{"source": 10000000000000000000}'),
+        S("POST", F, '{"source": 100000000000000000000}'),
+        S("POST", F, '{"source": "work", "equip": 12345678901234567890123}'),
+        S("POST", F, '{"source": "work", "equips": [10000000000000000000, 1e16, false, 0, "CR1"]}'),
+        S("POST", "/api/sources/check", '{"place": 10000000000000000000}'),
+        S("POST", "/api/settings/check", '{"key": "lot_list.source", "value": 100000000000000000000}'),
+        S("GET", "/api/%73ources/wip/columns"),
+    ]
+
+
+def delegates_of():
+    """まだ Python に任せる歩: 比べる口（?engine=python。段 ④ で口ごと消す）と、道の型に当たらない形"""
+    F = "/api/dashboard/fields"
+    return [
+        S("GET", F, query="source=lot&engine=python"),
         S("POST", "/api/settings/check", {"key": "lot_list.source", "value": "x"}, query="engine=python"),
+        # 戻したキーに「/」がある道（/api/sources/a/b/columns）は道の型に当たらない（Python は道なしの 404）。段 ④ で窓の道なしの 404 に
+        S("GET", "/api/sources/a%2Fb/columns"),
     ]
 
 
@@ -315,7 +343,7 @@ def main():
     d = base / "data"
     folder = make_data(d)
     files = [folder / f"実績_{eq}.sqlite3" for eq in EQUIPS]
-    scenes = [("開発者の PC", perm(), steps_of(d, cm3), delegates_of()),
+    scenes = [("開発者の PC", perm(), steps_of(d, cm3) + closed_of(), delegates_of()),
               ("一般ユーザー（データ元を書けない）", perm("一般ユーザー", "部分的編集可"), gate_steps(d), [])]
     out = []
     for i, (name, prm, steps, dele) in enumerate(scenes):

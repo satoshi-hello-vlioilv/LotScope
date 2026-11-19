@@ -68,10 +68,13 @@ pub enum Route {
     ConnCheck(String),
 }
 
-/// 窓が受ける道か（Flask の <key> は / を含まない空でない字。百分率符号は Python が戻してから探すので任せる）
+/// 窓が受ける道か（Flask の <key> は / を含まない空でない字）。道の全体を百分率符号を 1 回戻してから当てる（Python の web.App.handle の
+/// unquote と同じ。版 3.115.0 の作った後の直し: 前は元のキーだけを戻し、/api/%73ources/… を Python に任せた）。戻したキーに「/」があれば
+/// 道の型に当たらない（Python は道なしの 404）ので任せる
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
-    let key_ok = |k: &str| !k.is_empty() && !k.contains('/') && !k.contains('%');
-    match (method, path) {
+    let full = crate::body::unquote(path);
+    let key_ok = |k: &str| !k.is_empty() && !k.contains('/');
+    match (method, full.as_str()) {
         ("GET" | "POST", "/api/dashboard/fields") => Some(Route::Fields),
         ("GET", "/api/data/columns") => Some(Route::DataColumns),
         ("POST", "/api/sources/check") => Some(Route::Check),
@@ -93,7 +96,8 @@ type Answer = (u16, Value);
 // ------------------------------------------------------------------ 本文（Python の request.get_json(force=True, silent=True) or {}）
 /// 本文 → 送った順の木。窓が同じに読めない本文・表でない本文（Python は 500）は None。空・偽の値は {}
 pub fn body_of(body: &[u8]) -> Option<Tree> {
-    if crate::master_rows::unreadable(body) {
+    // 大きな整数（i64・u64 を超える）は木が桁のまま持つ（held の印の字）ので読む（版 3.115.0 の作った後の直し。前は任せた）
+    if !body.iter().all(|b| b.is_ascii_whitespace()) && serde_json::from_slice::<Value>(body).is_err() {
         return None;
     }
     let empty = Tree::Obj(vec![]);
@@ -123,8 +127,10 @@ fn text_of(t: Option<&Tree>) -> Option<String> {
 fn text_or_num(t: Option<&Tree>) -> Option<String> {
     match t {
         Some(x @ Tree::Num(n)) if crate::layout_clean::truthy(x) => {
-            n.as_i64().map(|i| i.to_string()).or_else(|| n.as_f64().map(pyfmt::float_repr))
+            n.as_i64().map(|i| i.to_string()).or_else(|| n.as_u64().map(|u| u.to_string())).or_else(|| n.as_f64().map(pyfmt::float_repr))
         }
+        // i64・u64 を超える整数（held の印の字）は Python の str(int) と同じ桁の字
+        Some(Tree::Str(s)) if crate::held::big_digits_str(s).is_some() => crate::held::big_digits_str(s).map(str::to_string),
         Some(Tree::Bool(true)) => Some("True".into()),
         x => text_of(x),
     }
@@ -142,8 +148,9 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
         let equips = match t.get("equips") {
             Some(Tree::Arr(a)) => {
                 let mut out = vec![];
+                // 字でない設備は str(値 or "")（版 3.115.0。Python の _dashboard_fields と同じ。並び・表は本文の門が断る）
                 for x in a {
-                    out.push(text_of(Some(x)).filter(|_| matches!(x, Tree::Str(_)))?);
+                    out.push(text_or_num(Some(x))?);
                 }
                 out
             }
@@ -154,7 +161,7 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
             Some(o @ Tree::Obj(_)) => crate::formula::clean_calc(&o.dumps(", ", ": ")),
             _ => None,
         };
-        (text_of_strict(t.get("source"))?, text_of_strict(t.get("equip"))?, equips, calc)
+        (text_or_num(t.get("source"))?, text_or_num(t.get("equip"))?, equips, calc)
     } else {
         let q = lotlist::parse_query(query);
         let get = |k: &str| q.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
@@ -193,15 +200,6 @@ pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> 
         special.push(json!({"column": "@shift", "name": "直", "hint": "作業開始の時刻が入る直（マスタ管理の勤務体系）"}));
     }
     Some((200, json!({"fields": fields, "special": special, "table": table, "sourceName": name, "failed": failed})))
-}
-
-/// a.get(k, "")（無ければ ""。字でなければ None＝Python に任せる: panel_parts は字として比べる）
-fn text_of_strict(t: Option<&Tree>) -> Option<String> {
-    match t {
-        None => Some(String::new()),
-        Some(Tree::Str(s)) => Some(s.clone()),
-        _ => None,
-    }
 }
 
 // ------------------------------------------------------------------ 当てる列（GET /api/data/columns）
@@ -866,12 +864,16 @@ mod tests {
             ("PUT", "/api/sources/wip/conn"),
             ("POST", "/api/sources/wip/columns"),
             ("GET", "/api/sources/a/b/columns"),
-            ("GET", "/api/sources/%E7/columns"),
             ("GET", "/api/sources//columns"),
+            ("GET", "/api/sources/a%2Fb/columns"),
             ("POST", "/api/settings/check"),
         ] {
             assert_eq!(route_of(m, p), None, "{m} {p}");
         }
+        // 百分率符号は 1 回戻す（Python の unquote。UTF-8 として読めないバイトは U+FFFD。版 3.115.0）
+        assert_eq!(route_of("GET", "/api/sources/%E7/columns"), Some(Route::SrcColumns("\u{FFFD}".into())));
+        assert_eq!(route_of("GET", "/api/sources/%E7%84%A1/columns"), Some(Route::SrcColumns("無".into())));
+        assert_eq!(route_of("POST", "/api/sources/w%69p/conn/check"), Some(Route::ConnCheck("wip".into())));
     }
 
     #[test]

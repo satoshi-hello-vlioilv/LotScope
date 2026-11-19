@@ -24,9 +24,8 @@ fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
             let s = s.replace(root, "@ROOT");
-            let s = regex::Regex::new(r"\.copying-\d+-\d+").unwrap().replace_all(&s, ".copying-<pid>-<t>").into_owned();
-            let s = regex::Regex::new(r"権限を読めないので、置き場を変えられません（.*）。")
-                .unwrap()
+            let s = common::re(r"\.copying-\d+-\d+").replace_all(&s, ".copying-<pid>-<t>").into_owned();
+            let s = common::re(r"権限を読めないので、置き場を変えられません（.*）。")
                 .replace_all(&s, "権限を読めないので、置き場を変えられません（<理由>）。")
                 .into_owned();
             if cfg!(windows) && s.starts_with("写せませんでした: ") && !s.ends_with("is a named pipe") {
@@ -47,6 +46,34 @@ fn norm(v: &Value, root: &str) -> Value {
 }
 
 /// 道の字の @ROOT → 場面のフォルダ
+/// 写せなかった時の進み具合（done・files）は、フォルダの中を読む順で決まる（読めないファイル・名前付きパイプに当たるまでに写した量）。
+/// 読む順はファイル系の決めで、Python（os.scandir）と窓（read_dir）は同じフォルダなら同じ順だが、PC が違えば違う（ext4 は名前の
+/// ハッシュの順でファイル系ごとに種が違い、tmpfs は作った順の逆）。版 3.115.0 の PR #115 の CI の直し: 手元で焼いた表の done 20・40・0 が
+/// CI では 222・41・20 になって落ちた（TMPDIR を tmpfs〈/dev/shm〉にして再現。0・1・222 になる）。
+/// 焼いた表に記す・表と比べるときだけ、state が failed の進み具合の done・files を「<読む順で変わる>」にする。Python と比べるとき
+/// （同じファイル系の上）は数のまま比べる。失敗の言葉（どのファイルで止まったか）・total・totalFiles・state はどちらでも比べる
+fn order_free(v: &Value) -> Value {
+    match v {
+        Value::Object(o) => {
+            let failed = o.get("state").is_some_and(|s| s == "failed");
+            Value::Object(
+                o.iter()
+                    .map(|(k, x)| {
+                        let v = if failed && (k == "done" || k == "files") && x.is_number() {
+                            json!("<読む順で変わる>")
+                        } else {
+                            order_free(x)
+                        };
+                        (k.clone(), v)
+                    })
+                    .collect(),
+            )
+        }
+        Value::Array(a) => Value::Array(a.iter().map(order_free).collect()),
+        _ => v.clone(),
+    }
+}
+
 fn sub(x: &str, root: &str) -> String {
     x.replace("@ROOT", root)
 }
@@ -83,7 +110,7 @@ fn wait_done(m: &Mover) -> Value {
 
 /// 窓の道で 1 歩答える。None は窓が答えない（Python に任せる）。GET /api/update/settings は窓の me から who を組み、
 /// source は Python の答えの字を使う（効いている設定の重ね方は page_parity が突き合わせる）
-fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover) -> Option<(u16, Value)> {
+fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover, source: &str) -> Option<(u16, Value)> {
     let (method, path) = (st["method"].as_str().unwrap(), st["path"].as_str().unwrap());
     let route = route_of(method, path).expect("配布の置き場の道");
     let mut c = conf.clone();
@@ -93,7 +120,6 @@ fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover) -> Option<(u16, V
     c["who"]["key"] = json!(da_core::bundle::terminal_key(login, pc));
     let me = || Gate::default().me(&c);
     if route == Route::Settings {
-        let source = st["json"]["source"].as_str().unwrap_or("");
         return Some((200, settings_answer(source, &me(), c["place"]["shareDir"].as_str().unwrap_or(""))));
     }
     let body = sub_json(st["body"].as_str().unwrap_or(""), root);
@@ -163,38 +189,83 @@ fn listing(root: &Path) -> Map<String, Value> {
 /// str(Path(上のフォルダ) / 名前) の事例の表（POSIX と Windows の決まりを 1 つの PC で）
 #[test]
 fn joined_paths_match_python() {
-    let oracle = common::python_json("release_place_oracle.py", &["--tables"]);
+    let base = common::work("release-tables");
+    let mut bk = common::bake::Bake::open_part("release_place", "tables", &base);
+    (bk.strip, bk.strip_in) = (["posix", "win", "posixBase", "winBase", "str"].map(String::from).to_vec(), vec!["parent", "errno"]);
+    let oracle = bk.oracle("release_place_oracle.py", &["--tables"]);
     let mut bad = vec![];
-    for c in oracle["joins"].as_array().unwrap() {
+    for (n, c) in oracle["joins"].as_array().unwrap().iter().enumerate() {
         let up = da_core::pyfmt::strip(c["parent"].as_str().unwrap()).trim_matches('"').to_string();
         let name = c["name"].as_str().unwrap();
+        let key = format!("join #{n:02}");
+        let w = bk.want(&key, || json!({"posix": c["posix"], "win": c["win"], "posixBase": c["posixBase"], "winBase": c["winBase"]}));
+        let mut g = json!({});
         for (win, key, bkey) in [(false, "posix", "posixBase"), (true, "win", "winBase")] {
             let b = py_path_for(&up, win);
             let got = join_for(&b, name, win);
-            if b != c[bkey] || got != c[key] {
-                bad.push(format!("{key} {:?} / {name}: Python {} {} / 窓 {b} {got}", c["parent"], c[bkey], c[key]));
+            if bk.s(&json!(b)) != bk.s(&w[bkey]) || bk.s(&json!(got)) != bk.s(&w[key]) {
+                bad.push(format!("{key} {:?} / {name}: Python {} {} / 窓 {b} {got}", c["parent"], w[bkey], w[key]));
             }
+            (g[key], g[bkey]) = (json!(got), json!(b));
         }
+        bk.note(&key, "join", &g, &w);
     }
     // OSError の str（Linux の errno と文。Windows では表が空）
-    for c in oracle["oserrors"].as_array().unwrap() {
+    for (k, c) in oracle["oserrors"].as_array().unwrap().iter().enumerate() {
         let n = c["errno"].as_i64().unwrap() as i32;
         let text = std::io::Error::from_raw_os_error(n).to_string();
         let msg = text.rsplit_once(" (os error ").map(|(m, _)| m.to_string()).unwrap_or(text);
         let got = py_oserror(Some(n), &msg, c["a"].as_str(), c["b"].as_str());
-        if got != c["str"] {
-            bad.push(format!("OSError: Python {} / 窓 {got}", c["str"]));
+        let key = format!("oserror #{k:02}");
+        let w = bk.want(&key, || c["str"].clone());
+        bk.note(&key, "oserror", &json!(got), &w);
+        if got != w {
+            bad.push(format!("OSError: Python {w} / 窓 {got}"));
         }
     }
     assert!(oracle["joins"].as_array().unwrap().len() >= 40, "事例が少ない");
+    bk.finish(&bad);
+    let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// 読む順で変わるのは、写せなかった時の done・files だけ（版 3.115.0 の PR #115 の CI の直し）。失敗の言葉・total・totalFiles・state と、
+/// 写し終えた答えの done・files は伏せない
+#[test]
+fn only_the_progress_of_a_failed_copy_is_free_of_the_reading_order() {
+    let failed = json!({"final": {"state": "failed", "done": 20, "files": 1, "total": 2275, "totalFiles": 8, "error": "写せませんでした: x"}, "status": 200});
+    let f = order_free(&failed);
+    assert_eq!(f["final"]["done"], "<読む順で変わる>");
+    assert_eq!(f["final"]["files"], "<読む順で変わる>");
+    assert_eq!(
+        order_free(
+            &json!({"final": {"state": "failed", "done": 222, "files": 3, "total": 2275, "totalFiles": 8, "error": "写せませんでした: x"}, "status": 200})
+        ),
+        f
+    );
+    for (k, v) in [("total", json!(1)), ("totalFiles", json!(9)), ("error", json!("写せませんでした: y")), ("state", json!("done"))]
+    {
+        let mut other = failed.clone();
+        other["final"][k] = v;
+        assert_ne!(order_free(&other), f, "{k} は比べる");
+    }
+    let done = json!({"state": "done", "done": 2275, "files": 8});
+    assert_eq!(order_free(&done), done, "写し終えた答えは数のまま");
+    assert_eq!(order_free(&json!([{"state": "failed", "done": 1}]))[0]["done"], "<読む順で変わる>");
 }
 
 #[test]
 fn release_place_matches_python() {
     let base = common::work("release");
-    let oracle = common::python_json("release_place_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("release_place", &base);
+    bk.strip = ["status", "json", "final", "files", "filesPd"].map(String::from).to_vec();
+    bk.strip_in = vec!["method", "sync", "roots"];
+    bk.drop = vec!["rootUser", "root"];
+    let oracle = bk.oracle("release_place_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
+    // 焼いた表と比べる流し方（Python 無し）では、表の答え（読む順で変わる数を伏せてある）と同じ形にして比べる。Python と比べるときは数のまま
+    let with_python = bk.python();
+    let cmp = |v: &Value| if with_python { v.clone() } else { order_free(v) };
     let (mut steps, mut delegated, mut copied, mut denied) = (0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
@@ -205,42 +276,49 @@ fn release_place_matches_python() {
             if let Some(s) = st.get("sync") {
                 // 写す係をその場で動かす（2 つの PC が同じ置き場を写す形）
                 let got = Mover::new(None).run_sync(&sub(s["src"].as_str().unwrap(), rs), &sub(s["dest"].as_str().unwrap(), rs));
-                denied += st["json"].to_string().contains("Permission denied") as usize;
-                if let Some(d) = common::diff(&norm(&st["json"], py), &norm(&got, rs), "") {
+                let key = format!("{name} #{i}");
+                let w = bk.want(&key, || norm(&st["json"], py));
+                bk.note(&key, "sync", &order_free(&norm(&got, rs)), &order_free(&w));
+                denied += w.to_string().contains("Permission denied") as usize;
+                if let Some(d) = common::diff(&bk.s(&w), &bk.s(&cmp(&norm(&got, rs))), "") {
                     bad.push(format!("{name} [{i}] 写す係: {d}"));
                 }
                 continue;
             }
-            let Some((status, got)) = answer(&sc["conf"], st, rs, &mover) else {
+            let key = format!("{name} #{i}");
+            let w = bk.want(&key, || {
+                let f = if st["wait"] == true { norm(&st["final"], py) } else { Value::Null };
+                json!({"status": st["status"], "json": norm(&st["json"], py), "final": f})
+            });
+            let Some((status, got)) = answer(&sc["conf"], st, rs, &mover, w["json"]["source"].as_str().unwrap_or("")) else {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
-            let (want, gotn) = (norm(&st["json"], py), norm(&got, rs));
-            if status as i64 != st["status"].as_i64().unwrap_or(0) || common::diff(&want, &gotn, "").is_some() {
+            let (want, gotn) = (bk.s(&w["json"]), bk.s(&cmp(&norm(&got, rs))));
+            let mut g = json!({"status": status, "json": norm(&got, rs), "final": null});
+            if status as i64 != w["status"].as_i64().unwrap_or(0) || common::diff(&want, &gotn, "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {} {}: Python {} {want} / 窓 {status} {gotn}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["body"],
-                    st["status"]
+                    w["status"]
                 ));
             }
             if st["wait"] == true {
                 copied += 1;
                 let fin = wait_done(&mover);
-                denied += st["final"].to_string().contains("Permission denied") as usize;
-                if let Some(d) = common::diff(&norm(&st["final"], py), &norm(&fin, rs), "") {
-                    bad.push(format!(
-                        "{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}",
-                        norm(&st["final"], py),
-                        norm(&fin, rs)
-                    ));
+                g["final"] = norm(&fin, rs);
+                denied += w["final"].to_string().contains("Permission denied") as usize;
+                if let Some(d) = common::diff(&bk.s(&w["final"]), &bk.s(&cmp(&norm(&fin, rs))), "") {
+                    bad.push(format!("{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}", w["final"], norm(&fin, rs)));
                 }
             }
+            bk.note(&key, &common::bake::route_of(st), &order_free(&g), &order_free(&w));
         }
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
-            if let Some((status, got)) = answer(&sc["conf"], st, rs, &mover) {
+            if let Some((status, got)) = answer(&sc["conf"], st, rs, &mover, "") {
                 bad.push(format!(
                     "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
@@ -249,7 +327,11 @@ fn release_place_matches_python() {
         }
         // 終わった後のフォルダ: 写した物の中身・時刻・権限まで Python と同じ。写しかけの一時フォルダが残らない
         let got = listing(Path::new(rs));
-        let want = sc["files"].as_object().unwrap();
+        let fkey = format!("{name} ファイル");
+        let w = bk.want(&fkey, || sc["files"].clone());
+        bk.note(&fkey, "files", &Value::Object(got.clone()), &w);
+        let (w, got) = (bk.s(&w), bk.s(&Value::Object(got)).as_object().cloned().unwrap());
+        let want = w.as_object().unwrap();
         for k in got.keys().filter(|k| k.contains(".copying-")) {
             bad.push(format!("{name}: 写しかけが残った {k}"));
         }
@@ -265,9 +347,10 @@ fn release_place_matches_python() {
     // 任せた歩には下限を置かない（版 3.104.0。段 ① から 0 へ減らしていく数で、Windows では 9 になり落ちた）。任せるはずの歩を窓が
     // 答えないことは上の歩ごとに、任せる歩の上限は予算（common::check_budget）が見る
     assert!(steps >= 70 && copied >= 2, "歩が少ない: {steps}・{copied}");
-    if cfg!(unix) && oracle["root"] == false {
+    if cfg!(unix) && common::bake::variant() == "user" {
         assert!(denied >= 3, "root でないのに権限の答え（Permission denied）を比べた歩が少ない: {denied}");
     }
+    bk.finish(&bad);
     unlock(&base);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

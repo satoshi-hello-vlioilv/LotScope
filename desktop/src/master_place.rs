@@ -1064,8 +1064,9 @@ mod tests {
         let v2 = status(&store, &local).unwrap();
         assert!(t1.elapsed().as_secs_f64() < 0.5 && v2["reachable"].is_null(), "前の糸が終わるまでは待たずに写しで答える");
         *TEST_SLOW.lock().unwrap() = None;
-        // 前の糸（3.5 秒）が終われば、次の問い合わせで新しい糸が届くと答える（忙しい PC で前の糸が延びても待てるよう 15 秒まで）
-        let end = Instant::now() + Duration::from_secs(15);
+        // 前の糸（3.5 秒）が終われば、次の問い合わせで新しい糸が届くと答える（忙しい PC で前の糸が延びても待てるよう 60 秒まで。版 3.115.0:
+        // check-all の cargo test で、ほかの試験の尋ねる糸と重なって 15 秒の内に届かず 2 回落ちた。製品の 2 秒の決めは変えない）
+        let end = Instant::now() + Duration::from_secs(60);
         let v3 = loop {
             let v = status(&store, &local).unwrap();
             if v["reachable"] == json!(true) || Instant::now() > end {

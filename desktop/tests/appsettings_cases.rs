@@ -272,6 +272,9 @@ fn run_window(lot: &Lot, env: Env) {
 /// 束を節の壊れなしに組む
 #[test]
 fn a_broken_config_writes_nothing_new_to_the_share() {
+    if !common::bake::frozen_python("a_broken_config_writes_nothing_new_to_the_share") {
+        return;
+    }
     let t = table();
     let work = common::work("appsettings-share");
     let normal = t["cases"].as_array().unwrap().iter().find(|c| c["name"] == "ふつう").unwrap();

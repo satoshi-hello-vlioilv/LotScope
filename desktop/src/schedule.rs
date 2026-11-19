@@ -226,22 +226,7 @@ impl Cfg {
         }
         let iv = &self.m["init_path"];
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
-        let t = &self.m["timeout_sec"];
-        let secs = if !truthy(t) {
-            15.0
-        } else {
-            match t {
-                Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
-                Value::Bool(b) => f64::from(u8::from(*b)),
-                Value::String(s) => {
-                    crate::pyfmt::py_float(s).map_err(|_| Fail::Python("timeout_sec が数でない（Python は ValueError）"))?
-                }
-                _ => return Err(Fail::Python("timeout_sec が並び・表")),
-            }
-        };
-        if !secs.is_finite() || secs <= 0.0 || secs > 1e6 {
-            return Err(Fail::Python("timeout_sec が正の有限の数でない"));
-        }
+        let secs = timeout_secs(&self.m["timeout_sec"]);
         let url = format!("{base}{init}");
         crate::cm3_http::target(&url)?;
         Ok((url, base, Duration::from_secs_f64(secs)))
@@ -687,6 +672,10 @@ impl Schedules {
         let r = crate::cm3_http::post(url, base, body.as_bytes(), timeout)?;
         let text = cm3::decode_body(&r.body, r.header("Content-Type"))?;
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
+        // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
+        if json_constant(&text) {
+            return Err(Fail::Cm3("CM3の応答がJSONではありません".into()));
+        }
         if first.is_some_and(|c| "{[\"-0123456789tfnNI".contains(c)) && crate::master_rows::text_split(&text) {
             return Err(Fail::Python("JSON の読みが Python と割れる（NaN・大きな整数・深い入れ子）"));
         }
@@ -1148,6 +1137,56 @@ pub fn missing_lots(path: &Path, table: &str, brought: &[String]) -> Result<Opti
     Ok(Some(if nums.is_empty() { texts.into_iter().map(Value::String).collect() } else { nums.into_iter().map(|x| x.1).collect() }))
 }
 
+/// timeout の範囲（Python の cm3_schedule.TIMEOUT_MIN・TIMEOUT_MAX と同じ決め。事例の表は program/tests/fixtures/cm3_timeout_cases.json）:
+/// 1 ミリ秒から 1 日まで。上限は、poll の無い Python（Windows）がミリ秒で INT_MAX（≒ 24.8 日）を超える timeout を OverflowError で断るので、
+/// どの OS の Python も受ける値に決めた（PR #115 の Windows の CI の直し。前の「1 年」は 1e7 秒で Python 500・窓 200 に割れた）。
+/// 下限は、それより小さい数が Duration で 0 に丸まり接続の誤りになるので決めた
+pub const TIMEOUT_MIN: f64 = 0.001;
+pub const TIMEOUT_MAX: f64 = 24.0 * 3600.0;
+pub const TIMEOUT_DEFAULT: f64 = 15.0;
+
+/// CM3 への 1 回の接続・読み・書きの秒（Python の cm3_schedule.timeout_of）: 偽の値〈null・0・空の字・空の並び〉と、数でない値〈「abc」・並び・表・
+/// 桁のまま持つ大きな整数・NaN〉は既定の 15 秒（num_setting.read と同じ）。0・負・nan・inf・1 ミリ秒未満・1 日を超える数も 15 秒
+pub fn timeout_secs(t: &Value) -> f64 {
+    let secs = if !truthy(t) {
+        TIMEOUT_DEFAULT
+    } else {
+        match t {
+            Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
+            Value::Bool(b) => f64::from(u8::from(*b)),
+            Value::String(s) => crate::pyfmt::py_float(s).unwrap_or(TIMEOUT_DEFAULT),
+            _ => TIMEOUT_DEFAULT,
+        }
+    };
+    if (TIMEOUT_MIN..=TIMEOUT_MAX).contains(&secs) {
+        secs
+    } else {
+        TIMEOUT_DEFAULT
+    }
+}
+
+/// JSON の字の外に NaN・Infinity・-Infinity があるか（Python の json.loads が parse_constant を呼ぶ字）
+fn json_constant(text: &str) -> bool {
+    let b = text.as_bytes();
+    let (mut i, mut in_str) = (0, false);
+    while i < b.len() {
+        let c = b[i];
+        if in_str {
+            if c == b'\\' {
+                i += 1;
+            } else if c == b'"' {
+                in_str = false;
+            }
+        } else if c == b'"' {
+            in_str = true;
+        } else if b[i..].starts_with(b"NaN") || b[i..].starts_with(b"Infinity") {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1163,6 +1202,47 @@ mod tests {
         assert!(Cfg::from_section(Some(&json!({"hot": [1]}))).is_err());
         assert_eq!(safe("L-1"), format!("L-1-{}", &crate::bundle::sha1_hex(b"L-1")[..6]));
         assert_eq!(safe("ライン1"), format!("___1-{}", &crate::bundle::sha1_hex("ライン1".as_bytes())[..6]));
+    }
+
+    /// timeout の決め（版 3.115.0 の PR #115 の Windows の CI の直し）: 人が書いた事例の表 program/tests/fixtures/cm3_timeout_cases.json
+    /// （Python は tests/test_cm3_timeout.py）と同じ秒か。答えは必ず 1 ミリ秒〜1 日で、Duration が 0 にならない
+    #[test]
+    fn timeout_like_the_table() {
+        let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/cm3_timeout_cases.json")).unwrap();
+        assert_eq!(
+            (json!(TIMEOUT_MIN), json!(TIMEOUT_MAX), json!(TIMEOUT_DEFAULT)),
+            (table["min"].clone(), json!(table["max"].as_f64()), json!(table["default"].as_f64()))
+        );
+        // Windows の Python（poll なし）が断る境（ミリ秒で INT_MAX）の十分手前
+        assert!(TIMEOUT_MAX * 1000.0 * 20.0 < table["intMaxMs"].as_f64().unwrap());
+        let mut bad = vec![];
+        for c in table["cases"].as_array().unwrap() {
+            // 設定の字は Python の json.loads と同じく読む（NaN・Infinity・大きな整数は持っている値）
+            let v = crate::held::parse(c["j"].as_str().unwrap()).unwrap_or_else(|_| panic!("{} が読めない", c["name"]));
+            let got = timeout_secs(&v);
+            if Some(got) != c["want"].as_f64() {
+                bad.push(format!("{}: 表 {} / 窓 {got}", c["name"], c["want"]));
+            }
+            if !(TIMEOUT_MIN..=TIMEOUT_MAX).contains(&got) || Duration::from_secs_f64(got).is_zero() {
+                bad.push(format!("{}: 範囲の外 {got}", c["name"]));
+            }
+            // 設定から組んだ形（fetch_plan）でも同じ秒
+            let cfg = Cfg::from_section(Some(&json!({"cm3_base_url": "http://127.0.0.1:9", "timeout_sec": v}))).unwrap();
+            match cfg.fetch_plan() {
+                Ok((_, _, d)) if Some(d.as_secs_f64()) == Duration::try_from_secs_f64(got).ok().map(|x| x.as_secs_f64()) => {}
+                other => bad.push(format!("{}: fetch_plan {:?}", c["name"], other.map(|x| x.2).ok())),
+            }
+        }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+        // 小数のどのビットの形でも範囲の内（nan・inf・非正規の数・負の数）
+        let mut x = 0x9E37_79B9_7F4A_7C15u64;
+        for _ in 0..200_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let got = timeout_secs(&serde_json::Number::from_f64(f64::from_bits(x)).map_or(Value::Null, Value::Number));
+            assert!((TIMEOUT_MIN..=TIMEOUT_MAX).contains(&got), "{} → {got}", f64::from_bits(x));
+        }
     }
 
     #[test]

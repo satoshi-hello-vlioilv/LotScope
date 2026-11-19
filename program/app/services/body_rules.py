@@ -215,6 +215,8 @@ ROUTES = {
     ("POST", "/api/sources/order"): READ,
     ("POST", "/api/sources/groups"): READ,
     ("POST", "/api/sources/join/preview"): READ,
+    # 組む所の札（版 3.115.0。前は門を当てず、表でない本文・NaN で Python が 500、窓は答えずに任せた）
+    ("POST", "/api/dashboard/fields"): READ,
     # 画面の設定
     ("PUT", "/api/ui-defaults"): READ,
     ("POST", "/api/ui-state"): READ,
@@ -227,7 +229,6 @@ SKIP = {
     ("POST", "/api/lots/lotdsp-api/link"): "LotDsp の 9 本（LOTDSP の読み方）",
     ("POST", "/api/lots/fetch-lotdsp/cancel"): "LotDsp の 9 本（本文を読まない）",
     ("POST", "/api/dashboard/query"): "ダッシュボードの問い合わせ（読む道。本文は段の記録にも使う）",
-    ("POST", "/api/dashboard/fields"): "ダッシュボードの札（読む道。本文は段の記録にも使う）",
     ("POST", "/api/heartbeat"): "本文を読まない",
     ("POST", "/api/lotlist/refresh"): "本文を読まない",
     ("POST", "/api/worklog/refresh"): "本文を読まない",
@@ -304,6 +305,14 @@ TYPES = {
     ("PUT", "/api/sources/<key>"): _SOURCE,
     ("POST", "/api/sources/<key>/quick"): [("表示名", S), ("画面", S), ("グループ", S)],
     ("PUT", "/api/sources/<key>/conn"): [("field", S), ("value", S)],
+    # 組む所の読み（版 3.115.0。予算外の任せる歩を閉じる: 前は並びの欄を Python が str() で道の字にし〈「['x']」のファイルに届きません〉、
+    # 数の cols で TypeError の 500 を答え、窓は答えずに任せた）
+    ("POST", "/api/dashboard/fields"): [("source", S), ("equip", S), ("equips", L), ("equips[]", S)],
+    ("POST", "/api/sources/check"): [("place", S), ("role", S), ("table", S)],
+    ("POST", "/api/sources/<key>/conn/check"): [("field", S), ("value", S)],
+    ("POST", "/api/sources/join/preview"): [("key", S), ("joins", L), ("joins[].with", S), ("joins[].how", S), ("joins[].on", L),
+                                            ("joins[].cols", L), ("joins[].cols[]", S)],
+    ("POST", "/api/settings/check"): [("key", S), ("value", S)],
     ("POST", "/api/sources/order"): [("keys", L), ("keys[]", S)],
     ("POST", "/api/sources/groups"): [("from", S), ("to", S)],
     ("PUT", "/api/settings/<path:key>"): [("value", S)],

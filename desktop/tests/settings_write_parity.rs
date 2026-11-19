@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 /// 分の境をまたぐと字が違う。CI で 02:58 と 02:59 に分かれて落ちた）
 fn norm(v: &Value) -> Value {
     if let Value::String(s) = v {
-        let re = regex::Regex::new(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）").unwrap();
+        let re = common::re(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）");
         return json!(re.replace_all(s, "（<t>）"));
     }
     match v {
@@ -99,7 +99,8 @@ fn files(root: &Path) -> Map<String, Value> {
 #[test]
 fn path_settings_writes_match_python() {
     let base = common::work("settings-write");
-    let oracle = common::python_json("settings_write_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("settings_write", &base);
+    let oracle = bk.oracle("settings_write_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -111,15 +112,18 @@ fn path_settings_writes_match_python() {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
-            let want = &st["json"];
-            let same = common::diff(&norm(want), &norm(&got), "").is_none();
-            if status as i64 != st["status"].as_i64().unwrap() || !same {
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            bk.note_step(&key, st, status, &got, &w);
+            let want = &bk.s(&w.1);
+            let same = common::diff(&norm(want), &norm(&bk.s(&got)), "").is_none();
+            if status as i64 != w.0 || !same {
                 bad.push(format!(
                     "{name} [{i}] {} {}?{}: Python {} {} / 窓 {status} {}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["query"].as_str().unwrap(),
-                    st["status"],
+                    w.0,
                     norm(want),
                     norm(&got)
                 ));
@@ -136,7 +140,12 @@ fn path_settings_writes_match_python() {
             }
         }
         // 終わった後のファイル: 共有と data/ は同じ。写しは窓が書いた物だけ（Python は読むたびに写しを取り直す）が Python と同じ
-        let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap())), files(Path::new(sc["rs"].as_str().unwrap())));
+        let fr = files(Path::new(sc["rs"].as_str().unwrap()));
+        let fkey = format!("{name} ファイル");
+        let fp = bk.want(&fkey, || Value::Object(files(Path::new(sc["py"].as_str().unwrap()))));
+        bk.note_files(&fkey, &Value::Object(fr.clone()), &fp);
+        let fp = bk.s(&fp).as_object().cloned().unwrap_or_default();
+        let fr: Map<String, Value> = bk.s(&Value::Object(fr)).as_object().cloned().unwrap();
         for (k, v) in &fr {
             if k.ends_with(".lock.json") || k.contains(".tmp") || k.contains(".gone") {
                 bad.push(format!("{name}: 窓が残した {k}"));
@@ -153,6 +162,7 @@ fn path_settings_writes_match_python() {
     }
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     assert!(steps >= 85, "歩が少ない: {steps}・{delegated}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

@@ -14,7 +14,9 @@ use serde_json::{json, Value};
 fn calc_matches_python() {
     let base = common::work("calc");
     let oracle = common::python_json("calc_oracle.py", &[base.to_str().unwrap()]);
-    let (mut bad, mut answered, mut handed) = (vec![], 0, 0);
+    let (mut bad, mut answered, mut handed, mut typed) = (vec![], 0, 0, 0);
+    let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/calc_error_cases.json")).unwrap();
+    let kinds = table["kinds"].as_object().unwrap().clone();
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let place = Place::from_json(&sc["conf"]["place"]);
@@ -27,6 +29,14 @@ fn calc_matches_python() {
                 Err(a) => Some(a),
                 Ok(b) => handle(c["path"].as_str().unwrap(), &b, &calc, &masters),
             };
+            // Python の例外の答え（type の欄つき）は、どれも事例の表の種類で、日本語の言葉（版 3.115.0。前は「'thickness'」などの例外の字）
+            if let Some(ty) = c["json"]["type"].as_str() {
+                typed += 1;
+                let e = c["json"]["error"].as_str().unwrap_or("");
+                if !kinds.contains_key(ty) || !e.starts_with("計算の入力") {
+                    bad.push(format!("{case}: Python の例外の答えが事例の表に無い {ty}: {e}"));
+                }
+            }
             match r {
                 None => {
                     handed += 1;
@@ -53,5 +63,6 @@ fn calc_matches_python() {
     let _ = std::fs::remove_dir_all(&base);
     println!("窓が答えた {answered}・Python に任せた {handed}");
     assert!(answered >= 600, "窓が答えた数が少ない: {answered}（任せた {handed}）");
+    assert!(typed >= 33, "Python の例外の答えが少ない: {typed}");
     assert!(bad.is_empty(), "{} 件の食い違い（答えた {answered}・任せた {handed}）:\n{}", bad.len(), bad.join("\n"));
 }

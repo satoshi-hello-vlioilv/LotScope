@@ -119,6 +119,38 @@
    "rule": "/api/sources/join/preview",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "key",
+      "s"
+     ],
+     [
+      "joins",
+      "l"
+     ],
+     [
+      "joins[].with",
+      "s"
+     ],
+     [
+      "joins[].how",
+      "s"
+     ],
+     [
+      "joins[].on",
+      "l"
+     ],
+     [
+      "joins[].cols",
+      "l"
+     ],
+     [
+      "joins[].cols[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -440,7 +472,27 @@
   {
    "rule": "/api/dashboard/fields",
    "modes": {
-    "POST": "skip"
+    "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "source",
+      "s"
+     ],
+     [
+      "equip",
+      "s"
+     ],
+     [
+      "equips",
+      "l"
+     ],
+     [
+      "equips[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -571,6 +623,18 @@
    "rule": "/api/settings/check",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "key",
+      "s"
+     ],
+     [
+      "value",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -665,6 +729,22 @@
    "rule": "/api/sources/check",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "place",
+      "s"
+     ],
+     [
+      "role",
+      "s"
+     ],
+     [
+      "table",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -1167,6 +1247,18 @@
    "rule": "/api/sources/<key>/conn/check",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "field",
+      "s"
+     ],
+     [
+      "value",
+      "s"
+     ]
+    ]
    }
   },
   {

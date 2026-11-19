@@ -1,0 +1,651 @@
+{
+ "about": "窓が焼いた答え（版 3.115.0 の bless。desktop/tests/common/bake.rs）。本 masters。作り直すのは python program/tools/bless.py masters",
+ "answers": {
+  "丸ごと扱う間: ほかの PC の錠 ファイル": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"otherpc:py","holder_login":"u9","holder_pc":"PC9","token":"<t>"}},
+  "丸ごと扱う間: ほかの PC の錠 答え": [{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":15},"status":409}],
+  "丸ごと扱う間: 共有に届かなければ data/ の錠 ファイル": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"data/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"otherpc:py","holder_login":"u9","holder_pc":"PC9","token":"<t>"}},
+  "丸ごと扱う間: 共有に届かなければ data/ の錠 答え": [{"ok":null},{"ok":[]},{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":15},"status":409}],
+  "丸ごと扱う間（exclusive）の中の書き込み ファイル": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+  "丸ごと扱う間（exclusive）の中の書き込み 答え": [{"ok":[{"err":{"error":"PC1／u1 がマスタを保存中です（あと約20秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":20},"status":409},{"err":{"error":"PC1／u1 がマスタを保存中です（あと約20秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":20},"status":409}]}],
+  "共有: どこにも無い（空で始める） ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"Z","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"Z","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "共有: どこにも無い（空で始める） 答え": [{"ok":1}],
+  "共有: 共有にまだ無い（写し → seed） ファイル": {"local/master_cache/equipment_master.json":{"revision":8,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"X","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":8,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"X","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "共有: 共有にまだ無い（写し → seed） 答え": [{"ok":3}],
+  "共有: 共有にも写しにも無い（同梱の data/ → seed） ファイル": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"Y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"Y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "共有: 共有にも写しにも無い（同梱の data/ → seed） 答え": [{"ok":true},{"ok":3}],
+  "共有: 足す・直す・消す ファイル": {"local/master_cache/equipment_master.json":{"revision":6,"rows":[{"id":2,"name":"CR2改","rev":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":3,"name":"L-1","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":6,"rows":[{"id":2,"name":"CR2改","rev":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":3,"name":"L-1","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "共有: 足す・直す・消す 答え": [{"ok":3},{"ok":3},{"ok":2}],
+  "共有しない名前は手元（共有の設定でも） ファイル": {"data/card_forms.json":[{"id":1,"name":"a"},{"id":2,"name":"b","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}]},
+  "共有しない名前は手元（共有の設定でも） 答え": [{"ok":2}],
+  "共有に届かない ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "共有に届かない 答え": [{"ok":true},{"ok":null},{"err":{"error":"共有フォルダに届かないため保存できません（読みは手元の写しで続けています）: <w>/share","kind":"unavailable"},"status":503},{"err":{"error":"共有フォルダに届きません: <w>/share","kind":"unavailable"},"status":503},{"ok":null},{"ok":3}],
+  "写しだけが変わっていても、書く前に共有から取り直す ファイル": {"local/master_cache/equipment_master.json":{"revision":3,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":4,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":3,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":4,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "写しだけが変わっていても、書く前に共有から取り直す 答え": [{"ok":3},{"ok":null},{"ok":4}],
+  "手元だけ: data/ に行の配列で書く ファイル": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":3,"name":"L-2","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}]},
+  "手元だけ: data/ に行の配列で書く 答え": [{"ok":3},{"ok":2}],
+  "断る: 見つからない・行の衝突・同じ名前 ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"後","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"後","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "断る: 見つからない・行の衝突・同じ名前 答え": [{"err":{"error":"その行がありません","kind":"not_found"},"status":404},{"err":{"current":{"id":1,"name":"CR1","rev":1},"error":"この行は、開いたあとに ほかの PC が変更しました（）。","kind":"conflict"},"status":409},{"err":{"error":"同じ名前があります","kind":"duplicate"},"status":409},{"ok":3}],
+  "版の字・BOM・昔の形の写し ファイル": {"local/master_cache/equipment_master.json":{"revision":5,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"local/master_cache/roll_master.json":{"revision":1,"rows":[{"id":1,"name":"R","rev":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":2,"name":"CR2","rev":1}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":5,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/roll_master.json":{"revision":1,"rows":[{"id":1,"name":"R","rev":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":2,"name":"CR2","rev":1}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "版の字・BOM・昔の形の写し 答え": [{"ok":3},{"ok":2}],
+  "置き換える直前: 共有が変わった ファイル": {"local/master_cache/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1,"updated_at":"","updated_by":{}},"share/equipment_master.json":{"revision":99,"rows":[],"schema":1}},
+  "置き換える直前: 共有が変わった 答え": [{"err":{"error":"PC1／u1 がマスタを保存中です（あと約2秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":2},"status":409}],
+  "置き換える直前: 手元のファイルが変わった ファイル": {"data/equipment_master.json":{"revision":99,"rows":[],"schema":1}},
+  "置き換える直前: 手元のファイルが変わった 答え": [{"err":{"error":"PC1／u1 がマスタを保存中です（あと約2秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":2},"status":409}],
+  "置き換える直前: 錠を取られた ファイル": {"local/master_cache/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1,"updated_at":"","updated_by":{}},"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"otherpc:py","holder_login":"u9","holder_pc":"PC9","token":"<t>"}},
+  "置き換える直前: 錠を取られた 答え": [{"err":{"error":"PC9／u9 がマスタを保存中です（あと約2秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":2},"status":409}],
+  "錠: ほかの PC の生きた錠 ファイル": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"otherpc:py","holder_login":"u9","holder_pc":"PC9","token":"<t>"}},
+  "錠: ほかの PC の生きた錠 答え": [{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":15},"status":409}],
+  "錠: 係の無い錠（版 3.63.0 まで）は Python の物 ファイル": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"inst1","holder_login":"u1","holder_pc":"PC1","token":"<t>"}},
+  "錠: 係の無い錠（版 3.63.0 まで）は Python の物 答え": [{"ok":null},{"err":{"error":"PC1／u1 がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":15},"status":409}],
+  "錠: 切れた錠は見てからの経過でどける ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "錠: 切れた錠は見てからの経過でどける 答え": [{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":3}],
+  "錠: 同じ PC のもう 1 つの係（py）の錠 ファイル": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"inst1:py","holder_login":"u1","holder_pc":"PC1","token":"<t>"}},
+  "錠: 同じ PC のもう 1 つの係（py）の錠 答え": [{"ok":null},{"err":{"error":"この PC のもう 1 つの係（アプリの中身・窓） がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":15},"status":409}],
+  "錠: 壊れた錠 ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "錠: 壊れた錠 答え": [{"ok":null},{"err":{"error":"ほかの PC がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"","holder_pc":"","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":3}],
+  "錠: 手元の data/ の錠（もう 1 つの係） ファイル": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"data/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"inst1:py","holder_login":"u1","holder_pc":"PC1","token":"<t>"}},
+  "錠: 手元の data/ の錠（もう 1 つの係） 答え": [{"ok":null},{"err":{"error":"この PC のもう 1 つの係（アプリの中身・窓） がマスタを保存中です（あと約15秒）。少し待つと保存できます。","holder_login":"u1","holder_pc":"PC1","kind":"locked","remaining":15},"status":409}],
+  "錠: 時計の進んだ PC の錠（期限が錠の長さより先） ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"y","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "錠: 時計の進んだ PC の錠（期限が錠の長さより先） 答え": [{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":3}],
+  "錠: 空の錠 {}・印の無い錠・印が null・印が数（切れた後にどける） ファイル": {"local/master_cache/equipment_master.json":{"revision":5,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"b","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":4,"name":"c2","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":5,"name":"d2","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":6,"name":"f","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":5,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"b","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":4,"name":"c2","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":5,"name":"d2","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},{"id":6,"name":"f","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/master.lock.json":{"acquired_at":"<t>","expires_at":"<t>","holder_instance":"otherpc:py","holder_login":"u9","holder_pc":"PC9","token":1.2345678901234569e+23}},
+  "錠: 空の錠 {}・印の無い錠・印が null・印が数（切れた後にどける） 答え": [{"ok":null},{"err":{"error":"ほかの PC がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"","holder_pc":"","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":3},{"ok":null},{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":4},{"ok":null},{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":5},{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409},{"ok":null},{"ok":6},{"ok":null},{"ok":null},{"err":{"error":"PC9／u9 がマスタを保存中です（あと約1秒）。少し待つと保存できます。","holder_login":"u9","holder_pc":"PC9","kind":"locked","remaining":1},"status":409}],
+  "錠: 自分の残した錠は引き継ぐ ファイル": {"local/master_cache/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}},"share/equipment_master.json":{"revision":2,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1},{"id":3,"name":"x","updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}],"schema":1,"updated_at":"<t>","updated_by":{"login":"u1","pc":"PC1"}}},
+  "錠: 自分の残した錠は引き継ぐ 答え": [{"ok":null},{"ok":3}]
+ },
+ "book": "masters",
+ "file": "masters",
+ "oracle": [
+  {
+   "config": {
+    "cache": "@WORK/py/s0/local/master_cache",
+    "data": "@WORK/py/s0/data",
+    "defaults": "@WORK/py/s0/defaults",
+    "local": "@WORK/py/s0/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s0/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":3,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "共有: 足す・直す・消す",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"L-1"}}],"name":"equipment_master","op":"write"},{"do":[{"set":[2,"name","CR2改"]}],"name":"equipment_master","op":"write"},{"do":[{"delete":1}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s0"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s1/local/master_cache",
+    "data": "@WORK/py/s1/data",
+    "defaults": "@WORK/py/s1/defaults",
+    "local": "@WORK/py/s1/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s1/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"local/master_cache/equipment_master.json":{"revision":7,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "共有: 共有にまだ無い（写し → seed）",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"X"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s1"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s2/local/master_cache",
+    "data": "@WORK/py/s2/data",
+    "defaults": "@WORK/py/s2/defaults",
+    "local": "@WORK/py/s2/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s2/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}]},
+    "name": "共有: 共有にも写しにも無い（同梱の data/ → seed）",
+    "shared": true,
+    "steps": [{"name":"equipment_master","op":"pull"},{"do":[{"append":{"name":"Y"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s2"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s3/local/master_cache",
+    "data": "@WORK/py/s3/data",
+    "defaults": "@WORK/py/s3/defaults",
+    "local": "@WORK/py/s3/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s3/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {},
+    "name": "共有: どこにも無い（空で始める）",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"Z"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s3"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s4/local/master_cache",
+    "data": "@WORK/py/s4/data",
+    "defaults": "@WORK/py/s4/defaults",
+    "local": "@WORK/py/s4/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}]},
+    "name": "手元だけ: data/ に行の配列で書く",
+    "shared": false,
+    "steps": [{"do":[{"append":{"name":"L-2"}}],"name":"equipment_master","op":"write"},{"do":[{"delete":2}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s4"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s5/local/master_cache",
+    "data": "@WORK/py/s5/data",
+    "defaults": "@WORK/py/s5/defaults",
+    "local": "@WORK/py/s5/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s5/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/card_forms.json":[{"id":1,"name":"a"}]},
+    "name": "共有しない名前は手元（共有の設定でも）",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"b"}}],"name":"card_forms","op":"write"}]
+   },
+   "work": "@WORK/py/s5"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s6/local/master_cache",
+    "data": "@WORK/py/s6/data",
+    "defaults": "@WORK/py/s6/defaults",
+    "local": "@WORK/py/s6/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s6/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "断る: 見つからない・行の衝突・同じ名前",
+    "shared": true,
+    "steps": [{"do":[{"set":[9,"name","x"]}],"name":"equipment_master","op":"write"},{"do":[{"raise":"conflict"}],"name":"equipment_master","op":"write"},{"do":[{"raise":"duplicate"}],"name":"equipment_master","op":"write"},{"do":[{"append":{"name":"後"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s6"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s7/local/master_cache",
+    "data": "@WORK/py/s7/data",
+    "defaults": "@WORK/py/s7/defaults",
+    "local": "@WORK/py/s7/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s7/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: ほかの PC の生きた錠",
+    "shared": true,
+    "steps": [{"holder":"other","left":15,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s7"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s8/local/master_cache",
+    "data": "@WORK/py/s8/data",
+    "defaults": "@WORK/py/s8/defaults",
+    "local": "@WORK/py/s8/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s8/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 同じ PC のもう 1 つの係（py）の錠",
+    "shared": true,
+    "steps": [{"holder":"sibling","left":15,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s8"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s9/local/master_cache",
+    "data": "@WORK/py/s9/data",
+    "defaults": "@WORK/py/s9/defaults",
+    "local": "@WORK/py/s9/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s9/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 自分の残した錠は引き継ぐ",
+    "shared": true,
+    "steps": [{"holder":"mine","left":15,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s9"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s10/local/master_cache",
+    "data": "@WORK/py/s10/data",
+    "defaults": "@WORK/py/s10/defaults",
+    "local": "@WORK/py/s10/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s10/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 係の無い錠（版 3.63.0 まで）は Python の物",
+    "shared": true,
+    "steps": [{"holder":"legacy","left":15,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s10"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s11/local/master_cache",
+    "data": "@WORK/py/s11/data",
+    "defaults": "@WORK/py/s11/defaults",
+    "local": "@WORK/py/s11/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s11/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 0.3
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 切れた錠は見てからの経過でどける",
+    "shared": true,
+    "steps": [{"holder":"other","left":-5,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"y"}}],"name":"equipment_master","op":"write"}],
+    "ttl": 0.3
+   },
+   "work": "@WORK/py/s11"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s12/local/master_cache",
+    "data": "@WORK/py/s12/data",
+    "defaults": "@WORK/py/s12/defaults",
+    "local": "@WORK/py/s12/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s12/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 0.3
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 時計の進んだ PC の錠（期限が錠の長さより先）",
+    "shared": true,
+    "steps": [{"holder":"other","left":3600,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"y"}}],"name":"equipment_master","op":"write"}],
+    "ttl": 0.3
+   },
+   "work": "@WORK/py/s12"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s13/local/master_cache",
+    "data": "@WORK/py/s13/data",
+    "defaults": "@WORK/py/s13/defaults",
+    "local": "@WORK/py/s13/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s13/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 0.3
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 壊れた錠",
+    "shared": true,
+    "steps": [{"holder":"broken","op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"y"}}],"name":"equipment_master","op":"write"}],
+    "ttl": 0.3
+   },
+   "work": "@WORK/py/s13"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s14/local/master_cache",
+    "data": "@WORK/py/s14/data",
+    "defaults": "@WORK/py/s14/defaults",
+    "local": "@WORK/py/s14/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s14/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 0.3
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "錠: 空の錠 {}・印の無い錠・印が null・印が数（切れた後にどける）",
+    "shared": true,
+    "steps": [{"holder":"empty","op":"lock"},{"do":[{"append":{"name":"a"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"b"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":3.2},{"holder":"notoken","left":-5,"op":"lock"},{"do":[{"append":{"name":"c"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"c2"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":3.2},{"holder":"nulltoken","left":-5,"op":"lock"},{"do":[{"append":{"name":"d"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"d2"}}],"name":"equipment_master","op":"write"},{"holder":"numtoken","left":-5,"op":"lock"},{"do":[{"append":{"name":"e"}}],"name":"equipment_master","op":"write"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"f"}}],"name":"equipment_master","op":"write"},{"holder":"bigtoken","left":-5,"op":"lock"},{"op":"sleep","sec":0.45},{"do":[{"append":{"name":"g"}}],"name":"equipment_master","op":"write"}],
+    "ttl": 0.3
+   },
+   "work": "@WORK/py/s14"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s15/local/master_cache",
+    "data": "@WORK/py/s15/data",
+    "defaults": "@WORK/py/s15/defaults",
+    "local": "@WORK/py/s15/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}]},
+    "name": "錠: 手元の data/ の錠（もう 1 つの係）",
+    "shared": false,
+    "steps": [{"holder":"sibling","left":15,"local":true,"op":"lock"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s15"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s16/local/master_cache",
+    "data": "@WORK/py/s16/data",
+    "defaults": "@WORK/py/s16/defaults",
+    "local": "@WORK/py/s16/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s16/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "置き換える直前: 共有が変わった",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"x"}},{"touch":"share/equipment_master.json"}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s16"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s17/local/master_cache",
+    "data": "@WORK/py/s17/data",
+    "defaults": "@WORK/py/s17/defaults",
+    "local": "@WORK/py/s17/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s17/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "置き換える直前: 錠を取られた",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"x"}},{"steal":true}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s17"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s18/local/master_cache",
+    "data": "@WORK/py/s18/data",
+    "defaults": "@WORK/py/s18/defaults",
+    "local": "@WORK/py/s18/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}]},
+    "name": "置き換える直前: 手元のファイルが変わった",
+    "shared": false,
+    "steps": [{"do":[{"append":{"name":"x"}},{"touch":"data/equipment_master.json"}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s18"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s19/local/master_cache",
+    "data": "@WORK/py/s19/data",
+    "defaults": "@WORK/py/s19/defaults",
+    "local": "@WORK/py/s19/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s19/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "共有に届かない",
+    "shared": true,
+    "steps": [{"name":"equipment_master","op":"pull"},{"op":"unshare"},{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"name":"equipment_master","op":"pull"},{"op":"reshare"},{"do":[{"append":{"name":"y"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s19"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s20/local/master_cache",
+    "data": "@WORK/py/s20/data",
+    "defaults": "@WORK/py/s20/defaults",
+    "local": "@WORK/py/s20/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s20/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "丸ごと扱う間（exclusive）の中の書き込み",
+    "shared": true,
+    "steps": [{"do":[{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"do":[{"append":{"name":"r"}}],"name":"roll_master","op":"write"}],"op":"exclusive"}]
+   },
+   "work": "@WORK/py/s20"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s21/local/master_cache",
+    "data": "@WORK/py/s21/data",
+    "defaults": "@WORK/py/s21/defaults",
+    "local": "@WORK/py/s21/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s21/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"data/equipment_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}]},
+    "name": "丸ごと扱う間: 共有に届かなければ data/ の錠",
+    "shared": true,
+    "steps": [{"op":"unshare"},{"do":[],"op":"exclusive"},{"holder":"other","left":15,"local":true,"op":"lock"},{"do":[],"op":"exclusive"}]
+   },
+   "work": "@WORK/py/s21"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s22/local/master_cache",
+    "data": "@WORK/py/s22/data",
+    "defaults": "@WORK/py/s22/defaults",
+    "local": "@WORK/py/s22/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s22/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "丸ごと扱う間: ほかの PC の錠",
+    "shared": true,
+    "steps": [{"holder":"other","left":15,"op":"lock"},{"do":[],"op":"exclusive"}]
+   },
+   "work": "@WORK/py/s22"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s23/local/master_cache",
+    "data": "@WORK/py/s23/data",
+    "defaults": "@WORK/py/s23/defaults",
+    "local": "@WORK/py/s23/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s23/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"share/equipment_master.json":{"revision":1,"rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1}},
+    "name": "写しだけが変わっていても、書く前に共有から取り直す",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"json":{"revision":50,"rows":[],"schema":1},"op":"file","path":"local/master_cache/equipment_master.json"},{"do":[{"append":{"name":"y"}}],"name":"equipment_master","op":"write"}]
+   },
+   "work": "@WORK/py/s23"
+  },
+  {
+   "config": {
+    "cache": "@WORK/py/s24/local/master_cache",
+    "data": "@WORK/py/s24/data",
+    "defaults": "@WORK/py/s24/defaults",
+    "local": "@WORK/py/s24/local",
+    "login": "u1",
+    "pc": "PC1",
+    "role": "rs",
+    "share": "@WORK/py/s24/share",
+    "shared": ["access_permissions","app_seeds","conversion_defaults","conversions","dashboard_settings","dashboards","data_sources","display_formats","equipment_groups","equipment_master","path_settings","pivot_presets","pivot_quick","roll_master","shift_patterns","tab_access","ui_defaults","work_log_files"],
+    "ttl": 20.0
+   },
+   "scenario": {
+    "files": {"bom:share/roll_master.json":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"share/equipment_master.json":{"extra":1,"revision":"4","rows":[{"id":1,"name":"CR1","rev":1},{"id":2,"name":"CR2","rev":1}],"schema":1,"updated_by":null}},
+    "name": "版の字・BOM・昔の形の写し",
+    "shared": true,
+    "steps": [{"do":[{"append":{"name":"x"}}],"name":"equipment_master","op":"write"},{"do":[{"set":[1,"name","R"]}],"name":"roll_master","op":"write"}]
+   },
+   "work": "@WORK/py/s24"
+  }
+ ],
+ "os": "posix",
+ "routes": {
+  "丸ごと扱う間: ほかの PC の錠 ファイル": "files",
+  "丸ごと扱う間: ほかの PC の錠 答え": "masters",
+  "丸ごと扱う間: 共有に届かなければ data/ の錠 ファイル": "files",
+  "丸ごと扱う間: 共有に届かなければ data/ の錠 答え": "masters",
+  "丸ごと扱う間（exclusive）の中の書き込み ファイル": "files",
+  "丸ごと扱う間（exclusive）の中の書き込み 答え": "masters",
+  "共有: どこにも無い（空で始める） ファイル": "files",
+  "共有: どこにも無い（空で始める） 答え": "masters",
+  "共有: 共有にまだ無い（写し → seed） ファイル": "files",
+  "共有: 共有にまだ無い（写し → seed） 答え": "masters",
+  "共有: 共有にも写しにも無い（同梱の data/ → seed） ファイル": "files",
+  "共有: 共有にも写しにも無い（同梱の data/ → seed） 答え": "masters",
+  "共有: 足す・直す・消す ファイル": "files",
+  "共有: 足す・直す・消す 答え": "masters",
+  "共有しない名前は手元（共有の設定でも） ファイル": "files",
+  "共有しない名前は手元（共有の設定でも） 答え": "masters",
+  "共有に届かない ファイル": "files",
+  "共有に届かない 答え": "masters",
+  "写しだけが変わっていても、書く前に共有から取り直す ファイル": "files",
+  "写しだけが変わっていても、書く前に共有から取り直す 答え": "masters",
+  "手元だけ: data/ に行の配列で書く ファイル": "files",
+  "手元だけ: data/ に行の配列で書く 答え": "masters",
+  "断る: 見つからない・行の衝突・同じ名前 ファイル": "files",
+  "断る: 見つからない・行の衝突・同じ名前 答え": "masters",
+  "版の字・BOM・昔の形の写し ファイル": "files",
+  "版の字・BOM・昔の形の写し 答え": "masters",
+  "置き換える直前: 共有が変わった ファイル": "files",
+  "置き換える直前: 共有が変わった 答え": "masters",
+  "置き換える直前: 手元のファイルが変わった ファイル": "files",
+  "置き換える直前: 手元のファイルが変わった 答え": "masters",
+  "置き換える直前: 錠を取られた ファイル": "files",
+  "置き換える直前: 錠を取られた 答え": "masters",
+  "錠: ほかの PC の生きた錠 ファイル": "files",
+  "錠: ほかの PC の生きた錠 答え": "masters",
+  "錠: 係の無い錠（版 3.63.0 まで）は Python の物 ファイル": "files",
+  "錠: 係の無い錠（版 3.63.0 まで）は Python の物 答え": "masters",
+  "錠: 切れた錠は見てからの経過でどける ファイル": "files",
+  "錠: 切れた錠は見てからの経過でどける 答え": "masters",
+  "錠: 同じ PC のもう 1 つの係（py）の錠 ファイル": "files",
+  "錠: 同じ PC のもう 1 つの係（py）の錠 答え": "masters",
+  "錠: 壊れた錠 ファイル": "files",
+  "錠: 壊れた錠 答え": "masters",
+  "錠: 手元の data/ の錠（もう 1 つの係） ファイル": "files",
+  "錠: 手元の data/ の錠（もう 1 つの係） 答え": "masters",
+  "錠: 時計の進んだ PC の錠（期限が錠の長さより先） ファイル": "files",
+  "錠: 時計の進んだ PC の錠（期限が錠の長さより先） 答え": "masters",
+  "錠: 空の錠 {}・印の無い錠・印が null・印が数（切れた後にどける） ファイル": "files",
+  "錠: 空の錠 {}・印の無い錠・印が null・印が数（切れた後にどける） 答え": "masters",
+  "錠: 自分の残した錠は引き継ぐ ファイル": "files",
+  "錠: 自分の残した錠は引き継ぐ 答え": "masters"
+ },
+ "scene": {
+  "blobs": {},
+  "dirs": {},
+  "files": {},
+  "links": {}
+ },
+ "sources": {
+  "tests/masters_oracle.py": "550c72fee5f607fc"
+ },
+ "variant": "root"
+}

@@ -194,9 +194,9 @@ fn age_sec(m: &Map<String, Value>, now: NaiveDateTime) -> Option<f64> {
     access::parse_at(&at).map(|t| secs(now, t))
 }
 
-/// "2026-09" → その次の月の初め（presence._month_after）。Ok(None) は読めない名前（int() の ValueError: Python は None）、
-/// Err(()) は datetime にできない年（1〜9999 の外・i64 に入らない数。Python は datetime の ValueError・OverflowError で例外になる。
-/// 版 3.104.0 の作った後の採点: 前は大きな年を i64 の端へ丸めて 1 を足し、あふれた）
+/// "2026-09" → その次の月の初め（presence._month_after）。Ok(None) は読めない名前（int() の ValueError: Python は None）と、
+/// datetime にできない年（1〜9999 の外・i64 に入らない数。版 3.115.0 から Python も ValueError・OverflowError を読めない名前にする。
+/// 前は Python が例外で心拍の掃除の糸を終え、prune_all が 500 で、窓は答えずに任せた。版 3.104.0 の作った後の採点: 大きな年を i64 の端へ丸めない）
 fn month_after(month: &str) -> Result<Option<NaiveDateTime>, ()> {
     let parts: Vec<&str> = month.split('-').collect();
     if parts.len() != 2 {
@@ -209,7 +209,7 @@ fn month_after(month: &str) -> Result<Option<NaiveDateTime>, ()> {
         big => big_rem12(big),
     };
     let y = if is_twelve(&m) { y.succ() } else { y };
-    let y = y.small().and_then(|v| i32::try_from(v).ok()).filter(|v| (1..=9999).contains(v)).ok_or(())?;
+    let Some(y) = y.small().and_then(|v| i32::try_from(v).ok()).filter(|v| (1..=9999).contains(v)) else { return Ok(None) };
     Ok(NaiveDate::from_ymd_opt(y, (m12 + 1) as u32, 1).and_then(|d| d.and_hms_opt(0, 0, 0)))
 }
 
@@ -614,17 +614,13 @@ impl Presence {
         self.write(&dir.join(SETTINGS_FILE), &Value::Object(s))
     }
 
-    /// 管理する人の「古い記録を整理」（presence.prune_all）
-    /// None は Python の prune_all が例外になる形（月の名前の年が datetime の範囲の外。Python は 500）: 窓は何も消さずに Python に任せる
+    /// 管理する人の「古い記録を整理」（presence.prune_all。月の名前の年が datetime の範囲の外のファイルは、読めない名前と同じに残す。版 3.115.0）
     fn prune_all(&self) -> Option<Value> {
         let cutoff = self.cutoff(self.now());
         let (mut files, mut rows) = (0, 0);
         if let Some(root) = self.dir().map(|d| d.join(SESSIONS_DIR)) {
             let dirs: Vec<PathBuf> =
                 std::fs::read_dir(&root).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
-            if dirs.iter().any(|d| json_files(d).iter().any(|p| month_after(&stem(p)).is_err())) {
-                return None;
-            }
             for d in dirs {
                 for p in json_files(&d) {
                     if month_after(&stem(&p)).ok().flatten().is_some_and(|n| n <= cutoff) {
@@ -1273,11 +1269,11 @@ mod tests {
         }
         assert_eq!(month_after("2026-12"), Ok(NaiveDate::from_ymd_opt(2027, 1, 1).unwrap().and_hms_opt(0, 0, 0)));
         assert_eq!(month_after("2026-x"), Ok(None));
-        assert_eq!(month_after("0-3"), Err(()), "Python は datetime(0, …) の ValueError で止まる");
+        assert_eq!(month_after("0-3"), Ok(None), "datetime(0, …) の ValueError は読めない名前（版 3.115.0）");
         // 版 3.104.0 の作った後の採点: 大きな年は i64 の端で 1 を足してあふれていた（Python は datetime の OverflowError）
-        assert_eq!(month_after("99999999999999999999-12"), Err(()));
-        assert_eq!(month_after("9223372036854775807-12"), Err(()));
-        assert_eq!(month_after("9999-12"), Err(()), "10000 年は datetime の外");
+        assert_eq!(month_after("99999999999999999999-12"), Ok(None));
+        assert_eq!(month_after("9223372036854775807-12"), Ok(None));
+        assert_eq!(month_after("9999-12"), Ok(None), "10000 年は datetime の外（読めない名前）");
         assert_eq!(
             month_after("2026-99999999999999999998"),
             Ok(NaiveDate::from_ymd_opt(2026, 3, 1).unwrap().and_hms_opt(0, 0, 0)),

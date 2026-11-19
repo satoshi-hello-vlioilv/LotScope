@@ -807,6 +807,30 @@ pub fn handle(path: &str, body: &[u8], calculation: &Value, masters: &Masters) -
     }
 }
 
+/// 計算の誤りの言葉（版 3.115.0。Python の services/calc_errors.message と同じ決まり。事例の表 tests/fixtures/calc_error_cases.json）。
+/// 例外の種類の名前と str(e) → 言葉（知らない種類は str(e) のまま）。窓は Python が例外で答える形をまだ任せている（2 版目で答える）
+pub fn error_message(type_name: &str, text: &str) -> String {
+    match type_name {
+        "KeyError" => {
+            let q = text.chars().next().filter(|c| matches!(c, '\'' | '"'));
+            let key = match q {
+                Some(c) if text.chars().count() >= 2 && text.ends_with(c) => &text[1..text.len() - 1],
+                _ => text,
+            };
+            format!("計算の入力に「{key}」がありません。")
+        }
+        "ValueError" => match text.rfind(": '").filter(|_| text.ends_with('\'')) {
+            Some(i) if i + 3 < text.len() => {
+                format!("計算の入力に数で読めない値「{}」があります（整数で書いてください）。", &text[i + 3..text.len() - 1])
+            }
+            _ => "計算の入力に数で読めない値があります。".into(),
+        },
+        "IndexError" => "計算の入力の並び（工程・候補）が足りません。".into(),
+        "AttributeError" | "TypeError" => "計算の入力に字でない値があります（字で送ってください）。".into(),
+        _ => text.into(),
+    }
+}
+
 pub fn is_route(method: &str, path: &str) -> bool {
     method == "POST" && matches!(path, "/api/calculate" | "/api/equipment/inspection")
 }

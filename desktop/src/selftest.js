@@ -526,19 +526,57 @@
         ["POST", "/api/settings/check", { key: "work_log.pattern", value: "実績_*.db" }],
         ["GET", "/api/masters/tabaccess", null],
       ];
+      // 最初に違った所（キーの道と両方の値）。前は答えの頭 60 字を書いたので、違いが見えなかった（版 3.115.0 の PR #115 の Windows の CI:
+      // 更新の通しの 4e で status・place が食い違ったが、頭の 60 字はどちらも同じで、どの欄が違ったか記録に残らなかった）
+      const diffP = (a, b, at = "") => {
+        if (JSON.stringify(a) === JSON.stringify(b)) return "";
+        if (a && b && typeof a === "object" && typeof b === "object" && Array.isArray(a) === Array.isArray(b)) {
+          for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {
+            const d = diffP(a[k], b[k], `${at}.${k}`);
+            if (d) return d;
+          }
+        }
+        return `${at || "."}: ${JSON.stringify(a)?.slice(0, 50)} / ${JSON.stringify(b)?.slice(0, 50)}`;
+      };
+      const parseP = (t) => { try { return dropP(JSON.parse(t)); } catch (_) { return t.slice(0, 50); } };
+      // 決めてある途中の状態: 確かめ中（reachable が null。共有を SHARE_PROBE_SEC〈2 秒〉で見終えなかった。版 3.100.0）と、ほかの係が
+      // ちょうど書いている間の錠（lock）。窓と Python は別々の時点で置き場を見るので、片方だけがこの状態のことがある。
+      // どちらかの答えがこの状態のときだけ、同じ時点の答えになるまで 20 秒まで読み直す（ほかの違いは読み直さずに落とす。
+      // 読み直したときは、最初の違いを記録に残す）
+      const midway = (v) => {
+        let hit = false;
+        const walk = (x) => {
+          if (!x || typeof x !== "object") return;
+          for (const [k, y] of Object.entries(x)) {
+            if ((k === "reachable" && y === null) || (k === "lock" && y)) hit = true;
+            walk(y);
+          }
+        };
+        walk(v);
+        return hit;
+      };
       const rows = [];
       let allOk = true;
       for (const [m, p, body] of want) {
         const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-        let rs = await get(p, opt);
-        // 共有にまだ無いマスタの最初の版を置く（種まき）のは Python の係（版 3.101.0 の主のセッションの決め）。窓は種まきの要る status・place を
-        // Python に任せるので、新しい置き場の最初の 1 回は Python が答えて種をまく。まき終えた後は窓が答える
-        if (rs.by === "python" && p.startsWith("/api/masters/")) rs = await get(p, opt);
-        const py = await get(p + "?engine=python", opt);
-        const gate = rs.r.status === 403 && py.r.status === 403;
-        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonP(rs.text) === canonP(py.text);
+        let rs, py, good, first = "", tries = 0;
+        for (const until = Date.now() + pyWait(20000); ;) {
+          tries += 1;
+          rs = await get(p, opt);
+          // 共有にまだ無いマスタの最初の版を置く（種まき）のは Python の係（版 3.101.0 の主のセッションの決め）。窓は種まきの要る status・place を
+          // Python に任せるので、新しい置き場の最初の 1 回は Python が答えて種をまく。まき終えた後は窓が答える
+          if (rs.by === "python" && p.startsWith("/api/masters/")) rs = await get(p, opt);
+          py = await get(p + "?engine=python", opt);
+          const gate = rs.r.status === 403 && py.r.status === 403;
+          good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonP(rs.text) === canonP(py.text);
+          if (good) break;
+          const [a, b] = [parseP(rs.text), parseP(py.text)];
+          if (!first) first = diffP(a, b);
+          if (!(midway(a) || midway(b)) || Date.now() > until) break;
+          await sleep(1000);
+        }
         allOk = allOk && good;
-        rows.push(`${m} ${p} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+        rows.push(`${m} ${p} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${tries > 1 ? `×${tries}・最初の違い ${first}` : ""}${good ? "" : "・違い " + diffP(parseP(rs.text), parseP(py.text))}`);
       }
       // 引っ越し: 窓は門番（一般ユーザーは 403）か確かめ（名前が空は 400）で答え、engine=python は Python が「窓の係」と 409 で断る（写さない）
       const mv = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parent: "", name: "" }) };
@@ -547,9 +585,10 @@
       let mk = ""; try { mk = JSON.parse(mpy.text).kind; } catch (_) { mk = ""; }
       const moveOk = mrs.by === "shell" && [400, 403].includes(mrs.r.status) && (mpy.r.status === 409 && mk === "busy" || mpy.r.status === 403);
       allOk = allOk && moveOk;
-      rows.push(`POST move 窓 ${mrs.r.status} ${mrs.by} / Python ${mpy.r.status} ${mk}${moveOk ? "" : "・" + mrs.text.slice(0, 60) + " / " + mpy.text.slice(0, 60)}`);
-      // 食い違った道を先に書く（記録は 300 字で切る）
-      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
+      rows.push(`POST move 窓 ${mrs.r.status} ${mrs.by} / Python ${mpy.r.status} ${mk}${moveOk ? "" : "・違い " + mrs.text.slice(0, 60) + " / " + mpy.text.slice(0, 60)}`);
+      // 食い違った道・読み直した道を先に書く（記録は 300 字で切る）
+      const rank = (r) => (r.includes("・違い ") ? 2 : r.includes("・最初の違い ") ? 1 : 0);
+      rows.sort((a, b) => rank(b) - rank(a));
       ok("置き場と設定の 8 本は窓が答え、Python と同じ答え（置き場の状態・確かめる・参照…・参照先の確かめる・タブの権限。引っ越しは窓の係）", allOk, rows.join("・"));
     }
 

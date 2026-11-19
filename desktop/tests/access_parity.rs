@@ -14,7 +14,10 @@ use serde_json::{json, Value};
 #[test]
 fn same_me_and_guard_as_python() {
     let dir = common::work("access");
-    let o = common::python_json("access_oracle.py", &["--keep", dir.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("access", &dir);
+    bk.strip = ["me", "reads", "status", "body"].map(String::from).to_vec();
+    bk.strip_in = vec!["conf", "method"];
+    let o = bk.oracle("access_oracle.py", &["--keep", dir.to_str().unwrap()]);
     let cases = o["cases"].as_array().unwrap();
     assert!(cases.len() >= 25, "組が足りません: {}", cases.len());
     let mut bad: Vec<String> = vec![];
@@ -25,7 +28,13 @@ fn same_me_and_guard_as_python() {
         let place = Place::from_json(&conf["place"]);
         let revoked = access::revocation(place.presence.as_deref(), conf["who"]["key"].as_str().unwrap(), now);
         let got = access::me(conf, revoked);
-        match (&c["me"], &got) {
+        let w = bk.want(name, || {
+            let guards: Vec<Value> = c["guards"].as_array().unwrap().iter().map(|g| json!([g["status"], g["body"]])).collect();
+            json!({"me": c["me"], "reads": c["reads"], "guards": guards})
+        });
+        let mut mine_all = json!({"me": got.clone().unwrap_or(Value::Null), "reads": {}, "guards": []});
+        let (wme, got_s) = (bk.s(&w["me"]), got.as_ref().map(|m| bk.s(m)));
+        match (&wme, &got_s) {
             (Value::Null, Err(_)) => {}
             (Value::Null, Ok(_)) => bad.push(format!("{name}: Python は決められないのに窓は me を決めた")),
             (_, Err(e)) => bad.push(format!("{name}: 窓が me を決められません: {e}")),
@@ -41,33 +50,42 @@ fn same_me_and_guard_as_python() {
         let version = da_core::update::program_version(&program).expect("program の版");
         for (path, route) in [("/api/access/me", access::ReadRoute::Me), ("/api/masters/access", access::ReadRoute::List)] {
             assert_eq!(access::read_route("GET", path), Some(route));
-            let want = &c["reads"][path];
+            let want = &bk.s(&w["reads"][path]);
+            if let Ok(m) = &got {
+                mine_all["reads"][path] = access::read_answer(route, m, &version);
+            } else {
+                mine_all["reads"][path] = Value::Null;
+            }
             match (want, &got) {
                 (Value::Null, Err(_)) => {}
                 (Value::Null, Ok(_)) => bad.push(format!("{name}: GET {path} Python は答えないのに窓は答える")),
                 (_, Err(_)) => bad.push(format!("{name}: GET {path} 窓が答えられない")),
                 (want, Ok(m)) => {
-                    if let Some(d) = common::diff(want, &access::read_answer(route, m, &version), "") {
+                    if let Some(d) = common::diff(want, &bk.s(&access::read_answer(route, m, &version)), "") {
                         bad.push(format!("{name}: GET {path} {d}"));
                     }
                 }
             }
         }
-        for g in c["guards"].as_array().unwrap() {
+        for (k, g) in c["guards"].as_array().unwrap().iter().enumerate() {
             let (method, path) = (g["method"].as_str().unwrap(), g["path"].as_str().unwrap());
             let mine = got.as_ref().ok().and_then(|m| access::guard(method, path, m));
             let mine = mine.map(|(s, kind, error)| (json!(s), json!({"error": error, "kind": kind}))).unwrap_or((Value::Null, Value::Null));
-            if (&g["status"], &g["body"]) != (&mine.0, &mine.1) {
-                bad.push(format!("{name}: {method} {path} 門番 Python {} {} / 窓 {} {}", g["status"], g["body"], mine.0, mine.1));
+            mine_all["guards"].as_array_mut().unwrap().push(json!([mine.0, mine.1]));
+            let wg = bk.s(&w["guards"][k]);
+            if (&wg[0], &wg[1]) != (&mine.0, &bk.s(&mine.1)) {
+                bad.push(format!("{name}: {method} {path} 門番 Python {} {} / 窓 {} {}", wg[0], wg[1], mine.0, mine.1));
             }
         }
+        bk.note(name, "access", &mine_all, &w);
         // 覚える係を通しても同じ（決められない組は見出しを載せず止めない）
         let gate = Gate::default();
         let r = gate.check("POST", "/api/masters/access", Some(conf));
-        if c["me"].is_null() && r != Ok(None) {
+        if w["me"].is_null() && r != Ok(None) {
             bad.push(format!("{name}: 決められないのに見出しを載せた・断った"));
         }
     }
+    bk.finish(&bad);
     std::fs::remove_dir_all(&dir).ok();
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
@@ -143,15 +161,21 @@ fn lot_gate_forgets_after_writes() {
 #[test]
 fn revocation_reads_like_python() {
     let dir = common::work("access-revoke");
-    let o = common::python_json("access_oracle.py", &["--revocations", dir.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open_part("access", "revoke", &dir);
+    (bk.strip, bk.strip_in) = (vec!["want".into()], vec!["label"]);
+    let o = bk.oracle("access_oracle.py", &["--revocations", dir.to_str().unwrap()]);
     let now = NaiveDateTime::parse_from_str(o["now"].as_str().unwrap(), "%Y-%m-%dT%H:%M:%S%.f").unwrap();
     let mut bad = vec![];
     for c in o["cases"].as_array().unwrap() {
         let got = access::revocation(Some(&dir), c["key"].as_str().unwrap(), now).unwrap_or(Value::Null);
-        if got != c["want"] {
-            bad.push(format!("{}: Python {} / 窓 {}", c["label"], c["want"], got));
+        let label = c["label"].as_str().unwrap_or("");
+        let w = bk.want(label, || c["want"].clone());
+        bk.note(label, "revoke", &got, &w);
+        if bk.s(&got) != bk.s(&w) {
+            bad.push(format!("{}: Python {} / 窓 {}", c["label"], w, got));
         }
     }
+    bk.finish(&bad);
     std::fs::remove_dir_all(&dir).ok();
     assert!(o["cases"].as_array().unwrap().len() >= 30);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

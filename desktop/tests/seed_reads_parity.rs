@@ -43,7 +43,9 @@ fn masked(v: &Value) -> Value {
 #[test]
 fn reads_seed_the_same_masters_as_python() {
     let base = common::work("seed-reads");
-    let oracle = common::python_json("seed_reads_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("seed_reads", &base);
+    (bk.strip, bk.strip_in) = (vec!["files".into(), "status".into()], vec!["path"]);
+    let oracle = bk.oracle("seed_reads_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut answered, mut delegated, mut seeded) = (0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -66,7 +68,12 @@ fn reads_seed_the_same_masters_as_python() {
             t[1..t.len() - 1].to_string()
         };
         let mine = share_files(Path::new(sc["rs"].as_str().unwrap()), &esc("rs"), &esc("py"));
-        let want = sc["files"].as_object().unwrap();
+        // 焼いた表には窓が置いたファイルを記す（Python と同じかは下の決まりで見る。窓は束と門番のマスタを多く置いてよい）
+        let w = bk.want(name, || sc["files"].clone());
+        bk.note_files(name, &Value::Object(mine.clone()), &w);
+        let mine: Map<String, Value> = bk.s(&Value::Object(mine)).as_object().cloned().unwrap();
+        let w = bk.s(&w);
+        let want = w.as_object().unwrap();
         seeded += want.len();
         let allowed = |f: &str| {
             let n = f.trim_end_matches(".json");
@@ -94,6 +101,7 @@ fn reads_seed_the_same_masters_as_python() {
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     eprintln!("窓が答えた道 {answered}・任せた道 {delegated}・Python が置いたファイル {seeded}");
     assert!(answered >= 20 && seeded >= 80, "場面が足りない: 答えた {answered}・置いた {seeded}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

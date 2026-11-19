@@ -199,7 +199,9 @@ def main():
                 json.dumps(ans, allow_nan=False)
             except ValueError:
                 ans, must = {"_nonfinite": True}, False      # 答えに NaN・inf（Python の json だけが書ける字）: 窓は Python に任せる
-            cases.append({"name": cname, "path": path, "body": text, "must": must, "status": r.status_code, "json": ans})
+            # must でない歩（窓が答えず Python に任せてよい形）は任せる歩の印を付けて数える（版 3.115.0 の作った後の直し。前は数えなかった）
+            cases.append({"name": cname, "path": path, "body": text, "must": must, "status": r.status_code, "json": ans,
+                          **({} if must else {"delegate": True})})
         out.append({"name": name, "conf": conf, "calculation": calc, "cases": cases})
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))
 

@@ -41,8 +41,12 @@ WINDOWS = os.name == "nt"           # Windows でだけ窓が Python に任せ�
 SCH = "/api/src/sch"
 
 
-def S(path, query="", method="GET", body="", delegate=False):
-    return {"method": method, "path": path, "query": query, "body": body, "delegate": delegate}
+def S(path, query="", method="GET", body="", delegate=False, windows_only=False):
+    """windows_only: Windows でだけ窓が任せる歩の印（版 3.115.0。tools/delegate-count.py が Linux でも「Windows だけ」の欄に数える）"""
+    st = {"method": method, "path": path, "query": query, "body": body, "delegate": delegate or (windows_only and WINDOWS)}
+    if windows_only:
+        st["windowsOnly"] = True
+    return st
 
 
 def small_rows(update):
@@ -135,19 +139,19 @@ class World:
     def __call__(self, scene, req, k):  # noqa: C901 (場面の振り分け)
         eq, runner = req["equip"], req["path"].split("/")[1]
         base = f"/{runner}/{scene}"
-        if scene in ("ok", "concurrent"):
+        if scene in ("ok", "concurrent", "timeout"):
             return fx.json_reply(self.full.get(eq) or {"status": "SUCCESS", "entity": {}})
         if scene == "change":                         # 問い合わせごとに中身が変わる（新しい世代）
             a = json.loads(json.dumps(self.full[eq]))
             a["entity"]["meisaiList"] = a["entity"]["meisaiList"][(k - 1) % 3:]
             a["entity"]["updateTs"] += k * 60000
             return fx.json_reply(a)
-        if scene == "flip":                           # 2 回目だけ NaN（窓は 1 回だけ降り、受け身の Python が取る）。ほかは回ごとに中身が変わる
+        if scene == "flip":                           # 2 回目だけ i64 に入らない整数（窓は 1 回だけ降り、受け身の Python が取る。版 3.115.0 から NaN は窓も答える）。ほかは回ごとに中身が変わる
             a = json.loads(json.dumps(self.full[eq]))
             a["entity"]["meisaiList"] = a["entity"]["meisaiList"][(k - 1) % 4:]
             a["entity"]["updateTs"] += k * 60000
             if k == 2:
-                return fx.reply(body=json.dumps({**a, "x": float("nan")}), headers=[("Content-Type", "application/json")])
+                return fx.reply(body=json.dumps({**a, "x": 10 ** 20}), headers=[("Content-Type", "application/json")])
             return fx.json_reply(a)
         if scene == "chunk11":
             return fx.json_reply(self.small[eq], chunked=True)
@@ -289,16 +293,26 @@ def scenes(world_port, blackhole):
         # 1970 年より前・3000 年から後の更新時刻: Windows の gmtime_s（UCRT）が受けるかは CPython のソースで決まらない（CI で −1 秒を受けた）ので、
         # Windows では窓が答えず Python に任せる。1 年より前（どの OS でも None）は窓が答える
         ("1970 年より前・3000 年から後の更新時刻", {**base, "equipments": "SC SD SE", "cm3_base_url": u("shapes")},
-         [S(SCH, "equip=SC", delegate=WINDOWS), S(SCH, "equip=SD", delegate=WINDOWS), S(SCH, "equip=SE")], None),
+         [S(SCH, "equip=SC", windows_only=True), S(SCH, "equip=SD", windows_only=True), S(SCH, "equip=SE")], None),
         ("URL に種類が無い", {**base, "cm3_base_url": "nlmfangyweb1a:9085"}, ONE[:1], None),
         ("URL が決まっていない", {**base, "cm3_base_url": "", "init_path": "", "client_ip": 0}, ONE[:1], None),
         ("設備が無い", {**base, "equipments": "、", "cm3_base_url": u("ok")}, [S(SCH), S("/api/schedule"), S("/api/schedule/card")], None),
-        # Python に任せる形（窓は答えず、状態に「係を降りた」を書く）
-        ("窓の持たない charset（EUC-JP）", {**base, "cm3_base_url": u("eucjp")}, [S(SCH, "equip=L-1", delegate=True)], None),
-        ("NaN の答え", {**base, "cm3_base_url": u("nan")}, [S(SCH, "equip=L-1", delegate=True)], None),
+        # 版 3.115.0 から窓も答える（前は任せた）: 窓の持たない codec の charset は引けない名前と同じに飛ばす（Python の CODECS）・
+        # NaN の答えは「JSON ではありません」・数でない timeout は既定の 15 秒（num_setting）
+        ("窓の持たない charset（EUC-JP）", {**base, "cm3_base_url": u("eucjp")}, [S(SCH, "equip=L-1")], None),
+        ("NaN の答え", {**base, "cm3_base_url": u("nan")}, [S(SCH, "equip=L-1")], None),
+        # Python に任せる形（窓は答えず、状態に「係を降りた」を書く。段 ③-6 で扱う）
         ("https", {**base, "cm3_base_url": "https://127.0.0.1:1"}, [S(SCH, "equip=L-1", delegate=True), S(f"{SCH}/source", "equip=L-1", delegate=True)], None),
         ("システムのプロキシ", {**base, "use_system_proxy": True, "cm3_base_url": u("ok")}, [S(SCH, "equip=L-1", delegate=True)], None),
-        ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("ok")}, [S(SCH, "equip=__HOT__", delegate=True)], None),
+        # 場面の名前を分ける（版 3.115.0。CM3 が受けた要求は場面ごとに比べる。「ok」はシステムのプロキシの場面〈Python だけが取る〉と共にする）
+        ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("timeout")}, [S(SCH, "equip=__HOT__")], None),
+        # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 ミリ秒未満・1 日を超える数）は 15 秒（cm3_schedule.timeout_of）。
+        # PR #115 の Windows の CI の直し: 前の上限「1 年」は 1e7 秒で割れた（poll の無い Windows の Python はミリ秒が INT_MAX を超える
+        # timeout を OverflowError で断る。Linux の Python と窓は受けた）。上限を 1 日にし、境の値（下限・上限ちょうどと外・INT_MAX ミリ秒の前後）を
+        # どの OS でも Python と窓が同じに答える形で見る。秒そのものは事例の表 tests/fixtures/cm3_timeout_cases.json が両方で見る
+        *[(f"timeout が {t!r}", {**base, "timeout_sec": t, "cm3_base_url": u("timeout")}, [S(SCH, "equip=L-1")], None)
+          for t in (0, "0", -1, "nan", "inf", "-inf", 1e-9, 0.0009, 86400, "86400", 86401, 86400.001, 2147483, 2147484, 1e7, 1e300,
+                    2 ** 63, 10 ** 20)],
     ]
     return out
 

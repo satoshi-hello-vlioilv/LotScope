@@ -156,8 +156,7 @@ fn only_the_listed_route_types_go_to_python() {
         for ty in tys {
             *seen.entry(ty.clone()).or_default() += 1;
             let ok = allow.iter().enumerate().find(|(_, a)| {
-                a["routes"].as_array().unwrap().iter().any(|r| r == ty)
-                    && regex::Regex::new(a["scenes"].as_str().unwrap()).unwrap().is_match(name)
+                a["routes"].as_array().unwrap().iter().any(|r| r == ty) && common::re(a["scenes"].as_str().unwrap()).is_match(name)
             });
             match ok {
                 Some((i, _)) => hit[i] += 1,

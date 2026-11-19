@@ -4,6 +4,23 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+#[path = "common/bake.rs"]
+pub mod bake;
+
+/// 正規表現は形ごとに 1 度だけ組んで覚える（版 3.115.0 の CI の時間の直し: debug の regex は組むのに 1 回 約 10 ms かかる。焼く係と試験の
+/// そろえる所が呼ぶたびに組み、焼いた 21 本の試験が 332 → 939 秒に延びた）。試験の中の正規表現はどれもここを通す
+pub fn re(pattern: &str) -> &'static regex::Regex {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static regex::Regex>>> =
+        std::sync::OnceLock::new();
+    let mut m = CACHE.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(r) = m.get(pattern) {
+        return r;
+    }
+    let r: &'static regex::Regex = Box::leak(Box::new(regex::Regex::new(pattern).unwrap_or_else(|e| panic!("正規表現 {pattern}: {e}"))));
+    m.insert(pattern.to_string(), r);
+    r
+}
+
 pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }

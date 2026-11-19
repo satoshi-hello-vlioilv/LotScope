@@ -4345,8 +4345,9 @@ mod tests {
             lot.handle_body_with("GET", "/api/dashboard/progress", "ask=f-2", b"", &ask).unwrap().1["asks"]["f-2"]["stage"],
             "python"
         );
-        assert!(lot.handle_body_with("POST", "/api/dashboard/fields", "", b"[1]", &ask).is_none(), "表でない本文");
-        assert!(lot.handle_body_with("POST", "/api/sources/check", "", br#"{"place": ["x"]}"#, &ask).is_none(), "字でない場所");
+        // 版 3.115.0 から本文の門が断る（前は Python に任せた）
+        assert_eq!(lot.handle_body_with("POST", "/api/dashboard/fields", "", b"[1]", &ask).unwrap().0, 400, "表でない本文");
+        assert_eq!(lot.handle_body_with("POST", "/api/sources/check", "", br#"{"place": ["x"]}"#, &ask).unwrap().0, 400, "字でない場所");
         // 確かめるは材料の要らない道（Python が居なくても答える）
         let (st, c) = lot.handle_body_with("POST", "/api/sources/check", "", br#"{"place": ""}"#, &ask).unwrap();
         assert_eq!((st, c["ok"].as_bool()), (200, Some(false)));

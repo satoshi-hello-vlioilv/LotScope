@@ -7,7 +7,7 @@
 mod common;
 
 use da_core::access::{is_key_split, normalize_part, py_key};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use unicode_normalization::UnicodeNormalization;
 
@@ -19,18 +19,27 @@ fn raw_key(s: &str) -> String {
 
 #[test]
 fn name_keys_match_python() {
-    let oracle = common::python_json("name_key_oracle.py", &[]);
+    let base = common::work("name-key");
+    let mut bk = common::bake::Bake::open("name_key", &base);
+    bk.drop = vec!["changed", "samples"];
+    let oracle = bk.oracle("name_key_oracle.py", &[]);
+    let changed = bk.want("changed", || oracle["changed"].clone());
     let py: HashMap<u32, String> =
-        oracle["changed"].as_array().unwrap().iter().map(|x| (x[0].as_u64().unwrap() as u32, x[1].as_str().unwrap().to_string())).collect();
+        changed.as_array().unwrap().iter().map(|x| (x[0].as_u64().unwrap() as u32, x[1].as_str().unwrap().to_string())).collect();
     assert!(py.len() > 6000, "Python の答えが少ない: {}", py.len());
     let unassigned: Vec<(u32, u32)> =
         oracle["unassigned"].as_array().unwrap().iter().map(|r| (r[0].as_u64().unwrap() as u32, r[1].as_u64().unwrap() as u32)).collect();
     let (mut wrong, mut table, mut raw_split) = (vec![], vec![], 0);
+    let mut mine = vec![];
     for cp in 0u32..0x110000 {
         let Some(c) = char::from_u32(cp) else { continue };
         let s = c.to_string();
         let want = py.get(&cp).cloned().unwrap_or_else(|| s.clone());
-        if normalize_part(Some(&json!(s))) != want {
+        let got = normalize_part(Some(&json!(s)));
+        if got != s {
+            mine.push(json!([cp, got]));
+        }
+        if got != want {
             wrong.push(format!("U+{cp:04X}"));
         }
         let cn = unassigned.iter().any(|(a, b)| (*a..=*b).contains(&cp));
@@ -54,12 +63,18 @@ fn name_keys_match_python() {
         table.len(),
         table.iter().take(20).cloned().collect::<Vec<_>>().join(" ")
     );
+    bk.note("changed", "name_key", &json!(mine), &changed);
+    let samples = bk.want("samples", || oracle["samples"].clone());
     let mut bad = vec![];
-    for x in oracle["samples"].as_array().unwrap() {
+    let mine: Vec<Value> = samples.as_array().unwrap().iter().map(|x| json!([x[0], py_key(x[0].as_str().unwrap())])).collect();
+    bk.note("samples", "name_key", &json!(mine), &samples);
+    for x in samples.as_array().unwrap() {
         let (t, want) = (x[0].as_str().unwrap(), x[1].as_str().unwrap());
         if py_key(t) != want {
             bad.push(format!("{t:?}: Python {want:?} / 窓 {:?} / 素 {:?}", py_key(t), raw_key(t)));
         }
     }
+    bk.finish(&bad);
+    let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "並びの例で答えが違う:\n{}", bad.join("\n"));
 }

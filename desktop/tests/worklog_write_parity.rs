@@ -19,7 +19,7 @@ use std::sync::Arc;
 /// 時刻を伏せる（比べるのは形と中身）。断る言葉の中の「（年-月-日 時:分）」も伏せる（Python と窓が分の境をまたぐと字が違う）
 fn norm(v: &Value, fids: &Map<String, Value>) -> Value {
     if let Value::String(s) = v {
-        let re = regex::Regex::new(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）").unwrap();
+        let re = common::re(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）");
         return json!(re.replace_all(s, "（<t>）"));
     }
     match v {
@@ -41,6 +41,26 @@ fn norm(v: &Value, fids: &Map<String, Value>) -> Value {
     }
 }
 
+/// ファイルID だけを「<fid:ファイル名>」にそろえる（焼いた表に記す形。時刻は焼く係のそろえる決まりが伏せる）
+fn fid_only(v: &Value, fids: &Map<String, Value>) -> Value {
+    match v {
+        Value::Object(o) => Value::Object(
+            o.iter()
+                .map(|(k, x)| {
+                    let fid = (k == "ファイルID").then(|| x.as_str()).flatten().and_then(|f| fids.iter().find(|(p, _)| same_fid(p, f)));
+                    let v = match fid {
+                        Some((_, name)) => json!(format!("<fid:{}>", name.as_str().unwrap_or(""))),
+                        None => fid_only(x, fids),
+                    };
+                    (k.clone(), v)
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(|x| fid_only(x, fids)).collect()),
+        _ => v.clone(),
+    }
+}
+
 /// 置き場の作業実績の登録のファイル（共有・同梱の data/。錠と書きかけの残りは無いこと）
 fn files(root: &Path, fids: &Map<String, Value>) -> Map<String, Value> {
     let mut out = Map::new();
@@ -56,7 +76,9 @@ fn files(root: &Path, fids: &Map<String, Value>) -> Map<String, Value> {
 #[test]
 fn work_log_registration_matches_python() {
     let base = common::work("worklog-write");
-    let oracle = common::python_json("worklog_write_oracle.py", &[base.to_str().unwrap()]);
+    let mut bk = common::bake::Bake::open("worklog_write", &base);
+    bk.fid_key = Some("fids");
+    let oracle = bk.oracle("worklog_write_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     let fids = oracle["fids"].as_object().unwrap().clone();
@@ -99,15 +121,20 @@ fn work_log_registration_matches_python() {
             let text = String::from_utf8(da_core::held::reply_bytes(&got)).unwrap();
             // 大きな整数は桁のまま読む（版 3.113.0 の作った後の採点の割れ 7 (c): serde は 10^20 を 1e+20 の小数に丸めた）
             let got: Value = common::json_keep(text.replace(&esc("rs"), &esc("py")).as_bytes()).unwrap();
-            let want = &st["json"];
-            if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want, &fids), &norm(&got, &fids), "").is_some() {
+            let key = format!("{name} #{i}");
+            let w = bk.want_step(&key, st);
+            // ファイルID は「<fid:ファイル名>」にそろえてから記す（作り直した場面では装置と inode が変わる）
+            bk.note_step(&key, st, status, &fid_only(&got, &fids), &(w.0, fid_only(&w.1, &fids)));
+            let got = bk.s(&got);
+            let want = &bk.s(&w.1);
+            if status as i64 != w.0 || common::diff(&norm(want, &fids), &norm(&got, &fids), "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {}?{} {}: Python {} {} / 窓 {status} {}",
                     st["method"].as_str().unwrap(),
                     st["path"].as_str().unwrap(),
                     st["query"].as_str().unwrap(),
                     st["body"],
-                    st["status"],
+                    w.0,
                     norm(want, &fids),
                     norm(&got, &fids)
                 ));
@@ -123,7 +150,12 @@ fn work_log_registration_matches_python() {
                 ));
             }
         }
-        let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap()), &fids), files(Path::new(sc["rs"].as_str().unwrap()), &fids));
+        let fr = files(Path::new(sc["rs"].as_str().unwrap()), &fids);
+        let fkey = format!("{name} ファイル");
+        let fp = bk.want(&fkey, || Value::Object(files(Path::new(sc["py"].as_str().unwrap()), &fids)));
+        bk.note_files(&fkey, &Value::Object(fr.clone()), &fp);
+        let fp = bk.s(&fp).as_object().cloned().unwrap_or_default();
+        let fr: Map<String, Value> = bk.s(&Value::Object(fr)).as_object().cloned().unwrap();
         for (k, v) in &fp {
             if let Some(d) = common::diff(v, fr.get(k).unwrap_or(&Value::Null), k) {
                 bad.push(format!("{name}: ファイル {d}"));
@@ -136,7 +168,11 @@ fn work_log_registration_matches_python() {
             for e in std::fs::read_dir(Path::new(sc["rs"].as_str().unwrap()).join(d)).into_iter().flatten().flatten() {
                 let f = e.file_name().to_string_lossy().into_owned();
                 // 場面が置いたほかの PC の錠（Python の側にも同じ物がある）は窓が残した物ではない
-                let placed = Path::new(sc["py"].as_str().unwrap()).join(d).join(&f).exists();
+                let placed = if bk.python() {
+                    Path::new(sc["py"].as_str().unwrap()).join(d).join(&f).exists()
+                } else {
+                    bk.in_scene(&Path::new(sc["rs"].as_str().unwrap()).join(d).join(&f))
+                };
                 if !placed && (f.ends_with(".lock.json") || f.contains(".tmp") || f.contains(".gone")) {
                     bad.push(format!("{name}: 窓が残した {d}/{f}"));
                 }
@@ -146,6 +182,7 @@ fn work_log_registration_matches_python() {
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
     assert!(steps >= 75, "歩が少ない: {steps}・{delegated}");
+    bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

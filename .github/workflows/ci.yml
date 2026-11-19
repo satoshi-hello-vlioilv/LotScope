@@ -70,9 +70,11 @@ jobs:
       - name: lint（Rust・clippy）
         working-directory: desktop
         run: cargo clippy --locked --all-targets -- -D warnings
+      # --no-fail-fast: 落ちた本で止めず、全部の本を流す（落ちた所を 1 回の CI で全部見る。落ちた本があれば終了コードは 0 でない。
+      # 版 3.115.0 の PR #115 は、最初に落ちた本で止まるので落ちる所が 1 回に 1 つずつしか分からず、4 往復になった）
       - name: test（Rust）
         working-directory: desktop
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       # 異常ロット一覧を Rust と Python で引き比べるため、試験用の品質データ（3000 行）を参照先にした設定で起こす
       - name: 自己診断（本物の窓・WebKitGTK）
         run: |
