@@ -2625,11 +2625,11 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 |---|---|---|
 | **3.117.0（この版）** | Windows の仕事を 2 つに割る・Windows の測りを ④ の後の形でも取る・土台（別の PC の形で 2 回目を焼く・PC の指紋の見張り・環境変数の形）・起こしたままの相手 | equipgroups・lotdsp（30/35） |
 | 3.117.1 | ③-6（CM3 の https・システムのプロキシを窓が取る。native-tls・戻り道の設定つき）・schedule の直し | schedule |
-| 3.117.2 | 場面の台本（ui_server.build・ops-bench の場面を作業フォルダの下・決めたキーで。routes の inode の使い回しを止める） | pivot・routes・dashboard・ops（35/35） |
+| 3.117.2（済） | 場面の台本（ui_server.build・ops-bench の場面を作業フォルダの下・決めたキーで。routes の inode の使い回しを止める） | pivot・routes・dashboard・ops（35/35） |
 | 3.117.3 | Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書 | — |
 
 **段 ④ の入口の条件**（どれか欠けたら ④ に入らない）:
-1. 36 本のうち keep を除く 35 本が Python 無しで流れる（この版で 30 本）
+1. 36 本のうち keep を除く 35 本が Python 無しで流れる（3.117.0 で 30 本・3.117.1 で 31 本・**3.117.2 で 35 本。満たした**）
 2. **Windows の CI が、Python 無しの形（`TPA_NO_PYTHON=1`。表の宣言から場面を作る形）で焼いた表と比べている**（Python と比べる形は ④ まで残す）。
    前の書き方「Windows の CI が焼いた表と比べている」は、どちらの形かを決めていなかった。④ の後に残るのは表の宣言から場面を作る形だけで、
    その形は Windows で 1 度も流れていなかった（3.116.0 の測りは Windows の Python が場面を作る形だけ。PR #116 の記録では 34 表のうち
@@ -2816,7 +2816,7 @@ schedule_fixture.py を変えたので builder・equipgroups も焼き直した�
   同じか（「TLS とプロキシを Windows の本物で」）・組む時間の増え。
 - **入口の条件 (4)**: ③-6 が現場の PC で 1 回通った（利用者の確認）。スケジュールのタブの「完了予定…取得」の title に「取った係: 窓（Rust）・https・…」が出れば通った。
   戻すときは配った設定の schedule に `"fetch_engine": "python"`。
-- 残る物: 3.117.2（場面の台本と pivot・routes・dashboard・ops）・3.117.3（Windows の切り替え・凍らせる写し）。
+- 残る物: 3.117.2（場面の台本と pivot・routes・dashboard・ops。済み）・3.117.3（Windows の切り替え・凍らせる写し）。
 
 #### 作った後の採点の割れの直し（`tools/ui-proposals/2026-11-stage3g-built.json` の built_fixed）
 
@@ -2854,6 +2854,71 @@ schedule_fixture.py を変えたので builder・equipgroups も焼き直した�
 
 schedule の場面は全 88（足した 10: プロキシ 7・https 3。プロキシの環境を持つか use_system_proxy の場面は 27）。schedule・builder を焼き直した
 （equipgroups・lotdsp は答えが変わらず、焼き直していない）。任せる歩は変わらない（計 10＝口 7・道 1・戻り道 2〈envExtra〉）。
+
+### 段 ④ の入口まで（小さい版 4 つ）の 3 つ目: 場面の台本と pivot・routes・dashboard・ops を焼く — 版 3.117.2
+
+採点は `tools/ui-proposals/2026-11-stage3f.json`（first_fixes 6・7 (a)(c)(d)。作った形は built_plan の built_3117_2）。入口の条件 1（keep を除く 35 本が
+Python 無しで流れる）を満たした。
+
+#### 作った物
+
+- **場面の台本 `tests/ui_scene.py`**（app を import しない。lists_scene.py と同じ置き場・流儀）: 開発用サーバー（`tools/ui_server.build`）の場面を作る
+  `make`（品質・作業実績 12 台＋SL3・焼鈍炉・同梱のマスタの写し〈scene_files〉・共有の形・仕掛と釜番・マスタのデータ元・want.json）と、作業実績の登録の後の
+  `finish`、本ごとの手直し `routes`・`pivot`・`dashboard`。稼働の評価関数（`tools/ops-bench.py`）の場面は `ops_bench`（9 つの書き方と正しい作業の並び
+  `ops_of`）・`ops_base`（分かれ道の設備と足す列）・`ops_added`（足した設備 43 台。当たる行の上限を超える 400,001 行の HUGE も）。
+  `python program/tests/ui_scene.py 作業フォルダ 本` で作り直す。**開発用サーバー・ops-bench・4 つの答え合わせ役は同じ関数を呼ぶ**（場面の作り方は 1 か所）。
+  答え合わせ役は登録をはさんで関数を順に呼び、Python 無しの形の窓の試験は台本を 1 回流して登録の後の形を作る（焼いた表は SQLite の指紋だけ〈sceneMade〉）。
+- **作業フォルダ**: 答え合わせ役は 1 つ目の引数に窓の試験の作業フォルダを受け、環境変数 TPA_UI_WORK・TPA_OPS_WORK で `ui_server.WORK`・`ops-bench.WORK` を
+  決める（前は /tmp/tpa-ui-*・/tmp/tpa-ops-* で、場面の宣言にできなかった）。開発用サーバーは前どおり一時フォルダ。`delegate-count.py` も 4 本に作業フォルダを渡す。
+- **first_fixes 6（inode の使い回し）**: 登録の後に「見つからない」にする SL3 のファイルは消さずに作業フォルダの keep/ へ名前を替えて握ったまま移し（`finish`）、
+  BAD はその後に作る。`routes_parity` の名前つきの歩（答え合わせ役の `named`）で、窓と比べる相手（Python か焼いた表）の両方が「SL3 は 404・missing」
+  「BAD は 503・copying」を言う。確かめ: 答え合わせ役を /tmp（ext4）と /dev/shm（tmpfs）で 5 回ずつ流し、asks[15]（SL3）・[35]・[67]（BAD）が
+  10 回とも 404・missing／503・copying／503・copying（前は ext4 で SL3 が 503、tmpfs で 404）。
+- **first_fixes 7**: (a) キーは `ui_scene.key_makers`（呼んだ順の番号の sha256。形は元と同じ 12 字・s＋8 字）を work_log.new_key・data_sources.new_key の
+  2 つだけに当てる（`ui_server.fixed_keys`・ops-bench。uuid4 全部は差し替えない）。呼ぶ数は routes 13＋2・pivot 12・dashboard 13＋1・ops 57。
+  (c) HOT の更新時刻: **決めた暦の日にはしなかった**。窓も Python も古さの時間（ageHours）を本当の今から数えるので、決めた日（2026-09-30 02:00）では
+  流す日ごとに ageHours が替わる（測った: 51 日後に 1239.5。80 時間前の形は 80.0）。台本を流した時の 40 時間前にした（古さのしきい 36 時間を越え、
+  焼いた表の「今に近い」2 日の内なので答えの時刻 at は今からのずれでそろう）。窓の試験は写しの様子を remote・interval_sec・staleHours・mirrored だけに
+  して比べるので、表の答えに at・ageHours は持たない。(d) settle.json の @UI と bless.py の印 @UI を外した（@OPS は前から無い）。
+- **場面で決めた物（焼いて見つけた）**: 作り物の CM3 は答え合わせ役では起こさない（閉じた口 http://127.0.0.1:1。前は流すたびに変わるポートが設定の答えに出た）・
+  この端末の名前は PC-ORACLE（**2 回目の焼き〈別の PC の形〉が、場面のマスタの書いた人 updated_by.pc の「vm」を見つけた**。Python の MasterStore は作るときに
+  名乗りを覚え、開発用サーバーは create_app より前に作るので、`identity.set_override` を MasterStore の前に呼ぶ）・変換表の版の印 conversions.rev
+  （同梱の変換表のファイルの更新時刻から作る字＝取り出した時刻）は表の問い合わせでは @REV（`bake::fixed_conv_rev`。窓は控えの鍵にだけ使う）・
+  場面のファイルID は答えの fids で @FID。Python だけの写し（cache・local）・MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない
+  （台本が写す）。
+- **「台本が作った場面で変わる葉がキーだけ」**（Python があるうちに 1 回）: 前の版（4c7a98a）の答え合わせ役を、作業フォルダとキーを同じ決め方にして流し
+  （scratchpad の oldrun.py）、新しい答え合わせ役の答えと葉ごとに比べた。違ったのは 時刻（at・checkedAt・copiedAt・updated_at・timing.server・ms）・
+  CM3 のポート（→ :1）・conversions.rev・リポジトリの道（access.place.defaults）・dashboard の ageHours（80.0 → 40 時間前の形）だけ。pivot は 0 葉。
+  問い合わせの並び・状態・数は 4 本とも同じ。
+- **四分位**: pivot の「ひげの端の近く」の値は台本が標準の部品で数え（`ui_scene.quantiles`・`number`）、`pivot_oracle.py` が `pivot.describe`・
+  `work_summary.num` と同じかを確かめる（違えば落ちる）。
+
+#### 焼いた本（35/35）
+
+`python program/tools/bless.py routes pivot dashboard ops`: 3 回（2 回目は別の PC の形・3 回目は root でない利用者）が同じ。
+`ci-shape.py --shape nopy,nodns,runner --book routes,pivot,dashboard,ops` も通る（nodns は名前を引かない 4 本なので流す本が無い）。
+`bless.py --no-python --all`（35 本・試験の実行ファイル 37）: 62 通った・0 落ちた・凍らせた Python を相手にする 9 本は流さない。
+3 回目の焼き（root でない利用者）が見つけた割れ: ops の問い合わせの設定の access.who.key（「PC-ORACLE@root」）。`bake.rs` の `named_users` が OS の利用者から作った
+名乗りの鍵を @USERKEY@ で持ち、`unnamed_users` が作り直す時に今の利用者で作り直す（`bake_selftest` の `the_terminal_key_in_the_question_is_kept_without_the_user_and_comes_back`。
+ほかの表の問い合わせの名乗りの鍵は場面が決めた利用者〈boss・u1 など〉なので当たらず、焼き直していない）。
+
+変異（どれも落ちた）: SL3 を keep/ へ移さず消す（routes: ext4 で #15 の答えが BAD のファイル）・台本の外れ値の値を変える（Python 無しの pivot: SIKADEF の指紋）・
+キーを乱数に戻す（routes: 問い合わせの名前つきの歩と表に無い歩）・MasterStore の前の名乗りを外す（dashboard: updated_by.pc）・@REV を外す（routes: conversions.rev）。
+
+| 表 | 大きさ | 歩 | 葉 | 印のある葉 |
+|---|---|---|---|---|
+| routes | 1.15 MB | 91 | 58,945 | 59（@WORK 36・@DAY 23） |
+| pivot | 0.62 MB | 466 | 36,489 | 2（@WORK） |
+| dashboard | 1.14 MB | 365 | 66,321 | 1,650（@WORK） |
+| ops | 1.73 MB（上限 2.5） | 172 | 240,168 | 733（@WORK） |
+
+計 35.90 MB（前 31.21 MB。41 ファイル。上限 40 MB）。ops は本ごとの上限 1.5 MB を超えるので books.json の maxMB 2.5（理由は why）。
+任せる歩は変わらない（`delegate-count.py 作業フォルダ --check`: 予算と同じ。計 10＝口 7・道 1・戻り道 2〈envExtra〉）。
+
+#### 手元で確かめられなかった物・残る物
+
+- Windows の CI の表だけの形の測り（4 本の違う歩の数）は、push の後の最初の記録で読む（`bless.py --from-log`）。
+- 3.117.3: Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

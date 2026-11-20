@@ -73,7 +73,10 @@ fn check(bk: &mut common::bake::Bake, lot: &Lot, settings: &Value, c: &Value, la
     bk.note(label, "POST /api/dashboard/query", &got, &want);
     let (w, g) = (bk.s(&want), bk.s(&got));
     if g["status"] != w["status"] {
-        bad.push(format!("{label}: 状態 {} / Python {}（窓 {} / Python {}）", g["status"], w["status"], g["body"]["error"], w["body"]["error"]));
+        bad.push(format!(
+            "{label}: 状態 {} / Python {}（窓 {} / Python {}）",
+            g["status"], w["status"], g["body"]["error"], w["body"]["error"]
+        ));
     } else if let Some(d) = common::diff(&w, &g, "") {
         bad.push(format!("{label}: {d}"));
     }

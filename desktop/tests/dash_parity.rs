@@ -65,7 +65,14 @@ fn question(v: &Value) -> Value {
 }
 
 /// 1 つの組を窓に尋ね、比べる相手（Python か焼いた表）と比べる → 比べる相手の答え（数える所に使う）。窓が答えなければ None
-fn one(bk: &mut common::bake::Bake, lot: &Lot, c: &Value, key: &str, ask: &dyn Fn() -> Result<Value, String>, bad: &mut Vec<String>) -> Option<Value> {
+fn one(
+    bk: &mut common::bake::Bake,
+    lot: &Lot,
+    c: &Value,
+    key: &str,
+    ask: &dyn Fn() -> Result<Value, String>,
+    bad: &mut Vec<String>,
+) -> Option<Value> {
     let body = sent(c);
     let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, ask) else {
         bad.push(format!("{key}: 窓が答えません（Python に回した）"));
@@ -81,7 +88,10 @@ fn one(bk: &mut common::bake::Bake, lot: &Lot, c: &Value, key: &str, ask: &dyn F
     bk.note(key, "POST /api/dashboard/query", &got, &want);
     let (w, g) = (bk.s(&want), bk.s(&got));
     if g["status"] != w["status"] {
-        bad.push(format!("{key}: 状態 {} / Python {}（窓 {} / Python {}）", g["status"], w["status"], g["body"]["error"], w["body"]["error"]));
+        bad.push(format!(
+            "{key}: 状態 {} / Python {}（窓 {} / Python {}）",
+            g["status"], w["status"], g["body"]["error"], w["body"]["error"]
+        ));
     } else if let Some(d) = common::diff(&w, &g, "") {
         bad.push(format!("{key}: {d}"));
     }

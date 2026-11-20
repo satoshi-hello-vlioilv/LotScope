@@ -1091,6 +1091,22 @@
     "Windows の窓（schannel）は SSL_CERT_FILE を読まないので、schedule_parity の https の場面のために Windows の CI で作り物の CA を証明書ストアに入れる段が要った",
     "版を上げた後の焼きは Cargo.lock の版の行で --locked が落ちる（cargo update -p defect-analyzer-desktop --offline）"
    ]
+  },
+  "built_3117_2": {
+   "about": "作った形（版 3.117.2・ブランチ stage3h）。first_fixes 6・7 (a)(c)(d) と、場面の台本・pivot・routes・dashboard・ops を焼く（入口の条件 1 の 35/35）。採点の中身（rounds・evaluation）は書き換えていない",
+   "cut_line": "割りどおり全部入れた（① 場面の台本 tests/ui_scene.py と ui_server.py・ops-bench.py・4 つの答え合わせ役の共通化 → ② first_fixes 6 → ③ first_fixes 7 (a)(c)(d) → ④ 4 本を焼く → ⑤ 文書・版）。送った物は無い",
+   "first_fixes": {
+    "6": "SL3 のファイルは消さずに作業フォルダの keep/ へ握ったまま移し（ui_scene.finish）、BAD はその後に作る。routes_parity の名前つきの歩（答え合わせ役の named）で、窓と比べる相手（Python か焼いた表）の両方が SL3 は 404・missing・BAD は 503・copying を言う。確かめ: /tmp（ext4）と /dev/shm（tmpfs）で 5 回ずつ、asks[15]・[35]・[67] が 10 回とも 404・missing／503・copying／503・copying。ci-shape の runner（TMPDIR=/dev/shm）で routes_parity が通る",
+    "7": "(a) work_log.new_key・data_sources.new_key の 2 つだけを ui_scene.key_makers（呼んだ順の番号の sha256。形は元と同じ）に替える（ui_server.fixed_keys・ops-bench）。呼ぶ数は routes 13＋2・pivot 12・dashboard 13＋1・ops 57（採点の測りと同じ）。(c) HOT の更新時刻は決めた暦の日にせず、台本を流した時の 40 時間前にした: 窓も Python も古さの時間 ageHours を本当の今から数えるので、決めた日（2026-09-30 02:00）では流す日ごとに ageHours が替わる（測った: 51 日後に 1239.5）。40 時間前は古さのしきい 36 時間を越え、焼いた表の「今に近い」2 日の内（at が今からのずれでそろう）。(d) settle.json の @UI と bless.py の印 @UI を外した（@OPS は前から無い）。run7b.py の 3 つの形の代わりに、bless の 2 回目（別の PC の形）・3 回目（root でない利用者）と ci-shape の nopy・runner で残る葉 0 を見た"
+   },
+   "baked": "routes・pivot・dashboard・ops を焼いた（35/35）。3 回の焼きが同じ・ci-shape の nopy・runner が通る（nodns は名前を引かない 4 本なので流す本が無い）",
+   "found_while_building": [
+    "前の版の答え合わせ役を作業フォルダとキーを同じ決め方にして流し、新しい答え合わせ役と葉ごとに比べた（Python があるうちに 1 回）: 違ったのは時刻・CM3 のポート（→ 閉じた口 :1）・conversions.rev・リポジトリの道・dashboard の ageHours だけ。pivot は 0 葉",
+    "2 回目の焼き（別の PC の形）が場面のマスタの書いた人 updated_by.pc の「vm」を見つけた: Python の MasterStore は作るときに名乗りを覚え、開発用サーバーは create_app より前に作る → 答え合わせ役の端末の名前 PC-ORACLE を MasterStore の前に identity.set_override",
+    "3 回目の焼き（root でない利用者）が ops の問い合わせの設定 access.who.key「PC-ORACLE@root」を見つけた: bake.rs の named_users が OS の利用者から作った名乗りの鍵を @USERKEY@ にし、作り直す時に今の利用者で作り直す（bake_selftest）。ほかの表の問い合わせの鍵は場面が決めた利用者なので当たらない",
+    "変換表の版の印 conversions.rev は同梱の変換表のファイルの更新時刻（取り出した時刻）から作る字 → 表の問い合わせでは @REV（bake::fixed_conv_rev。窓は控えの鍵にだけ使う）",
+    "答え合わせ役の元に今日の日付の字（コメントの測った日）があると bless が焼かない（近い日付の見張り）→ 言い替えた"
+   ]
   }
  }
 }

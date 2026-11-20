@@ -101,7 +101,10 @@ fn routes_answer_like_python() {
             }
             let (want, got) = (bk.s(&want), bk.s(&got));
             if got["status"] != want["status"] {
-                bad.push(format!("[{}] {label}: 状態 {} / Python {}（{}）", ph["name"], got["status"], want["status"], got["body"]["error"]));
+                bad.push(format!(
+                    "[{}] {label}: 状態 {} / Python {}（{}）",
+                    ph["name"], got["status"], want["status"], got["body"]["error"]
+                ));
             } else if let Some(d) = common::diff(&want, &got, "") {
                 bad.push(format!("[{}] {label}: {d}", ph["name"]));
             }
