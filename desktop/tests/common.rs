@@ -25,6 +25,66 @@ pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }
 
+/// 場面のフォルダの道の書き方の候補（版 3.117.3）: 書いたままの字・長い名前（canonicalize。Windows の一時フォルダは 8.3 の短い名前
+/// RUNNER~1 で来る）と、それぞれの「/」と「\」の書き方。長い字から（短い字が長い字の頭に当たらないように）。
+/// 表の宣言から作った場面（Windows の表だけの形）は道を「/」で書き、窓は「\」や長い名前で答えるので、1 つの書き方で置き換えると当たらない
+/// （3.117.1 の Windows の測りの「届かない共有」の py／rs 12 歩・place の @ROOT 40 歩）。Linux では書いたままの字 1 つ
+pub fn path_forms(p: &str) -> Vec<String> {
+    if !cfg!(windows) {
+        return vec![p.to_string()];
+    }
+    let mut out: Vec<String> = bake::spellings(std::path::Path::new(p));
+    if !out.iter().any(|s| s == p) {
+        out.push(p.to_string());
+    }
+    {
+        let more: Vec<String> = out.iter().flat_map(|s| [s.replace('\\', "/"), s.replace('/', "\\")]).collect();
+        out.extend(more);
+    }
+    out.retain(|s| !s.is_empty());
+    out.sort_by_key(|s| std::cmp::Reverse(s.len()));
+    out.dedup();
+    out
+}
+
+/// JSON の字（本文）の中の場面のフォルダ from を to に（どの書き方も。JSON の字として逃がした形どうしで置き換える）
+pub fn swap_path_json(text: &str, from: &str, to: &str) -> String {
+    let esc = |s: &str| {
+        let t = serde_json::to_string(s).unwrap();
+        t[1..t.len() - 1].to_string()
+    };
+    let to = esc(to);
+    path_forms(from).iter().fold(text.to_string(), |t, f| t.replace(&esc(f), &to))
+}
+
+/// 字の中の場面のフォルダ root を印 mark に（どの書き方も）。Windows では印の後ろの道の区切りも「/」に（焼く係のそろえる決まりが
+/// @WORK の後ろでするのと同じ。窓は Windows の道を「\」で答える）。Linux では前と同じ置き換え
+pub fn mark_path(s: &str, root: &str, mark: &str) -> String {
+    let mut t = s.to_string();
+    for f in path_forms(root) {
+        if !t.contains(&f) {
+            continue;
+        }
+        if !cfg!(windows) {
+            t = t.replace(&f, mark);
+            continue;
+        }
+        let mut out = String::with_capacity(t.len());
+        let mut rest = t.as_str();
+        while let Some(i) = rest.find(&f) {
+            out.push_str(&rest[..i]);
+            out.push_str(mark);
+            rest = &rest[i + f.len()..];
+            let end = rest.find(['"', '\'', ' ', '\n', '）', ')', ',', '」', '?', '#', ';']).unwrap_or(rest.len());
+            out.push_str(&rest[..end].replace('\\', "/"));
+            rest = &rest[end..];
+        }
+        out.push_str(rest);
+        t = out;
+    }
+    t
+}
+
 /// 流す PC の環境変数のうち、答えを PC ごとに変える物を試験の頭で外す（版 3.117.0。採点の K3 (e)）: プロキシ（名前が _proxy で終わる物。
 /// Python の urllib.request.getproxies_environment と同じ見つけ方）と、TLS の信じる根の置き場（SSL_CERT_FILE・SSL_CERT_DIR）。
 /// 手元の PC には https_proxy・HTTPS_PROXY・no_proxy などがあり、CI の runner には無い。システムのプロキシを使う場面

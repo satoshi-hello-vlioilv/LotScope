@@ -64,6 +64,37 @@ pub fn variant() -> &'static str {
     "root"
 }
 
+/// 表のどの OS の答えと比べるか（版 3.117.3）: "posix"（焼いた表の本の答え）か "nt"（Windows。本の答えに tests/baked/nt/<表>.json の
+/// 上書きを重ねる）。Windows でだけ "nt"
+pub fn bake_os() -> &'static str {
+    if cfg!(windows) {
+        "nt"
+    } else {
+        "posix"
+    }
+}
+
+fn books() -> &'static Value {
+    static B: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    B.get_or_init(|| serde_json::from_str(include_str!("../baked/books.json")).expect("books.json"))
+}
+
+/// 本の Windows の札（books.json の windows）: "table" は Windows の表だけの形（TPA_NO_PYTHON=1）でも焼いた表（nt の上書きを重ねた形）と
+/// 比べて落とす本、"measure" はまだ測るだけの本（無ければ measure）。版 3.117.3
+pub fn windows_status(book: &str) -> &'static str {
+    match books()["books"][book]["windows"].as_str() {
+        Some("table") => "table",
+        _ => "measure",
+    }
+}
+
+/// Windows の上書きの表（tests/baked/nt/<表>.json。版 3.117.3）: answers（posix と違う歩の Windows の答え）・posix（上書きした posix の答えの
+/// 指紋。tools/bless.py --check が今の posix の答えと比べる）・skip（Windows では流さない歩）・unmade（Windows で作れない場面の物）。
+/// 書くのは tools/bless.py --take-nt だけ（Windows の測りの記録から取り込む）
+pub fn nt_dir() -> PathBuf {
+    baked_dir().join("nt")
+}
+
 /// アプリの版（心拍と同じ元の program/app/version.py）
 pub fn app_version() -> &'static str {
     static V: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -1115,25 +1146,51 @@ fn fid_unsub(s: &str, base: &Path) -> String {
     re.replace_all(s, |c: &regex::Captures| fid_of(&base.join(&c[1]))).into_owned()
 }
 
-/// 宣言から場面のフォルダを作る（snapshot の逆）
+/// 宣言から場面のフォルダを作る（snapshot の逆）。作れない物があれば落とす（Linux。Windows は作れない物を無いままにする: materialize_os）
 pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
+    let unmade = materialize_os(decl, base, ctx);
+    assert!(unmade.is_empty() || cfg!(windows), "場面を作れません: {unmade:?}");
+}
+
+/// 宣言から場面のフォルダを作り、宣言どおりに作れなかった物を返す（版 3.117.3。Windows の表だけの形）。返す字は「種類 道」:
+/// file・dir（Windows で使えない名前〈改行の入った名前・最後が空白か「.」〉など、作るのが OS の誤りになった物）・link（記号リンクを作れない）・
+/// fifo（名前付きパイプは Windows に無い）・mode（権限の数は Windows に無い）。Linux ではどれも作れるので空（作れなければ OS の誤りの字）。
+/// 焼いた表の nt の側（tests/baked/nt/<表>.json の unmade）がこの並びを持ち、増えても減っても落とす（bake.rs の Bake::rebuild_inner）
+pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
+    let mut unmade: Vec<String> = vec![];
+    fn fail(unmade: &mut Vec<String>, kind: &str, rel: &str, e: std::io::Error) {
+        if cfg!(windows) {
+            unmade.push(format!("{kind} {rel}"));
+        } else {
+            panic!("場面の {kind} {rel} を作れません: {e}");
+        }
+    }
     std::fs::create_dir_all(base).unwrap();
     let dirs = decl["dirs"].as_object().unwrap();
     for rel in dirs.keys() {
-        std::fs::create_dir_all(base.join(rel)).unwrap();
+        if let Err(e) = std::fs::create_dir_all(base.join(rel)) {
+            fail(&mut unmade, "dir", rel, e);
+        }
     }
     // ファイルID を指す中身（@FID(道)）は、指すファイルを作った後に書く
     let mut fs: Vec<_> = decl["files"].as_object().unwrap().iter().collect();
     fs.sort_by_key(|(_, e)| decl["blobs"][e["blob"].as_str().unwrap_or("")]["text"].as_str().is_some_and(|t| t.contains("@FID(")));
     for (rel, e) in fs {
         let p = base.join(rel);
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        if let Err(e) = std::fs::create_dir_all(p.parent().unwrap()) {
+            fail(&mut unmade, "file", rel, e);
+            continue;
+        }
         if e.get("made").is_some() {
             // 場面の台本が作った物（指紋は呼ぶ側 rebuild_from_table が確かめる）
             continue;
         }
         if e["fifo"] == true {
-            let _ = std::process::Command::new("mkfifo").arg(&p).status();
+            if cfg!(windows) {
+                unmade.push(format!("fifo {rel}"));
+            } else {
+                let _ = std::process::Command::new("mkfifo").arg(&p).status();
+            }
             continue;
         }
         let blob = &decl["blobs"][e["blob"].as_str().unwrap()];
@@ -1141,17 +1198,35 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
             Some(t) => fid_unsub(&text_of_decl(t, ctx), base).into_bytes(),
             None => unb64(blob["b64"].as_str().unwrap()),
         };
-        std::fs::write(&p, bytes).unwrap();
+        if let Err(e) = std::fs::write(&p, bytes) {
+            fail(&mut unmade, "file", rel, e);
+            continue;
+        }
         if let Some(t) = mtime_of_decl(&e["mtime"]) {
             let _ = std::fs::File::options().write(true).open(&p).and_then(|f| f.set_modified(t));
         }
     }
     for (rel, t) in decl["links"].as_object().unwrap() {
+        let target = ctx.unsub(t.as_str().unwrap());
         #[cfg(unix)]
         {
-            let _ = std::os::unix::fs::symlink(ctx.unsub(t.as_str().unwrap()), base.join(rel));
+            let _ = std::os::unix::fs::symlink(&target, base.join(rel));
         }
-        let _ = (rel, t);
+        #[cfg(windows)]
+        {
+            // Windows の記号リンク（版 3.117.3）: GitHub の runner は管理者なので作れる（Windows の Python の os.symlink も作る。3.117.1 の測りで、
+            // Python と比べる形の fs は 18 件・表だけの形は 17 件だった）。区切りは「\」に（相対のリンクの「/」は Windows がたどらない）。
+            // 指す先がフォルダなら symlink_dir（宣言の dirs にある・作った後にフォルダ）、ほかは symlink_file（壊れたリンクも）
+            let target = target.replace('/', "\\");
+            let link = base.join(rel);
+            let at = link.parent().map(|d| d.join(&target)).unwrap_or_else(|| PathBuf::from(&target));
+            let is_dir = std::path::Path::new(&target).is_absolute() && std::path::Path::new(&target).is_dir() || at.is_dir();
+            let r = if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
+            if r.is_err() {
+                unmade.push(format!("link {rel}"));
+            }
+        }
+        let _ = (rel, target);
     }
     #[cfg(unix)]
     {
@@ -1161,18 +1236,43 @@ pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
                 let _ = std::fs::set_permissions(base.join(rel), std::fs::Permissions::from_mode(m as u32));
             }
         }
-        // 段の深い順に: 更新時刻を当ててから権限（読めないフォルダの中は先に作り終える）
-        let mut ds: Vec<_> = dirs.iter().collect();
-        ds.sort_by_key(|(r, _)| std::cmp::Reverse(r.matches('/').count()));
-        for (rel, e) in ds {
-            if let Some(t) = mtime_of_decl(&e["mtime"]) {
-                let _ = std::fs::File::open(base.join(rel)).and_then(|f| f.set_modified(t));
-            }
-            if let Some(m) = e["mode"].as_u64() {
-                let _ = std::fs::set_permissions(base.join(rel), std::fs::Permissions::from_mode(m as u32));
-            }
+    }
+    #[cfg(not(unix))]
+    for (rel, e) in decl["files"].as_object().unwrap().iter().chain(dirs) {
+        if e["mode"].as_u64().is_some() {
+            unmade.push(format!("mode {rel}"));
         }
     }
+    // 段の深い順に: 更新時刻を当ててから権限（読めないフォルダの中は先に作り終える）。Windows もフォルダの更新時刻を当てる（版 3.117.3:
+    // 前は Linux だけで、表だけの形の fs の「参照…」の答えのフォルダの時刻が今の時刻になった）
+    let mut ds: Vec<_> = dirs.iter().collect();
+    ds.sort_by_key(|(r, _)| std::cmp::Reverse(r.matches('/').count()));
+    for (rel, e) in ds {
+        if let Some(t) = mtime_of_decl(&e["mtime"]) {
+            let _ = open_dir_for_times(&base.join(rel)).and_then(|f| f.set_modified(t));
+        }
+        #[cfg(unix)]
+        if let Some(m) = e["mode"].as_u64() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(base.join(rel), std::fs::Permissions::from_mode(m as u32));
+        }
+    }
+    unmade.sort();
+    unmade
+}
+
+/// フォルダの更新時刻を当てるために開く（Linux は読む形で開ける。Windows はフォルダを開く印 FILE_FLAG_BACKUP_SEMANTICS と、
+/// 時刻を書く権利 FILE_WRITE_ATTRIBUTES で開く）
+fn open_dir_for_times(p: &Path) -> std::io::Result<std::fs::File> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_WRITE_ATTRIBUTES: u32 = 0x0100;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        return std::fs::OpenOptions::new().access_mode(FILE_WRITE_ATTRIBUTES).custom_flags(FILE_FLAG_BACKUP_SEMANTICS).open(p);
+    }
+    #[allow(unreachable_code)]
+    std::fs::File::open(p)
 }
 
 /// SQLite のファイルの中身を、作った SQLite の版によらない形（頭の決め・表の定義・行）にする（宣言を比べるとき）。
@@ -1321,6 +1421,15 @@ pub struct Bake {
     pub measure: Option<PathBuf>,
     /// 測りの記録を finish で書いたか（書いていなければ Drop が「終わりまで流れなかった」形で書く）
     measure_done: bool,
+    /// 表のどの OS の答えと比べるか（bake_os。試験の変異は "nt" にして Windows の形を Linux で流す）
+    pub os: &'static str,
+    /// Windows の上書きの表（nt_dir の <表>.json。os が nt のときだけ読む）
+    pub nt: Option<Value>,
+    /// 場面を宣言どおりに作れなかった物（materialize_os。Windows の表だけの形）
+    unmade: Vec<String>,
+    /// 測りの記録に書く、比べた表のファイルの指紋（tools/bless.py --take-nt が、取り込む記録が今の表で取った物かを見る）
+    table_sha: String,
+    nt_sha: String,
     measured: Vec<Value>,
     measured_decl: Map<String, Value>,
     oracle: Value,
@@ -1361,6 +1470,12 @@ pub fn stdlib_python() -> String {
     py
 }
 
+/// ファイルのバイトの sha256 の頭 16 字（無ければ空）
+fn file_sha(p: &Path) -> String {
+    use sha2::Digest;
+    std::fs::read(p).map(|b| format!("{:x}", sha2::Sha256::digest(&b))[..16].to_string()).unwrap_or_default()
+}
+
 fn env_on(k: &str) -> bool {
     std::env::var(k).is_ok_and(|v| !v.is_empty() && v != "0")
 }
@@ -1399,6 +1514,15 @@ impl Bake {
         let mut bk = Bake::with(book, &file, mode, scope, table, base);
         bk.variant = variant();
         bk.measure = std::env::var("TPA_MEASURE").ok().filter(|s| !s.is_empty()).map(PathBuf::from);
+        bk.table_sha = file_sha(&path);
+        if bk.os == "nt" {
+            // Windows（版 3.117.3）: 表だけの形は、札が table の本だけ焼いた表（nt の上書きを重ねた形）と比べて落とす。Python と比べる形は
+            // ④ まで Windows の Python と比べ、表とは比べない（測るだけ）。札が measure の本は表だけの形でも測るだけ
+            let nt = nt_dir().join(format!("{file}.json"));
+            bk.nt_sha = file_sha(&nt);
+            bk.nt = std::fs::read(&nt).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", nt.display())));
+            bk.check = mode == Mode::Baked && windows_status(book) == "table";
+        }
         bk
     }
 
@@ -1428,6 +1552,11 @@ impl Bake {
             fakes: None,
             measure: None,
             measure_done: false,
+            os: bake_os(),
+            nt: None,
+            unmade: vec![],
+            table_sha: String::new(),
+            nt_sha: String::new(),
             measured: vec![],
             measured_decl: Map::new(),
             oracle: Value::Null,
@@ -1632,7 +1761,19 @@ impl Bake {
                 .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
             assert!(out.status.success(), "場面の台本 {script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
         }
-        materialize(&t["scene"], &self.base, &self.ctx);
+        self.unmade = materialize_os(&t["scene"], &self.base, &self.ctx);
+        if self.os == "nt" && self.check {
+            // Windows で作れない場面の物は nt の表の unmade と同じ並び（増えても減っても落とす。版 3.117.3）
+            let want: Vec<String> = self.nt_list("unmade");
+            if self.unmade != want {
+                let (more, less): (Vec<&String>, Vec<&String>) =
+                    (self.unmade.iter().filter(|x| !want.contains(x)).collect(), want.iter().filter(|x| !self.unmade.contains(x)).collect());
+                self.bad.push(format!(
+                    "Windows で作れない場面の物が nt の表と違う（tests/baked/nt/{}.json の unmade。増えた {more:?}・減った {less:?}）",
+                    self.file
+                ));
+            }
+        }
         for (rel, e) in t["scene"]["files"].as_object().unwrap() {
             if let Some(want) = e["made"].as_str() {
                 let got = made_print(&self.base.join(rel));
@@ -1660,8 +1801,33 @@ impl Bake {
         self.scene["files"].get(&rel).is_some() || self.scene["dirs"].get(&rel).is_some()
     }
 
+    /// nt の表の並び（skip・unmade）
+    fn nt_list(&self, k: &str) -> Vec<String> {
+        self.nt.as_ref().and_then(|n| n[k].as_array()).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
+    }
+
+    /// 表の歩の名前（本の答えと、Windows なら nt の答えの歩）
+    fn table_keys(&self) -> Vec<String> {
+        let mut keys: Vec<String> =
+            self.table.as_ref().and_then(|t| t["answers"].as_object()).map(|o| o.keys().cloned().collect()).unwrap_or_default();
+        if self.os == "nt" {
+            for k in self.nt.as_ref().and_then(|n| n["answers"].as_object()).into_iter().flat_map(|o| o.keys()) {
+                if !keys.contains(k) {
+                    keys.push(k.clone());
+                }
+            }
+        }
+        keys
+    }
+
+    /// 表の答え。Windows（os が nt）は nt の表の上書きを先に見る（posix と違う歩の Windows の答え。読む所はここ 1 か所）
     fn table_answer(&self, key: &str) -> Option<Value> {
         let t = self.table.as_ref()?;
+        if self.os == "nt" {
+            if let Some(v) = self.nt.as_ref().and_then(|n| n["answers"].get(key)) {
+                return Some(v.clone());
+            }
+        }
         if self.variant == "user" {
             if let Some(v) = t["variants"]["user"].get(key) {
                 return Some(v.clone());
@@ -1705,8 +1871,12 @@ impl Bake {
                 Some(t) => diff_tol(&t, &g, ""),
             };
             if let Some(d) = d {
-                self.measured.push(json!({"key": key, "route": route, "diff": cut(&d)}));
+                // got: そろえた後の窓の答えそのもの（版 3.117.3。tools/bless.py --take-nt が nt の表の答えに取り込む）
+                self.measured.push(json!({"key": key, "route": route, "diff": cut(&d), "got": g}));
             }
+        }
+        if self.os == "nt" && self.check && self.nt_list("skip").contains(&key) {
+            self.bad.push(format!("Windows では流さない歩（tests/baked/nt/{}.json の skip）を窓が答えた: {key}", self.file));
         }
         if self.check && self.table.is_some() && self.mode != Mode::BlessScope {
             match self.table_answer(&key) {
@@ -1744,14 +1914,27 @@ impl Bake {
     /// 終わり: 焼く・表と比べた食い違いを知らせる。test_bad は試験そのものの食い違い（Python と比べた分）
     pub fn finish(mut self, test_bad: &[String]) {
         self.write_measure(true);
+        if self.os == "nt" && matches!(self.mode, Mode::Bless | Mode::BlessScope) {
+            panic!("{}: Windows では焼きません（posix の表は Linux で焼き、Windows の答えは tools/bless.py --take-nt で nt の表に取り込む）", self.file);
+        }
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
-                let mut missing: Vec<&String> =
-                    t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
+                let skip = if self.os == "nt" { self.nt_list("skip") } else { vec![] };
+                let mut missing: Vec<String> = self
+                    .table_keys()
+                    .into_iter()
+                    .filter(|k| !self.answers.contains_key(k) && !skip.contains(k))
+                    .collect();
                 missing.truncate(5);
                 for k in missing {
                     self.bad.push(format!("表にあるのに窓が答えなかった歩（表が古い）: {k}"));
                 }
+                // nt の skip は表の歩（本の答えか nt の答え）だけ
+                let keys = self.table_keys();
+                for k in skip.iter().filter(|k| !keys.contains(k)) {
+                    self.bad.push(format!("Windows では流さない歩（nt の skip）が表に無い歩: {k}"));
+                }
+                let _ = t;
             }
         }
         match self.mode {
@@ -1825,13 +2008,15 @@ impl Bake {
             return;
         }
         let (Some(dir), Some(t), false, Mode::Python | Mode::Baked) = (&self.measure, &self.table, self.check, self.mode) else { return };
-        let missing: Vec<&String> =
-            t["answers"].as_object().map(|o| o.keys().filter(|k| !self.answers.contains_key(*k)).collect()).unwrap_or_default();
+        let mut missing: Vec<String> = self.table_keys().into_iter().filter(|k| !self.answers.contains_key(k)).collect();
+        missing.sort();
         let form = if self.mode == Mode::Baked { "table" } else { "python" };
         let mut v = json!({"file": self.file, "book": self.book, "os": std::env::consts::OS, "form": form, "finished": finished,
                            "steps": self.answers.len(),
                            "tableSteps": t["answers"].as_object().map(|o| o.len()).unwrap_or(0),
-                           "differing": self.measured, "missing": missing});
+                           "differing": self.measured, "missing": missing,
+                           // 版 3.117.3: 場面を宣言どおりに作れなかった物・比べた表と nt の表の指紋（tools/bless.py --take-nt）
+                           "unmade": self.unmade, "tableSha": self.table_sha, "ntSha": self.nt_sha});
         for (k, d) in &self.measured_decl {
             v[k.as_str()] = d.clone();
         }

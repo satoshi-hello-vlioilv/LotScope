@@ -113,14 +113,12 @@ fn work_log_registration_matches_python() {
             };
             // 言葉の中の場面のフォルダ（共有に届かない置き場など）は Python の側の名前にそろえる
             // JSON の字の中の形（Windows の道の \ は \\ と書かれる）どうしで置き換える
-            let esc = |k: &str| {
-                let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
-                t[1..t.len() - 1].to_string()
-            };
+            // 場面の rs のフォルダの道（どの書き方も。common::swap_path_json）を py に
+            let swap = |t: &str| common::swap_path_json(t, sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
             // 答えは窓が画面へ返す字（held::reply_bytes: 持っている NaN は null）で比べる
             let text = String::from_utf8(da_core::held::reply_bytes(&got)).unwrap();
             // 大きな整数は桁のまま読む（版 3.113.0 の作った後の採点の割れ 7 (c): serde は 10^20 を 1e+20 の小数に丸めた）
-            let got: Value = common::json_keep(text.replace(&esc("rs"), &esc("py")).as_bytes()).unwrap();
+            let got: Value = common::json_keep(swap(&text).as_bytes()).unwrap();
             let key = format!("{name} #{i}");
             let w = bk.want_step(&key, st);
             // ファイルID は「<fid:ファイル名>」にそろえてから記す（作り直した場面では装置と inode が変わる）

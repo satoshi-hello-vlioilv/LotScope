@@ -23,7 +23,8 @@ use std::path::Path;
 fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
-            let s = s.replace(root, "@ROOT");
+            // 場面のフォルダはどの書き方も（Windows の表だけの形: 宣言の「/」の道と窓の「\」・長い名前。common::mark_path）
+            let s = common::mark_path(s, root, "@ROOT");
             let s = common::re(r"\.copying-\d+-\d+").replace_all(&s, ".copying-<pid>-<t>").into_owned();
             let s = common::re(r"権限を読めないので、置き場を変えられません（.*）。")
                 .replace_all(&s, "権限を読めないので、置き場を変えられません（<理由>）。")
