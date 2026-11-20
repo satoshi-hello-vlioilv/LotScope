@@ -465,7 +465,12 @@ fn tls_err(e: &native_tls::Error) -> X {
     }
     let text = e.to_string();
     let kind = if cfg!(windows) {
-        crate::cm3_net::os_error_code(&text).map(|n| crate::cm3_net::kind_of_schannel(n as u32)).unwrap_or(Kind::TlsOther)
+        match crate::cm3_net::os_error_code(&text) {
+            // 番号が正なら Winsock の誤り（握手の途中で切られた など）: ほかの所と同じ OS の誤りの字
+            Some(n) if n > 0 => return send_err(&std::io::Error::from_raw_os_error(n as i32)),
+            Some(n) => crate::cm3_net::kind_of_schannel(n as u32),
+            None => Kind::TlsOther,
+        }
     } else {
         crate::cm3_net::kind_of_openssl(&text)
     };

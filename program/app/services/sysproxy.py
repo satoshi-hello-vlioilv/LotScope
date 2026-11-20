@@ -90,24 +90,31 @@ def choose(url_type, host, proxies, bypass=proxy_bypass):
     return hostport
 
 
+def pac_of(nt, env_proxies, reg):
+    """PAC の一言の決め（純粋な関数。事例の表 sysproxy_cases.json の pac）。reg: {"ProxyEnable": 値, "AutoConfigURL": 値}（無い値は書かない）か None"""
+    if not nt or env_proxies or reg is None:
+        return ""
+    enable = reg.get("ProxyEnable") or 0
+    pac = str(reg.get("AutoConfigURL") or "").strip()
+    return PAC_NOTE if (not enable and pac) else ""
+
+
 def pac_note():
     """ProxyEnable が 0 で AutoConfigURL があれば PAC_NOTE、ほかは ""（Windows だけ。環境変数のプロキシがあれば読まない）"""
-    if os.name != "nt" or urllib.request.getproxies_environment():
+    if os.name != "nt":
         return ""
+    reg = {}
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, KEY) as k:
-            try:
-                enable = winreg.QueryValueEx(k, "ProxyEnable")[0]
-            except OSError:
-                enable = 0
-            try:
-                pac = winreg.QueryValueEx(k, "AutoConfigURL")[0]
-            except OSError:
-                pac = ""
+            for name in ("ProxyEnable", "AutoConfigURL"):
+                try:
+                    reg[name] = winreg.QueryValueEx(k, name)[0]
+                except OSError:
+                    pass
     except (OSError, ImportError):
-        return ""
-    return PAC_NOTE if (not enable and str(pac or "").strip()) else ""
+        reg = None
+    return pac_of(True, urllib.request.getproxies_environment(), reg)
 
 
 def url_type_host(url):
