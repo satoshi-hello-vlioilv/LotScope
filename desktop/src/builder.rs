@@ -14,7 +14,9 @@
 //!   3 種類はスライサー・集計と同じ見分け（SortKey: 空欄を 1 つ・0 と '0' を同じ。pivot::field_sets・merge_fields の 1 か所）
 //!   4 JOIN_ALL_EQUIPS … 作業実績の結合の「試す」と列は、表示する全部の設備で数える（設備ごとの内訳 byEquip・読めなかった設備 failed）
 //!   5 STALE_ROLES … 「最後の更新が古いファイルです」の警告を出す役割（マスタなど更新の少ない役割には出さない）
-//!   6 CM3_REACH … スケジュール（CM3）の URL の確かめは、CM3 に届くかまで見る（lotdsp_direct::reachable: プロキシを通さない 1 回の GET。cm3_http）
+//!   6 CM3_REACH … スケジュール（CM3）の URL の確かめは、CM3 に届くかまで見る（版 3.117.1 の作った後の直しから、スケジュールを取る道と同じ
+//!     取り手 cm3_http::reach: https・配った設定の schedule.use_system_proxy が真ならシステムのプロキシ・届かない言葉は cm3_net の種類ごと。
+//!     前は lotdsp_direct::reachable〈プロキシを通さない http だけ〉で、https の CM3 にいつも「届きません」と言った）
 //!   7 札を待つ間は、ダッシュボードの待ちの段（progress.rs。?ask=）に写した・読んだ設備 n/m で載せる
 //!   SQLite の英語の誤りの字は答えを変えない（日本語に読み替えるかは分からない。計画書）
 //!
@@ -621,6 +623,13 @@ pub fn check(body: &[u8]) -> Option<Answer> {
 pub struct ConnInputs<'a> {
     pub items: &'a [Map<String, Value>],
     pub pattern: String,
+    /// 配った設定の schedule.use_system_proxy（[`use_system_proxy`]。CM3 の確かめがシステムのプロキシを通すか）
+    pub proxy: bool,
+}
+
+/// 効いている設定の schedule.use_system_proxy（段が表でなければ偽。Python の builder.use_system_proxy と同じ）
+pub fn use_system_proxy(eff: &Value) -> bool {
+    eff.get("schedule").and_then(|s| s.as_object()).and_then(|s| s.get("use_system_proxy")).is_some_and(crate::lotlist::json_truthy)
 }
 
 fn ok_msg(ok: bool, message: impl Into<String>) -> Answer {
@@ -674,7 +683,7 @@ pub fn conn_check(inp: &ConnInputs, key: &str, body: &[u8]) -> Option<Answer> {
         Some(v) if crate::lotlist::json_truthy(v) => py_str(v),
         _ => String::new(),
     };
-    let mut picks = Picks { table: g("table"), role: g("role"), pattern: inp.pattern.clone() };
+    let mut picks = Picks { table: g("table"), role: g("role"), pattern: inp.pattern.clone(), proxy: inp.proxy };
     if item["kind"] == "folder" {
         let pat = text_or_num(t.get("pattern"))?;
         if !pyfmt::strip(&pat).is_empty() {
@@ -696,6 +705,8 @@ pub struct Picks {
     pub table: String,
     pub role: String,
     pub pattern: String,
+    /// CM3 の確かめがシステムのプロキシを通すか（配った設定の schedule.use_system_proxy）
+    pub proxy: bool,
 }
 
 /// 「確かめる」の入口（Python の path_settings.check_entry。参照先の POST /api/settings/check と、データ元の接続の設定の conn/check の 1 つ。
@@ -737,7 +748,7 @@ pub fn check_value(item: &Value, value: &Value, picks: &Picks) -> Value {
                     },
                 )
             } else if k == "schedule.cm3_base_url" {
-                cm3_reach(&vtext).1
+                cm3_reach(&vtext, picks.proxy).1
             } else {
                 msg(true, "URL の形は正しいです。")
             }
@@ -807,24 +818,20 @@ pub fn settings_check(body: &[u8], settings: &Value, eff: &Value, pattern: &str)
     } else {
         String::new()
     };
-    let picks = Picks { table, role: "品質".into(), pattern: pattern.to_string() };
+    let picks = Picks { table, role: "品質".into(), pattern: pattern.to_string(), proxy: use_system_proxy(eff) };
     Some((200, check_entry(item, Some(&value), true, &picks)))
 }
 
-/// CM3 に届くか（決め 6。Python の builder.cm3_reach）
-fn cm3_reach(url: &str) -> Answer {
+/// CM3 に届くか（決め 6。Python の builder.cm3_reach）。proxy: システムのプロキシを通すか（schedule.use_system_proxy）
+fn cm3_reach(url: &str, proxy: bool) -> Answer {
     if !CM3_REACH {
         return ok_msg(true, "URL の形は正しいです（つながるかは「スケジュール」のタブで確かめてください）。");
     }
-    let ok = crate::lotdsp_direct::reachable(url, 4.0);
-    ok_msg(
-        ok,
-        if ok {
-            "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。"
-        } else {
-            "CM3 に届きません（社外・VPN 未接続・場所の間違い）。"
-        },
-    )
+    let n = crate::cm3_http::Net { proxy: proxy.then(crate::sysproxy::System::read) };
+    match crate::cm3_http::reach(url, std::time::Duration::from_secs(4), &n) {
+        Ok(()) => ok_msg(true, "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。"),
+        Err(why) => ok_msg(false, why),
+    }
 }
 
 /// 作業実績のフォルダ: 届くか・決まりに合うファイル（設備）がいくつあるか（Python の _check_folder）

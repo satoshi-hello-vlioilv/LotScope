@@ -451,6 +451,9 @@ fn connect(host: &str, port: u16, timeout: Duration) -> H<TcpStream> {
     }
 }
 
+/// 握手の途中で相手が閉じた印（X::N の detail。言葉の TlsOther は detail を使わない）
+const TLS_EOF: &str = "eof";
+
 /// TLS の握手の誤り → 種類（io の誤りなら io の種類。ほかは OS の TLS の材料: Linux は OpenSSL の字、Windows は schannel の番号）
 fn tls_err(e: &native_tls::Error) -> X {
     let mut src: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
@@ -464,6 +467,11 @@ fn tls_err(e: &native_tls::Error) -> X {
         src = s.source();
     }
     let text = e.to_string();
+    // 握手の途中で相手が閉じた（OpenSSL の「unexpected eof while reading」・schannel の「unexpected EOF during handshake」。Python は
+    // ssl.SSLEOFError）: 直ならそのほか、プロキシ越しなら「その先で切れました」（印 TLS_EOF を once が見る）
+    if text.to_lowercase().contains("unexpected eof") {
+        return net(Kind::TlsOther, TLS_EOF.into(), connect_err(text));
+    }
     let kind = if cfg!(windows) {
         match crate::cm3_net::os_error_code(&text) {
             // 番号が正なら Winsock の誤り（握手の途中で切られた など）: ほかの所と同じ OS の誤りの字
@@ -485,13 +493,19 @@ fn tls_connector() -> H<&'static native_tls::TlsConnector> {
     }
 }
 
-/// つないで、要求を送れる流れにする（プロキシ越しの https は CONNECT で中継してから TLS）
+/// つないで、要求を送れる流れにする（プロキシ越しの https は CONNECT で中継してから TLS）。
+/// プロキシへの TCP がつながる前の OS の誤り・名前を引けないは「プロキシに届きません」（ProxyUnreachable）、CONNECT の答えが読めない
+/// （状態の行・見出しの行が長い・見出しが 100 を超える）は「プロキシの答えを読めません」（ProxyBad）。つながった後の OS の誤りは
+/// [`once`] が「その先で切れました」（ProxyCut）にする（版 3.117.1 の作った後の直し・割れ 5・7。Python は cm3_schedule の _Hop）
 fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
     let tcp = match route {
         Route::Direct => connect(&t.host, t.port, timeout)?,
         Route::Proxy(hp) => {
             let (h, p) = host_port(hp, if t.tls { 443 } else { 80 });
-            connect(&h, p, timeout)?
+            connect(&h, p, timeout).map_err(|e| match e {
+                X::N { kind: Kind::Os | Kind::Dns, legacy, .. } => net(Kind::ProxyUnreachable, hp.clone(), legacy),
+                x => x,
+            })?
         }
     };
     if !t.tls {
@@ -504,12 +518,18 @@ fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
         w.write_all(format!("CONNECT {hp} HTTP/1.1\r\nHost: {hp}\r\n\r\n").as_bytes()).map_err(|e| send_err(&e))?;
         // 答えの行と見出しだけを読む（本文は読まない）。1 バイトずつ読み、TLS の始まりを飲み込まない
         let mut c = Conn { r: BufReader::with_capacity(1, tcp.try_clone().map_err(|e| send_err(&e))?) };
-        let (_v, code, reason) = c.status().map_err(|e| match e {
-            // 中継の答えを読む前の timeout も、ほかの所と同じ時間切れ
+        let hp = match route {
+            Route::Proxy(hp) => hp.clone(),
+            Route::Direct => String::new(),
+        };
+        // 読めない答え（Python の _tunnel は http.client の HTTPException）は ProxyBad。中継の答えを読む前の timeout も、ほかの所と同じ時間切れ
+        let bad = |e: X| match e {
+            X::F(Fail::Python(why)) => net(Kind::ProxyBad, hp.clone(), Fail::Python(why)),
             X::N { kind: Kind::Timeout, legacy, .. } => net(Kind::Timeout, String::new(), legacy),
             x => x,
-        })?;
-        c.headers()?;
+        };
+        let (_v, code, reason) = c.status().map_err(bad)?;
+        c.headers().map_err(bad)?;
         if code != 200 {
             let d = format!("{code} {reason}");
             let kind = if code == 407 { Kind::ProxyAuth } else { Kind::ProxyRefused };
@@ -526,8 +546,34 @@ fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
     }
 }
 
-/// 1 回の問い合わせ（30x はたどらない）
-fn once(t: &Target, route: &Route, method: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> H<Resp> {
+/// 1 回の問い合わせ（30x はたどらない）。read_body: 2xx・たどる 30x の本文を読むか（確かめるは読まない: Python の urlopen も読まない）。
+/// プロキシ越しで、プロキシへの TCP がつながった後の OS の誤り（CONNECT の 200 の後・要求を送った後に切れた・答えずに閉じた）と、
+/// TLS の握手の途中で相手が閉じた形（CONNECT の 200 の後にすぐ閉じる）は ProxyCut
+fn once(
+    t: &Target,
+    route: &Route,
+    method: &str,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+    timeout: Duration,
+    read_body: bool,
+) -> H<Resp> {
+    once_raw(t, route, method, headers, body, timeout, read_body).map_err(|e| match (route, e) {
+        (Route::Proxy(hp), X::N { kind: Kind::Os, legacy, .. }) => net(Kind::ProxyCut, hp.clone(), legacy),
+        (Route::Proxy(hp), X::N { kind: Kind::TlsOther, detail, legacy }) if detail == TLS_EOF => net(Kind::ProxyCut, hp.clone(), legacy),
+        (_, e) => e,
+    })
+}
+
+fn once_raw(
+    t: &Target,
+    route: &Route,
+    method: &str,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+    timeout: Duration,
+    read_body: bool,
+) -> H<Resp> {
     let mut stream = open(t, route, timeout)?;
     // 要求（http.client: 要求の行 → Accept-Encoding: identity → 渡した見出しの順）。プロキシ越しの http は URL の全体（urllib の set_proxy）
     let target = match (route, t.tls) {
@@ -577,7 +623,7 @@ fn once(t: &Target, route: &Route, method: &str, headers: &[(String, String)], b
     let length = if status == 204 || status == 304 || (100..200).contains(&status) { Some(0) } else { length };
     // urllib が本文を読むのは 2xx と、たどる 30x（行き先のある物）だけ。誤りの答えの本文は読まない
     let redirect = matches!(status, 301 | 302 | 303 | 307 | 308) && (resp.header("location").is_some() || resp.header("uri").is_some());
-    if !(200..300).contains(&status) && !redirect {
+    if (!(200..300).contains(&status) && !redirect) || !read_body {
         return Ok(resp);
     }
     if chunked {
@@ -704,7 +750,6 @@ pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) 
     let mut via = None;
     let note = n.proxy.as_ref().map(crate::sysproxy::pac_note).unwrap_or("");
     let r = follow(url, body, timeout, &|t, b| headers_for(t, b, base), true, n, &mut via);
-    let proxy = via.as_ref().and_then(|v| v.proxy.clone());
     let r = match r {
         Ok(r) if (200..300).contains(&r.status) => Ok(r),
         // プロキシの認証（利用者の決め: 認証は無い。対応していない）
@@ -712,10 +757,8 @@ pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) 
         Ok(r) => Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))),
         // 設定の誤り（unknown url type・no host given）と Python に任せる形は前のまま
         Err(X::F(f)) => Err(f),
-        // プロキシ越しにつなげない・名前を引けない（最初の問い合わせのプロキシ。Python の cm3_net.message_of と同じ）
-        Err(X::N { kind: Kind::Os | Kind::Dns, .. }) if proxy.is_some() => {
-            Err(Fail::Cm3(crate::cm3_net::message(Kind::ProxyUnreachable, proxy.as_deref().unwrap_or(""), note)))
-        }
+        // プロキシの言葉（届かない・その先で切れた・答えを読めない）は、その問い合わせ（30x の行き先ごと）のプロキシで open・once が決めた
+        // （版 3.117.1 の作った後の直し・割れ 5: 前は最初の問い合わせにプロキシがあれば、届いた後の誤りも 30x の後の直の誤りも「届きません」）
         Err(X::N { kind, detail, .. }) => Err(Fail::Cm3(crate::cm3_net::message(kind, &detail, note))),
     };
     (r, via)
@@ -747,7 +790,45 @@ pub fn get_once(url: &str, timeout: Duration) -> R<Resp> {
         ("User-Agent".to_string(), USER_AGENT.to_string()),
         ("Connection".to_string(), "close".to_string()),
     ];
-    legacy(once(&t, &Route::Direct, "GET", &h, None, timeout))
+    legacy(once(&t, &Route::Direct, "GET", &h, None, timeout, true))
+}
+
+/// 確かめるの言葉（Python の cm3_schedule.REACH_NOT_HTTP・REACH_UNKNOWN）
+pub const REACH_NOT_HTTP: &str = "CM3 の URL は http:// か https:// で始めてください。";
+pub const REACH_UNKNOWN: &str = "CM3 に届きません（社外・VPN 未接続・場所の間違い）。";
+
+/// CM3 に届くか（参照先・データ元の「確かめる」。版 3.117.1 の作った後の直し・割れ 2。Python の cm3_schedule.reach と同じ）: スケジュールを
+/// 取る道と同じ取り手（https・システムのプロキシ・届かない言葉）で GET を 1 回（30x はたどらない・本文は読まない）。HTTP の答えが返れば
+/// 届いている（プロキシの答え 407・502・503・504 は届いていない: lotdsp::rules::reached_status）。Err は届かない言葉。
+/// 前は LotDsp の get_once（プロキシを通さない http だけ）で、https の CM3 にいつも「届きません」と言った
+pub fn reach(url: &str, timeout: Duration, n: &Net) -> Result<(), String> {
+    // 種類（urllib の Request の分け方: ([^/:]+):）が http・https でなければ確かめない
+    let scheme = url.find(':').filter(|i| *i > 0 && !url[..*i].contains('/')).map(|i| url[..i].to_ascii_lowercase());
+    if !matches!(scheme.as_deref(), Some("http" | "https")) {
+        return Err(REACH_NOT_HTTP.into());
+    }
+    let note = n.proxy.as_ref().map(crate::sysproxy::pac_note).unwrap_or("");
+    let said = |e: X| match e {
+        X::F(Fail::Cm3(m)) => m,
+        X::F(Fail::Python(_)) => REACH_UNKNOWN.to_string(),
+        X::N { kind, detail, .. } => crate::cm3_net::message(kind, &detail, note),
+    };
+    let t = target_with(url, true).map_err(|f| said(X::F(f)))?;
+    let proxies = n.proxy.as_ref().map(System::proxies).unwrap_or_default();
+    let route = route_of(&t, n, &proxies).map_err(said)?;
+    let h = vec![
+        ("Host".to_string(), t.netloc.clone()),
+        ("User-Agent".to_string(), USER_AGENT.to_string()),
+        ("Connection".to_string(), "close".to_string()),
+    ];
+    let r = once(&t, &route, "GET", &h, None, timeout, false).map_err(said)?;
+    if crate::lotdsp::rules::reached_status(r.status as i64) {
+        Ok(())
+    } else if r.status == 407 {
+        Err(crate::cm3_net::message(Kind::ProxyAuth, "", ""))
+    } else {
+        Err(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))
+    }
 }
 
 type Heads<'a> = &'a dyn Fn(&Target, Option<&[u8]>) -> Vec<(String, String)>;
@@ -772,7 +853,7 @@ fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads, https: bool, 
             });
         }
         let post_body = (method == "POST").then_some(body);
-        let mut r = once(&t, &route, method, &heads(&t, post_body), post_body, timeout)?;
+        let mut r = once(&t, &route, method, &heads(&t, post_body), post_body, timeout, true)?;
         if (200..300).contains(&r.status) || !matches!(r.status, 301 | 302 | 303 | 307 | 308) {
             return Ok(r);
         }

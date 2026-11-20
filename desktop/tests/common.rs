@@ -69,6 +69,38 @@ pub fn clean_command(c: &mut Command) -> &mut Command {
     c
 }
 
+/// https の作り物の CA を信頼する（program/tests/fixtures/tls/ca.pem。答え合わせ役の Python も同じ SSL_CERT_FILE を置く。
+/// Windows の窓は schannel で証明書ストアだけを見る: CI の段が LocalMachine\Root に入れる）
+pub fn trust_test_ca() {
+    let ca = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program").join("tests").join("fixtures").join("tls").join("ca.pem");
+    // SAFETY: 試験の最初（TLS を使う前）。この試験の実行ファイルのほかの試験は TLS を使わない
+    unsafe { std::env::set_var("SSL_CERT_FILE", ca) };
+}
+
+/// 場面の環境変数（プロキシ）を置き、手放すときに外す（答え合わせ役の場面の proxyEnv）
+pub struct ProxyEnv(Vec<String>);
+
+impl ProxyEnv {
+    pub fn set(v: &serde_json::Value) -> ProxyEnv {
+        let mut keys = vec![];
+        for (k, x) in v.as_object().into_iter().flatten() {
+            // SAFETY: 場面の歩を当てる糸の前（窓の糸は歩の中で読む）
+            unsafe { std::env::set_var(k, x.as_str().unwrap_or("")) };
+            keys.push(k.clone());
+        }
+        ProxyEnv(keys)
+    }
+}
+
+impl Drop for ProxyEnv {
+    fn drop(&mut self) {
+        for k in &self.0 {
+            // SAFETY: 場面の歩が済んだ後
+            unsafe { std::env::remove_var(k) };
+        }
+    }
+}
+
 pub fn work(name: &str) -> PathBuf {
     clean_env();
     let d = std::env::temp_dir().join(format!("da-{name}-{}", std::process::id()));

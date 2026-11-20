@@ -24,7 +24,7 @@ def exception(c):
     cls = {"TimeoutError": TimeoutError, "socket.timeout": socket.timeout, "socket.gaierror": socket.gaierror,
            "ConnectionRefusedError": ConnectionRefusedError, "http.client.RemoteDisconnected": http.client.RemoteDisconnected,
            "OSError": OSError, "ssl.SSLCertVerificationError": ssl.SSLCertVerificationError, "ssl.SSLError": ssl.SSLError,
-           "ssl.SSLEOFError": ssl.SSLEOFError}[kind]
+           "ssl.SSLEOFError": ssl.SSLEOFError, "ProxyBadAnswer": cm3_net.ProxyBadAnswer}[kind]
     e = cls(*args) if args else cls(1, "x")
     if "verify_code" in c:
         e.verify_code = c["verify_code"]
@@ -48,10 +48,37 @@ class Cm3NetCases(unittest.TestCase):
                 self.assertEqual(kind, c["kind"])
                 self.assertEqual(detail, c.get("detail", ""))
 
+    def test_verify_codes_like_the_table(self):
+        # 検証の番号の決めは表の verify の節が 1 つ（割れ 4: 前は Python の番号の集まりに表に無い 2・27・29・30・79 があった）
+        want = {}
+        for c in CASES["verify"]:
+            want.setdefault(c["kind"], set()).add(c["code"])
+            e = ssl.SSLCertVerificationError(1, "x")
+            e.verify_code = c["code"]
+            with self.subTest(c["code"]):
+                self.assertEqual(cm3_net.kind_of(e)[0], c["kind"])
+        self.assertEqual(cm3_net.VERIFY_UNTRUSTED, want["tls_untrusted"])
+        self.assertEqual(cm3_net.VERIFY_NAME, want["tls_name"])
+
+    def test_proxy_stage(self):
+        # プロキシの言葉は、その問い合わせのプロキシとつながったかで決める（割れ 5）
+        refused = ConnectionRefusedError(111, "Connection refused")
+        cut = http.client.RemoteDisconnected("Remote end closed connection without response")
+        hint = CASES["hint"]
+        self.assertEqual(cm3_net.message_of(refused, "", "p:1", False), f"CM3に接続できません: プロキシ（p:1）に届きません{hint}")
+        self.assertEqual(cm3_net.message_of(cut, "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
+        self.assertEqual(cm3_net.message_of(cut, "", None, True), f"CM3に接続できません: Remote end closed connection without response{hint}")
+        self.assertEqual(cm3_net.message_of(socket.gaierror(-2, "x"), "", "p:1", False), f"CM3に接続できません: プロキシ（p:1）に届きません{hint}")
+        self.assertEqual(cm3_net.message_of(cm3_net.ProxyBadAnswer("x"), "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）の答えを読めません{hint}")
+        self.assertEqual(cm3_net.message_of(TimeoutError("timed out"), "", "p:1", True), f"CM3の応答がタイムアウトしました{hint}")
+        eof = ssl.SSLEOFError(8, "EOF occurred in violation of protocol")
+        self.assertEqual(cm3_net.message_of(eof, "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
+        self.assertEqual(cm3_net.message_of(eof, "", None, False), f"CM3に接続できません: 暗号の通信（TLS）を始められません{hint}")
+
     def test_every_kind_has_a_message(self):
         kinds = {c["kind"] for c in CASES["messages"]}
         self.assertEqual(kinds, set(cm3_net.MESSAGES))
-        for sec in ("python", "openssl", "schannel"):
+        for sec in ("python", "openssl", "schannel", "verify"):
             self.assertLessEqual({c["kind"] for c in CASES[sec]}, kinds, sec)
 
 

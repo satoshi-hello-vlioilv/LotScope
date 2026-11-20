@@ -128,37 +128,6 @@ fn equip_of_req(r: &Value) -> String {
     }
 }
 
-/// https の作り物の CA を信頼する（program/tests/fixtures/tls/ca.pem。答え合わせ役の Python も同じ SSL_CERT_FILE を置く）
-fn trust_test_ca() {
-    let ca = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program").join("tests").join("fixtures").join("tls").join("ca.pem");
-    // SAFETY: 試験の最初（TLS を使う前）。この試験の実行ファイルのほかの試験は TLS を使わない
-    unsafe { std::env::set_var("SSL_CERT_FILE", ca) };
-}
-
-/// 場面の環境変数（プロキシ）を置き、手放すときに外す
-struct ProxyEnv(Vec<String>);
-
-impl ProxyEnv {
-    fn set(v: &Value) -> ProxyEnv {
-        let mut keys = vec![];
-        for (k, x) in v.as_object().into_iter().flatten() {
-            // SAFETY: 場面の歩を当てる糸の前（窓の糸は歩の中で読む）
-            unsafe { std::env::set_var(k, x.as_str().unwrap_or("")) };
-            keys.push(k.clone());
-        }
-        ProxyEnv(keys)
-    }
-}
-
-impl Drop for ProxyEnv {
-    fn drop(&mut self) {
-        for k in &self.0 {
-            // SAFETY: 場面の歩が済んだ後
-            unsafe { std::env::remove_var(k) };
-        }
-    }
-}
-
 /// 要求の比べる形（道と見出しの /rs/ をそろえる）
 fn req_view(r: &Value) -> Value {
     json!({"method": r["method"], "path": norm(&r["path"], "/rs/", "/py/"), "headers": norm(&r["headers"], "/rs/", "/py/"), "body": r["body"]})
@@ -182,7 +151,7 @@ fn schedule_matches_python() {
     bk.drop.push("port");
     let (live, oracle) = bk.live("schedule_oracle.py", &["serve", base.to_str().unwrap()]);
     let mut live = live.expect("作り物の CM3 を起こしたままにする相手");
-    trust_test_ca();
+    common::trust_test_ca();
     // 走る係ごとの中継のプロキシ（答えと状態の via.proxy の名前:番号）は Python の側の物にそろえる
     let hp = |k: &str| oracle["urls"][k].as_str().unwrap_or("").trim_start_matches("http://").to_string();
     let urls_now: Value = bk.ctx.urls.iter().map(|(n, u)| (n.clone(), json!(u))).collect::<Map<String, Value>>().into();
@@ -201,7 +170,7 @@ fn schedule_matches_python() {
         let name = sc["name"].as_str().unwrap();
         let (py, rs) = (sc["py"].as_str().unwrap(), sc["rs"].as_str().unwrap());
         let lot = lot_for(&sc["env"]);
-        let _env = ProxyEnv::set(&sc["proxyEnv"]);
+        let _env = common::ProxyEnv::set(&sc["proxyEnv"]);
         let mut has_delegate = false;
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             let got = call(&lot, st);

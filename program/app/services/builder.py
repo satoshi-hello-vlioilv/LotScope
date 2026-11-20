@@ -13,7 +13,9 @@ POST /api/sources/join/preview（結合の「試す」）・POST /api/sources/<k
   3 種類はスライサー・集計と同じ見分け（SortKey: 空欄を 1 つ・0 と '0' を同じ）で数える（pivot.field_sets・merge_fields の 1 か所）
   4 JOIN_ALL_EQUIPS … 作業実績の結合の「試す」と列は、表示する全部の設備で数える（設備ごとの内訳 byEquip と、読めなかった設備 failed を答えに書く）
   5 STALE_ROLES … 「最後の更新が古いファイルです」の警告を出す役割（マスタなど更新の少ない役割には出さない）
-  6 CM3_REACH … スケジュール（CM3）の URL の確かめは、CM3 に届くかまで見る（LotDsp と同じ reachable: プロキシを通さない 1 回の GET）
+  6 CM3_REACH … スケジュール（CM3）の URL の確かめは、CM3 に届くかまで見る（版 3.117.1 の作った後の直しから、スケジュールを取る道と
+    同じ取り手 cm3_schedule.reach: https・配った設定の schedule.use_system_proxy が真ならシステムのプロキシ・届かない言葉は cm3_net の種類ごと。
+    前は LotDsp の reachable〈プロキシを通さない http だけ〉で、https の CM3 にいつも「届きません」と言った）
   7 札を待つ間は、ダッシュボードの待ちの段（GET /api/dashboard/progress。版 3.97.0）に写した・読んだ設備 n/m で載せる（?ask=）
   SQLite の英語の誤りの字（「file is not a database」など）は答えを変えない（日本語に読み替えるかは分からない。計画書に書いた）
 
@@ -154,9 +156,14 @@ def sum_stats(per):
     return out
 
 
-def cm3_reach(url):
+def use_system_proxy(settings):
+    """配った設定（効いている設定）の schedule.use_system_proxy（段が表でなければ偽。窓の builder::use_system_proxy と同じ）"""
+    stage = (settings or {}).get("schedule") or {}
+    return bool(stage.get("use_system_proxy")) if isinstance(stage, dict) else False
+
+
+def cm3_reach(url, settings=None):
     """CM3 に届くか（決め 6）→ {ok, message}"""
-    from .lotdsp_direct import reachable
-    ok = reachable(url, 4)
-    return {"ok": ok, "message": "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。" if ok
-            else "CM3 に届きません（社外・VPN 未接続・場所の間違い）。"}
+    from .cm3_schedule import reach
+    ok, why = reach(url, use_system_proxy(settings), 4)
+    return {"ok": ok, "message": "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。" if ok else why}

@@ -190,6 +190,19 @@ class World:
             return fx.json_reply(self.small[eq])
         if scene == "rnoloc":
             return fx.reply(302, "Found", b"", [])
+        # 版 3.117.1 の作った後の直し（割れ 7 (b)）: https → http の 302（平文に落ちる。urllib と同じくたどる）・https の chunked・
+        # https の閉じるまで読む答え
+        if scene == "rplain":
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"http://127.0.0.1:{self.port}{base}/next?eq={eq}")])
+            return fx.json_reply(self.small[eq])
+        if scene == "tlschunk":
+            return fx.json_reply(self.small[eq], chunked=True)
+        if scene == "tls10":
+            return fx.json_reply(self.small[eq], version="HTTP/1.0", length=False)
+        # 割れ 5: プロキシ越しの最初の問い合わせの 30x の行き先が no_proxy の直で、そこが断る（言葉はプロキシと言わない）
+        if scene == "rdead":
+            return fx.reply(302, "Found", b"", [("Location", f"http://localhost:1{base}/next?eq={eq}")])
         if scene == "silent":
             return ("sleep", 2.5)
         if scene == "closed":                       # 何も言わずに閉じる
@@ -245,6 +258,8 @@ def _pipe(a, b):
 class Proxy:
     """作り物のプロキシ（版 3.117.1）。mode: auth（407 で認証を求める）・relay（中継。「POST http://名前:番号/道 HTTP/1.1」は道だけにして行き先へ送り、CONNECT は
     「200 Connection established」の後に流れをそのまま中継）・silent（受けて黙る）・deny（403 Forbidden で断る）。
+    作った後の直し（割れ 5・7）: cut（CONNECT には 200 を答えてすぐ閉じ、http の要求は答えずに閉じる）・many（CONNECT の答えの見出しが 101）・
+    long（CONNECT の答えの見出しの行が 65,537 バイト）。
     log に受けた要求の行と見出しを残す（窓と Python で比べる: 利用者:合言葉 を送らない・URL の全体・CONNECT の行）"""
 
     def __init__(self, mode):
@@ -287,6 +302,16 @@ class Proxy:
                 return
             if self.mode == "deny":
                 c.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                return
+            if self.mode == "cut":
+                if lines[0].startswith("CONNECT "):
+                    c.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                return
+            if self.mode == "many":
+                c.sendall(b"HTTP/1.1 200 Connection established\r\n" + b"".join(b"X-P%d: v\r\n" % i for i in range(101)) + b"\r\n")
+                return
+            if self.mode == "long":
+                c.sendall(b"HTTP/1.1 200 Connection established\r\nX-Long: " + b"a" * 65537 + b"\r\n\r\n")
                 return
             if self.mode == "auth":
                 c.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"corp\"\r\nContent-Length: 0\r\n\r\n")
@@ -373,7 +398,7 @@ def start(wip):
     tlsbad = fx.Cm3Server(world, tls=tls_files("untrusted"), share=srv)
     plain = PlainQuick()
     proxies = {"relay_py": Proxy("relay"), "relay_rs": Proxy("relay"), "silent": Proxy("silent"), "deny": Proxy("deny"),
-               "auth": Proxy("auth")}
+               "auth": Proxy("auth"), "cut": Proxy("cut"), "many": Proxy("many"), "long": Proxy("long")}
     bh, held = blackhole()
 
     def ask(line):

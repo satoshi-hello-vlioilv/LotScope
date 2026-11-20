@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import os
+import urllib.error
 import urllib.request
 from unittest import mock
 from pathlib import Path
@@ -45,6 +46,17 @@ class FakesServe(unittest.TestCase):
         self.assertEqual((status, body["status"], len(body["entity"]["meisaiList"]) >= 6), (200, "SUCCESS", True))
         self.stop(p)
 
+    def test_builder_serves_cm3_and_proxies(self):
+        """組む所の本の作り物（版 3.117.1 の作った後の直し・割れ 2）: どの道にも 404 の CM3（http・https・信頼しない https）とプロキシ"""
+        p, first = self.start("builder")
+        self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3bad", "cm3tls", "deny", "relay"])
+        self.assertTrue(first["urls"]["cm3tls"].startswith("https://") and first["urls"]["cm3bad"].startswith("https://"))
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            DIRECT.open(first["urls"]["cm3"] + "/x", timeout=5)
+        self.assertEqual(e.exception.code, 404)
+        e.exception.close()
+        self.stop(p)
+
     def test_schedule_answers_what_it_was_asked(self):
         """スケジュールの作り物: 場面ごとの答えと、受けた要求の数（ask）。仕掛の SQLite は引数で渡す"""
         from tests import lotlist_fixture, schedule_fixture
@@ -53,9 +65,10 @@ class FakesServe(unittest.TestCase):
             lotlist_fixture.make_wip(str(wip), n=40)
             schedule_fixture.add_kama(wip)
             p, first = self.start("schedule", str(wip))
-            # 版 3.117.1: https の作り物（tls・tlsname・tlsbad・TLS でない口 plain）とプロキシ（中継 relay_py・relay_rs・黙る・断る・407）も名乗る
-            self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3local", "deny", "hole", "plain", "relay_py", "relay_rs", "silent",
-                                                     "tls", "tlsbad", "tlsname"])
+            # 版 3.117.1: https の作り物（tls・tlsname・tlsbad・TLS でない口 plain）とプロキシ（中継 relay_py・relay_rs・黙る・断る・407）も名乗る。
+            # 作った後の直し（割れ 5・7）: 届いた後に切る cut・CONNECT の答えの見出しが 101 の many・見出しの行が長い long
+            self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3local", "cut", "deny", "hole", "long", "many", "plain", "relay_py",
+                                                     "relay_rs", "silent", "tls", "tlsbad", "tlsname"])
 
             def ask(line):
                 p.stdin.write(line + "\n")

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import codecs
 import html
+import http.client
 import json
 import re
 import unicodedata
@@ -86,6 +87,102 @@ def timeout_of(cfg):
     return f if TIMEOUT_MIN <= f <= TIMEOUT_MAX else TIMEOUT_DEFAULT
 
 
+class _Hop:
+    """1 回の問い合わせ（30x の行き先ごと）のプロキシ（名前:番号。直は None）と、そのつなぐ先（プロキシか CM3）へ TCP がつながったか"""
+
+    def __init__(self):
+        self.proxy = None
+        self.connected = False
+
+    def start(self, req):
+        # ProxyHandler と同じ set_proxy の後: プロキシ越しなら req.host はプロキシの名前:番号（http は selector が URL の全体、https は CONNECT の行き先）
+        self.proxy = req.host if (req._tunnel_host or req.has_proxy()) else None
+        self.connected = False
+
+
+def _tracked(cls, hop):
+    """http.client の接続（HTTP・HTTPS）に、TCP がつながった印と、CONNECT の答えが読めない形（HTTPException）を ProxyBadAnswer にする所を足す"""
+    class Tracked(cls):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            create = self._create_connection
+
+            def connect(*ca, **ckw):
+                sock = create(*ca, **ckw)
+                hop.connected = True
+                return sock
+            self._create_connection = connect
+
+        def _tunnel(self):
+            try:
+                super()._tunnel()
+            except OSError:
+                raise
+            except http.client.HTTPException as e:      # 状態の行・見出しの行が長い・見出しが 100 を超える（窓は open の段で同じ種類）
+                raise cm3_net.ProxyBadAnswer(str(e)) from None
+    return Tracked
+
+
+class _HttpTrack(urllib.request.HTTPHandler):
+    def __init__(self, hop):
+        super().__init__()
+        self.hop = hop
+
+    def http_open(self, req):
+        self.hop.start(req)
+        return self.do_open(_tracked(http.client.HTTPConnection, self.hop), req)
+
+
+class _HttpsTrack(urllib.request.HTTPSHandler):
+    def __init__(self, hop):
+        super().__init__()
+        self.hop = hop
+
+    def https_open(self, req):
+        self.hop.start(req)
+        return self.do_open(_tracked(http.client.HTTPSConnection, self.hop), req, context=self._context)
+
+
+class _ChooseProxy(urllib.request.BaseHandler):
+    """行き先ごと（30x のたびに）に sysproxy.choose でプロキシを選ぶ（urllib の ProxyHandler と同じ選び方・同じ set_proxy。窓の cm3_http の
+    route_of と同じ）。使えない種類・読めない値は 30x の後も取りに行く前に ProxyProblem で断る（版 3.117.1 の作った後の直し・割れ 7 (c):
+    前は ProxyHandler に clean() した表を渡し、30x の行き先の種類のプロキシが socks・読めない値なら黙って直につないだ）"""
+    handler_order = 100
+
+    def __init__(self, proxies):
+        self.proxies = proxies
+
+    def _route(self, req):
+        hostport = sysproxy.choose(req.type, req.host, self.proxies)
+        if hostport is not None:
+            req.set_proxy(hostport, req.type)
+        return None
+
+    http_open = _route
+    https_open = _route
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """30x をたどらない（確かめるは答えが返れば届いている。窓の get の 1 回と同じ）"""
+
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+def _opener(use_system_proxy, hop, follow=True):
+    """CM3 への opener → (opener, PAC の一言)。プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・
+    Windows の設定のプロキシ（版 3.117.1: 読み方は services/sysproxy.py。利用者:合言葉 は送らない・使えない種類は取りに行く前に断る。
+    窓の src/sysproxy.rs と同じ決め）。hop はその問い合わせのプロキシとつながったかを覚える"""
+    handlers = [urllib.request.ProxyHandler({}), _HttpTrack(hop), _HttpsTrack(hop)]
+    note = ""
+    if use_system_proxy:
+        handlers.append(_ChooseProxy(sysproxy.getproxies()))
+        note = sysproxy.pac_note()
+    if not follow:
+        handlers.append(_NoRedirect())
+    return urllib.request.build_opener(*handlers), note
+
+
 def fetch_raw(cfg, setsubi, term_kbn):
     """CM3 の答え（JSON の dict）そのもの。cfg: {cm3_base_url, init_path, client_ip, timeout_sec, use_system_proxy}"""
     base = str(cfg.get("cm3_base_url") or "").rstrip("/")
@@ -95,36 +192,61 @@ def fetch_raw(cfg, setsubi, term_kbn):
     req = urllib.request.Request(base + str(cfg.get("init_path") or ""), data=body, method="POST", headers={
         "Accept": "application/json, text/plain, */*", "Content-Type": "application/json;charset=UTF-8",
         "Origin": base, "Referer": base + "/Cm3SchWeb/"})
-    # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ（版 3.117.1: 読み方は
-    # services/sysproxy.py。利用者:合言葉 は送らない・使えない種類は取りに行く前に断る。窓の src/sysproxy.rs と同じ決め）
-    note, proxy = "", None
-    if cfg.get("use_system_proxy"):
-        proxies = sysproxy.getproxies()
-        kind, host = sysproxy.url_type_host(req.full_url)
-        try:
-            proxy = sysproxy.choose(kind, host, proxies)
-        except sysproxy.ProxyProblem as e:
-            raise Cm3Error(str(e)) from None
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler(sysproxy.clean(proxies)))
-        note = sysproxy.pac_note()
-    else:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    hop = _Hop()
+    opener, note = _opener(cfg.get("use_system_proxy"), hop)
     # 届かない言葉は種類ごとに決めた字（版 3.117.1。services/cm3_net.py・事例の表 tests/fixtures/cm3_net_cases.json）
     try:
         with opener.open(req, timeout=timeout_of(cfg)) as res:
             text = _decode_body(res.read(), res.headers.get("Content-Type"))
+    except sysproxy.ProxyProblem as e:
+        raise Cm3Error(str(e)) from None
     except urllib.error.HTTPError as e:
         if e.code == 407:       # プロキシの認証（利用者の決め: 認証は無い。対応していない）
             raise Cm3Error(cm3_net.message("proxy_auth")) from None
         raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None
     except urllib.error.URLError as e:
-        raise Cm3Error(cm3_net.message_of(e.reason, note, proxy)) from None
+        raise Cm3Error(cm3_net.message_of(e.reason, note, hop.proxy, hop.connected)) from None
     except OSError as e:
-        raise Cm3Error(cm3_net.message_of(e, note, proxy)) from None
+        raise Cm3Error(cm3_net.message_of(e, note, hop.proxy, hop.connected)) from None
     try:
         return json.loads(text, parse_constant=_no_constant)
     except ValueError:
         raise Cm3Error("CM3の応答がJSONではありません") from None
+
+
+# 確かめるの言葉（版 3.117.1 の作った後の直し・割れ 2。services/builder.cm3_reach・窓の src/cm3_http.rs の reach と同じ）
+REACH_NOT_HTTP = "CM3 の URL は http:// か https:// で始めてください。"
+REACH_UNKNOWN = "CM3 に届きません（社外・VPN 未接続・場所の間違い）。"
+
+
+def reach(url, use_system_proxy, timeout):
+    """CM3 に届くか（参照先・データ元の「確かめる」）→ (届いたか, 届かない言葉)。スケジュールを取る道と同じ取り手（https・システムのプロキシ・
+    言葉）で GET を 1 回（30x はたどらない）。HTTP の答えが返れば届いている（401・403・404 も。プロキシの答え 407・502・503・504 は
+    届いていない: lotdsp_rules.reached_status）。前は LotDsp の reachable（プロキシを通さない http だけ）で、https の CM3 にいつも
+    「届きません」と言った"""
+    from .lotdsp_rules import reached_status
+    kind, _host = sysproxy.url_type_host(str(url))
+    if kind not in ("http", "https"):
+        return False, REACH_NOT_HTTP
+    hop = _Hop()
+    try:
+        opener, note = _opener(use_system_proxy, hop, follow=False)
+        with opener.open(urllib.request.Request(str(url), method="GET"), timeout=timeout):
+            return True, ""
+    except sysproxy.ProxyProblem as e:
+        return False, str(e)
+    except urllib.error.HTTPError as e:
+        if reached_status(e.code):
+            return True, ""
+        if e.code == 407:
+            return False, cm3_net.message("proxy_auth")
+        return False, f"CM3がHTTPエラーを返しました: {e.code} {e.reason}"
+    except urllib.error.URLError as e:
+        return False, cm3_net.message_of(e.reason, note, hop.proxy, hop.connected)
+    except OSError as e:
+        return False, cm3_net.message_of(e, note, hop.proxy, hop.connected)
+    except Exception:       # noqa: BLE001  URL の形が読めない（空白・番号が大きい・答えの行が壊れた）。窓は Python に任せる形で同じ言葉
+        return False, REACH_UNKNOWN
 
 
 # ---------------------------------------------------------------- 字の直し

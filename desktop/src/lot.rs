@@ -1135,7 +1135,8 @@ impl Lot {
                 let parts = inp.sources_parts().ok()?;
                 self.with_dash(&need, |cx| {
                     let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
-                    builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern }, &key, body)
+                    let proxy = builder::use_system_proxy(&inp.eff);
+                    builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern, proxy }, &key, body)
                 })
             }
             B::JoinPreview => {

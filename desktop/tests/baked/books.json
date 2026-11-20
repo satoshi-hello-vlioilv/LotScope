@@ -54,9 +54,12 @@
    "sources": [
     "tests/builder_oracle.py",
     "tests/oracle_gate.py",
-    "tests/schedule_fixture.py"
+    "tests/schedule_fixture.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_builder.py",
+    "tests/fakes_schedule.py"
    ],
-   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）",
+   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）。版 3.117.1 の作った後の直し（割れ 2）から、作り物の CM3 とプロキシ（http・https・信頼しない https・中継・断る・認証）は台本 tests/fakes_serve.py（種類 builder。中身は tests/fakes_builder.py）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする。URL は名前つきの @URL(cm3)・@URL(cm3tls) など。場面の環境変数（プロキシ）は場面の proxyEnv",
    "sceneTimesWhy": "場面がわざと置いた時刻（確かめる用のファイル: 時計より先の future.sqlite3・40 時間前の old.sqlite3。今からのずれで持つ）"
   },
   "settings_write": {

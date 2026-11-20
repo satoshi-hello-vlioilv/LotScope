@@ -48,6 +48,26 @@ fn words_like_the_table() {
             bad.push(format!("schannelText {}: 表 {want:?} / 窓 {got:?}", c["name"]));
         }
     }
+    // 検証の番号ごとの字（OpenSSL 3 と 1.1）が表の種類になる。窓の持つ字の表は、表の verify の節に全部ある（割れ 4）
+    let verify = t["verify"].as_array().unwrap();
+    for c in verify {
+        for k in ["text", "text11"] {
+            let Some(text) = c[k].as_str() else { continue };
+            let full = format!("error:0A000086:SSL routines:tls_post_process_server_certificate:certificate verify failed:x.c:1: ({text})");
+            let got = cm3_net::kind_of_openssl(&full);
+            if got != kind(&c["kind"]) {
+                bad.push(format!("verify {} {text}: 表 {} / 窓 {}", c["code"], c["kind"], got.name()));
+            }
+        }
+    }
+    for (text, k) in cm3_net::OPENSSL_VERIFY {
+        let hit = verify
+            .iter()
+            .any(|c| ["text", "text11"].iter().any(|f| c[*f].as_str().is_some_and(|x| x.to_lowercase() == text)) && kind(&c["kind"]) == k);
+        if !hit {
+            bad.push(format!("OPENSSL_VERIFY の「{text}」{} が表の verify に無い", k.name()));
+        }
+    }
     // 窓の持つ schannel の番号の表は、事例の表に全部ある（足すなら表にも）
     for (code, k) in cm3_net::SCHANNEL {
         let hit = t["schannel"].as_array().unwrap().iter().any(|c| hex(&c["code"]) == code && kind(&c["kind"]) == k);

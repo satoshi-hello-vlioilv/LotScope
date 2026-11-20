@@ -5,7 +5,8 @@
     "名前が引けないは OS・DNS の字を使わない（PC で「Name or service not known」「Temporary failure in name resolution」「getaddrinfo failed」に割れた。焼いた表が PC に頼らない）",
     "TLS は 信頼できない発行元（tls_untrusted）・名前が違う（tls_name）・TLS でない口（tls_not）の 3 つと、そのほか（tls_other）。OpenSSL・schannel の字は出さない（版と OS で変わる）",
     "届かない言葉の後ろに「（社内 LAN か VPN につながっているか確かめてください）」（利用者の決め 2026-11-17: CM3 は社内 LAN か VPN からだけ使う）。設定の誤り（text）と https でない口（tls_not）には付けない",
-    "プロキシ越しの問い合わせでつなげない・名前を引けない（os・dns）は、最初の問い合わせのプロキシの名前:番号で「プロキシ（…）に届きません」（proxy_unreachable。Python は message_of の proxy、窓は post_cm3 の via）。407 は CONNECT の答えも HTTP の答えも「認証を求めています（対応していません）」（proxy_auth。利用者の決め: 認証は無い）",
+    "プロキシ越しの問い合わせでつなげない・名前を引けない（os・dns）は、その問い合わせ（30x の行き先ごと）のプロキシの名前:番号で「プロキシ（…）に届きません」（proxy_unreachable）。ただしプロキシへの TCP がつながる前の誤りだけ。つながった後の OS の誤り（CONNECT の 200 の後・要求を送った後に切れた・答えずに閉じた）と TLS の握手の途中で相手が閉じた形（Python は ssl.SSLEOFError、窓は OpenSSL・schannel の「unexpected eof」の字。直なら tls_other のまま）は「プロキシ（…）には届きましたが、その先で接続が切れました」（proxy_cut）、CONNECT の答えが読めない（状態の行・見出しの行が長い・見出しが 100 を超える）は「プロキシ（…）の答えを読めません」（proxy_bad）。直の問い合わせ（no_proxy で迂回した 30x の行き先も）の誤りはプロキシと言わない（版 3.117.1 の作った後の直し・割れ 5・7。Python は cm3_schedule の接続がつながったかを覚え、窓は cm3_http の open の段で決める）。407 は CONNECT の答えも HTTP の答えも「認証を求めています（対応していません）」（proxy_auth。利用者の決め: 認証は無い）",
+    "検証の番号（OpenSSL の X509_V_ERR_*）ごとの種類は verify の節が 1 つの決め（版 3.117.1 の作った後の直し・割れ 4）: 信頼できない発行元は 2・18・19・20・21・27・29・30・79、名前が違うは 62・63・64、ほかはそのほか。Python は検証の番号（verify_code）で、窓の Linux は OpenSSL の字（OpenSSL 3 の text と 1.1 の text11。大文字小文字を見ない）で同じ種類を出す。字はこの PC の libcrypto の X509_verify_cert_error_string で確かめた",
     "そのほかの OS の誤り（断られた・切られた）は OS の字のまま（Python の OSError の str。窓は Linux は [Errno n] 理由、Windows は [WinError n] 文。前の版から同じ）"
   ],
   "hint": "（社内 LAN か VPN につながっているか確かめてください）",
@@ -21,9 +22,26 @@
     {"kind": "proxy_refused", "detail": "403 Forbidden", "note": "", "want": "CM3に接続できません: プロキシが中継を断りました（403 Forbidden）（社内 LAN か VPN につながっているか確かめてください）"},
     {"kind": "proxy_auth", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）"},
     {"kind": "proxy_unreachable", "detail": "proxy.corp:8080", "note": "", "want": "CM3に接続できません: プロキシ（proxy.corp:8080）に届きません（社内 LAN か VPN につながっているか確かめてください）"},
+    {"kind": "proxy_cut", "detail": "proxy.corp:8080", "note": "", "want": "CM3に接続できません: プロキシ（proxy.corp:8080）には届きましたが、その先で接続が切れました（社内 LAN か VPN につながっているか確かめてください）"},
+    {"kind": "proxy_bad", "detail": "proxy.corp:8080", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: プロキシ（proxy.corp:8080）の答えを読めません（社内 LAN か VPN につながっているか確かめてください）（プロキシの自動設定〈PAC〉には対応していません）"},
     {"kind": "text", "detail": "unknown url type: nlmfangyweb1a", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: unknown url type: nlmfangyweb1a"},
     {"kind": "timeout", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3の応答がタイムアウトしました（社内 LAN か VPN につながっているか確かめてください）（プロキシの自動設定〈PAC〉には対応していません）"},
     {"kind": "dns", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: サーバーの名前を引けません（社内 LAN か VPN につながっているか確かめてください）（プロキシの自動設定〈PAC〉には対応していません）"}
+  ],
+  "verify": [
+    {"code": 2, "text": "unable to get issuer certificate", "kind": "tls_untrusted"},
+    {"code": 18, "text": "self-signed certificate", "text11": "self signed certificate", "kind": "tls_untrusted"},
+    {"code": 19, "text": "self-signed certificate in certificate chain", "text11": "self signed certificate in certificate chain", "kind": "tls_untrusted"},
+    {"code": 20, "text": "unable to get local issuer certificate", "kind": "tls_untrusted"},
+    {"code": 21, "text": "unable to verify the first certificate", "kind": "tls_untrusted"},
+    {"code": 27, "text": "certificate not trusted", "kind": "tls_untrusted"},
+    {"code": 29, "text": "subject issuer mismatch", "kind": "tls_untrusted"},
+    {"code": 30, "text": "authority and subject key identifier mismatch", "kind": "tls_untrusted"},
+    {"code": 79, "text": "invalid CA certificate", "kind": "tls_untrusted"},
+    {"code": 62, "text": "hostname mismatch", "text11": "Hostname mismatch", "kind": "tls_name"},
+    {"code": 63, "text": "email address mismatch", "text11": "Email address mismatch", "kind": "tls_name"},
+    {"code": 64, "text": "IP address mismatch", "kind": "tls_name"},
+    {"code": 10, "text": "certificate has expired", "kind": "tls_other"}
   ],
   "python": [
     {"name": "読みの timeout", "exc": "TimeoutError", "args": ["timed out"], "kind": "timeout"},
@@ -48,6 +66,7 @@
     {"name": "TLS でない口（packet length too long）", "exc": "ssl.SSLError", "reason": "PACKET_LENGTH_TOO_LONG", "kind": "tls_not"},
     {"name": "TLS でない口（http request）", "exc": "ssl.SSLError", "reason": "HTTP_REQUEST", "kind": "tls_not"},
     {"name": "握手の途中で切れた", "exc": "ssl.SSLEOFError", "reason": "UNEXPECTED_EOF_WHILE_READING", "kind": "tls_other"},
+    {"name": "プロキシの CONNECT の答えが読めない", "exc": "ProxyBadAnswer", "args": ["x"], "kind": "proxy_bad"},
     {"name": "設定の誤りの字", "exc": "str", "args": ["unknown url type: nlmfangyweb1a"], "kind": "text", "detail": "unknown url type: nlmfangyweb1a"}
   ],
   "openssl": [

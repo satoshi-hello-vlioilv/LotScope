@@ -18,6 +18,10 @@ pub enum Kind {
     ProxyRefused,
     ProxyAuth,
     ProxyUnreachable,
+    /// プロキシへの TCP はつながったが、その後で切れた（版 3.117.1 の作った後の直し・割れ 5）
+    ProxyCut,
+    /// プロキシの CONNECT の答えが読めない（割れ 7）
+    ProxyBad,
     Text,
 }
 
@@ -34,6 +38,8 @@ impl Kind {
             Kind::ProxyRefused => "proxy_refused",
             Kind::ProxyAuth => "proxy_auth",
             Kind::ProxyUnreachable => "proxy_unreachable",
+            Kind::ProxyCut => "proxy_cut",
+            Kind::ProxyBad => "proxy_bad",
             Kind::Text => "text",
         }
     }
@@ -50,6 +56,8 @@ impl Kind {
             Kind::ProxyRefused,
             Kind::ProxyAuth,
             Kind::ProxyUnreachable,
+            Kind::ProxyCut,
+            Kind::ProxyBad,
             Kind::Text,
         ]
         .into_iter()
@@ -62,7 +70,7 @@ impl Kind {
     }
 }
 
-/// 種類 → 言葉（detail は os・proxy_refused・text の中身。note は届かない形に足す一言）
+/// 種類 → 言葉（detail は os・proxy_refused・text の中身と、proxy_unreachable・proxy_cut・proxy_bad のプロキシの名前:番号。note は届かない形に足す一言）
 pub fn message(kind: Kind, detail: &str, note: &str) -> String {
     let body = match kind {
         Kind::Timeout => format!("CM3の応答がタイムアウトしました{HINT}"),
@@ -77,6 +85,8 @@ pub fn message(kind: Kind, detail: &str, note: &str) -> String {
             "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string()
         }
         Kind::ProxyUnreachable => format!("CM3に接続できません: プロキシ（{detail}）に届きません{HINT}"),
+        Kind::ProxyCut => format!("CM3に接続できません: プロキシ（{detail}）には届きましたが、その先で接続が切れました{HINT}"),
+        Kind::ProxyBad => format!("CM3に接続できません: プロキシ（{detail}）の答えを読めません{HINT}"),
         Kind::Text => format!("CM3に接続できません: {detail}"),
     };
     if kind.reach() {
@@ -86,17 +96,25 @@ pub fn message(kind: Kind, detail: &str, note: &str) -> String {
     }
 }
 
-/// OpenSSL の検証の結果の字（X509_verify_cert_error_string。native-tls の誤りの字の末尾の「(…)」）→ 種類
-const OPENSSL_VERIFY: [(&str, Kind); 9] = [
-    ("unable to get local issuer certificate", Kind::TlsUntrusted),
-    ("self-signed certificate in certificate chain", Kind::TlsUntrusted),
-    ("self signed certificate in certificate chain", Kind::TlsUntrusted),
-    ("self-signed certificate", Kind::TlsUntrusted),
-    ("self signed certificate", Kind::TlsUntrusted),
-    ("unable to get issuer certificate", Kind::TlsUntrusted),
-    ("unable to verify the first certificate", Kind::TlsUntrusted),
-    ("hostname mismatch", Kind::TlsName),
-    ("ip address mismatch", Kind::TlsName),
+/// OpenSSL の検証の結果の字（X509_verify_cert_error_string。native-tls の誤りの字の末尾の「(…)」。大文字小文字を見ない）→ 種類。
+/// 決めは事例の表の verify の節（検証の番号ごとに OpenSSL 3 の字と 1.1 の字。Python の VERIFY_UNTRUSTED・VERIFY_NAME と同じ番号。
+/// 版 3.117.1 の作った後の直し・割れ 4: 前は 27・29・30・79・63 の字が無く、そのほかになった）
+pub const OPENSSL_VERIFY: [(&str, Kind); 15] = [
+    ("unable to get issuer certificate", Kind::TlsUntrusted),              // 2
+    ("self-signed certificate", Kind::TlsUntrusted),                       // 18
+    ("self signed certificate", Kind::TlsUntrusted),                       // 18（1.1）
+    ("self-signed certificate in certificate chain", Kind::TlsUntrusted),  // 19
+    ("self signed certificate in certificate chain", Kind::TlsUntrusted),  // 19（1.1）
+    ("unable to get local issuer certificate", Kind::TlsUntrusted),        // 20
+    ("unable to verify the first certificate", Kind::TlsUntrusted),        // 21
+    ("certificate not trusted", Kind::TlsUntrusted),                       // 27
+    ("subject issuer mismatch", Kind::TlsUntrusted),                       // 29
+    ("authority and subject key identifier mismatch", Kind::TlsUntrusted), // 30
+    ("invalid ca certificate", Kind::TlsUntrusted),                        // 79
+    ("hostname mismatch", Kind::TlsName),                                  // 62
+    ("email address mismatch", Kind::TlsName),                             // 63
+    ("ip address mismatch", Kind::TlsName),                                // 64
+    ("certificate has expired", Kind::TlsOther),                           // 10
 ];
 
 /// OpenSSL の理由の字（平文の答えを TLS の記録として読んだ）

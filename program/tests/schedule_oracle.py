@@ -15,6 +15,8 @@
 HTTP/1.0 の閉じるまで・charset（Shift_JIS・cp932・引用符つき・無し・ISO-8859-1）・JSON でない・文字化けと HTML の壊れ方・
 答えの形の端（status・entity・errorMessage・年の境・全角の数字・読めない日付・数の値）・中身が変わる（世代）・
 Python に任せる形（窓の持たない charset・NaN の答え・https・システムのプロキシ・数でない timeout）。
+版 3.117.1 の作った後の直し: プロキシに届いた後で切れる・答えずに閉じる・30x の後の直が断る・https → http の 302・https の chunked と閉じるまで・
+CONNECT の答えの見出しが 101 と長い行・30x の行き先の種類のプロキシが socks と読めない値。
 """
 from __future__ import annotations
 
@@ -175,6 +177,21 @@ def scenes(urls):
         ("名前の引けないプロキシ", {**base, **P, "cm3_base_url": u("pdns")}, ONE[:1], None, {"http_proxy": "http://nonexistent.invalid:3128"}),
         ("認証を求めるプロキシ（http の 407）", {**base, **P, "cm3_base_url": u("pauth")}, ONE[:1], None, {"http_proxy": "{auth}"}),
         ("認証を求めるプロキシ（CONNECT の 407）", {**base, **P, "cm3_base_url": t("pauth2")}, ONE[:1], None, {"https_proxy": "{auth}"}),
+        # 版 3.117.1 の作った後の直し（割れ 5）: プロキシに届いた後で切れた形は「届きません」と言わない。30x の後の直の誤りもプロキシと言わない
+        ("CONNECT の 200 の後に切れる", {**base, **P, "cm3_base_url": t("pcut")}, ONE[:1], None, {"https_proxy": "{cut}"}),
+        ("プロキシが http の要求に答えずに閉じる", {**base, **P, "cm3_base_url": u("pcut2")}, ONE[:1], None, {"http_proxy": "{cut}"}),
+        ("プロキシ越しの 30x の行き先が直で断られる", {**base, **P, "timeout_sec": 10, "cm3_base_url": u("rdead")}, ONE[:1], None,
+         {"http_proxy": "{relay}", "no_proxy": "localhost"}),
+        # 割れ 7 (b): 場面の無かった道（https → http の 302・https の chunked と閉じるまで・CONNECT の答えの見出しが 101 と長い行）
+        ("https → http の 302", {**base, "cm3_base_url": t("rplain")}, ONE[:1], None),
+        ("https の chunked", {**base, "cm3_base_url": t("tlschunk")}, ONE[:1], None),
+        ("https の HTTP/1.0・閉じるまで", {**base, "cm3_base_url": t("tls10")}, ONE[:1], None),
+        ("CONNECT の答えの見出しが 101", {**base, **P, "cm3_base_url": t("pmany")}, ONE[:1], None, {"https_proxy": "{many}"}),
+        ("CONNECT の答えの見出しの行が長い", {**base, **P, "cm3_base_url": t("plong")}, ONE[:1], None, {"https_proxy": "{long}"}),
+        # 割れ 7 (c): 30x の行き先の種類のプロキシが socks・読めない値なら、30x の後も取りに行く前に断る（前の Python は黙って直につないだ）
+        ("30x の行き先の種類のプロキシが socks", {**base, **P, "cm3_base_url": u("rtls")}, ONE[:1], None,
+         {"https_proxy": "socks4://127.0.0.1:1"}),
+        ("30x の行き先の種類のプロキシが読めない", {**base, **P, "cm3_base_url": u("rtls")}, ONE[:1], None, {"https_proxy": "http:/x"}),
         # 戻り道（版 3.117.1。配った設定の schedule.fetch_engine が "python"）: 窓は答えず、状態に「係を降りた」を書く（受け身の Python が取る）。
         # 段 ④ まで残す（任せる歩の予算の envExtra に数える）
         ("戻り道（fetch_engine が python）", {**base, "fetch_engine": "python", "cm3_base_url": u("engine")},
@@ -196,7 +213,7 @@ def proxy_env(env, urls, runner):
     """場面の環境変数の作り物の URL（走る係ごとの中継・黙る・断るプロキシ）"""
     relay = urls[f"relay_{runner}"]
     rep = {"{relay}": relay, "{relayhp}": relay.split("://", 1)[1], "{silent}": urls["silent"], "{deny}": urls["deny"],
-           "{auth}": urls["auth"]}
+           "{auth}": urls["auth"], "{cut}": urls["cut"], "{many}": urls["many"], "{long}": urls["long"]}
     out = {}
     for k, v in env.items():
         for a, b in rep.items():

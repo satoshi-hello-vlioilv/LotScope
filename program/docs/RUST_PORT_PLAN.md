@@ -2797,7 +2797,7 @@ advance は見張りが進んだ時刻を読んで眠るか終わるまでを待
   2 回目からの場面の名前は「名前~番号」（作り物は ~ の前で答えを選ぶ）。
 - **作り物**: `tests/fixtures/tls`（作り物の CA と 127.0.0.1 の証明書・名前の違う証明書・信頼しない CA の証明書。100 年。openssl で作った）・
   `tests/fakes_schedule.py`（TLS の Cm3Server 3 つ・TLS でない口・中継／黙る／断る／407 のプロキシ・proxylog）。試験は SSL_CERT_FILE で作り物の CA を信頼させる。
-- **schedule_parity の場面**: https 6・プロキシ 21・戻り道 1 を足した（Python と同じ答え）。
+- **schedule_parity の場面**: https 6・プロキシ 20（use_system_proxy が偽の場面を含む。前の文の 21 は書き違い。作った後の採点の割れ 7 (a) で `scenes()` を数え直した）・戻り道 1 を足した（Python と同じ答え）。
 
 #### 焼いた本（31/35）
 
@@ -2817,6 +2817,43 @@ schedule_fixture.py を変えたので builder・equipgroups も焼き直した�
 - **入口の条件 (4)**: ③-6 が現場の PC で 1 回通った（利用者の確認）。スケジュールのタブの「完了予定…取得」の title に「取った係: 窓（Rust）・https・…」が出れば通った。
   戻すときは配った設定の schedule に `"fetch_engine": "python"`。
 - 残る物: 3.117.2（場面の台本と pivot・routes・dashboard・ops）・3.117.3（Windows の切り替え・凍らせる写し）。
+
+#### 作った後の採点の割れの直し（`tools/ui-proposals/2026-11-stage3g-built.json` の built_fixed）
+
+作った後の採点は 38.4 点・割れ 7（決まり 2026-11-06: 採点し直さず、割れを全部直して突き合わせの試験に足す）。
+
+1. **【高】Windows の os.environ**（割れ 1）: 事例の表 `sysproxy_cases.json` の env・bypass・choose・pac の事例は、同じ環境変数とレジストリの値に
+   posix と nt の 2 つの答えを持つ（前は印 nt と 1 つの答えで、印の無い事例を Windows の Python で流すと os.environ が名前を大文字にして別の答えになり、
+   desktop.yml の Windows の本物の段が必ず落ちた）。Python の試験は urllib.request の見る os.environ を事例の dict に差し替える（nt は名前を大文字に・
+   後ろの値が勝つ）。`WindowsEnviron` は本物の os.environ を Windows の形（os._Environ の大文字の形）にまねて、表の試験が同じに通るかを Linux で見る。
+   窓の Windows の読み手にも割れが 1 つあった: 大文字にして同じ名前になる 2 つ（HTTP_PROXY と空の http_proxy）を両方残していた。Windows の
+   os.environ と同じ dict の形（前の場所のまま後ろの値が勝つ）にした（`sysproxy::names`）。事例は 145（どの OS でも両方を流す）。
+2. **【中〜高】確かめるの https とプロキシ**（割れ 2）: 参照先・データ元の「確かめる」（schedule.cm3_base_url）は、スケジュールを取る道と同じ取り手で
+   GET を 1 回（窓の `cm3_http::reach`・Python の `cm3_schedule.reach`。https・配った設定の schedule.use_system_proxy が真ならシステムのプロキシ・
+   届かない言葉は cm3_net の種類ごと・30x はたどらない・本文は読まない・プロキシの答え 407・502・503・504 は届いていない）。http・https でない URL は
+   「CM3 の URL は http:// か https:// で始めてください。」、窓が読めない形（空白・番号が大きい・答えの行が壊れた）は前の「CM3 に届きません（社外・…）。」。
+   builder の本に作り物（`tests/fakes_builder.py`: 404 の http・作り物の CA の https・信頼しない CA の https・中継／CONNECT を断る／407 のプロキシ）と
+   場面 5（https の直・信頼しない CA・プロキシ越しの http と https・CONNECT を断る・407・届かないプロキシ・socks・use_system_proxy が偽なら読まない）を足し、
+   焼き直した（Python と窓が同じ・3 回の焼きが同じ・ci-shape の nopy・nodns・runner）。
+3. **【低〜中】「/」で始まるプロキシの値**（割れ 3）: `sysproxy::parse_proxy` を urllib の `_parse_proxy` のとおりに（種類が無くても値が「/」で始まれば
+   URL として読む: 「//名前:番号」は authority・「/x」は読めない）。事例の表の choose に 3 つ（//名前:番号・/x・//利用者@名前:番号/道）。
+4. **【低】信頼できない発行元の番号**（割れ 4）: 事例の表に verify の節（検証の番号 2・18・19・20・21・27・29・30・79 は信頼できない発行元、62・63・64 は
+   名前が違う、10 はそのほか。OpenSSL 3 の字と 1.1 の字）。Python の VERIFY_UNTRUSTED・VERIFY_NAME はこの節と同じ集まり、窓の `OPENSSL_VERIFY`
+   （15 の字）はこの節の字と同じ種類（どちらも試験が見る）。字はこの PC の libcrypto の X509_verify_cert_error_string で確かめた。
+5. **【低】プロキシに届いた後の切断**（割れ 5）: プロキシの言葉はその問い合わせ（30x の行き先ごと）のプロキシで決める。プロキシへの TCP がつながる前の
+   OS の誤り・名前を引けないだけが「プロキシ（…）に届きません」、つながった後の OS の誤りと TLS の握手の途中で相手が閉じた形（CONNECT の 200 の後）は
+   新しい種類 proxy_cut「プロキシ（…）には届きましたが、その先で接続が切れました」。直の問い合わせ（no_proxy で迂回した 30x の行き先も）の誤りはプロキシと
+   言わない。Python は cm3_schedule の接続のクラスが TCP のつながりを覚え（`_Hop`）、窓は `cm3_http::open`・`once` の段で決める。schedule の場面 3
+   （CONNECT の 200 の後に切れる・http の要求に答えずに閉じる・プロキシ越しの 30x の行き先が直で断られる）。
+6. **【低】Python の PAC の一言の読み手**（割れ 6）: Windows の CI の段の ignored の試験 `the_real_registry_reads_like_windows_python` の台本が
+   app の `sysproxy.pac_note()`（winreg を本当に読む）も出し、窓の `pac_note` と比べる（1 の形では空・pac の形では一言）。段の throw の言葉を比べる物に合わせた。
+7. **【低】小さな残り**（割れ 7）: (a) 上の場面の数を 20 に。(b) 場面を足した: https → http の 302（平文に落ちる。urllib と同じくたどる）・https の chunked・
+   https の HTTP/1.0 の閉じるまで・CONNECT の答えの見出しが 101・見出しの行が 65,537 バイト。CONNECT の答えが読めない形は新しい種類 proxy_bad
+   「プロキシ（…）の答えを読めません」（前は窓が係を降り、Python は HTTPException の 500）。(c) Python も 30x のたびに `sysproxy.choose` で選ぶ
+   （`_ChooseProxy`。clean() をやめた）ので、30x の行き先の種類のプロキシが socks・読めない値なら、30x の後も取りに行く前に断る（場面 2）。
+
+schedule の場面は全 88（足した 10: プロキシ 7・https 3。プロキシの環境を持つか use_system_proxy の場面は 27）。schedule・builder を焼き直した
+（equipgroups・lotdsp は答えが変わらず、焼き直していない）。任せる歩は変わらない（計 10＝口 7・道 1・戻り道 2〈envExtra〉）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

@@ -210,11 +210,13 @@ def check(item, value, settings=None, *, table=None, role="品質", pattern=None
         return check_sqlite(value, table, role)
     if kind == "folder":
         return _check_folder(item, value, settings, pattern)
+    if kind == "url":
+        return _check_url(item, value, settings)
     fn = _CHECKS.get(kind)
     return fn(item, value) if fn else {"ok": True, "message": "値の形は正しいです。"}
 
 
-def _check_url(item, value):
+def _check_url(item, value, settings=None):
     from .lotdsp_direct import reachable
     if item["key"] == "lotdsp_import.url":
         from .lotdsp_rules import site_base
@@ -223,7 +225,7 @@ def _check_url(item, value):
                 else "LotDsp に届きません（社外・VPN 未接続・場所の間違い）。"}
     if item["key"] == "schedule.cm3_base_url":         # スケジュール（CM3。版 3.99.0 の決め 6: 届くかまで見る。前は LotDsp の言葉だった）
         from .builder import CM3_REACH, cm3_reach
-        return cm3_reach(value) if CM3_REACH else {"ok": True, "message": "URL の形は正しいです（つながるかは「スケジュール」のタブで確かめてください）。"}
+        return cm3_reach(value, settings) if CM3_REACH else {"ok": True, "message": "URL の形は正しいです（つながるかは「スケジュール」のタブで確かめてください）。"}
     return {"ok": True, "message": "URL の形は正しいです。"}
 
 

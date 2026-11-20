@@ -94,7 +94,9 @@ jobs:
       # 版 3.117.1（段 ③-6）: Windows の本物の設定で、窓のプロキシの読み手（src/sysproxy.rs のレジストリの読み）と Windows の Python の
       # urllib.request.getproxies・proxy_bypass が同じ答えか。HKCU の Internet Settings の ProxyEnable・ProxyServer・ProxyOverride・AutoConfigURL を
       # 書いて比べ、終わったら必ず元に戻す（finally と下の always の段）。落ちたときは期待した値と来た値を記録に出す（手元では流せない段）。
-      # 事例の表の Windows の節（sysproxy_cases.json の nt。urllib の本物の関数に作り物の winreg を当てる）と言葉の表も Windows の Python で流す
+      # PAC の一言は Windows の Python の app の sysproxy.pac_note（winreg を本当に読む）と窓の pac_note を比べる（版 3.117.1 の作った後の直し・割れ 6）。
+      # 事例の表（sysproxy_cases.json。どの事例も posix と nt の答え。urllib の本物の関数に作り物の winreg を当てる）と言葉の表も Windows の Python で流す
+      # （表の試験は os.environ を事例の dict に差し替えるので、Windows の os.environ が名前を大文字にしても答えは変わらない。割れ 1）
       - name: TLS とプロキシを Windows の本物で（③-6）
         if: always()
         working-directory: desktop
@@ -113,12 +115,12 @@ jobs:
             Remove-ItemProperty -Path $key -Name AutoConfigURL -ErrorAction SilentlyContinue
             $env:TPA_SYSPROXY_REAL = "1"
             cargo test --locked --test sysproxy_cases -- --ignored --nocapture
-            if ($LASTEXITCODE -ne 0) { throw "窓のプロキシの読み手が Windows の Python と違う（上の記録の 期待/来た を見る）" }
+            if ($LASTEXITCODE -ne 0) { throw "窓のプロキシの読み手（getproxies・proxy_bypass・PAC の一言）が Windows の Python と違う（上の記録の 期待/来た を見る）" }
             Set-ItemProperty -Path $key -Name ProxyEnable -Value 0 -Type DWord
             Set-ItemProperty -Path $key -Name AutoConfigURL -Value "http://wpad.corp.example/proxy.pac"
             $env:TPA_SYSPROXY_REAL = "pac"
             cargo test --locked --test sysproxy_cases -- --ignored --nocapture
-            if ($LASTEXITCODE -ne 0) { throw "PAC の一言（ProxyEnable 0・AutoConfigURL あり）が Windows の Python の決めと違う" }
+            if ($LASTEXITCODE -ne 0) { throw "PAC の一言（ProxyEnable 0・AutoConfigURL あり）が Windows の Python の pac_note（winreg の読み）と違う（上の記録の 期待/来た を見る）" }
           } finally {
             foreach ($n in $names) {
               if ($saved.ContainsKey($n)) { Set-ItemProperty -Path $key -Name $n -Value $saved[$n] } else { Remove-ItemProperty -Path $key -Name $n -ErrorAction SilentlyContinue }

@@ -11,6 +11,10 @@ tests/test_cm3_net_cases.py、窓は cargo test --test cm3_net_cases）。決め
   - 届かない言葉の後ろに「社内 LAN か VPN につながっているか」を促す一言（利用者の決め 2026-11-17: CM3 は社内 LAN か VPN からだけ使う）
   - プロキシ越しにつなげない（断られた・名前を引けない）は「プロキシ（名前:番号）に届きません」、407（CONNECT の答えも HTTP の答えも）は
     「認証を求めています（対応していません）」（利用者の決め: プロキシに認証は無い）
+  - 版 3.117.1 の作った後の直し（割れ 5・7）: プロキシの言葉はその問い合わせ（30x の行き先ごと）のプロキシで決め、プロキシへの TCP が
+    つながる前の誤りだけを「届きません」（proxy_unreachable）、つながった後の OS の誤り（CONNECT の 200 の後・要求を送った後に切れた・
+    答えずに閉じた）は「届きましたが、その先で接続が切れました」（proxy_cut）、CONNECT の答えが読めない（状態の行・見出しが長い・
+    100 を超える）は「答えを読めません」（proxy_bad。前は窓が係を降り、Python は 500）。直の問い合わせの誤りはプロキシと言わない
 """
 from __future__ import annotations
 
@@ -29,12 +33,14 @@ MESSAGES = {
     "proxy_refused": "CM3に接続できません: プロキシが中継を断りました（{status}）{hint}",
     "proxy_auth": "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）",
     "proxy_unreachable": "CM3に接続できません: プロキシ（{proxy}）に届きません{hint}",
+    "proxy_cut": "CM3に接続できません: プロキシ（{proxy}）には届きましたが、その先で接続が切れました{hint}",
+    "proxy_bad": "CM3に接続できません: プロキシ（{proxy}）の答えを読めません{hint}",
     "text": "CM3に接続できません: {text}",
 }
 # 足す一言（PAC）を付ける種類（届かない形。設定の誤り text・https でない口 tls_not には付けない）
-REACH = {"timeout", "os", "dns", "tls_untrusted", "tls_name", "tls_other", "proxy_refused", "proxy_unreachable"}
+REACH = {"timeout", "os", "dns", "tls_untrusted", "tls_name", "tls_other", "proxy_refused", "proxy_unreachable", "proxy_cut", "proxy_bad"}
 
-# OpenSSL の検証の番号（X509_V_ERR_*）→ 種類
+# OpenSSL の検証の番号（X509_V_ERR_*）→ 種類（決めは事例の表の verify の節。窓の Linux は cm3_net.rs の OPENSSL_VERIFY の字で同じ種類）
 VERIFY_UNTRUSTED = {2, 18, 19, 20, 21, 27, 29, 30, 79}
 VERIFY_NAME = {62, 63, 64}
 # OpenSSL の理由（SSLError.reason）→ TLS でない口（平文の答えを TLS の記録として読んだ）
@@ -42,10 +48,16 @@ REASON_NOT_TLS = {"WRONG_VERSION_NUMBER", "RECORD_LAYER_FAILURE", "PACKET_LENGTH
 TUNNEL = "Tunnel connection failed: "
 
 
+class ProxyBadAnswer(OSError):
+    """プロキシの CONNECT の答えが読めない（http.client の _tunnel が HTTPException で落ちた。cm3_schedule の接続が包む）"""
+
+
 def kind_of(reason):
     """urllib の URLError.reason（か fetch の途中の例外）→ (種類, 中身)"""
     if isinstance(reason, str):
         return "text", reason
+    if isinstance(reason, ProxyBadAnswer):
+        return "proxy_bad", ""
     if isinstance(reason, TimeoutError):
         return "timeout", ""
     if isinstance(reason, ssl.SSLCertVerificationError):
@@ -73,9 +85,16 @@ def message(kind, detail="", note=""):
     return text + (note if kind in REACH else "")
 
 
-def message_of(reason, note="", proxy=None):
-    """proxy: 最初の問い合わせのプロキシ（名前:番号。直は None）。プロキシ越しにつなげない・名前を引けない形は「プロキシに届きません」"""
+def message_of(reason, note="", proxy=None, connected=False):
+    """proxy: その問い合わせ（30x の行き先ごと）のプロキシ（名前:番号。直は None）。connected: プロキシへの TCP がつながったか。
+    つながる前の OS の誤り・名前を引けないは「プロキシに届きません」、つながった後の OS の誤りは「その先で切れました」"""
     kind, detail = kind_of(reason)
-    if proxy and kind in ("os", "dns"):
-        kind, detail = "proxy_unreachable", proxy
+    if proxy:
+        if kind in ("os", "dns") and not connected:
+            kind, detail = "proxy_unreachable", proxy
+        elif kind == "os" or (connected and isinstance(reason, ssl.SSLEOFError)):
+            # つながった後に切れた（TLS の握手の途中で相手が閉じた形も。窓は OpenSSL・schannel の「unexpected eof」の字）
+            kind, detail = "proxy_cut", proxy
+        elif kind == "proxy_bad":
+            detail = proxy
     return message(kind, detail, note=note)

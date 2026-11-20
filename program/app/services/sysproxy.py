@@ -5,7 +5,8 @@
   getproxies()   … 環境変数（<種類>_proxy。小文字が勝つ・空の値は消す・REQUEST_METHOD があれば HTTP_PROXY を捨てる）。
                    1 つも無ければ Windows は HKCU の Internet Settings（ProxyEnable・ProxyServer）
   proxy_bypass() … 環境変数のプロキシが 1 つでもあれば no_proxy（後ろ一致・* はすべて）、無ければ Windows の ProxyOverride（; 区切り・<local>・
-                   * ? [ ] の型。Windows は大文字小文字を区別しない）。30x のたびに行き先の名前で決め直す（urllib の ProxyHandler と同じ）
+                   * ? [ ] の型。Windows は大文字小文字を区別しない）。30x のたびに行き先の名前で決め直す（urllib の ProxyHandler と同じ。
+                   版 3.117.1 の作った後の直しから cm3_schedule の _ChooseProxy が行き先ごとに choose を呼ぶ）
 urllib と違えた所（人の決め。事例の表 tests/fixtures/sysproxy_cases.json の decisions）:
   - プロキシの URL の 利用者:合言葉 は送らない（Proxy-Authorization を付けない。窓も送らない）
   - https:// と書いたプロキシも http のプロキシとして使う（TLS でプロキシにはつながない。Windows の既定の種類と同じ）
@@ -48,20 +49,6 @@ def parse(value, url_type=""):
         return urllib.request._parse_proxy(value)
     except ValueError:
         raise unreadable(url_type) from None
-
-
-def clean(proxies):
-    """ProxyHandler に渡す形: 利用者:合言葉 を外し、https:// は http:// に、読めない値と使えない種類は除く（取りに行く前の check が断る）"""
-    out = {}
-    for kind, value in proxies.items():
-        try:
-            scheme, _user, _pw, hostport = parse(value)
-        except ProxyProblem:
-            continue
-        scheme = (scheme or "").lower()
-        if scheme in ("", "http", "https"):
-            out[kind] = f"http://{hostport}" if scheme else hostport
-    return out
 
 
 def choose(url_type, host, proxies, bypass=proxy_bypass):

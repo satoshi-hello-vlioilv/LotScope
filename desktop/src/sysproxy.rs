@@ -59,9 +59,15 @@ pub enum Choice {
     Proxy(String),
 }
 
-/// 環境変数の名前（Windows の Python の os.environ は名前を大文字にする）
+/// 環境変数の名前（Windows の Python の os.environ は名前を大文字にした dict: 大文字にして同じ名前になれば、前の場所のまま後ろの値が勝つ。
+/// 版 3.117.1 の作った後の直し・割れ 1: 前は同じ名前を 2 つ残し、「HTTP_PROXY と空の http_proxy」で Windows の Python と割れた）
 fn names(env: &[(String, String)], nt: bool) -> Vec<(String, String)> {
-    env.iter().map(|(k, v)| (if nt { k.to_uppercase() } else { k.clone() }, v.clone())).collect()
+    let mut out: Vec<(String, String)> = vec![];
+    for (k, v) in env {
+        let k = if nt { k.to_uppercase() } else { k.clone() };
+        put(&mut out, &k, v.clone());
+    }
+    out
 }
 
 /// 並びの表（Python の dict: 同じ鍵は前の場所のまま値だけ替わる）
@@ -284,23 +290,29 @@ pub fn bypass(host: &str, sys: &System) -> bool {
     }
 }
 
-/// urllib の _parse_proxy → (種類〈小文字〉, 利用者がいたか, 名前:番号)。読めなければ None（ValueError）
+/// urllib の _parse_proxy → (種類〈小文字〉, 名前:番号)。読めなければ None（ValueError）。
+/// _splittype が当たらない値（種類の無い値）も、値が「/」で始まれば URL として読む（「//名前:番号」は authority・「/x」は読めない。
+/// 版 3.117.1 の作った後の直し・割れ 3: 前は種類の無い値をいつも authority とし、「//proxy:3128」を名前「//proxy」と読んだ）
 pub fn parse_proxy(proxy: &str) -> Option<(Option<String>, String)> {
-    // _splittype: ([^/:]+):(.*)
+    // _splittype: ([^/:]+):(.*)（当たらなければ種類は無く、残りは値そのもの）
     let typed = proxy.find(':').filter(|i| *i > 0 && !proxy[..*i].contains('/'));
-    let (scheme, authority) = match typed {
-        Some(i) if proxy[i + 1..].starts_with('/') => {
-            let r = &proxy[i + 1..];
-            if !r.starts_with("//") {
-                return None;
-            }
-            let end = match r.find('@') {
-                Some(at) => r[at..].find('/').map(|x| x + at),
-                None => r[2..].find('/').map(|x| x + 2),
-            };
-            (Some(proxy[..i].to_lowercase()), r[2..end.unwrap_or(r.len())].to_string())
+    let (scheme, r_scheme) = match typed {
+        Some(i) => (Some(proxy[..i].to_lowercase()), &proxy[i + 1..]),
+        None => (None, proxy),
+    };
+    let (scheme, authority) = if r_scheme.starts_with('/') {
+        // URL（authority は // の後ろ。@ があればその後ろの最初の / まで、無ければ 2 字目から後ろの最初の / まで）
+        if !r_scheme.starts_with("//") {
+            return None;
         }
-        _ => (None, proxy.to_string()),
+        let end = match r_scheme.find('@') {
+            Some(at) => r_scheme[at..].find('/').map(|x| x + at),
+            None => r_scheme[2..].find('/').map(|x| x + 2),
+        };
+        (scheme, r_scheme[2..end.unwrap_or(r_scheme.len())].to_string())
+    } else {
+        // authority（種類があっても「名前:番号」の形。urllib は種類を None にする）
+        (None, proxy.to_string())
     };
     // _splituser: rpartition('@')
     let hostport = match authority.rfind('@') {
