@@ -74,23 +74,29 @@ jobs:
         env:
           TPA_MEASURE: ${{ runner.temp }}\bake-measure
         run: cargo test --locked --no-fail-fast
-      # 表だけの形でも測る（版 3.117.0。測るだけ・落とさない）: 焼いた本の試験だけを TPA_NO_PYTHON=1（段 ④ の後の形。Python を呼ばず、
+      # 表だけの形（版 3.117.0 から測り、版 3.117.3 から比べる）: 焼いた本の試験だけを TPA_NO_PYTHON=1（段 ④ の後の形。Python を呼ばず、
       # 表の宣言から場面を作って焼いた答えと比べる）でもう 1 回流す。上の形は Windows の Python が場面を作るので、④ の後に残る形で
-      # Windows が通るかは、この段の数でしか分からない。試験そのものは表（posix の答え）と比べて落ちる所があるので、段は落ちても続ける。
+      # Windows が通るかは、この 2 段でしか分からない。本は books.json の windows の札で 2 つに分ける:
+      # - table: 焼いた表（posix の答えに desktop/tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす（この段は落ちたら落ちる）
+      # - measure: まだ測るだけ（落ちても続ける）。測りの記録（違う歩の Windows の答え got・流さない歩・作れない場面の物）は仕事の終わりの段が
+      #   「measure-z| 」の行で記録に出し、python program/tools/bless.py --take-nt 記録 で nt の表に取り込むと札が table になる
       # route_reach は長い（Windows で約 19 分）ので流さない（答えは数だけで、歩を表に持たない）。組み直しは無い（上の段と同じ debug）
-      - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（測るだけ・落ちても続ける）
+      - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で表と比べる（札が table の本。落ちたら落ちる）
+        if: always()
+        timeout-minutes: 20
+        run: python program/tools/bless.py --no-python --all --windows table --skip-test route_reach
+      - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（札が measure の本。測るだけ・落ちても続ける）
         if: always()
         continue-on-error: true
         timeout-minutes: 20
         env:
           TPA_MEASURE: ${{ runner.temp }}\bake-measure-table
-        run: python program/tools/bless.py --no-python --all --skip-test route_reach
-      # 2 つの形の数を別の行で出す。--json: 記録そのものも 1 表 1 行で出す（成果物の置き場に届かない所からは、この仕事の記録を
-      # python program/tools/bless.py --from-log 記録 出力フォルダ で戻す。PR #116 では成果物を取れず、記録の出力から数えた）
+        run: python program/tools/bless.py --no-python --all --windows measure --skip-test route_reach
+      # 2 つの形の数を別の行で出す（記録そのものは仕事の終わりの段が詰めた行で出す）
       - name: 焼いた表（posix）と Windows の窓の答えの違いを数える（測るだけ・落とさない）
         if: always()
         continue-on-error: true
-        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure" "$env:RUNNER_TEMP\bake-measure-table" --json
+        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure" "$env:RUNNER_TEMP\bake-measure-table"
       # 版 3.117.1（段 ③-6）: Windows の本物の設定で、窓のプロキシの読み手（src/sysproxy.rs のレジストリの読み）と Windows の Python の
       # urllib.request.getproxies・proxy_bypass が同じ答えか。HKCU の Internet Settings の ProxyEnable・ProxyServer・ProxyOverride・AutoConfigURL を
       # 書いて比べ、終わったら必ず元に戻す（finally と下の always の段）。落ちたときは期待した値と来た値を記録に出す（手元では流せない段）。
@@ -152,20 +158,24 @@ jobs:
       # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
       # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
       - name: 写しと公開の干渉（Python・Windows）
+        if: always()
         working-directory: program
         run: python -m unittest tests.test_mirror_writer -v
       # 結合・スケジュールを Windows の本物の SQLite で（URI を既定で読まない。版 3.57.1 で、Linux の試験だけでは気づけなかった）
       - name: 結合・スケジュール（Python・Windows）
+        if: always()
         working-directory: program
         run: python -m unittest tests.test_data_join tests.test_schedule tests.test_mirror_share tests.test_cm3_timeout -v
       # 置き場と設定の事例の表（版 3.100.0）を Windows の本物で: 隠し・システムの属性を「参照…」に出さない・ドライブだけの「C:」・
       # 書けるかを試しのフォルダで見る・Windows の道の字（窓の normcase と Python の ntpath.normcase は上の cargo test の place_cases）
       - name: 置き場と設定の事例（Python・Windows）
+        if: always()
         working-directory: program
         run: python -m unittest tests.test_place_cases -v
       # 壊れた設定・マスタと設備グループの正規表現（版 3.102.0）を Windows の本物で: BOM 付きの配った設定・途中で切れたマスタ・表でない行・
       # 正規表現の事例の表（Python の re。窓の fancy-regex は上の cargo test の equip_regex_cases・束の節は bundle_cases）
       - name: 壊れた設定・マスタと正規表現の事例（Python・Windows）
+        if: always()
         working-directory: program
         run: python -m unittest tests.test_broken_masters tests.test_equip_regex tests.test_bundle_sections -v
       # 測りの記録（形ごとのフォルダの <表>.json）は小さな成果物（desktop-windows-measure）に置く。配る物の成果物（desktop-windows。windows-exe）とは別
@@ -177,6 +187,14 @@ jobs:
             ${{ runner.temp }}/bake-measure/
             ${{ runner.temp }}/bake-measure-table/
           if-no-files-found: warn
+      # 表だけの形の測りの記録そのもの（版 3.117.3）を、仕事の記録の終わりに詰めた行（「measure-z| 」。zlib・base64 を 2,000 字ずつ）で出す。
+      # 成果物を取れない所でも、記録の末尾（行と字の上限がある）からこの段だけを取れば取り込める:
+      # python program/tools/bless.py --take-nt 記録（nt の表を書き、本の表のどれもが取り込めた本の札を table にする）。
+      # 3.117.1 の測りの違う歩 313・答えない歩 227 の答えは詰めて約 70 KB（約 40 行）
+      - name: 表だけの形の測りの記録を詰めた行で出す（--take-nt で取り込む）
+        if: always()
+        continue-on-error: true
+        run: python program/tools/bless.py --emit "$env:RUNNER_TEMP\bake-measure-table"
 
   # 本番の作り方（--release）の exe・本物の WebView2 の自己診断・更新の通し・配る ZIP。手で windows-test だけを選んだときは流さない
   windows-exe:

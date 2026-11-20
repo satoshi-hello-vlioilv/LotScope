@@ -24,6 +24,13 @@
     python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す（読めなかった行の数も言う）
     python tools/bless.py --no-python --all --skip-test 試験,… … Python 無しの形で流すが、名前を挙げた試験は流さない（Windows の測り: route_reach は長い）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
+    python tools/bless.py --no-python --all --windows table|measure … … Windows の表だけの形で、books.json の windows の札が table の本だけ・
+                                            measure の本だけを流す（版 3.117.3。desktop.yml は table の本を落とす段・measure の本を測るだけの段に分ける）
+    python tools/bless.py --take-nt 記録か測りのフォルダ … … Windows の表だけの形の測りの記録（仕事の記録の「measure-z| 」の行か、成果物の
+                                            フォルダ）から、Windows の上書きの表 desktop/tests/baked/nt/<表>.json（posix と違う歩の Windows の答え・上書きした
+                                            posix の答えの指紋・Windows では流さない歩・Windows で作れない場面の物）を書く（版 3.117.3）。記録は今の表
+                                            （と今の nt の表）で取った物だけを取り込む（指紋で見る）。本の表のどれもが終わりまで流れた記録を取り込めた本は、
+                                            books.json の windows の札を table にする（次の Windows の CI から表と比べて落とす）
 
 焼いた表は desktop/tests/baked/<本>.json。焼くのは窓の試験（desktop/tests/common/bake.rs）で、この道具はそれを流して確かめるだけ。
 独立の答え（tools/*-truth.py）と人が書いた事例の表（tests/fixtures/*_cases.json）は書き換えない（第 2 の線）。
@@ -320,6 +327,13 @@ def check(baked=None):
     for book, b in sorted(BOOKS.items()):
         if b["phase"] in PHASES and book not in tabs.values():
             bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
+        if b["phase"] in PHASES and b.get("windows") not in WINDOWS:
+            bad.append(f"{book}: books.json の windows の札が {b.get('windows')!r}（table か measure）")
+    # Windows の上書きの表（版 3.117.3）: 形・上書きの元の posix の答えの指紋。大きさは本の表に足して上限を見る
+    nt_bad, nt_size = check_nt(baked)
+    bad += nt_bad
+    for book, n in nt_size.items():
+        size[book] = size.get(book, 0) + n
     # 大きさの上限（UTF-8 のバイト）: 本ごと・全部の計。越えたら、場面と事例を減らすか、books.json の maxMB を理由つきで上げる
     for book, n in sorted(size.items()):
         cap = BOOKS[book].get("maxMB", MAX_MB)
@@ -610,6 +624,81 @@ def _bless_user(books):
     shutil.rmtree(home, ignore_errors=True)
 
 
+NT = BAKED / "nt"
+JSON_Z = "measure-z| "     # 測りの記録を zlib で詰めて base64 にし、行に割った形（版 3.117.3。仕事の記録の末尾に入る大きさにする）
+Z_CHUNK = 2000
+WINDOWS = ("table", "measure")
+
+
+def nt_print(v):
+    """上書きした posix の答えの指紋（sort_keys の JSON の sha256 の頭 12 字。Python だけが書いて確かめる）"""
+    return hashlib.sha256(json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:12]
+
+
+def file_sha(p):
+    """ファイルのバイトの sha256 の頭 16 字（無ければ空）。desktop/tests/common/bake.rs の file_sha と同じ"""
+    try:
+        return hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]
+    except OSError:
+        return ""
+
+
+def nt_tables(nt=None):
+    """Windows の上書きの表（tests/baked/nt/*.json）→ {表のファイルの名前: 本}"""
+    nt = nt or NT
+    return {p.stem: p.stem.split(".")[0] for p in sorted(nt.glob("*.json"))} if nt.is_dir() else {}
+
+
+def check_nt(baked=None):
+    """→ (食い違いの言葉の並び, {本: nt の表の UTF-8 のバイト})。nt の表の形と、上書きした posix の答えの指紋が今の posix の答えと同じか"""
+    bad, size = [], {}
+    base = baked or BAKED
+    tabs = tables(baked)
+    for name, book in nt_tables(base / "nt").items():
+        text = (base / "nt" / f"{name}.json").read_text(encoding="utf-8")
+        size[book] = size.get(book, 0) + len(text.encode("utf-8"))
+        if name not in tabs:
+            bad.append(f"nt/{name}: posix の表 {name}.json が無い")
+            continue
+        try:
+            n = json.loads(text)
+        except ValueError as e:
+            bad.append(f"nt/{name}: 読めません（{e}）")
+            continue
+        for k, kind in (("answers", dict), ("posix", dict), ("skip", list), ("unmade", list)):
+            if not isinstance(n.get(k), kind):
+                bad.append(f"nt/{name}: {k} がありません")
+        if bad and bad[-1].startswith(f"nt/{name}:"):
+            continue
+        if n.get("book") != book or n.get("file") != name:
+            bad.append(f"nt/{name}: 本の名前が {n.get('book')}・{n.get('file')}")
+        posix = unpack_table(json.loads((base / f"{name}.json").read_text(encoding="utf-8"))).get("answers", {})
+        if set(n["answers"]) != set(n["posix"]):
+            bad.append(f"nt/{name}: answers と posix の歩が合わない")
+        for k, v in n["answers"].items():
+            want = nt_print(posix[k]) if k in posix else None
+            if n["posix"].get(k) != want:
+                bad.append(f"nt/{name}: 上書きの元の posix の答えが変わった（歩 {k}。表が古い。Windows の CI の記録を取り直して python tools/bless.py --take-nt）")
+            if k in posix and nt_print(v) == nt_print(posix[k]):
+                bad.append(f"nt/{name}: 上書きが posix の答えと同じ（歩 {k}。要らない上書き）")
+        for k in n["skip"]:
+            if k not in posix and k not in n["answers"]:
+                bad.append(f"nt/{name}: Windows では流さない歩が表に無い（{k}）")
+            if k in n["answers"]:
+                bad.append(f"nt/{name}: 流さない歩に上書きがある（{k}）")
+    return bad, size
+
+
+def z_lines(m):
+    """測りの記録 1 つ → 仕事の記録に出す行（zlib・base64 を Z_CHUNK 字ずつ）"""
+    import base64
+    import zlib
+    data = base64.b64encode(zlib.compress(json.dumps(m, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), 9)).decode("ascii")
+    parts = [data[i:i + Z_CHUNK] for i in range(0, len(data), Z_CHUNK)] or [""]
+    head = f"{m.get('file', '?')}|{m.get('form', 'python')}"
+    return [f"{JSON_Z}{head} {i + 1}/{len(parts)} {c}" for i, c in enumerate(parts)]
+
+
 FORMS = {"python": "Python と比べる形（その PC の Python が場面を作る）", "table": "表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る。段 ④ の後の形）"}
 JSON_LINE = "measure-json| "
 
@@ -630,7 +719,10 @@ def measured(folders, as_json=False, skip=()):
         if not files:
             print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません（記録の無い表 {len(want)}）")
             continue
-        absent = [n for n in want if n not in {f.stem for f in files}]
+        # 表だけの形で札が table の本（Windows でも表と比べて落とす本。版 3.117.3）は測りの記録を書かない
+        tabled = {n for n, b in tables().items() if BOOKS.get(b, {}).get("windows") == "table"}
+        form_of = {json.loads(f.read_text(encoding="utf-8")).get("form", "python") for f in files[:1]} if files else set()
+        absent = [n for n in want if n not in {f.stem for f in files} and not ("table" in form_of and n in tabled)]
         steps = differ = unanswered = 0
         noscene, cut_short, forms = [], [], set()
         rows = []
@@ -673,21 +765,60 @@ def measured(folders, as_json=False, skip=()):
               + f"・記録の無い表 {len(absent)}" + (f"（{' '.join(absent)}）" if absent else "")
               + "（違う歩が 0 の表は Windows でもそのまま表と比べられる。記録の無い表は数に入っていない）")
     if as_json:
-        # 記録そのもの（1 表 1 行）。成果物の置き場に届かない所からでも、仕事の記録（log）から --from-log で戻せる
-        for folder in folders:
-            for f in sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []:
-                try:
-                    m = json.loads(f.read_text(encoding="utf-8"))
-                except ValueError:
-                    continue
-                print(JSON_LINE + json.dumps(m, ensure_ascii=True, separators=(",", ":")))
+        emit(folders)
+
+
+def emit(folders):
+    """記録そのもの（版 3.117.3 から zlib で詰めた「measure-z| 」の行。違う歩の Windows の答え got を持つので、前の 1 表 1 行の字では
+    仕事の記録の末尾に入らない）。成果物の置き場に届かない所からでも、仕事の記録（log）から --from-log・--take-nt で戻せる"""
+    n = chars = 0
+    for folder in folders:
+        for f in sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []:
+            try:
+                m = json.loads(f.read_text(encoding="utf-8"))
+            except ValueError:
+                continue
+            for line in z_lines(m):
+                print(line)
+                n += 1
+                chars += len(line)
+    print(f"measure-z の行 {n}・{chars} 字（仕事の記録から python program/tools/bless.py --take-nt 記録 で取り込む）")
 
 
 def from_log(log, out):
     """仕事の記録（--measured … --json の行）から、測りの記録を <out>/<形>/<表>.json に戻す → (戻した数, 読めなかった行の数)
     （版 3.117.0 の作った後の直し・割れ 3: 前は読めない行〈切れた・壊れた〉を数えずに飛ばした）"""
     n = bad = 0
+    recs = []
+    for m in records_of_log(log):
+        if m is None:
+            bad += 1
+            continue
+        recs.append(m)
+    for m in recs:
+        d = Path(out) / m.get("form", "python")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{m['file']}.json").write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
+        n += 1
+    return n, bad
+
+
+def records_of_log(log):
+    """仕事の記録の行 → 測りの記録の並び（読めなかった物は None）。「measure-z| 」（版 3.117.3）と前の「measure-json| 」の両方"""
+    import base64
+    import zlib
+    chunks = {}
+    out = []
     for line in Path(log).read_text(encoding="utf-8", errors="replace").splitlines():
+        i = line.find(JSON_Z)
+        if i >= 0:
+            try:
+                head, pos, data = (line[i + len(JSON_Z):].split(" ", 2) + ["", ""])[:3]
+                k, total = (int(x) for x in pos.split("/"))
+                chunks.setdefault(head, {})[k] = (total, data.strip())
+            except ValueError:
+                out.append(None)
+            continue
         i = line.find(JSON_LINE)
         if i < 0:
             continue
@@ -696,13 +827,97 @@ def from_log(log, out):
             if not isinstance(m, dict) or not isinstance(m.get("file"), str):
                 raise ValueError("file が無い")
         except ValueError:
-            bad += 1
+            out.append(None)
             continue
-        d = Path(out) / m.get("form", "python")
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"{m['file']}.json").write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
-        n += 1
-    return n, bad
+        out.append(m)
+    for head, parts in chunks.items():
+        total = max(t for t, _ in parts.values())
+        try:
+            if sorted(parts) != list(range(1, total + 1)):
+                raise ValueError(f"{head}: 行が欠けている")
+            m = json.loads(zlib.decompress(base64.b64decode("".join(parts[k][1] for k in range(1, total + 1)))).decode("utf-8"))
+            if not isinstance(m, dict) or not isinstance(m.get("file"), str):
+                raise ValueError("file が無い")
+            out.append(m)
+        except (ValueError, zlib.error):
+            out.append(None)
+    return out
+
+
+def take_nt(sources, baked=None, books_json=None):
+    """Windows の表だけの形の測りの記録（仕事の記録のファイルか、形ごとの測りのフォルダ）→ nt の表を書き、札を table にする本を返す
+    （版 3.117.3）。→ (取り込んだ表の名前, 取り込めなかった理由の並び, 札を table にした本)"""
+    base = baked or BAKED
+    recs = []
+    for src in sources:
+        p = Path(src)
+        if p.is_dir():
+            for f in sorted(p.rglob("*.json")):
+                try:
+                    recs.append(json.loads(f.read_text(encoding="utf-8")))
+                except ValueError:
+                    recs.append(None)
+        else:
+            recs += records_of_log(p)
+    taken, refused = [], []
+    for m in recs:
+        if m is None:
+            refused.append("読めない記録（行が欠けた・壊れた）")
+            continue
+        if m.get("form") != "table":
+            continue
+        name = m["file"]
+        path = base / f"{name}.json"
+        why = (("Windows の記録でない" if m.get("os") != "windows" else "")
+               or ("表が無い" if not path.exists() else "")
+               or ("終わりまで流れなかった" if m.get("finished") is not True else "")
+               or (f"場面を作れなかった（{str(m['sceneError'])[:120]}）" if m.get("sceneError") else "")
+               or ("記録は別の表で取った（tableSha が今の表と違う。今の版で Windows の CI を流し直す）" if m.get("tableSha") != file_sha(path) else "")
+               or ("記録は別の nt の表で取った（ntSha）" if m.get("ntSha", "") != file_sha(base / "nt" / f"{name}.json") else "")
+               or ("違う歩に Windows の答え got が無い（3.117.3 より前の記録）" if any("got" not in d for d in m.get("differing", [])) else ""))
+        if why:
+            refused.append(f"{name}: {why}")
+            continue
+        posix = unpack_table(json.loads(path.read_text(encoding="utf-8"))).get("answers", {})
+        ntp = base / "nt" / f"{name}.json"
+        old = json.loads(ntp.read_text(encoding="utf-8")) if ntp.exists() else {}
+        answers = dict(old.get("answers", {}))
+        for d in m.get("differing", []):
+            k = d["key"]
+            if k in posix and nt_print(d["got"]) == nt_print(posix[k]):
+                answers.pop(k, None)
+            else:
+                answers[k] = d["got"]
+        skip = sorted(set(m.get("missing", [])))
+        for k in skip:
+            answers.pop(k, None)
+        answers = dict(sorted(answers.items()))
+        unmade = sorted(m.get("unmade", []))
+        if answers or skip or unmade:
+            ntp.parent.mkdir(parents=True, exist_ok=True)
+            n = {"about": f"Windows の上書きの表（版 3.117.3）。本 {name} の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt"
+                          "（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋"
+                          "（今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+                 "book": m["book"], "file": name, "answers": answers,
+                 "posix": {k: (nt_print(posix[k]) if k in posix else None) for k in answers},
+                 "skip": skip, "unmade": unmade}
+            ntp.write_text(json.dumps(n, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        elif ntp.exists():
+            ntp.unlink()
+        taken.append(name)
+        print(f"{name}: 上書き {len(answers)} 歩・流さない歩 {len(skip)}・作れない場面の物 {len(unmade)}")
+    # 本の表のどれもが取り込めた本は札を table に（次の Windows の CI から表と比べて落とす）
+    flipped = []
+    bj = Path(books_json) if books_json else BAKED / "books.json"
+    data = json.loads(bj.read_text(encoding="utf-8"))
+    for book, b in data["books"].items():
+        names = [n for n, bk in tables(baked).items() if bk == book]
+        if names and all(n in taken for n in names) and b.get("windows") != "table" and b["phase"] in PHASES:
+            b["windows"] = "table"
+            flipped.append(book)
+    if flipped:
+        bj.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    return taken, refused, flipped
 
 
 def main():
@@ -727,6 +942,18 @@ def main():
     if args[0] == "--measured":
         measured([a for a in args[1:] if not a.startswith("--")] or [""], "--json" in args, skip)
         return
+    if args[0] == "--take-nt":
+        taken, refused, flipped = take_nt(args[1:])
+        for r in refused:
+            print("  取り込めない:", r)
+        print(f"nt の表を {len(taken)} 表取り込みました・取り込めない {len(refused)}・札を table にした本 {len(flipped)}: " + " ".join(flipped))
+        bad = check()
+        for line in bad:
+            print("  ", line)
+        sys.exit(1 if bad else 0)
+    if args[0] == "--emit":
+        emit([a for a in args[1:] if not a.startswith("--")])
+        return
     if args[0] == "--from-log":
         n, bad = from_log(args[1], args[2])
         print(f"測りの記録 {n} 個を {args[2]} に戻しました" + (f"（読めなかった行 {bad}）" if bad else "・読めなかった行 0"))
@@ -734,7 +961,16 @@ def main():
     if args[0] == "--stats":
         stats(args[args.index("--base") + 1] if "--base" in args else None)
         return
+    windows = None
+    if "--windows" in args:
+        i = args.index("--windows")
+        windows = args[i + 1]
+        del args[i:i + 2]
+        if windows not in WINDOWS:
+            sys.exit(f"--windows は {' か '.join(WINDOWS)}")
     books = [b for b in BOOKS if baked(b)] if "--all" in args else [a for a in args if not a.startswith("--")]
+    if windows:
+        books = [b for b in books if BOOKS[b].get("windows", "measure") == windows]
     if args[0] == "--scope":
         scope, books = args[1], args[2:]
         sys.exit(cargo(tests_of(books), {"TPA_NO_PYTHON": "1", "TPA_BLESS": scope}))
