@@ -2877,9 +2877,8 @@ Python 無しで流れる）を満たした。
 - **first_fixes 7**: (a) キーは `ui_scene.key_makers`（呼んだ順の番号の sha256。形は元と同じ 12 字・s＋8 字）を work_log.new_key・data_sources.new_key の
   2 つだけに当てる（`ui_server.fixed_keys`・ops-bench。uuid4 全部は差し替えない）。呼ぶ数は routes 13＋2・pivot 12・dashboard 13＋1・ops 57。
   (c) HOT の更新時刻: **決めた暦の日にはしなかった**。窓も Python も古さの時間（ageHours）を本当の今から数えるので、決めた日（2026-09-30 02:00）では
-  流す日ごとに ageHours が替わる（測った: 51 日後に 1239.5。80 時間前の形は 80.0）。台本を流した時の 40 時間前にした（古さのしきい 36 時間を越え、
-  焼いた表の「今に近い」2 日の内なので答えの時刻 at は今からのずれでそろう）。窓の試験は写しの様子を remote・interval_sec・staleHours・mirrored だけに
-  して比べるので、表の答えに at・ageHours は持たない。(d) settle.json の @UI と bless.py の印 @UI を外した（@OPS は前から無い）。
+  流す日ごとに ageHours が替わる（測った: 51 日後に 1239.5。80 時間前の形は 80.0）。台本を流した時の 40 時間前にした（古さのしきい 36 時間を越える）。
+  表の答えには時刻 at と ageHours の数を持たず、古いかを写しの様子の stale の真偽で持つ（作った後の採点の割れ 1 の直し。下）。(d) settle.json の @UI と bless.py の印 @UI を外した（@OPS は前から無い）。
 - **場面で決めた物（焼いて見つけた）**: 作り物の CM3 は答え合わせ役では起こさない（閉じた口 http://127.0.0.1:1。前は流すたびに変わるポートが設定の答えに出た）・
   この端末の名前は PC-ORACLE（**2 回目の焼き〈別の PC の形〉が、場面のマスタの書いた人 updated_by.pc の「vm」を見つけた**。Python の MasterStore は作るときに
   名乗りを覚え、開発用サーバーは create_app より前に作るので、`identity.set_override` を MasterStore の前に呼ぶ）・変換表の版の印 conversions.rev
@@ -2919,6 +2918,29 @@ Python 無しで流れる）を満たした。
 
 - Windows の CI の表だけの形の測り（4 本の違う歩の数）は、push の後の最初の記録で読む（`bless.py --from-log`）。
 - 3.117.3: Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書。
+
+#### 作った後の採点の割れの直し（`tools/ui-proposals/2026-11-stage3h-built.json` の built_fixed）
+
+作った後の採点は 67.3 点・割れ 3（決まり 2026-11-06: 採点し直さず、割れを全部直して突き合わせの試験に足す）。
+
+1. **【中】更新が止まった HOT の「古い」が表で守られていなかった**: 写しの様子の比べる形を `tests/common.rs` の `mirror_part` の 1 か所にし、
+   stale・unreachable・reason も比べる（時刻と ageHours の数は落とす）。routes の場面の HOT も書いた後に 40 時間前へ戻す（`ui_scene.stale`）。
+   `routes_parity` の名前つきの歩に HOT（200・source.stale=true）、`dash_parity` に「実績_HOT.sqlite3 の写しの様子はどれも stale=true」。
+   変異（HOT_STALE_HOURS=0・mirror.rs のしきいを 2 倍）で両方の形とも落ちる。
+2. **【中】試験のファイルID が Windows で空だった**: `bake::fid_of` は窓の `lists::file_id`（pub にした）を呼ぶだけ。
+   `bake_selftest` の `the_scene_file_id_is_the_window_file_id`（Windows の CI でも流れる）。Windows の file_id は作業用クレートで
+   `cargo clippy --target x86_64-pc-windows-msvc` を通した。NTFS の本物の答え（作った時刻・名前を変えた後）は Windows の CI で初めて分かる。
+3. **【低】** 更新履歴とコメントの言葉を事実に（更新時刻は流した時刻・HOT は 40 時間前）。routes・pivot・dashboard の sources に同梱の roll_master。
+
+#### 3.117.3 へ持ち越す物（採点の carry_to_3117_3）
+
+- 作り物の CM3 の閉じた口 http://127.0.0.1:1 は Windows で断られるまで約 1〜2 秒かかり、OS の言葉（WinError 10061）も違う（4 本は今スケジュールを
+  Python に回すので当たらない。表だけの形で CM3 に触れる道があれば出る）。
+- `materialize` の権限・記号リンク・mkfifo は unix だけ（4 本の場面は使わない。Windows で表だけにする時に宣言に権限を持つ本があれば違う）。
+- keep/ へ握ったまま移す形（os.replace）: NTFS でも成り立つが、答え合わせ役の Python が SL3 を開いたまま `finish` を呼ぶと PermissionError になる
+  （今は登録が stat だけで開いていない。この版の Windows の測りは落とさない）。
+- HUGE（400,001 行）の SQLite を台本が作る時間の Windows の runner での値（測っていない）。
+- cargo の build.rs が組むたびに python3 で program/app/app_icon.py を流す（段 ④ で program/app を外すときの持ち越し）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
