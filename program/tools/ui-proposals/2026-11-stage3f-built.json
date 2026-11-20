@@ -1,0 +1,139 @@
+{
+ "title": "段 ④ の入口まで（小さい版 4 つ）の 1 つ目: Windows の仕事を割る・Windows の測りを ④ の後の形でも・土台（別の PC の形の 2 回目・PC の指紋・環境変数）・起こしたままの相手・equipgroups と lotdsp を焼く。版 3.117.0 の作った後の採点",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage3f.json",
+ "applies_note": "版 3.117.0 は 2026-11-stage3f.json の回の 1 位 G（60.0 点・80 に届かず）を、採点の指摘 first_fixes の 16 のうち 3.117.0 に当たる物と切る線（①〜⑥）を入れて作った物（ブランチ stage3f・commit 0533d8a・コミット 7 本。main は 473e0df＝版 3.116.0）。作った係は使用量の上限で最後の報告を出す前に止まったので、報告は無い（メモ b3117/notes.md と現物から読んだ）",
+ "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-20。決まり 2026-11-06 の作った後の 1 回だけの採点）。git diff 473e0df 0533d8a・CLAUDE.md・RUST_PORT_PLAN.md・books.json・bake.rs・bless.py・ci-shape.py・check-all.sh・desktop.yml・fakes_serve.py・fakes_*.py・見本の表を読み、試験を自分で流し（Python と比べる形・Python 無し・CI と同じ道と利用者・別の TMPDIR と時差・並べて・途中で止めて・表と比べない PC のまね）、窓の答え・答え合わせ役の場面・そろえる決まり・見本・起こす所に変異を当て（全部戻した）、切り出しの前後の答え合わせ役の答えを葉ごとに比べ、焼き直して表が同じかを見た。Windows は手元で流せないので、yml を読み、前の仕事の記録の時間から見込みを出し、測りの流れを手元でまねた。画面は変えていないので画像は撮らない。加点の 11 項目の読み替えは 2026-11-stage3e-built.json と同じ（作りの分かりやすさ・直しやすさ・決めの揃い方）",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.117.0・commit 0533d8a）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-built（画像は撮っていない。測りの記録だけ。メモは notes.md）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "both_modes": "equipgroups_write_parity・lotdsp_parity を Python と比べる形・TPA_NO_PYTHON=1 で: 4/4 ok（base-*.log。equipgroups 12.5／6.1 秒・lotdsp 78.0／35.2 秒）。bake_selftest 21 試験 ok",
+   "mutations": "M1（窓の答え 2 か所）・NOFAKE（bk.fakes を消す）・K1a・K1b（答え合わせ役の場面に PC の名前・copy2）・K1u（TPA_SETTLE_DROP=login）・FX（見本を 1 字）・SIMWIN と E1（bake.rs の check を環境変数で偽に＋窓の答え 1 字）。どれも終わった後に git checkout で戻した",
+   "extraction": "473e0df と 0533d8a の答え合わせ役（lotdsp・equipgroups・schedule）の答えを取り、ポートと作業フォルダをそろえて葉ごとに比べた（or-old-*.json・or-new-*.json・cmp_oracle.py）",
+   "rebake": "bless.py equipgroups lotdsp（306 秒）: lotdsp は同じバイト・equipgroups は @T の秒だけ。全部の焼き直し: bless.py --all（30 本・1,263 秒）: 2 回の焼き（2 回目は別の PC の形）が同じ。書き変わった表 27 は比べる形（今からの秒を除く）で前と同じ・9 表は同じバイト。表は戻した",
+   "ci_path": "/home/runner/work/LotScope/LotScope・利用者 runner・PC の名前を替えて 5 本: Python と比べる形 5/5・表だけの形 4/4（ci-*.log）",
+   "sim_windows": "simwin.sh（表と比べない PC のまね）: Python と比べる形 422 秒（組む時間を含む）・表だけの形 246 秒。記録 36＋36・違う歩 0。simwin-measured.log・meas-back",
+   "wobble": "TMPDIR・時差・言葉・空白のある道（var-*.log）・CPU を混ませて並べる（load-*.log）・12 回続けて（loop-eg-*.log）・kill -9（kill-ld.log）",
+   "windows_times": "main の最後の仕事 44627449003 の記録（main-fail.log）と、その前の PR の仕事 44614848744 の段の時刻: cargo test 34.6 分・route_reach 1,102 秒・焼いた本の試験（route_reach を除く）599 秒・exe 5 分・自己診断 2.7 分・更新の通し 28 分",
+   "times": "b3117/check1/summary.txt: js 11・cargo-build 42・fmt-clippy 44・py-tests 412（Ran 959・OK）・cargo-test 691（test result: ok 66・FAILED 0）・ci-shape 845（runner 456・nopy 313・nodns 62）＝ 2,046 秒。窓の通しは途中で切れている（10-verify.log は 4 の途中まで PASS）。この版で足した・変えた Python の試験 5 本は 75 試験 124 秒で OK（py-new-tests.log）",
+   "tables": "bless.py --check: 古くありません（30 本・36 ファイル。知らせは fs の印 20% 超だけ）。--stats: 計 30.37 MB",
+   "untouched": "作業フォルダ stage3f の git status は空（0533d8a）。commit・push はしていない。窓の通し（verify.py）は流していない。Windows は手元で流せないので、yml を読み、まねた形で確かめた（Windows の本物の結果は最初の CI を待つ）"
+  },
+  "cracks": [
+   {
+    "name": "1. PC の指紋の見張り（K2）の「この PC の名前」が、ありふれた PC の名前で誤って落ちる。bless.pc_marks は表の字の中から今の PC の名前（socket.gethostname()）を前後が英数字・_・.・- でない所で探すだけなので、名前が場面の言葉と重なる PC ではどの表にも「焼いた PC の指紋が表に残っている」と言う",
+    "where": "program/tools/bless.py の pc_marks（host の見つけ方）・check()。tests/test_baked_tables.py の test_tables_keep_no_marks_of_the_baking_pc と、check() が空であることを見る試験",
+    "repro": "unshare -u sh -c 'echo localhost > /proc/sys/kernel/hostname && python3 program/tools/bless.py --check' → 終了コード 1・「fs: 焼いた PC の指紋が表に残っている: この PC の名前（localhost。…） …file://localhost@ROOT/tree/…」。pc_marks を名前を替えて 36 表に当てると、当たる表の数は localhost 1（fs）・home 1・main 2・box 3・win 3・user 6・default 6・PC-ORACLE 8・base 11・work 14・PC-1 15・app 19・pc 24・data 28・local 28・PC 30・share 30・root 36・desktop 36",
+    "effect": "そういう名前の PC（コンテナ・WSL・仮想の PC に多い localhost など）では、py-tests（test_baked_tables）が落ち、bless.py は焼いた直後の見張りで「元の表に戻しました」と言って 1 本も焼けない。CI の runner（runnervm…）と今の手元（vm）は当たらないので、今は誰も踏んでいない。PC の名前が表に残る割れそのものは、2 回目の焼き（PC の名前を ci-shape-host に替える）が先に止める（下の not_cracks の K1a）ので、この見張りは効き目が重なっていて、誤りの方だけが増える",
+    "fix": "PC の名前の見張りを、名乗りの欄（pc・key の「名前@利用者」・「PC 名前 が」の言葉）に限るか、場面の言葉（問い合わせ oracle と場面のファイルの中身）に同じ字が出る名前のときは飛ばす。足す試験: pc_marks(表の字, host=\"localhost\"・\"desktop\"・\"root\"・\"PC-1\") が今の 36 表で空（test_baked_tables）",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "2. 「焼くときに止まる」の外に、利用者に頼る葉が残る。2 回目の焼きは root のまま流す（採点の first_fixes 8 は daemon）ので、1 回目と利用者が同じで、利用者の名前が表に字のまま入っても「2 回の焼きが同じです」と言う。K2（--check）も利用者の名前は見ない。止めるのは焼いた後の ci-shape の runner の形だけで、bless は「続けて…流してください」と言葉で促すだけ",
+    "where": "program/tools/bless.py の second_pass（run_shape(…, as_root=True)）・bless() の終わりの言葉・pc_marks（4 種に利用者が無い）",
+    "repro": "TPA_SETTLE_DROP=login python3 program/tools/bless.py equipgroups → 終了コード 0・「2 回の焼き（2 回目は別の PC の形）が同じです: equipgroups」。表には \"login\":\"root\" が 206 か所（\"login\":\"@USER\" は 0）。python3 program/tools/bless.py --check は「焼いた表は古くありません」。その表で python3 program/tools/ci-shape.py 記録 --shape runner --book equipgroups → 「[runner] NG equipgroups_write_parity」・終了コード 1（k1u.log・k1u-shape.log。表は git checkout で戻した）",
+    "effect": "前の 2 版が CI で落ちた種類のうち「root でない利用者」は、今も焼くときには分からない。check-all（段 ci-shape）を流せば push の前に分かるが、bless.py だけで焼いて確かめたつもりになる道が残る（CLAUDE.md は「焼いた PC に頼る葉があれば…焼くときに止まる」と書き、利用者は root のまま、と断ってはいる）。リポジトリの道と、分より大きい時刻の単位（日付だけの字など）も 2 回目では変わらない",
+    "fix": "2 回の焼きが同じだった後に、焼いた本の試験を ci-shape の runner の形（利用者 daemon。TPA_BLESS なし＝表と比べるだけ）でもう 1 度流し、落ちたら表を戻す（equipgroups で +12 秒・lotdsp で +約 90 秒）。あわせて K2 に「利用者の名前を書く欄（settle.json の nameKeys）に@USER でない焼いた利用者の名前」を足す。足す試験: test_baked_tables に、\"login\":\"root\" を 1 つ書き込んだ表で check() が落ちること",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "3. Windows の測りのまとめ（bless.py --measured）が、記録の無い表を知らせない。記録のフォルダにある <表>.json だけを数えるので、表だけの形の段が 20 分の上限で切れた・試験が Bake を開く前に落ちた・試験の実行ファイルが落ちた、で記録が出なかった表は、まとめに行が無いだけで、計は「違う歩 0・終わりまで流れなかった表 0」のまま",
+    "where": "program/tools/bless.py の measured（files = フォルダの *.json だけ）・.github/workflows/desktop.yml の表だけの形の段（timeout-minutes: 20・continue-on-error）。bless.py の cargo() は出力をためて終わりに書くので、上限で切れた段の記録にはどの試験の途中だったかも残らない",
+    "repro": "手元で表と比べない PC をまねた測り（下の measured.sim_windows）の表だけの形の記録 36 個から lotdsp.json・fs.json・fs.tables.json を消して python3 program/tools/bless.py --measured フォルダ → 「計（表だけの形…）: 表 33 つ・歩 6334・焼いた表（posix）と違う歩 0・表にあって答えない歩 0・場面を作れなかった表 0・終わりまで流れなかった表 0」。足りない 3 表の名前はどこにも出ない",
+    "effect": "この数は段 ④ の入口の条件 (2) と、3.117.3 の「違う歩が 0 の表から Windows でも表と比べる」の元になる。記録の無い表を「違う歩 0」の側に読み違える・切れたことに気づかない、が起きうる（--from-log も、読めない行を数えずに飛ばす）",
+    "fix": "--measured が焼いた表の一覧（tables()）と比べ、形ごとに「記録の無い表 n（名前）」を出す（route_reach のように流さなかった試験の表は--skip-test から除く）。from_log は読めなかった行の数も言う。足す試験: test_baked_tables の測りのまとめの試験に、記録を 1 つ消した形",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "4. 時間と置き場の決めが、文書の方で古いまま。(a) check-all は --verify なしで 2,046 秒（34 分。前の版 1,578 秒〈27 分〉から ci-shape 555 → 845・py-tests 327 → 412・cargo-test 618 → 691）なのに、CLAUDE.md は「全部で約 30 分（--verify つきは約 65 分）」のまま（--verify つきは前の版の窓の通し 2,197 秒を足すと約 71 分）。案の切る線の見込み「check-all 26〜31 分」も超えた。(b) desktop.yml の頭と仕事の注の「windows-test 約 44 分」は、後のコミットで足した表だけの形の段を入れていない（Windows の Python と比べる形で、焼いた本の試験の計は route_reach を除いて 599 秒。表だけの形も 10 分前後の見込みで、仕事は 50〜55 分。計画書は「約 44 分＋数分」）。(c) CLAUDE.md の 3.116.0 の行は測りの成果物を desktop-windows/bake-measure/ と書いたまま（この版で desktop-windows-measure に移した。同じファイルの 3.117.0 の行は新しい名前）",
+    "where": "CLAUDE.md の 43 行目・293 行目、.github/workflows/desktop.yml の 8・31 行目、program/tools/ui-proposals/2026-11-stage3f.json の evaluation.cut_line の見込み",
+    "repro": "b3117/check1/summary.txt の段ごとの秒を足す（11+1+42+0+44+412+0+691+845）。Windows の秒は main の最後の仕事（44627449003）の記録から本ごとの finished in を足した（main-fail.log）。grep -n 'bake-measure' CLAUDE.md",
+    "effect": "背景で流すときの制限時間（120 分）にはまだ収まるが、版ごとに 5〜7 分ずつ延びている（3.117.1〜3.117.2 で 5 本と形が増える）。Windows の仕事の上限（90 分）には余りがある",
+    "fix": "CLAUDE.md の時間を今の数に直す（約 35 分・--verify つき約 70 分）。yml の注を「約 44 分＋表だけの形 約 10 分」に、3.116.0 の行の成果物の名前を直す。延びを止める手: ci-shape の nodns の形は名前を引く本だけなのでそのまま・runner の形で lotdsp が 88 秒",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "5. 起こしたままの相手を python -I で起こすと、字の符号の環境変数（PYTHONIOENCODING）が効かない。Live::start_with と rebuild_inner は .env(\"PYTHONIOENCODING\", \"utf-8\") を渡しているが、-I は PYTHON* の環境変数を読まない。fakes_serve.main は答えを ensure_ascii=False で書き、その書き込みは contextlib.suppress(Exception) の中なので、Windows（標準出力がパイプ＝その PC の符号。cp1252・cp932）で ASCII でない字を書くと、落ちた事を言わずに相手が終わる",
+    "where": "desktop/tests/common.rs の Live::start_with（flags に -I・env の PYTHONIOENCODING）・program/tests/fakes_serve.py の main（ask の答えの書き方・suppress）・desktop/tests/common/bake.rs の rebuild_inner（場面の台本も同じ形）",
+    "repro": "PYTHONIOENCODING=latin-1 python3 -I -c 'import sys; print(sys.stdout.encoding)' → utf-8（-I なしは iso8859-1）＝環境変数が効いていない。Linux は C の言葉でも UTF-8 になるので見えない。今の答えは ASCII だけ（equipgroups・lotdsp の最初の 1 行は URL だけ・schedule の requests 306 件に ASCII でない字は 0〈or-new-sch.json〉）なので、今は落ちない",
+    "effect": "3.117.1 で schedule を焼いて Windows の表だけの形で流すとき、作り物が受けた要求（requests）に日本語の設備名や本文が入ると、試験は「答えが null」で落ち、訳が記録に出ない。この版の Windows の測りには出ない（落とし穴）",
+    "fix": "fakes_serve.main の頭で sys.stdout.reconfigure(encoding=\"utf-8\")（か、答えを ensure_ascii=True で書く）。ask の中の誤りは飲まずに {\"error\": …} の 1 行で答える。足す試験: test_fakes_serve に、ASCII でない字の答えを -I・PYTHONIOENCODING=ascii で読む形",
+    "reproduced": true,
+    "kind": "hidden_state"
+   },
+   {
+    "name": "6. 小さな後片付け（どれも今は試験を落とさない）: (a) bake_selftest の proxy_and_cert_variables_are_removed_before_the_tests は https_proxy・ALL_PROXY・npm_config_https_proxy・SSL_CERT_FILE を置いたまま終わる（外すのは TPA_PROXY_LIKE だけ。同じ実行ファイルの後の試験が clean_command を通さずに起こす子に渡る）。(b) test_baked_tables は試験の途中で取り出しの中に program/tests/fakes_zz_selftest.py を書く（止められると残り、次の「台本が app を import しない」が落ちる。一時フォルダで足りる）。(c) tools/lotdsp-fake-tables.py の EBOM の BOM が、台本の字の中の生の U+FEFF（見えない字。エディタが落とすと EBOM の場面がBOM なしになり、表を焼き直すと黙って場面が弱まる）。(d) bless.py は PHASES を bless.py・ci-shape.py・test_baked_tables の 3 か所に持つ",
+    "where": "desktop/tests/bake_selftest.rs の 556〜579 行・program/tests/test_baked_tables.py（fakes_zz_selftest.py）・program/tools/lotdsp-fake-tables.py の 35 行目・program/tools/bless.py と ci-shape.py の PHASES",
+    "repro": "読んで確かめた（(c) は grep -n EBOM program/tools/lotdsp-fake-tables.py | cat -A で M-oM-;M-?）",
+    "effect": "次の版で形が増えたときに、訳の分かりにくい落ち方になる",
+    "fix": "(a) 試験の終わりに置いた変数を外す (b) tempfile のフォルダに作って imports_app に道を渡す (c) \"\\ufeff\" と書く (d) books.json から読む",
+    "reproduced": true,
+    "kind": "more_steps"
+   }
+  ],
+  "not_cracks": [
+   "Windows の仕事の割り方（yml を読み、PyYAML で読み直した）: windows-test は 前の仕事の cargo test・測りの数・Python の 4 段をそのまま持ち、表だけの形の段（if: always()・continue-on-error・上限 20 分）と測りの成果物 desktop-windows-measure（if: always()）を足した。windows-exe は exe・exe の名前・自己診断・更新の通し・ZIP・成果物 desktop-windows（名前は前と同じ）を持つ。前の仕事の 15 段で抜けた物は無く、同じ段を 2 回流すのは取り出しと道具の支度だけ。release は needs: [windows-test, windows-exe] で、片方が落ちる・windows-exe が流れない（手で only=windows-test）と流れない。rust-cache の鍵は仕事の名前が入るので debug と release を別に持つ。main の保護に必須の検査は無い（gh api の branches/main: protected false）ので、仕事の名前が windows から変わっても PR は止まらない。時間の見込み: main の最後の記録で cargo test 34.6〜40.5 分・release 5 分・自己診断 2.7 分・更新の通し 28 分 → windows-test 50〜55 分（表だけの形を入れて）・windows-exe 約 39 分。上限 90 分に収まる。実際の時間と Windows の 2 つの形の数は最初の CI でしか分からない",
+   "新しい 2 つの表は窓の答えを守る: 変異 M1（desktop/src/equipgroups_write.rs の「グループの名称を入れてください。」を 1 字・src/lotdsp.rs の該当なしの言葉を 1 字）は、Python と比べる形・TPA_NO_PYTHON=1 の 4 つとも「焼いた表と違う」で落ちる（m1-*.log）。戻した",
+   "作り物の切り出しは Python の答えを変えていない: 473e0df の program を git archive で取り出して答え合わせ役を流し、0533d8a と比べた。lotdsp（30.5 MB）は fake の道と urls の鍵のほか 0 葉・equipgroups は updated_at と錠の言葉の時刻と env.program だけ・schedule は時刻・かかった ms・要求の並び（L-1 と L-2 の入れ替わり＝糸の順）だけ（or-old-*.json・or-new-*.json・cmp_oracle.py）。fakes_schedule.py は schedule_oracle.py から消えた 207 行のうち 198 行がそのまま。lotdsp の表の問い合わせは、今の答え合わせ役の答えから落とす鍵を落とした物と同じ（落とす鍵 status・json・map・result・log・left・seconds・closed は歩と場面の一番上でだけ落ち、台本の中を削っていない）",
+   "見本の表の古さ: 見本 lotdsp_progress_L7150C0.html の板厚を 1 字変えると、test_lotdsp_fake_tables が落ち、bless.py --check が lotdsp の元の指紋の違いを言い、lotdsp-fake-tables.py --check が終了コード 1（戻した）",
+   "起こしたままの相手は残らない: 通った後・落ちた後（M1）とも fakes_serve.py・lotdsp_cdp_fake.py のプロセスは 0。表だけの形の lotdsp を途中で kill -9 すると fakes_serve.py は標準入力が閉じて終わる（作り物のブラウザ lotdsp_cdp_fake.py は残るが、前の版からの形）。ポートは OS が決める（0 番で開く）ので取り合わない。CPU を混ませて lotdsp 3 本と equipgroups 2 本を並べて流しても全部通る。起こさない変異（bk.fakes の行を消す）は表だけの形の equipgroups を「スケジュールの元の場面が空振り」で落とす",
+   "名前つきの URL は偶然に当たらない: 置き換えるのは起こした URL そのものと番地:ポート（前が数字・点、後ろが数字の所は当てない）。場面が決めた届かない口は http://127.0.0.1:1 と :9 で、OS の決めるポート（5 桁）とは重ならない。表の中の 127.0.0.1 は @URL(cm3) 2・@URL(lotdsp) 14 と :1・:9 だけ",
+   "別の PC の形の 2 回目（K1）は言うとおりに止める: 場面に PC の名前を足す（K1a）→「…note.txt.blob.text: vm / ci-shape-host」、取り出しのファイルを copy2 で写す（K1b）→「…copied.json.mtime: @NOW(~) / 1794726668445956945」で止まり、表を戻す（k1a.log・k1b.log）。取り出しの更新時刻と権限は流した後に元へ戻っている。作った係の記録（bless1.log）でも @HOST を外すと止まり、SQLite の版の違いを見つけている。そろえる決まり settle.json はこの版で 1 字も変わっていない（足したのは名前つきの URL だけ）。本ごとに落とす鍵は Python の答えだけ",
+   "流すたびに変わる葉は無い: 焼き直すと lotdsp.json は 1 バイトも変わらず、equipgroups.json は @T の今からの秒だけ（bless.comparable で同じ）。settings の焼き直しは答え・問い合わせ・場面が前の版と同じ（元の指紋だけ）。TMPDIR=/dev/shm・TZ=Pacific/Kiritimati・LANG=C・空白と日本語のある TMPDIR・分の境をまたいで 12 回続けて、のどれも通る。表に焼いた日の字・今からの経過に頼る葉は無い（錠の「あと約 20 秒」だけで、差 1 を許す）",
+   "CI と同じ道でも通る: /home/runner/work/LotScope/LotScope に書き出し、利用者 runner・PC の名前 runnervm0kj6c で、equipgroups・lotdsp・bake_selftest・bundle・page を Python と比べる形 5/5・表だけの形 4/4（ci-*.log。作った利用者とフォルダは消した）",
+   "Windows の測りの作りは通しで動く（手元でまねた）: bake.rs の check を環境変数で偽にして「表と比べない PC」をまね、yml と同じ 2 つの命令を流した。Python と比べる形 36 表・歩 6,634・違う歩 0／表だけの形（bless.py --no-python --all --skip-test route_reach。組んだ後 246 秒）36 表・歩 6,634・違う歩 0・場面を作れなかった 0・終わりまで流れなかった 0。--measured … --json は 72 行を出し、--from-log で 72 個が元と同じ中身で戻る。窓の答えを 1 字変えると、どちらの形も試験は落ち、記録は equipgroups の違う歩 27 を数える（meas-e1）",
+   "プロキシの環境変数を置いても今の答えは変わらない（http_proxy=http://127.0.0.1:9 で lotdsp の答え合わせ役を流して 0 歩の違い）。clean_env と ci-shape の環境変数の形は ③-6（3.117.1）のための土台で、今の本では効き目が試験に出ない（外す関数そのものは bake_selftest が見る）",
+   "数は現物と合う: 焼いた本 30（books.json の phase 3.115.0 21・3.116.0 7・3.117.0 2。残り 3.117.1 1・3.117.2 4・keep 1）・表 36 ファイル 30.37 MB・equipgroups 0.46 MB 429 歩・lotdsp 5.96 MB 202 歩（上限 7）。段 ④ の入口の条件は計画書で 4 つに書き直してある（(2) は Python 無しの形で）",
+   "前の版からの物（点に入れない）: main（473e0df）の最後の desktop の仕事は lib の lotdsp_direct::tests::one_watcher_and_the_headless_closes_after_keep_seconds で落ちている（Windows の時間の揺れ。3.116.0 は Releases に載っていない）。bless.py --no-python の「流さなかった試験 n 本」は、frozen-skipped.txt への書き足しが糸の間で混ざって名前が 2 つつながり、6 本を 5 本と数える"
+  ],
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 9,
+    "hierarchy": 7,
+    "visual": 8,
+    "steps": 6,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 7,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "1. PC の指紋の見張り（K2）の「この PC の名前」が、ありふれた PC の名前で誤って落ちる。bless.pc_marks は表の字の中から今の PC の名前（socket.gethostname()）を前後が英数字・_・.・- でない所で探すだけなので、名前が場面の言葉と重なる PC では"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "2. 「焼くときに止まる」の外に、利用者に頼る葉が残る。2 回目の焼きは root のまま流す（採点の first_fixes 8 は daemon）ので、1 回目と利用者が同じで、利用者の名前が表に字のまま入っても「2 回の焼きが同じです」と言う。K2（--check）も利用者の名前は見ない。止め"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "3. Windows の測りのまとめ（bless.py --measured）が、記録の無い表を知らせない。記録のフォルダにある <表>.json だけを数えるので、表だけの形の段が 20 分の上限で切れた・試験が Bake を開く前に落ちた・試験の実行ファイルが落ちた、で記録が出なかった表は、まと"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "4. 時間と置き場の決めが、文書の方で古いまま。(a) check-all は --verify なしで 2,046 秒（34 分。前の版 1,578 秒〈27 分〉から ci-shape 555 → 845・py-tests 327 → 412・cargo-test 618 → 691）なのに、C"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "5. 起こしたままの相手を python -I で起こすと、字の符号の環境変数（PYTHONIOENCODING）が効かない。Live::start_with と rebuild_inner は .env(\"PYTHONIOENCODING\", \"utf-8\") を渡しているが、-I は PYTHO"
+    },
+    {
+     "kind": "more_steps",
+     "where": "6. 小さな後片付け（どれも今は試験を落とさない）: (a) bake_selftest の proxy_and_cert_variables_are_removed_before_the_tests は https_proxy・ALL_PROXY・npm_config_https_proxy・SS"
+    }
+   ],
+   "seen": "切る線の ①〜⑥ は全部入っていて、言ったとおりに動く。(1) Windows の仕事は 2 つに割れ、前の段は 1 つも抜けず、release は両方を待つ。見込みは windows-test 50〜55 分・windows-exe 約 39 分で、上限 90 分に余りができる。(2) 新しい equipgroups・lotdsp の表は、窓の答えの 1 字の変異を Python と比べる形でも Python 無しの形でも落とす。作り物を app から切り離しても Python の答えは変わっていない（lotdsp は 30.5 MB の答えがfake の道と urls の鍵のほか同じ）。見本の表の古さは試験と --check が止める。(3) 起こしたままの相手は app を import せずに起き、試験の後に残らず、並べても取り合わない。名前つきの URL は起こした URL そのものだけに当たる。(4) 別の PC の形の 2 回目は、PC の名前・取り出しの更新時刻・SQLite の版の違いを焼くときに止める。そろえる決まりは 1 字も広がっていない。(5) Windows の測りは、手元でまねると 2 つの形とも 36 表の記録を落とさずに出し、記録から戻せる。段 ④ の入口の条件は計画書で書き直してある。(6) 流すたびに変わる葉は無い（lotdsp は焼き直しても同じバイト）。CI と同じ道・利用者でも通る。前の 2 版のような「CI で初めて落ちる」形は、手元で流せる範囲では見つからなかった。足りないのは次の所。割れ 1: PC の名前の見張りが、ありふれた名前の PC（localhost・desktop・root・PC-1 など）で誤って落ち、そこでは焼けない。割れ 2: 2 回目の焼きが root のままなので、利用者に頼る葉は「同じです」で通り、焼いた後の ci-shape 頼み。割れ 3: 測りのまとめが記録の無い表を言わない（上限で切れても「違う歩 0」）。割れ 4: check-all が 34 分に延び、CLAUDE.md と yml の時間・成果物の名前が古い。割れ 5: -I の下では符号の環境変数が効かず、作り物が日本語を書くと Windows で黙って終わる（3.117.1 の落とし穴）。割れ 6: 小さな後片付け 4 つ。ほかに、まだ確かめられていない物: Windows の本物（仕事の時間・2 つの形の数・改行の直しの効き目）は最初の CI でしか出ない。窓の通し（verify）は 0533d8a でまだ通っていない（コンテナの再起動で切れた。作った係が流し直す）。表は 30.37 MB（上限 40。残り 5 本で 36〜37 MB の見込み）で、lotdsp の 5.96 MB は本文を 16 進で持つ分が大きい"
+  }
+ }
+}

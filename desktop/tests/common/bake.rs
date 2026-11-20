@@ -1309,8 +1309,10 @@ pub fn frozen_python(why: &str) -> bool {
         eprintln!("凍らせた Python を相手にする試験なので流しません（TPA_NO_PYTHON）: {why}");
         use std::io::Write;
         let p = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("frozen-skipped.txt");
+        // 1 行を 1 回の write で書く（版 3.117.0 の作った後の直し: writeln! は名前と改行を別の write にし、糸の間で混ざって
+        // 名前が 2 つつながり、bless.py --no-python が 6 本を 5 本と数えた。O_APPEND の小さな 1 回の書き込みは混ざらない）
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
-            let _ = writeln!(f, "{why}");
+            let _ = f.write_all(format!("{why}\n").as_bytes());
         }
         return false;
     }

@@ -42,8 +42,9 @@ from pathlib import Path
 PROGRAM = Path(__file__).resolve().parents[1]
 REPO = PROGRAM.parent
 DESKTOP = REPO / "desktop"
-BOOKS = json.loads((DESKTOP / "tests" / "baked" / "books.json").read_text(encoding="utf-8"))["books"]
-PHASES = ("3.115.0", "3.116.0", "3.117.0")
+_BOOKS_JSON = json.loads((DESKTOP / "tests" / "baked" / "books.json").read_text(encoding="utf-8"))
+BOOKS = _BOOKS_JSON["books"]
+PHASES = tuple(_BOOKS_JSON["bakedPhases"])        # 焼いてある版（books.json の 1 か所）
 SHAPES = ("runner", "nopy", "nodns")
 # 閉じた口（discard。何も聞いていない）。プロキシの環境変数に置く: 試験が頭で外し忘れた道は、ここへつなぎに行って落ちる
 CLOSED_PROXY = "http://127.0.0.1:9"

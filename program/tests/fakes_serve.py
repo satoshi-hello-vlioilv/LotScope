@@ -38,16 +38,33 @@ def start(kind, *args):
     return importlib.import_module(f"fakes_{kind}").start(*args)
 
 
+def utf8_pipes():
+    """標準入出力を UTF-8 に決める（版 3.117.0 の作った後の直し・割れ 5: python -I は PYTHONIOENCODING を読まないので、Windows の
+    パイプはその PC の符号〈cp1252・cp932〉になり、ASCII でない字の答えを書くと落ちた）"""
+    for f in (sys.stdin, sys.stdout, sys.stderr):
+        with contextlib.suppress(AttributeError, ValueError):
+            f.reconfigure(encoding="utf-8")
+
+
+def answer(fake, line):
+    """尋ねられた 1 行への答えの 1 行（JSON）。答える口の中の誤りは飲まずに {"error": …} で答える（前は黙って相手が終わった）"""
+    try:
+        return json.dumps(fake["ask"](line), ensure_ascii=False, default=str)
+    except Exception as e:      # noqa: BLE001  試験の相手: 誤りの訳を窓の試験の記録に出す
+        return json.dumps({"error": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
+
+
 def main():
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
+    utf8_pipes()
     fake = start(*sys.argv[1:])
     sys.stdout.write(json.dumps({"urls": fake["urls"]}, ensure_ascii=False) + "\n")
     sys.stdout.flush()
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(BrokenPipeError, KeyboardInterrupt):
         for line in sys.stdin:          # 標準入力が閉じるまで起こしておく
             if fake.get("ask") and line.strip():
-                sys.stdout.write(json.dumps(fake["ask"](line), ensure_ascii=False, default=str) + "\n")
+                sys.stdout.write(answer(fake, line) + "\n")
                 sys.stdout.flush()
     fake["close"]()
 

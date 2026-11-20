@@ -3833,7 +3833,7 @@
   "links": {}
  },
  "sources": {
-  "tests/lotlist_fixture.py": "1647f818c953fdbd",
+  "tests/lotlist_fixture.py": "2bb8ea3b0a45d69d",
   "tests/lotlist_oracle.py": "df32cb2dc4c83ed6"
  },
  "variant": "root"

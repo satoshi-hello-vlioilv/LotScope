@@ -68,6 +68,41 @@ class FakesServe(unittest.TestCase):
             self.assertEqual(ask("count py sjis"), 0, "係（道の頭）ごとに数える")
             self.stop(p)
 
+    def test_non_ascii_answers_survive_a_non_utf8_pipe_under_isolated_mode(self):
+        """python -I は PYTHONIOENCODING を読まない（版 3.117.0 の作った後の採点の割れ 5）。Windows のパイプ（その PC の符号）をまねて、
+        標準入出力を ascii にした上で起こしても、ASCII でない字の名乗りと答えを UTF-8 の 1 行で書く。答える口の誤りは {"error": …} の 1 行で答える。
+        作り物は一時フォルダに写した入口の隣に置く（取り出しの中に書かない）"""
+        with tempfile.TemporaryDirectory() as d:
+            here = Path(d)
+            (here / "fakes_serve.py").write_bytes((PROGRAM / "tests" / "fakes_serve.py").read_bytes())
+            (here / "fakes_zz.py").write_text(
+                "def start():\n"
+                "    def ask(line):\n"
+                "        if line.strip() == 'boom':\n"
+                "            raise ValueError('設備が無い')\n"
+                "        return {'名前': '設備L-1', 'line': line.strip()}\n"
+                "    return {'urls': {'x': 'http://127.0.0.1:1/設備'}, 'close': lambda: None, 'ask': ask}\n", encoding="utf-8")
+            code = ("import io, runpy, sys; sys.argv = sys.argv[1:]; "
+                    "sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='ascii'); "
+                    "sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='ascii', errors='replace'); "
+                    "runpy.run_path(sys.argv[0], run_name='__main__')")
+            p = subprocess.Popen([sys.executable, "-I", "-c", code, str(here / "fakes_serve.py"), "zz"], stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**__import__("os").environ, "PYTHONIOENCODING": "ascii"})
+            try:
+                first = json.loads(p.stdout.readline().decode("utf-8"))
+                self.assertEqual(first["urls"]["x"], "http://127.0.0.1:1/設備")
+                for line, want in ((b"ask\n", {"名前": "設備L-1", "line": "ask"}), (b"boom\n", {"error": "ValueError: 設備が無い"})):
+                    p.stdin.write(line)
+                    p.stdin.flush()
+                    self.assertEqual(json.loads(p.stdout.readline().decode("utf-8")), want)
+                p.stdin.close()
+                self.assertEqual(p.wait(timeout=10), 0, p.stderr.read().decode("utf-8", "replace"))
+            finally:
+                if p.poll() is None:
+                    p.kill()
+                p.stdout.close()
+                p.stderr.close()
+
     def test_an_unknown_kind_is_refused(self):
         r = subprocess.run([sys.executable, "-I", str(PROGRAM / "tests" / "fakes_serve.py"), "../x"], capture_output=True, text=True, encoding="utf-8")
         self.assertNotEqual(r.returncode, 0)

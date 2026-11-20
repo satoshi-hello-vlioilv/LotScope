@@ -32,7 +32,7 @@ def tables():
         "L7150C0": ok(h1), "L7151C0": ok(h2), "L7152C0": ok(h3),
         "E500": raw(500, "oops"), "EJSON": raw(200, "<html>login</html>"),
         "EBIZ": raw(200, json.dumps({"status": "ERROR", "errorMessage": "業務の誤り"}, ensure_ascii=False)),
-        "EBIZ2": raw(200, json.dumps({"status": "ERROR"})), "EARR": raw(200, "[1, 2]"), "EBOM": raw(200, "﻿" + ok(h1)["text"]),
+        "EBIZ2": raw(200, json.dumps({"status": "ERROR"})), "EARR": raw(200, "[1, 2]"), "EBOM": raw(200, "\ufeff" + ok(h1)["text"]),
         "ENOENT": raw(200, json.dumps({"status": "OK"})), "ESLOW": raw(200, ok(h1)["text"], 2.5), "ENOTDICT": raw(200, json.dumps({"entity": [1]})),
         "EMIS": ok(h2), "E307": raw(307, ""),
     }}

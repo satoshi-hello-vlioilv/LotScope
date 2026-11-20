@@ -5,7 +5,7 @@
 # main に入ったとき（と手で全部を動かしたとき）は、両方が通った後に、確かめ終えた配る ZIP を GitHub の Releases にも版の札（v<版>）で載せる（release）。
 # 割った訳: 1 つの仕事は約 80 分（cargo test 約 40 分〈route_reach だけで約 19 分〉・release の組み立て 6 分・自己診断 3 分・更新の通し 約 28 分）で、
 # 上限 90 分に余りが約 10 分しか無かった（PR #116）。試験（debug）と exe（release）は別の組み立てなので、割っても組み直しは増えない
-# （取り出しと道具の支度が 2 回になるだけ）。見込みは windows-test 約 44 分・windows-exe 約 39 分。
+# （取り出しと道具の支度が 2 回になるだけ）。見込みは windows-test 約 55 分（cargo test 約 44 分＋表だけの形の測り 約 10 分）・windows-exe 約 39 分。
 name: desktop
 
 on:
@@ -28,7 +28,7 @@ permissions:
 jobs:
   # Rust の試験（debug）と、Windows の本物で流す Python の試験。exe は作らない（windows-exe）
   windows-test:
-    # 上限は割る前と同じ 90 分（見込みは約 44 分。rust-cache の鍵〈Cargo.toml・Cargo.lock〉が変わった版は全部を組み直して数分増える）
+    # 上限は割る前と同じ 90 分（見込みは約 55 分: cargo test 約 44 分＋表だけの形の測り 約 10 分〈Python と比べる形の焼いた本の試験の計 約 600 秒から〉。rust-cache の鍵〈Cargo.toml・Cargo.lock〉が変わった版は全部を組み直して数分増える）
     runs-on: windows-latest
     timeout-minutes: 90
     defaults:

@@ -554,6 +554,25 @@ fn urls_of_live_fakes_are_settled_by_name_and_come_back() {
 /// 関係のない変数（名前が _proxy で終わらない）は残す
 #[test]
 fn proxy_and_cert_variables_are_removed_before_the_tests() {
+    // 終わったら（落ちても）置く前の値へ戻す（版 3.117.0 の作った後の直し・割れ 6 (a): 前は TPA_PROXY_LIKE だけを外し、ほかの 4 つを置いたまま
+    // 終わって、同じ実行ファイルの後の試験が clean_command を通さずに起こす子に渡った）
+    struct Restore(Vec<(&'static str, Option<std::ffi::OsString>)>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            for (k, v) in &self.0 {
+                // SAFETY: 置いた時と同じ（この実行ファイルのほかの試験はこれらの変数を読まない）
+                unsafe {
+                    match v {
+                        Some(v) => std::env::set_var(k, v),
+                        None => std::env::remove_var(k),
+                    }
+                }
+            }
+        }
+    }
+    const SET: [&str; 5] = ["https_proxy", "ALL_PROXY", "npm_config_https_proxy", "SSL_CERT_FILE", "TPA_PROXY_LIKE"];
+    let saved: Vec<(&'static str, Option<std::ffi::OsString>)> = SET.iter().map(|k| (*k, std::env::var_os(k))).collect();
+    let restore = Restore(saved.clone());
     // SAFETY: この実行ファイルのほかの試験はこれらの変数を読まない（work() が同じく外すだけ）
     unsafe {
         std::env::set_var("https_proxy", "http://127.0.0.1:9");
@@ -574,7 +593,10 @@ fn proxy_and_cert_variables_are_removed_before_the_tests() {
     let out = String::from_utf8_lossy(&common::clean_command(&mut c).output().unwrap().stdout).into_owned();
     let has = |k: &str| out.lines().any(|l| l.split('=').next() == Some(k));
     assert!(!has("https_proxy") && !has("ALL_PROXY") && !has("SSL_CERT_FILE") && has("TPA_PROXY_LIKE"), "{out}");
-    unsafe { std::env::remove_var("TPA_PROXY_LIKE") };
+    drop(restore);
+    for (k, v) in &saved {
+        assert_eq!(&std::env::var_os(k), v, "{k}: 置く前の値へ戻していない");
+    }
 }
 
 /// 測るだけ（TPA_MEASURE。表と比べない PC〈Windows〉）: 表と違う歩を試験を落とさずに数えて記録に書く

@@ -373,4 +373,6 @@ CASES = [
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "lotlist_fixture.sqlite3"
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
+    # python -I（窓の試験の場面の台本）は PYTHONIOENCODING を読まない。Windows のパイプでも道の字を書けるよう UTF-8 に決める（版 3.117.0）
+    sys.stdout.reconfigure(encoding="utf-8")
     print(out, n, len(make(out, n)))

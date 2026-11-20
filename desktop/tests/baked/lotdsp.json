@@ -1143,7 +1143,7 @@
  },
  "sources": {
   "tests/fakes_lotdsp.py": "bc347ad033af53a2",
-  "tests/fakes_serve.py": "4c5908c20f7f4562",
+  "tests/fakes_serve.py": "fc71085077c6898b",
   "tests/fixtures/lotdsp_fake_tables.json": "69891fd381d6bcf0",
   "tests/fixtures/lotdsp_html_cases.json": "a8785df10c9266a5",
   "tests/fixtures/lotdsp_progress_L7150C0.html": "a237cc8ed251665d",

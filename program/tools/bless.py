@@ -5,6 +5,8 @@
                                             2 回目は「別の PC の形」で流す（版 3.117.0。tools/ci-shape.py の runner の形: PC の名前を替えた名前空間・
                                             TMPDIR は別のファイル系・SQLite の版が違う Python・取り出しは 5 日前の 775/664・プロキシと TLS の根の
                                             環境変数。利用者は root のまま）。焼いた PC に頼る葉があれば、CI でなく焼くときに止まる。
+                                            同じだったら、焼いた表を runner の形の root でない利用者（daemon）で表と比べるだけでもう 1 度流す
+                                            （3 回目。版 3.117.0 の作った後の直し: 利用者に頼る葉〈名前を書く欄の利用者の名前など〉を焼くときに止める。落ちたら元の表に戻す）。
                                             流せない PC（root でない・unshare が無い）では焼かない。終わりに焼いた PC の指紋が表に無いかも見る
     python tools/bless.py --all           … 焼く本すべて（desktop/tests/baked/books.json の phase が 3.115.0・3.116.0）
     python tools/bless.py --stats [--base 版] … 本ごとの表の大きさ（UTF-8 のバイト）・歩・葉・そろえた印（@T・@URL・@WORK など）の数を出す
@@ -12,12 +14,14 @@
     python tools/bless.py --user 本 …     … root でない利用者（nobody）で試験の実行ファイルを流し、root と違う歩を variants.user に焼く（fs・place・release_place）
     python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
     python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
-                                            tests/test_baked_tables.py からも流れる）。違えば終了コード 1
+                                            tests/test_baked_tables.py からも流れる）。焼いた PC の指紋（名乗りの欄の PC の名前・名前を書く欄の利用者の名前・
+                                            一時フォルダ・ポート・ファイルID）も見る。違えば終了コード 1
     python tools/bless.py --measured フォルダ … [--json] … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
                                             本ごとに「焼いた表（posix）と違う歩」の数と、違う葉の鍵・見本を出す（落とさない。終了コード 0）。
                                             フォルダは流した形ごと（Python と比べる形・表だけの形〈TPA_NO_PYTHON=1。段 ④ の後の形〉）で、形ごとに別の行で出す。
-                                            --json は記録そのものを 1 表 1 行（「measure-json| 」で始まる行）でも出す（成果物を取れないときは仕事の記録から読む）
-    python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す
+                                            --json は記録そのものを 1 表 1 行（「measure-json| 」で始まる行）でも出す（成果物を取れないときは仕事の記録から読む）。
+                                            焼いた表の一覧と比べ、形ごとに「記録の無い表 n（名前）」も出す（--skip-test 試験,… で流さなかった試験だけが焼く表は除く）
+    python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す（読めなかった行の数も言う）
     python tools/bless.py --no-python --all --skip-test 試験,… … Python 無しの形で流すが、名前を挙げた試験は流さない（Windows の測り: route_reach は長い）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
 
@@ -38,9 +42,11 @@ from pathlib import Path
 PROGRAM = Path(__file__).resolve().parents[1]
 DESKTOP = PROGRAM.parent / "desktop"
 BAKED = DESKTOP / "tests" / "baked"
-BOOKS = json.loads((BAKED / "books.json").read_text(encoding="utf-8"))["books"]
-# 焼いてある本の phase（3.115.0 の 21 本・3.116.0 の 7 本・3.117.0 の本）。それより先の版（3.117.1・3.117.2）は、まだ焼いていない本
-PHASES = ("3.115.0", "3.116.0", "3.117.0")
+_BOOKS_JSON = json.loads((BAKED / "books.json").read_text(encoding="utf-8"))
+BOOKS = _BOOKS_JSON["books"]
+# 焼いてある本の phase（books.json の bakedPhases。3.115.0 の 21 本・3.116.0 の 7 本・3.117.0 の本）。それより先の版（3.117.1・3.117.2）は、
+# まだ焼いていない本。並びは books.json の 1 か所（ci-shape.py・tests/test_baked_tables.py も読む）
+PHASES = tuple(_BOOKS_JSON["bakedPhases"])
 # 表の大きさの上限（UTF-8 のバイト。版 3.116.0 の採点の first_fixes 3）: 本ごと（books.json の maxMB。無ければ 1.5 MB）と全部の計
 MAX_MB = 1.5
 MAX_TOTAL_MB = 40.0
@@ -185,19 +191,71 @@ PC_FID = re.compile(r"(?<![\d:.T\- /])(\d{2,6}):(\d{3,})(?![\d:.])")
 PC_TMP = r"/(?:da|tpa|ci-shape|bless)-[A-Za-z0-9_.-]+"
 
 
-def pc_marks(text, host=None, tmp=None):
-    """表の字（ファイルの中身）に残った焼いた PC の指紋 → [(種類, 見本)]。host・tmp は試験が決める（無ければこの PC の名前・一時フォルダ）"""
+# 名乗りの欄（版 3.117.0 の作った後の直し・割れ 1）: この PC の名前を探すのは、窓が名乗りに書く所だけ（表の「pc」の欄・名乗りの鍵
+# 「端末@利用者」の頭・書いた人の言葉「PC 名前 が」）。前は表の字の全部から探し、localhost・desktop・root・PC-1 など場面の言葉と重なる
+# 名前の PC では、どの表にも「指紋が残っている」と言った
+PC_FIELDS = (r'"pc"\s*:\s*"{h}"', r'"key"\s*:\s*"{h}@', r'PC {h} ?が')
+# 利用者の名前を書く欄（desktop/tests/baked/settle.json の nameKeys。割れ 2）: 焼いた利用者の名前が @USER でなく字のまま残っていてはいけない
+NAME_KEYS = tuple(json.loads((BAKED / "settle.json").read_text(encoding="utf-8")).get("nameKeys", ()))
+
+
+def os_user():
+    """この PC の利用者の名前（desktop/tests/common/bake.rs の os_user と同じ順: LOGNAME・USER・LNAME・USERNAME・pwd）"""
+    import getpass
+    try:
+        return getpass.getuser()
+    except Exception:
+        return ""
+
+
+def spoken(text, book=None):
+    """場面が決めた名前の言葉: 表の問い合わせ（oracle）と場面（scene）の字と、本の元（答え合わせ役など）の字。そこに出る名前は、
+    答え合わせ役が場面に決めた名前（焼いた PC の指紋ではない）"""
+    try:
+        t = unpack_table(json.loads(text))
+        asked = json.dumps([t.get("oracle"), t.get("scene")], ensure_ascii=False) if isinstance(t, dict) else ""
+    except (ValueError, KeyError, TypeError, AttributeError):
+        asked = ""
+    src = ""
+    for rel in BOOKS.get(book, {}).get("sources", []) if book else []:
+        f = PROGRAM / rel
+        src += f.read_text(encoding="utf-8", errors="replace") + "\n" if f.exists() else ""
+    return asked, src
+
+
+def pc_marks(text, host=None, tmp=None, user=None, book=None):
+    """表の字（ファイルの中身）に残った焼いた PC の指紋 → [(種類, 見本)]。host・tmp・user は試験が決める（無ければこの PC の名前・一時フォルダ・利用者）。
+    名前（PC の名前・利用者）は名乗りの欄だけを見て、場面が決めた名前（問い合わせと場面の字に出る・本の元に字〈"名前"〉で書いてある）は飛ばす
+    （版 3.117.0 の作った後の直し・割れ 1・2）。book は表の本（check が渡す）"""
     import socket
     host = socket.gethostname() if host is None else host
+    user = os_user() if user is None else user
     tmps = {"/tmp", "/dev/shm", "/var/tmp", (tempfile.gettempdir() if tmp is None else tmp).rstrip("/")}
     out = []
+    said = []
 
     def hit(why, m):
         out.append((why, text[max(0, m.start() - 40):m.end() + 20].replace("\n", " ")))
+
+    def named(pats, name):
+        h = re.escape(json.dumps(name)[1:-1])
+        m = next((m for pat in pats for m in [re.search(pat.format(h=h), text)] if m), None)
+        if not m:
+            return None
+        if not said:
+            said.extend(spoken(text, book))
+        asked, src = said
+        if re.search(r"(?<![A-Za-z0-9_.-])" + h + r"(?![A-Za-z0-9_.-])", asked) or re.search(r"([\"'])" + re.escape(name) + r"\1", src):
+            return None
+        return m
     if len(host) >= 2:
-        m = re.search(r"(?<![A-Za-z0-9_.-])" + re.escape(json.dumps(host)[1:-1]) + r"(?![A-Za-z0-9_.-])", text)
+        m = named(PC_FIELDS, host)
         if m:
             hit(f"この PC の名前（{host}。@HOST にそろえるか、場面で identity.pc_name を決める）", m)
+    if user and user != "@USER":
+        m = named(tuple(r'"' + re.escape(k) + r'"\s*:\s*"{h}"' for k in NAME_KEYS), user)
+        if m:
+            hit(f"焼いた利用者の名前（{user}。名前を書く欄 nameKeys は @USER にそろえる。root でない利用者で流すと違う）", m)
     m = re.search("(?:" + "|".join(re.escape(json.dumps(t)[1:-1]) for t in sorted(tmps) if t) + ")" + PC_TMP, text)
     if m:
         hit("一時フォルダの下の作業フォルダ（@WORK にそろえるか、場面を作業フォルダの下に作る）", m)
@@ -227,7 +285,7 @@ def check(baked=None):
         for why, path in local_paths():
             if re.search(re.escape(json.dumps(path)[1:-1]) + r"(?=[/\\\\\"]|$)", text):
                 bad.append(f"{name}: 焼いた PC の{why}（{path}）が字のまま残っている（@REPO・@WORK・@HOME にそろえて焼き直す）")
-        for why, sample in pc_marks(text):
+        for why, sample in pc_marks(text, book=book):
             bad.append(f"{name}: 焼いた PC の指紋が表に残っている: {why} …{sample}…")
         for w in RESOLVER_WORDS:
             if w in text:
@@ -416,6 +474,24 @@ def second_pass(tests, out):
     return failed
 
 
+def user_pass(tests):
+    """3 回目（版 3.117.0 の作った後の直し・割れ 2）: 焼いた表を、ci-shape の runner の形で root でない利用者（daemon）のまま、
+    表と比べるだけ（TPA_BLESS なし）で流す → 落ちた試験の並び。2 回目までは利用者が root のままなので、利用者に頼る葉
+    （名前を書く欄の利用者の名前・家の道・権限）は、ここで止める"""
+    ci = ci_shape()
+    logs = Path(tempfile.mkdtemp(prefix="bless-pass3-"))
+    os.chmod(logs, 0o755)
+    extra = {k: os.environ[k] for k in ("TPA_SETTLE_DROP",) if os.environ.get(k)}
+    bins = {t: exe for t, exe in ci.test_bins(tests).items() if t in tests}
+    _, failed, why = ci.run_shape("runner", bins, logs, False, extra)
+    if why:
+        sys.exit(f"3 回目（root でない利用者の形）を流せません（{why}）")
+    for t in failed:
+        sys.stderr.write((logs / f"runner-{t}.log").read_text(encoding="utf-8", errors="replace")[-6000:])
+    shutil.rmtree(logs, ignore_errors=True)
+    return failed
+
+
 def bless(books):
     tests = tests_of(books)
     why = ci_shape().cannot_run()
@@ -459,8 +535,14 @@ def bless(books):
     if left:
         restore(books, keep)
         sys.exit("\n".join(left) + "\n元の表に戻しました")
-    print("2 回の焼き（2 回目は別の PC の形）が同じです:", " ".join(books))
-    print("続けて、CI に似せた 3 つの形でも流してください: python program/tools/ci-shape.py --book " + ",".join(books))
+    # 3 回目: root でない利用者（ci-shape の runner の形・表と比べるだけ）。落ちたら表を戻す
+    failed = user_pass(tests)
+    if failed:
+        restore(books, keep)
+        sys.exit(f"焼いた表を root でない利用者（ci-shape の runner の形）で比べると落ちました: {' '.join(failed)}"
+                 "（利用者に頼る葉がある。名前を書く欄は settle.json の nameKeys で @USER にそろえる）。元の表に戻しました")
+    print("2 回の焼き（2 回目は別の PC の形）が同じで、root でない利用者の形でも表と同じです:", " ".join(books))
+    print("続けて、CI に似せたほかの形（nopy・nodns）でも流してください: python program/tools/ci-shape.py --shape nopy,nodns --book " + ",".join(books))
 
 
 def restore(books, keep):
@@ -532,14 +614,23 @@ FORMS = {"python": "Python と比べる形（その PC の Python が場面を�
 JSON_LINE = "measure-json| "
 
 
-def measured(folders, as_json=False):
+def expected_tables(skip=()):
+    """測りの記録があるはずの表（焼いた表の全部から、試験を全部 skip した本の表を除く）。skip は流さなかった試験（--skip-test）"""
+    return sorted(n for n, b in tables().items() if not all(t in skip for t in BOOKS.get(b, {}).get("tests", [])))
+
+
+def measured(folders, as_json=False, skip=()):
     """測るだけの仕事の記録（desktop/tests/common/bake.rs が TPA_MEASURE のフォルダに書いた <表>.json）のまとめ。落とさない。
-    フォルダは流した形ごと（記録の form: python・table）。形ごとに別の行で出す（版 3.117.0）"""
+    フォルダは流した形ごと（記録の form: python・table）。形ごとに別の行で出す（版 3.117.0）。
+    焼いた表の一覧と比べ、記録の無い表（段が上限で切れた・試験が Bake を開く前に落ちた）を名前で出す（版 3.117.0 の作った後の直し・割れ 3。
+    skip は流さなかった試験〈--skip-test〉で、その試験だけが焼く本の表は数えない）"""
+    want = expected_tables(skip)
     for folder in folders:
         files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
         if not files:
-            print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません")
+            print(f"測りの記録がありません（{folder}）。焼いた本の試験が TPA_MEASURE つきで流れていません（記録の無い表 {len(want)}）")
             continue
+        absent = [n for n in want if n not in {f.stem for f in files}]
         steps = differ = unanswered = 0
         noscene, cut_short, forms = [], [], set()
         rows = []
@@ -579,7 +670,8 @@ def measured(folders, as_json=False):
         print(f"計（{form}）: 表 {len(files)} つ・歩 {steps}・焼いた表（posix）と違う歩 {differ}・表にあって答えない歩 {unanswered}"
               f"・場面を作れなかった表 {len(noscene)}" + (f"（{' '.join(noscene)}）" if noscene else "")
               + f"・終わりまで流れなかった表 {len(cut_short)}" + (f"（{' '.join(cut_short)}）" if cut_short else "")
-              + "（違う歩が 0 の表は Windows でもそのまま表と比べられる）")
+              + f"・記録の無い表 {len(absent)}" + (f"（{' '.join(absent)}）" if absent else "")
+              + "（違う歩が 0 の表は Windows でもそのまま表と比べられる。記録の無い表は数に入っていない）")
     if as_json:
         # 記録そのもの（1 表 1 行）。成果物の置き場に届かない所からでも、仕事の記録（log）から --from-log で戻せる
         for folder in folders:
@@ -592,21 +684,25 @@ def measured(folders, as_json=False):
 
 
 def from_log(log, out):
-    """仕事の記録（--measured … --json の行）から、測りの記録を <out>/<形>/<表>.json に戻す → 戻した数"""
-    n = 0
+    """仕事の記録（--measured … --json の行）から、測りの記録を <out>/<形>/<表>.json に戻す → (戻した数, 読めなかった行の数)
+    （版 3.117.0 の作った後の直し・割れ 3: 前は読めない行〈切れた・壊れた〉を数えずに飛ばした）"""
+    n = bad = 0
     for line in Path(log).read_text(encoding="utf-8", errors="replace").splitlines():
         i = line.find(JSON_LINE)
         if i < 0:
             continue
         try:
             m = json.loads(line[i + len(JSON_LINE):])
+            if not isinstance(m, dict) or not isinstance(m.get("file"), str):
+                raise ValueError("file が無い")
         except ValueError:
+            bad += 1
             continue
         d = Path(out) / m.get("form", "python")
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{m['file']}.json").write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
         n += 1
-    return n
+    return n, bad
 
 
 def main():
@@ -623,20 +719,21 @@ def main():
             print("  知らせ:", line)
         print(f"焼いた表は古くありません（{sum(1 for b in BOOKS if baked(b))} 本・{len(tables())} ファイル）")
         return
-    if args[0] == "--measured":
-        measured([a for a in args[1:] if not a.startswith("--")] or [""], "--json" in args)
-        return
-    if args[0] == "--from-log":
-        print(f"測りの記録 {from_log(args[1], args[2])} 個を {args[2]} に戻しました")
-        return
-    if args[0] == "--stats":
-        stats(args[args.index("--base") + 1] if "--base" in args else None)
-        return
     skip = []
     if "--skip-test" in args:
         i = args.index("--skip-test")
         skip = [x for x in args[i + 1].split(",") if x]
         del args[i:i + 2]
+    if args[0] == "--measured":
+        measured([a for a in args[1:] if not a.startswith("--")] or [""], "--json" in args, skip)
+        return
+    if args[0] == "--from-log":
+        n, bad = from_log(args[1], args[2])
+        print(f"測りの記録 {n} 個を {args[2]} に戻しました" + (f"（読めなかった行 {bad}）" if bad else "・読めなかった行 0"))
+        return
+    if args[0] == "--stats":
+        stats(args[args.index("--base") + 1] if "--base" in args else None)
+        return
     books = [b for b in BOOKS if baked(b)] if "--all" in args else [a for a in args if not a.startswith("--")]
     if args[0] == "--scope":
         scope, books = args[1], args[2:]
@@ -652,7 +749,8 @@ def main():
         skipped = Path(os.environ.get("CARGO_TARGET_DIR", DESKTOP / "target")) / "tmp" / "frozen-skipped.txt"
         skipped.unlink(missing_ok=True)
         rc = cargo([t for t in tests_of(books) if t not in skip], {"TPA_NO_PYTHON": "1"})
-        names = skipped.read_text(encoding="utf-8").split() if skipped.exists() else []
+        # 1 行に 1 つ（窓の試験が 1 回の write で書く）。同じ名前は 1 本に数える
+        names = list(dict.fromkeys(x.strip() for x in skipped.read_text(encoding="utf-8").splitlines() if x.strip())) if skipped.exists() else []
         print(f"流さなかった試験（凍らせた Python を相手にする） {len(names)} 本: " + " ".join(names))
         sys.exit(rc)
     else:

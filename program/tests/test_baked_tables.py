@@ -36,9 +36,12 @@ class BakedTables(unittest.TestCase):
         for k in by["3.117.1"] + by["3.117.2"]:
             self.assertTrue(bless.BOOKS[k].get("why"), f"{k}: 後の版へ送った理由が無い")
         self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0", "keep"} | {ph for ph, ks in by.items() if ks})
-        # 焼く版（bless.py・ci-shape.py の PHASES）は同じ並び
-        self.assertEqual(bless.PHASES, ("3.115.0", "3.116.0", "3.117.0"))
+        # 焼く版（bless.py・ci-shape.py の PHASES）は books.json の bakedPhases の 1 か所から読む（版 3.117.0 の作った後の直し・割れ 6 (d)）
+        phases = json.loads((bless.BAKED / "books.json").read_text(encoding="utf-8"))["bakedPhases"]
+        self.assertEqual(list(bless.PHASES), phases)
         self.assertEqual(bless.ci_shape().PHASES, bless.PHASES)
+        self.assertEqual(phases, ["3.115.0", "3.116.0", "3.117.0"], "この版で焼いた版の並び（版を足したらここも）")
+        self.assertEqual({b["phase"] for b in bless.BOOKS.values() if b["phase"] in phases}, set(phases), "焼いた版ごとに本がある")
 
     def test_packed_tables_open_and_stay_under_the_size_limits(self):
         """詰めた表（版 3.116.0。parts・@same・@rep）は開ける・大きさ（UTF-8 のバイト）は上限の内。変異: 上限を下げる・参照の先を消すと落ちる"""
@@ -99,13 +102,14 @@ class BakedTables(unittest.TestCase):
         fakes = PROGRAM / "tests" / "fakes_serve.py"
         log.write_text(f"TPA\t-I\t{fakes}\tequipgroups\nTPA\t-I\t{fakes}\tschedule\t/tmp/x/LOTNOW.sqlite3\nTPA\t-I\t{fakes}\tlotdsp\n", encoding="utf-8")
         self.assertEqual(ci.python_calls_ok(log), [])
-        bad = PROGRAM / "tests" / "fakes_zz_selftest.py"
-        try:
-            bad.write_text("from app import create_app\n\n\ndef start():\n    return create_app\n", encoding="utf-8")
-            log.write_text(f"TPA\t-I\t{fakes}\tzz_selftest\n", encoding="utf-8")
-            self.assertEqual(len(ci.python_calls_ok(log)), 1, "app を import する作り物は見つける")
-        finally:
-            bad.unlink(missing_ok=True)
+        # app を import する作り物（取り出しの中に書かない: 一時フォルダに写した入口の隣に置く。版 3.117.0 の作った後の直し・割れ 6 (b)）
+        side = log.parent / "side"
+        side.mkdir()
+        shutil.copy(fakes, side / "fakes_serve.py")
+        (side / "fakes_zz_selftest.py").write_text("from app import create_app\n\n\ndef start():\n    return create_app\n", encoding="utf-8")
+        log.write_text(f"TPA\t-I\t{side / 'fakes_serve.py'}\tzz_selftest\n", encoding="utf-8")
+        self.assertEqual(len(ci.python_calls_ok(log)), 1, "app を import する作り物は見つける")
+        self.assertFalse((PROGRAM / "tests" / "fakes_zz_selftest.py").exists(), "取り出しの中に書かない")
         log.write_text(f"TPA\t{PROGRAM / 'tests' / 'calc_oracle.py'}\tx\nPATH\t-V\n", encoding="utf-8")
         self.assertEqual(len(ci.python_calls_ok(log)), 2, "app を import する台本と PATH の python は見つける")
         shutil.rmtree(log.parent, ignore_errors=True)
@@ -262,10 +266,48 @@ class BakedTables(unittest.TestCase):
             # 仕事の記録（log。行の頭に時刻が付く）から戻す
             log = tmp / "job.log"
             log.write_text("\n".join("2026-11-19T13:16:56.9Z " + line for line in text.splitlines()), encoding="utf-8")
-            self.assertEqual(bless.from_log(log, tmp / "back"), 3)
+            self.assertEqual(bless.from_log(log, tmp / "back"), (3, 0))
+            # 読めない行（途中で切れた・file の無い）は数えて言う（版 3.117.0 の作った後の直し・割れ 3）
+            cut = tmp / "cut.log"
+            cut.write_text(log.read_text(encoding="utf-8") + "\nx " + bless.JSON_LINE + '{"file": "calc", "ste\n' + bless.JSON_LINE + '{"steps": 1}\n',
+                           encoding="utf-8")
+            self.assertEqual(bless.from_log(cut, tmp / "back2"), (3, 2))
             for form, name in (("python", "calc"), ("table", "calc"), ("table", "fs")):
                 src = json.loads(((py if form == "python" else tab) / f"{name}.json").read_text(encoding="utf-8"))
                 self.assertEqual(json.loads((tmp / "back" / form / f"{name}.json").read_text(encoding="utf-8")), src)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_the_measure_summary_names_the_tables_without_a_record(self):
+        """測りのまとめは、焼いた表の一覧と比べて記録の無い表を名前で出す（版 3.117.0 の作った後の採点の割れ 3: 前は記録のある表だけを数え、
+        段が上限で切れた・試験が Bake を開く前に落ちた表は、計の「違う歩 0」の側に黙って抜けた）。流さなかった試験（--skip-test）だけが焼く本の表は数えない"""
+        import contextlib
+        import io
+        want = bless.expected_tables()
+        self.assertEqual(want, sorted(bless.tables()))
+        self.assertEqual(bless.expected_tables(["route_reach"]), want, "settings の表はほかの試験（bundle_parity・page_parity）も焼く")
+        self.assertNotIn("calc", bless.expected_tables(bless.BOOKS["calc"]["tests"]))
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            for name in want:
+                (tmp / f"{name}.json").write_text(json.dumps({"file": name, "os": "windows", "form": "table", "finished": True, "steps": 1,
+                                                               "missing": [], "differing": []}), encoding="utf-8")
+
+            def summary(**kw):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    bless.measured([tmp], **kw)
+                return out.getvalue()
+            self.assertIn(f"表 {len(want)} つ・歩 {len(want)}・焼いた表（posix）と違う歩 0", summary())
+            self.assertIn("・記録の無い表 0（", summary())
+            (tmp / "lotdsp.json").unlink()
+            text = summary()
+            self.assertIn(f"表 {len(want) - 1} つ", text)
+            self.assertIn("・記録の無い表 1（lotdsp）", text)
+            self.assertIn("・記録の無い表 0（", summary(skip=bless.BOOKS["lotdsp"]["tests"]), "流さなかった試験の表は数えない")
+            for p in tmp.glob("*.json"):
+                p.unlink()
+            self.assertIn(f"記録の無い表 {len(want)}", summary())
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
@@ -345,6 +387,19 @@ class BakedTables(unittest.TestCase):
                    '{"dir": "/tmp/x/../y"}', '{"dir": "@WORK/share"}', f'{{"pc": "{host}x", "who": "x{host}"}}', '{"range": "1:1000 の比"}',
                    '{"span": "2026-10-02T10:30:00/2026-10-03T08:15:30"}'):
             self.assertEqual(bless.pc_marks(ok), [], ok)
+        # ありふれた PC の名前（localhost・desktop・root・PC-1 など。コンテナ・WSL・仮想の PC に多い）でも、今の表に誤って当たらない
+        # （版 3.117.0 の作った後の採点の割れ 1: 前は表の字の全部から探し、localhost で fs・root と desktop で 36 表すべてに当たった）。
+        # 見るのは名乗りの欄だけで、場面が決めた名前（問い合わせ・場面の字・本の元の字）は飛ばす
+        for name, book in bless.tables().items():
+            text = (bless.BAKED / f"{name}.json").read_text(encoding="utf-8")
+            for h in ("localhost", "desktop", "root", "PC-1"):
+                self.assertEqual(bless.pc_marks(text, host=h, user="@USER", book=book), [], f"{name}: {h}")
+        # 利用者の名前を書く欄（settle.json の nameKeys）の、焼いた利用者の名前（割れ 2）。ほかの欄・@USER は当たらない
+        self.assertEqual(bless.NAME_KEYS, ("login", "holder_login", "ログインID"))
+        hit = [w for w, _ in bless.pc_marks('{"login": "root"}', host="zz-host", user="root")]
+        self.assertTrue(len(hit) == 1 and "焼いた利用者の名前" in hit[0], hit)
+        for ok in ('{"login": "@USER"}', '{"name": "root", "dir": "/root"}', '{"login": "rootx"}'):
+            self.assertEqual(bless.pc_marks(ok, host="zz-host", user="root"), [], ok)
         # 表に書き込むと --check が落ちる
         tmp = Path(tempfile.mkdtemp())
         try:
@@ -355,6 +410,12 @@ class BakedTables(unittest.TestCase):
             t["routes"]["x"] = "GET /x"
             (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
             self.assertTrue(any(x.startswith("builder: 焼いた PC の指紋") and "ポート" in x for x in bless.check(tmp)))
+            # 名前を書く欄に焼いた利用者の名前（"login":"root" など）を 1 つ書き込むと --check が落ちる（割れ 2: 前は「古くありません」と言った）
+            user = bless.os_user()
+            text = (tmp / "equipgroups.json").read_text(encoding="utf-8")
+            self.assertIn('"login":"@USER"', text)
+            (tmp / "equipgroups.json").write_text(text.replace('"login":"@USER"', '"login":' + json.dumps(user), 1), encoding="utf-8")
+            self.assertTrue(any(x.startswith("equipgroups: 焼いた PC の指紋") and "焼いた利用者の名前" in x for x in bless.check(tmp)), user)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

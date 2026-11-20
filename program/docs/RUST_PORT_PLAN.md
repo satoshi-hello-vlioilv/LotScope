@@ -2644,7 +2644,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 
 | 仕事 | 段 | 見込み |
 |---|---|---|
-| `windows-test` | cargo test（`TPA_MEASURE`。Python と比べる形）→ 焼いた本を `TPA_NO_PYTHON=1` でもう 1 回（測るだけ・落ちても続ける）→ 2 つの形の数 → Windows の本物で流す Python の試験 4 段 → 測りの記録の成果物 `desktop-windows-measure` | 約 44 分＋表だけの形 数分 |
+| `windows-test` | cargo test（`TPA_MEASURE`。Python と比べる形）→ 焼いた本を `TPA_NO_PYTHON=1` でもう 1 回（測るだけ・落ちても続ける）→ 2 つの形の数 → Windows の本物で流す Python の試験 4 段 → 測りの記録の成果物 `desktop-windows-measure` | 約 55 分（cargo test 約 44 分＋表だけの形 約 10 分〈Python と比べる形の焼いた本の試験の計 約 600 秒から〉） |
 | `windows-exe` | release の exe → 自己診断（本物の WebView2）→ 更新の通し → 配る ZIP → 成果物 `desktop-windows`（名前は前と同じ） | 約 39 分 |
 | `release` | `needs: [windows-test, windows-exe]`（main だけ） | — |
 
