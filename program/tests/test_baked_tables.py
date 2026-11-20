@@ -283,6 +283,88 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_the_windows_overlay_is_checked_against_the_posix_answers(self):
+        """Windows の上書きの表（tests/baked/nt/<表>.json。版 3.117.3）: 上書きした posix の答えの指紋が今の posix の答えと同じか。
+        変異: posix の答えを 1 字変えると古いと言う・posix と同じ上書き・表に無い流さない歩・流さない歩の上書きも言う"""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            (tmp / "nt").mkdir()
+            posix = {"book": "x", "file": "x", "answers": {"a": {"status": 200, "json": {"e": "Errno 2"}}, "b": {"status": 200}}}
+            (tmp / "x.json").write_text(json.dumps(posix, ensure_ascii=False), encoding="utf-8")
+            win = {"status": 200, "json": {"e": "WinError 2"}}
+            nt = {"book": "x", "file": "x", "answers": {"a": win}, "posix": {"a": bless.nt_print(posix["answers"]["a"])}, "skip": ["b"], "unmade": ["link s/l"]}
+
+            def bad(n=None, p=None):
+                (tmp / "nt" / "x.json").write_text(json.dumps(n or nt, ensure_ascii=False), encoding="utf-8")
+                (tmp / "x.json").write_text(json.dumps(p or posix, ensure_ascii=False), encoding="utf-8")
+                return bless.check_nt(tmp)[0]
+            self.assertEqual(bad(), [])
+            self.assertGreater(bless.check_nt(tmp)[1]["x"], 0, "大きさを本に足す")
+            changed = json.loads(json.dumps(posix))
+            changed["answers"]["a"]["json"]["e"] = "Errno 3"
+            self.assertTrue(any("上書きの元の posix の答えが変わった" in x for x in bad(p=changed)), "posix の答えの 1 字")
+            same = {**nt, "answers": {"a": posix["answers"]["a"]}}
+            self.assertTrue(any("上書きが posix の答えと同じ" in x for x in bad(n=same)))
+            self.assertTrue(any("表に無い" in x for x in bad(n={**nt, "skip": ["b", "無い"]})))
+            self.assertTrue(any("流さない歩に上書き" in x for x in bad(n={**nt, "skip": ["a"]})))
+            self.assertTrue(any("unmade がありません" in x for x in bad(n={k: v for k, v in nt.items() if k != "unmade"})))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_take_nt_reads_the_job_log_and_turns_the_book_to_table(self):
+        """bless.py --take-nt（版 3.117.3）: 仕事の記録の詰めた行（measure-z）から nt の表を書き、本の表のどれもが取り込めた本の札を table にする。
+        今の表で取った記録だけ（tableSha）・終わりまで流れた記録だけ・posix と同じ答えは上書きしない"""
+        import contextlib
+        import io
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            baked = tmp / "baked"
+            baked.mkdir()
+            posix = {"book": "x", "file": "x", "answers": {"a": {"status": 200, "json": {"e": "Errno 2"}}, "b": {"status": 200}, "c": {"status": 1}}}
+            (baked / "x.json").write_text(json.dumps(posix, ensure_ascii=False), encoding="utf-8")
+            (baked / "x.part.json").write_text(json.dumps({**posix, "file": "x.part"}, ensure_ascii=False), encoding="utf-8")
+            books = baked / "books.json"
+            books.write_text(json.dumps({"books": {"x": {"phase": bless.PHASES[0], "windows": "measure", "tests": ["x_parity"]}}}), encoding="utf-8")
+            win = {"status": 200, "json": {"e": "WinError 2"}}
+
+            def rec(name, **kw):
+                return {"file": name, "book": "x", "os": "windows", "form": "table", "finished": True, "steps": 2, "tableSteps": 3,
+                        "differing": [{"key": "a", "route": "GET /a", "diff": "…", "got": win},
+                                      {"key": "c", "route": "GET /c", "diff": "…", "got": {"status": 1}}],
+                        "missing": ["b"], "unmade": ["link s/l"], "tableSha": bless.file_sha(baked / f"{name}.json"), "ntSha": "", **kw}
+            meas = tmp / "m"
+            meas.mkdir()
+            (meas / "x.json").write_text(json.dumps(rec("x"), ensure_ascii=False), encoding="utf-8")
+            (meas / "x.part.json").write_text(json.dumps(rec("x.part", tableSha="別の表"), ensure_ascii=False), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                bless.emit([meas])
+            log = tmp / "job.log"
+            log.write_text("\n".join("2026-11-20T20:45:19.0Z " + line for line in out.getvalue().splitlines()), encoding="utf-8")
+            self.assertIn(bless.JSON_Z, log.read_text(encoding="utf-8"))
+            taken, refused, flipped = bless.take_nt([log], baked=baked, books_json=books)
+            self.assertEqual(taken, ["x"])
+            self.assertTrue(any("x.part: 記録は別の表で取った" in r for r in refused), refused)
+            self.assertEqual(flipped, [], "本の表の 1 つ（x.part）が取り込めないので札は measure のまま")
+            n = json.loads((baked / "nt" / "x.json").read_text(encoding="utf-8"))
+            self.assertEqual(n["answers"], {"a": win}, "posix と同じ答え（c）は上書きしない")
+            self.assertEqual((n["skip"], n["unmade"]), (["b"], ["link s/l"]))
+            self.assertEqual(n["posix"], {"a": bless.nt_print(posix["answers"]["a"])})
+            self.assertEqual(bless.check_nt(baked)[0], [])
+            # 部分の表も今の表で取り直すと、本の札が table に（x は nt の表ができたので ntSha が要る）
+            (meas / "x.part.json").write_text(json.dumps(rec("x.part"), ensure_ascii=False), encoding="utf-8")
+            (meas / "x.json").write_text(json.dumps(rec("x", ntSha=bless.file_sha(baked / "nt" / "x.json"), differing=[]), ensure_ascii=False), encoding="utf-8")
+            taken, refused, flipped = bless.take_nt([meas], baked=baked, books_json=books)
+            self.assertEqual((sorted(taken), refused, flipped), (["x", "x.part"], [], ["x"]))
+            self.assertEqual(json.loads(books.read_text(encoding="utf-8"))["books"]["x"]["windows"], "table")
+            self.assertEqual(json.loads((baked / "nt" / "x.json").read_text(encoding="utf-8"))["answers"], {"a": win}, "前の上書きは残す")
+            # 終わりまで流れなかった記録・got の無い前の記録は取り込まない
+            for bad, why in ((rec("x", finished=False), "終わりまで流れなかった"), (rec("x", differing=[{"key": "a", "diff": "…"}]), "got が無い")):
+                (meas / "x.json").write_text(json.dumps({**bad, "ntSha": bless.file_sha(baked / "nt" / "x.json")}, ensure_ascii=False), encoding="utf-8")
+                self.assertTrue(any(why in r for r in bless.take_nt([meas], baked=baked, books_json=books)[1]), why)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_the_measure_summary_names_the_tables_without_a_record(self):
         """測りのまとめは、焼いた表の一覧と比べて記録の無い表を名前で出す（版 3.117.0 の作った後の採点の割れ 3: 前は記録のある表だけを数え、
         段が上限で切れた・試験が Bake を開く前に落ちた表は、計の「違う歩 0」の側に黙って抜けた）。流さなかった試験（--skip-test）だけが焼く本の表は数えない"""
