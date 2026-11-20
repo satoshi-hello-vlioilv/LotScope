@@ -1098,17 +1098,12 @@ pub fn serve_404() -> String {
     url
 }
 
-/// ファイルID（Python の work_log.file_id と同じ「装置:inode」の形。窓の same_fid で比べる）
+/// ファイルID（Python の work_log.file_id と同じ形。窓の same_fid で比べる）。窓の lists::file_id をそのまま呼ぶ（版 3.117.2 の作った後の
+/// 採点の割れ 2: 前は試験に unix の「装置:inode」の写しだけを持ち、Windows では空を返して、表だけの形で名前を変えた HOT を同じファイルID で
+/// たどる歩が落ちる形だった。Windows は窓と同じ「巻の番号:ファイル番号:作った時刻 ns」。bake_selftest の
+/// the_scene_file_id_is_the_window_file_id）
 pub fn fid_of(p: &Path) -> String {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if let Ok(m) = std::fs::metadata(p) {
-            return format!("{}:{}", m.dev(), m.ino());
-        }
-    }
-    let _ = p;
-    String::new()
+    da_core::lists::file_id(p)
 }
 
 /// @FID(場面の道) を今のファイルID に

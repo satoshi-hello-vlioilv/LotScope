@@ -231,7 +231,9 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     # sceneMade: 場面の台本が作ったファイル・fids: そのファイルID（焼いた表は登録のマスタの中のファイルID を @FID にする）・
     # named: 名前つきの歩（SL3 は 404・missing／BAD は 503・copying。first_fixes 6 を窓の試験が言う）
-    named = {"SL3": f"GET /api/worklog?{urlencode({'equip': eq['SL3']})}", "BAD": f"GET /api/worklog?{urlencode({'equip': eq['BAD']})}"}
+    # HOT（更新が止まった 40 時間前）は一覧の写しの様子が stale=true（版 3.117.2 の作った後の採点の割れ 1）
+    named = {"SL3": f"GET /api/worklog?{urlencode({'equip': eq['SL3']})}", "BAD": f"GET /api/worklog?{urlencode({'equip': eq['BAD']})}",
+             "HOT": f"GET /api/worklog?{urlencode({'equip': eq['HOT'], 'page_size': '20'})}"}
     json.dump({"phases": phases, "python": "/api/src/sch", "named": named,
                "sceneMade": ui_scene.made_files(ui_server.WORK), "fids": ui_scene.fid_names(ui_server.WORK, work_log.file_id)},
               sys.stdout, ensure_ascii=False)

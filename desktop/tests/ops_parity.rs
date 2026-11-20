@@ -4,7 +4,7 @@
 //! 品種と量の列・勤務体系の違う設備を足し、ガントと ABC の選び方ごとに Python で答えた物と突き合わせる。設定を替えて問い直す段も
 //! （足した設備〈値の書き方・勤務体系の形・上限の両側〉・いまを替える〈答えの控えを残したまま。組ごとに設定を持つ〉・勤務体系が無い）。
 //! 段の始めと、設定を持つ組の前で一覧の設定を尋ね直す（Lot::invalidate。答えの控えは消さない）。
-//! 写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したかを比べ、かかった時間は比べない。
+//! 写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したか・古いか・届かないか・理由を比べ（common::mirror_part）、かかった時間は比べない。
 //! 版 3.117.2 から窓の答えを焼いた表（tests/baked/ops.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
 //! （program/tests/ui_scene.py の ops。前は tools/ops-bench.py が /tmp/tpa-ops-* に作った）が作り、表は指紋だけを持つ。
 
@@ -27,7 +27,7 @@ fn strip(v: &mut Value) {
             }
             if let Some(Value::Array(ms)) = o.get_mut("mirrors") {
                 for m in ms.iter_mut() {
-                    *m = json!({"remote": m["remote"], "interval_sec": m["interval_sec"], "staleHours": m["staleHours"], "mirrored": m["mirrored"]});
+                    *m = common::mirror_part(m);
                 }
             }
             o.values_mut().for_each(strip);

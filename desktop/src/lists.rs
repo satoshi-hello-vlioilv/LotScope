@@ -106,7 +106,7 @@ pub(crate) fn is_side_file(name: &str) -> bool {
 
 /// ファイルそのものの見分け（装置の番号:ファイル番号[:作った時刻]。Python の work_log.file_id と同じ形）
 #[cfg(unix)]
-pub(crate) fn file_id(path: &Path) -> String {
+pub fn file_id(path: &Path) -> String {
     use std::os::unix::fs::MetadataExt;
     match std::fs::metadata(path) {
         Ok(m) if m.ino() != 0 => format!("{}:{}", m.dev(), m.ino()),
@@ -115,7 +115,7 @@ pub(crate) fn file_id(path: &Path) -> String {
 }
 
 #[cfg(windows)]
-pub(crate) fn file_id(path: &Path) -> String {
+pub fn file_id(path: &Path) -> String {
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use windows::Win32::Foundation::HANDLE;
@@ -140,7 +140,7 @@ pub(crate) fn file_id(path: &Path) -> String {
 }
 
 #[cfg(not(any(unix, windows)))]
-pub(crate) fn file_id(_: &Path) -> String {
+pub fn file_id(_: &Path) -> String {
     String::new()
 }
 

@@ -261,9 +261,11 @@
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
-    "tests/scene_files.py"
+    "tests/scene_files.py",
+    "data/roll_master.json",
+    "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す）。詰めた形。登録の後にファイルが無くなる SL3 は消さずに keep/ へ握ったまま移す（前は消した SL3 のファイル番号を後で作る BAD が ext4 と tmpfs で使い回すかが違い、SL3 は 404・BAD は 503 の答えが入れ替わった。名前つきの歩で言う）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる"
+   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。登録の後にファイルが無くなる SL3 は消さずに keep/ へ握ったまま移す（前は消した SL3 のファイル番号を後で作る BAD が ext4 と tmpfs で使い回すかが違い、SL3 は 404・BAD は 503 の答えが入れ替わった。名前つきの歩で言う）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる。HOT は書いた後も 40 時間前のまま（名前つきの歩: 一覧の写しの様子が stale=true）"
   },
   "pivot": {
    "phase": "3.117.2",
@@ -276,9 +278,11 @@
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
-    "tests/scene_files.py"
+    "tests/scene_files.py",
+    "data/roll_master.json",
+    "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す）。詰めた形。ひげの端の近くの値を作る四分位は台本が標準の部品で数え、答え合わせ役が pivot.describe と同じかを確かめる"
+   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。ひげの端の近くの値を作る四分位は台本が標準の部品で数え、答え合わせ役が pivot.describe と同じかを確かめる"
   },
   "schedule": {
    "phase": "3.117.1",
@@ -352,9 +356,11 @@
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
-    "tests/scene_files.py"
+    "tests/scene_files.py",
+    "data/roll_master.json",
+    "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す）。詰めた形。更新が止まった HOT の更新時刻は台本を流した時の 40 時間前（前は 80 時間前で、今に近い 2 日の外の時刻 at が流すたびに替わった。決めた暦の日にすると古さの時間 ageHours が流す日ごとに替わる）"
+   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。更新が止まった HOT の更新時刻は台本を流した時の 40 時間前（古さのしきい 36 時間を越える。決めた暦の日にすると古さの時間 ageHours が流す日ごとに替わる）。写しの様子は元の場所・間隔・しきい・写したか・古いか（stale）・届かないか・理由を比べ、時刻と ageHours の数は比べない（common::mirror_part）。HOT の写しの様子は窓と比べる相手のどちらも stale=true を名前つきの確かめで見る"
   },
   "settings": {
    "phase": "3.116.0",

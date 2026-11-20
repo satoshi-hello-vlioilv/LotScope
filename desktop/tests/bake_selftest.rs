@@ -813,3 +813,26 @@ fn the_host_name_is_settled_only_in_the_pc_field() {
     assert_eq!(settle_with(&who(host), &ctx, &[], Some("@HOST"))["who"]["pc"], json!(host), "決まりを外すとホスト名が残る");
     let _ = std::fs::remove_dir_all(&base);
 }
+
+#[test]
+fn the_scene_file_id_is_the_window_file_id() {
+    // 版 3.117.2 の作った後の採点の割れ 2: 場面の @FID(道) を作り直す字（bake::fid_of）は窓のファイルID（lists::file_id）と同じ字で、空でなく、
+    // 名前を変えても同じ（名前の変わった HOT を同じファイルID でたどる routes の歩）。前の試験は unix の写しだけで、Windows では空だった。
+    // Windows の CI でも流れる（cargo test の bake_selftest）
+    let base = common::work("bake-fid");
+    let a = base.join("実績_HOT.sqlite3");
+    std::fs::write(&a, b"x").unwrap();
+    let fid = common::bake::fid_of(&a);
+    assert!(!fid.is_empty(), "ファイルID が空（この OS の形が無い）");
+    assert_eq!(fid, da_core::lists::file_id(&a), "窓のファイルID と同じ字");
+    let b = base.join("実績_HOT_2026.sqlite3");
+    std::fs::rename(&a, &b).unwrap();
+    assert_eq!(common::bake::fid_of(&b), fid, "名前を変えても同じファイルID");
+    assert!(da_core::lists::same_fid(&fid, &da_core::lists::file_id(&b)));
+    // 別のファイルは違う ID（握ったままの a の後に作る）
+    let c = base.join("実績_BAD.sqlite3");
+    std::fs::write(&c, b"y").unwrap();
+    assert_ne!(common::bake::fid_of(&c), fid, "別のファイルは違うファイルID");
+    assert_eq!(common::bake::fid_of(&base.join("無い.sqlite3")), "", "無いファイルは空");
+    let _ = std::fs::remove_dir_all(&base);
+}

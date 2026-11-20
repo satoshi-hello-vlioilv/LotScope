@@ -4,7 +4,7 @@
 //! 全角の合金を足し、パネルの形ごと（数字・グラフ・合わせた表・別のデータ・設備の分け方・まとめ・設備グループの段・手で並べた順・
 //! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。スケジュールは窓の束の設定が無いこの試験では Python へ回す（None。
 //! 窓が答える形は tests/schedule_parity.rs）。
-//! 写しは窓が自分の置き場へ写す。写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したかを比べ、かかった時間（timing）は比べない。
+//! 写しは窓が自分の置き場へ写す。写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したか・古いか・届かないか・理由を比べ（common::mirror_part）、かかった時間（timing）は比べない。
 //! 版 3.117.2 から窓の答えを焼いた表（tests/baked/dashboard.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
 //! （program/tests/ui_scene.py）が作り、表は指紋だけを持つ。
 
@@ -28,7 +28,7 @@ fn strip(v: &mut Value) {
             }
             if let Some(Value::Array(ms)) = o.get_mut("mirrors") {
                 for m in ms.iter_mut() {
-                    *m = json!({"remote": m["remote"], "interval_sec": m["interval_sec"], "staleHours": m["staleHours"], "mirrored": m["mirrored"]});
+                    *m = common::mirror_part(m);
                 }
             }
             o.values_mut().for_each(strip);
@@ -64,6 +64,20 @@ fn question(v: &Value) -> Value {
     o
 }
 
+/// 答えの中の、更新が止まった HOT（実績_HOT.sqlite3）の写しの様子の stale（版 3.117.2 の作った後の採点の割れ 1）
+fn hot_stale(v: &Value, out: &mut Vec<Value>) {
+    match v {
+        Value::Object(o) => {
+            if o.get("remote").and_then(Value::as_str).is_some_and(|r| r.ends_with("実績_HOT.sqlite3")) {
+                out.push(o.get("stale").cloned().unwrap_or(Value::Null));
+            }
+            o.values().for_each(|x| hot_stale(x, out));
+        }
+        Value::Array(a) => a.iter().for_each(|x| hot_stale(x, out)),
+        _ => {}
+    }
+}
+
 /// 1 つの組を窓に尋ね、比べる相手（Python か焼いた表）と比べる → 比べる相手の答え（数える所に使う）。窓が答えなければ None
 fn one(
     bk: &mut common::bake::Bake,
@@ -86,6 +100,13 @@ fn one(
         json!({"status": c["status"], "body": b})
     });
     bk.note(key, "POST /api/dashboard/query", &got, &want);
+    // 名前つきの確かめ: 窓も比べる相手も、HOT の写しの様子はどれも stale=true
+    let (mut gs, mut ws) = (vec![], vec![]);
+    hot_stale(&got, &mut gs);
+    hot_stale(&want, &mut ws);
+    if gs.iter().chain(&ws).any(|x| *x != true) {
+        bad.push(format!("{key}: 更新が止まった HOT の写しの様子が stale=true でない（窓 {gs:?} / 比べる相手 {ws:?}）"));
+    }
     let (w, g) = (bk.s(&want), bk.s(&got));
     if g["status"] != w["status"] {
         bad.push(format!(
@@ -113,11 +134,14 @@ fn dashboard_answers_like_python() {
     let lot = Lot::new(work.join("db_cache"));
     let ask = || Ok(settings.clone());
     let mut bad = vec![];
-    let (mut total, mut cells, mut fails, mut facets, mut boards, mut links) = (0, 0, 0, 0, 0, 0);
+    let (mut total, mut cells, mut fails, mut facets, mut boards, mut links, mut hot) = (0, 0, 0, 0, 0, 0, 0);
     for (i, c) in o["cases"].as_array().unwrap().iter().enumerate() {
         total += 1;
         let key = format!("#{i} {}", c["name"].as_str().unwrap());
         let Some(want) = one(&mut bk, &lot, c, &key, &ask, &mut bad) else { continue };
+        let mut hs = vec![];
+        hot_stale(&want, &mut hs);
+        hot += (!hs.is_empty()) as usize;
         let w = &want["body"];
         cells += w.get("cells").is_some() as usize;
         fails += (want["status"] != 200) as usize;
@@ -152,6 +176,7 @@ fn dashboard_answers_like_python() {
         assert!(o["cases"].as_array().unwrap().iter().any(|c| c["name"] == name), "計算列の中で送った順に効く組が無い: {name}");
     }
     assert!(phases >= 3, "設定を替えて問い直す段が足りません: {phases}");
+    assert!(hot >= 20, "更新が止まった HOT の写しの様子を持つ組が足りません: {hot}");
     assert!(
         total >= 60 && cells >= 35 && fails >= 12 && facets >= 4 && boards >= 4 && links >= 4,
         "組が足りません: {total} 通り・答え {cells}・失敗 {fails}・並べる {facets}・合わせた表 {boards}・合わせる {links}"

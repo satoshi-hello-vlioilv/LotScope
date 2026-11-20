@@ -2,7 +2,7 @@
 //! Python の道（routes/lotlist.py・worklog.py・sources.py）と同じ答え・同じ失敗を返すか。program/tests/routes_oracle.py が開発用サーバーと
 //! 同じ試験データに結合・ロット番号の列・間隔・名前の変わったファイル・大文字小文字の違う登録名・設備ごとの表・表示しない設備・
 //! 見つからない設備を足し、同じ問い合わせを Python で答えた物と突き合わせる。段は 2 つ（開発者・実績と結合した表を出さない一般ユーザー）。
-//! 写しは窓が自分の置き場へ写す（Python の写しとは別）。いつのデータか（source）は、元の場所・間隔・古さのしきい・写したかを比べる
+//! 写しは窓が自分の置き場へ写す（Python の写しとは別）。いつのデータか（source）は、元の場所・間隔・古さのしきい・写したか・古いか・届かないか・理由を比べる（common::mirror_part）
 //! （時刻は比べない）。再読込の結果は、写したか・見送ったか・理由を比べる。かかった時間（timing・work.ms）は比べない。
 //! 版 3.117.2 から窓の答えを焼いた表（tests/baked/routes.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
 //! （program/tests/ui_scene.py）が作り、表は指紋だけを持つ。名前つきの歩: 登録の後にファイルが無くなった SL3 は 404・missing、中身が SQLite でない
@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 
 /// いつのデータか（source の答え）のうち、窓と Python で同じになるはずの所
 fn source_part(v: &Value) -> Value {
-    json!({"remote": v["remote"], "interval_sec": v["interval_sec"], "staleHours": v["staleHours"], "mirrored": v["mirrored"]})
+    common::mirror_part(v)
 }
 
 fn strip(v: &mut Value, path: &str) {
@@ -110,12 +110,18 @@ fn routes_answer_like_python() {
             }
         }
     }
-    // 名前つきの歩（版 3.117.2 の採点 first_fixes 6）: 窓も比べる相手（Python か焼いた表）も、SL3 は 404・missing／BAD は 503・copying
-    for (n, (status, kind)) in [("SL3", (404, "missing")), ("BAD", (503, "copying"))] {
+    // 名前つきの歩（版 3.117.2 の採点 first_fixes 6）: 窓も比べる相手（Python か焼いた表）も、SL3 は 404・missing／BAD は 503・copying。
+    // 作った後の採点の割れ 1: 更新が止まった HOT（40 時間前・しきい 36 時間）の一覧は 200 で、写しの様子が stale=true・届く
+    for n in ["SL3", "BAD", "HOT"] {
         for who in [n.to_string(), format!("{n}（比べる相手）")] {
-            match named.get(&who) {
-                Some((s, b)) if *s == status && b["kind"] == kind => {}
-                x => bad.push(format!("名前つきの歩 {who}: {status}・{kind} のはず（{x:?}）")),
+            let ok = match (n, named.get(&who)) {
+                ("SL3", Some((s, b))) => *s == 404 && b["kind"] == "missing",
+                ("BAD", Some((s, b))) => *s == 503 && b["kind"] == "copying",
+                ("HOT", Some((s, b))) => *s == 200 && b["source"]["stale"] == true && b["source"]["unreachable"] == false,
+                _ => false,
+            };
+            if !ok {
+                bad.push(format!("名前つきの歩 {who}: 答えが違う（{:?}）", named.get(&who)));
             }
         }
     }

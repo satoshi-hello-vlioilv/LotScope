@@ -151,7 +151,7 @@ def build(quality=1500, work_rows=400, wip=1200, cm3=True, pc_name=""):
             f.write_text(json.dumps(have + rows, ensure_ascii=False, indent=2), encoding="utf-8")
     if share_mode == "down":
         master_share.rename(master_share.with_name("マスタ共有_届かない"))
-    # 1 台（SL3）は登録のあとにファイルが無くなった形（場面の外 keep/ へ握ったまま移す）・1 台（HOT）は更新が止まった形（決めた日）
+    # 1 台（SL3）は登録のあとにファイルが無くなった形（場面の外 keep/ へ握ったまま移す）・1 台（HOT）は更新が止まった形（流した時の 40 時間前。ui_scene.HOT_STALE_HOURS）
     ui_scene.finish(WORK)
     return app
 

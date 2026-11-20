@@ -106,8 +106,13 @@ def finish(work):
     folder = work / FOLDER
     (work / "keep").mkdir(exist_ok=True)
     os.replace(folder / "実績_SL3.sqlite3", work / "keep" / "実績_SL3.sqlite3")
+    stale(folder / "実績_HOT.sqlite3")
+
+
+def stale(path):
+    """更新が止まった形にする（更新時刻を今の HOT_STALE_HOURS 時間前に）"""
     old = time.time() - HOT_STALE_HOURS * 3600
-    os.utime(folder / "実績_HOT.sqlite3", (old, old))
+    os.utime(path, (old, old))
 
 
 def _blanks(db, n, values):
@@ -134,6 +139,8 @@ def routes(work):
     hdb.execute("CREATE TABLE 仕掛 AS SELECT ロット番号, 合金 FROM 実績 LIMIT 3")
     hdb.commit()
     hdb.close()
+    # 書いた後も更新が止まった形のまま（版 3.117.2 の作った後の採点の割れ 1: 一覧の写しの様子の stale を名前つきの歩で比べる）
+    stale(folder / "実績_HOT.sqlite3")
     (folder / "実績_HOT.sqlite3").rename(folder / "実績_HOT_2026.sqlite3")
     # 設備ごとの表（TLV は「別表」を読む）
     db = sqlite3.connect(folder / "実績_TLV.sqlite3")
