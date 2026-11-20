@@ -139,3 +139,41 @@ class FakesServe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProxyAnswers(unittest.TestCase):
+    """作り物のプロキシは、断る答え（403・407）を本文を読み切ってから送り、切らずに閉じる（版 3.117.1 の Windows の CI の直し）。
+    本文を読み残したまま閉じると OS が RST を送り、Windows では相手が受け取り済みの答えまで捨てる（Python だけ「プロキシの先で切れた」になり、
+    窓は 403 で割れた）。ここでは本文を見出しより遅れて送り、本文が届くまで答えが来ないこと（＝読み残しが無い）と、答えの後が静かな終わりであることを見る
+    （Linux は RST の後も答えを読めるので、割れそのものは Windows でしか起きない。前の形はこの「本文より先に答えない」で落ちる）"""
+
+    def ask_late(self, mode):
+        import socket
+        sys.path.insert(0, str(PROGRAM / "tests"))
+        try:
+            import fakes_schedule
+        finally:
+            sys.path.pop(0)
+        p = fakes_schedule.Proxy(mode)
+        self.addCleanup(p.sock.close)
+        body = b'{"k": "v"}' * 50
+        c = socket.create_connection(("127.0.0.1", p.port), timeout=5)
+        self.addCleanup(c.close)
+        c.sendall(b"POST http://cm3.invalid/x HTTP/1.1\r\nHost: cm3.invalid\r\nContent-Length: %d\r\n\r\n" % len(body))
+        import select
+        early, _, _ = select.select([c], [], [], 0.3)  # 見出しだけを読んで答える形なら、ここで答えが来ている（その後の本文が RST を呼ぶ）
+        self.assertEqual(early, [], "本文が届く前に答えた（本文を読み残して閉じる形）")
+        c.sendall(body)
+        got = b""
+        while True:
+            d = c.recv(65536)  # 切られていれば ConnectionResetError
+            if not d:
+                break
+            got += d
+        return got
+
+    def test_a_denying_proxy_answers_after_the_body_and_closes_quietly(self):
+        self.assertTrue(self.ask_late("deny").startswith(b"HTTP/1.1 403 Forbidden\r\n"))
+
+    def test_a_proxy_asking_for_auth_answers_after_the_body_and_closes_quietly(self):
+        self.assertTrue(self.ask_late("auth").startswith(b"HTTP/1.1 407 "))
