@@ -28,7 +28,14 @@ fn norm(v: &Value, rs: &str, py: &str) -> Value {
         Value::Object(o) => Value::Object(
             o.iter()
                 .map(|(k, x)| {
-                    let x = if TIMES.contains(&k.as_str()) && !x.is_null() { json!("<t>") } else { norm(x, rs, py) };
+                    // 取った係（版 3.117.1。窓は rs・Python は py。同じ場面の答えは係のほかは同じ）
+                    let x = if TIMES.contains(&k.as_str()) && !x.is_null() {
+                        json!("<t>")
+                    } else if k == "engine" && (x == "rs" || x == "py") {
+                        json!("w")
+                    } else {
+                        norm(x, rs, py)
+                    };
                     (k.clone(), x)
                 })
                 .collect(),
@@ -112,6 +119,46 @@ fn call(lot: &Lot, st: &Value) -> Option<(u16, Value)> {
     )
 }
 
+/// 要求の設備（本文の setsubiName。GET の 30x の後は道の eq=）
+fn equip_of_req(r: &Value) -> String {
+    let b: Value = serde_json::from_str(r["body"].as_str().unwrap_or("null")).unwrap_or(Value::Null);
+    match b["setsubiName"].as_str() {
+        Some(s) => s.to_string(),
+        None => r["path"].as_str().unwrap_or("").split("eq=").nth(1).unwrap_or("").split('&').next().unwrap_or("").to_string(),
+    }
+}
+
+/// https の作り物の CA を信頼する（program/tests/fixtures/tls/ca.pem。答え合わせ役の Python も同じ SSL_CERT_FILE を置く）
+fn trust_test_ca() {
+    let ca = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program").join("tests").join("fixtures").join("tls").join("ca.pem");
+    // SAFETY: 試験の最初（TLS を使う前）。この試験の実行ファイルのほかの試験は TLS を使わない
+    unsafe { std::env::set_var("SSL_CERT_FILE", ca) };
+}
+
+/// 場面の環境変数（プロキシ）を置き、手放すときに外す
+struct ProxyEnv(Vec<String>);
+
+impl ProxyEnv {
+    fn set(v: &Value) -> ProxyEnv {
+        let mut keys = vec![];
+        for (k, x) in v.as_object().into_iter().flatten() {
+            // SAFETY: 場面の歩を当てる糸の前（窓の糸は歩の中で読む）
+            unsafe { std::env::set_var(k, x.as_str().unwrap_or("")) };
+            keys.push(k.clone());
+        }
+        ProxyEnv(keys)
+    }
+}
+
+impl Drop for ProxyEnv {
+    fn drop(&mut self) {
+        for k in &self.0 {
+            // SAFETY: 場面の歩が済んだ後
+            unsafe { std::env::remove_var(k) };
+        }
+    }
+}
+
 /// 要求の比べる形（道と見出しの /rs/ をそろえる）
 fn req_view(r: &Value) -> Value {
     json!({"method": r["method"], "path": norm(&r["path"], "/rs/", "/py/"), "headers": norm(&r["headers"], "/rs/", "/py/"), "body": r["body"]})
@@ -121,6 +168,16 @@ fn req_view(r: &Value) -> Value {
 fn schedule_matches_python() {
     let base = common::work("schedule-parity");
     let (mut live, oracle) = common::Live::start("schedule_oracle.py", &["serve", base.to_str().unwrap()]);
+    trust_test_ca();
+    // 走る係ごとの中継のプロキシ（答えと状態の via.proxy の名前:番号）は Python の側の物にそろえる
+    let hp = |k: &str| oracle["urls"][k].as_str().unwrap_or("").trim_start_matches("http://").to_string();
+    let (relay_rs, relay_py) = (hp("relay_rs"), hp("relay_py"));
+    let relay = |v: &Value| -> Value {
+        if relay_rs.is_empty() {
+            return v.clone();
+        }
+        serde_json::from_str(&v.to_string().replace(&relay_rs, &relay_py)).unwrap()
+    };
     let mut bad = vec![];
     let (mut steps, mut delegated, mut file_cmp, mut req_cmp, mut ok_lists) = (0, 0, 0, 0, 0);
     let scenarios = oracle["scenarios"].as_array().unwrap();
@@ -128,6 +185,7 @@ fn schedule_matches_python() {
         let name = sc["name"].as_str().unwrap();
         let (py, rs) = (sc["py"].as_str().unwrap(), sc["rs"].as_str().unwrap());
         let lot = lot_for(&sc["env"]);
+        let _env = ProxyEnv::set(&sc["proxyEnv"]);
         let mut has_delegate = false;
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             let got = call(&lot, st);
@@ -150,7 +208,7 @@ fn schedule_matches_python() {
             if status == 200 && st["path"] == "/api/src/sch" {
                 ok_lists += 1;
             }
-            let (want, got) = (norm(&st["json"], rs, py), norm(&v, rs, py));
+            let (want, got) = (norm(&st["json"], rs, py), norm(&relay(&v), rs, py));
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(&want, &got, "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {}?{}: Python {} {} / 窓 {status} {}",
@@ -172,7 +230,7 @@ fn schedule_matches_python() {
             continue;
         }
         // 置いた世代と状態のファイル
-        let (fp, fr) = (sc["files"].as_object().unwrap(), files(Path::new(rs)));
+        let (fp, fr) = (sc["files"].as_object().unwrap(), relay(&Value::Object(files(Path::new(rs)))).as_object().cloned().unwrap());
         let keys = |m: &Map<String, Value>| m.keys().cloned().collect::<Vec<_>>();
         if keys(fp) != keys(&fr) {
             bad.push(format!("{name}: 置いたファイル Python {:?} / 窓 {:?}", keys(fp), keys(&fr)));
@@ -189,13 +247,25 @@ fn schedule_matches_python() {
                 bad.push(format!("{name}: ファイル {d}"));
             }
         }
+        // 作り物のプロキシ（中継）が受けた要求の行と見出し（版 3.117.1: 利用者:合言葉 を送らない・URL の全体・CONNECT の行）
+        let pl = live.ask("proxylog relay_rs");
+        let plv = |v: &Value| -> Vec<Value> {
+            let mut out: Vec<Value> = v.as_array().into_iter().flatten().map(|x| norm(x, "/rs/", "/py/")).collect();
+            out.sort_by_key(|x| x.to_string());
+            out
+        };
+        if plv(&pl) != plv(&sc["proxylog"]) {
+            bad.push(format!("{name}: プロキシが受けた要求 Python {} / 窓 {}", sc["proxylog"], pl));
+        }
         // CM3 が受けた要求（要求の行・見出しの並びと値・本文）
         let scene = sc["scene"].as_str().unwrap_or("");
         if !scene.is_empty() {
-            // HOT の設備は同時に取りに行くので、届く順は決まらない（並べ替えて比べる）
-            let sorted = |mut v: Vec<Value>| {
-                v.sort_by_key(|x| x.to_string());
-                v
+            // HOT の設備は同時に取りに行くので、設備をまたぐ順は決まらない。設備ごとの並びは決まる（版 3.117.1 の K5: 前は全部を並べ替えて比べ、
+            // 設備の中の順の違いを見なかった）。設備（本文の setsubiName か道の eq）で分け、設備の名前の順に並べて比べる
+            let sorted = |v: Vec<Value>| {
+                let mut v: Vec<(String, usize, Value)> = v.into_iter().enumerate().map(|(i, x)| (equip_of_req(&x), i, x)).collect();
+                v.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
+                v.into_iter().map(|x| x.2).collect::<Vec<_>>()
             };
             let wr =
                 sorted(live.ask(&format!("requests rs {scene}")).as_array().cloned().unwrap_or_default().iter().map(req_view).collect());
@@ -244,7 +314,7 @@ fn schedule_matches_python() {
     let answers: Vec<_> = hs.into_iter().map(|h| h.join().unwrap()).collect();
     let took = t0.elapsed().as_secs_f64();
     let n = live.ask("count rs silent").as_i64().unwrap() - before;
-    let want = Some((502u16, json!("L-2 の予定を CM3 から取れません: CM3の応答がタイムアウトしました")));
+    let want = Some((502u16, json!(format!("L-2 の予定を CM3 から取れません: CM3の応答がタイムアウトしました{}", da_core::cm3_net::HINT))));
     if answers.iter().any(|a| *a != want) || n != 1 || took > 2.2 {
         bad.push(format!("同時に 4 本: 答え {answers:?}・CM3 への要求 {n} 本・{took:.2} 秒（1 本・2.2 秒未満のはず）"));
     }
@@ -393,19 +463,19 @@ fn set_schedule(env: &Value, text: &str, more: &Value) {
     std::fs::write(env["config"].as_str().unwrap(), serde_json::to_string_pretty(&v).unwrap()).unwrap();
 }
 
-/// 窓が係を降りた後に受け身の Python が取り、窓が係に戻る 2 つの形（2 回目だけ i64 に入らない整数の答えで 1 回だけ降りる〈版 3.115.0 まで NaN〉・システムのプロキシの設定で降りて戻す）。
+/// 窓が係を降りた後に受け身の Python が取り、窓が係に戻る 2 つの形（2 回目だけ i64 に入らない整数の答えで 1 回だけ降りる〈版 3.115.0 まで NaN〉・戻り道の設定〈fetch_engine が python〉で降りて戻す）。
 /// 戻った窓の一覧・データの札（/source）が状態のファイル〈Python がいちばん新しく取った答え。カードもここを読む〉と同じで、CM3 へ取り直さない
 /// （Python だけの形でも、取ったばかりの答えを使う）。戻った窓が 2 回置き直すと、Python の世代は残らず、置き場は今の世代と 1 つ前の 2 つ
 /// （Python だけの形と同じ）。1 回目の置き直しでは、Python の今の世代は「1 つ前」として残る（読んでいる途中の問い合わせが開ける）
 fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: &mut Vec<String>) {
     let code = "L-1";
     let mut steps = 0;
-    for (runner, scene, how) in [("f0", "flip", "big"), ("f1", "change", "proxy")] {
+    for (runner, scene, how) in [("f0", "flip", "big"), ("f1", "change", "engine")] {
         let (_root, env, text) = own_root(base, change, runner, scene);
         let lot = lot_for(&env);
         let url = serde_json::from_str::<Value>(&text).unwrap()["schedule"]["cm3_base_url"].as_str().unwrap().to_string();
         let sroot = PathBuf::from(env["local"].as_str().unwrap()).join("db_cache").join("schedule");
-        let extra = if how == "proxy" { json!({"use_system_proxy": true}) } else { json!({}) };
+        let extra = if how == "engine" { json!({"fetch_engine": "python"}) } else { json!({}) };
         let (mut py, _) = common::Live::start("schedule_oracle.py", &["passive", sroot.to_str().unwrap(), &url, &extra.to_string()]);
         let tag = |i: usize| format!("降りて戻る（{how}）[{i}]");
         let count = |live: &mut common::Live| live.ask(&format!("count {runner} {scene}")).as_i64().unwrap();
@@ -434,7 +504,7 @@ fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: 
         let down = if how == "big" {
             get("/api/src/sch/refresh", "POST")
         } else {
-            set_schedule(&env, &text, &json!({"use_system_proxy": true}));
+            set_schedule(&env, &text, &json!({"fetch_engine": "python"}));
             lot.invalidate();
             get("/api/src/sch", "GET")
         };
@@ -459,7 +529,7 @@ fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: 
         }
         let n_py = count(live);
         // 3: 窓が戻る。すぐ答える一覧・データの札は、状態のファイル（Python の今の答え）と同じ。CM3 へは取り直さない
-        if how == "proxy" {
+        if how == "engine" {
             set_schedule(&env, &text, &json!({}));
             lot.invalidate();
         }

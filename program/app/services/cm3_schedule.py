@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from . import num_setting
+from . import cm3_net, num_setting, sysproxy
 
 JST = timezone(timedelta(hours=9))
 
@@ -95,17 +95,30 @@ def fetch_raw(cfg, setsubi, term_kbn):
     req = urllib.request.Request(base + str(cfg.get("init_path") or ""), data=body, method="POST", headers={
         "Accept": "application/json, text/plain, */*", "Content-Type": "application/json;charset=UTF-8",
         "Origin": base, "Referer": base + "/Cm3SchWeb/"})
-    # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ
-    opener = urllib.request.build_opener() if cfg.get("use_system_proxy") else urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ（版 3.117.1: 読み方は
+    # services/sysproxy.py。利用者:合言葉 は送らない・使えない種類は取りに行く前に断る。窓の src/sysproxy.rs と同じ決め）
+    note = ""
+    if cfg.get("use_system_proxy"):
+        proxies = sysproxy.getproxies()
+        kind, host = sysproxy.url_type_host(req.full_url)
+        try:
+            sysproxy.choose(kind, host, proxies)
+        except sysproxy.ProxyProblem as e:
+            raise Cm3Error(str(e)) from None
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler(sysproxy.clean(proxies)))
+        note = sysproxy.pac_note()
+    else:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    # 届かない言葉は種類ごとに決めた字（版 3.117.1。services/cm3_net.py・事例の表 tests/fixtures/cm3_net_cases.json）
     try:
         with opener.open(req, timeout=timeout_of(cfg)) as res:
             text = _decode_body(res.read(), res.headers.get("Content-Type"))
     except urllib.error.HTTPError as e:
         raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None
     except urllib.error.URLError as e:
-        raise Cm3Error(f"CM3に接続できません: {e.reason}") from None
-    except (TimeoutError, OSError) as e:
-        raise Cm3Error("CM3の応答がタイムアウトしました" if isinstance(e, TimeoutError) else f"CM3に接続できません: {e}") from None
+        raise Cm3Error(cm3_net.message_of(e.reason, note)) from None
+    except OSError as e:
+        raise Cm3Error(cm3_net.message_of(e, note)) from None
     try:
         return json.loads(text, parse_constant=_no_constant)
     except ValueError:
@@ -201,11 +214,20 @@ _DATE_TIME = re.compile(r"^\s*(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*$")
 _TIME_ONLY = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*$")
 
 
+# 更新時刻として読む秒の範囲（版 3.117.1。人の決め: 1970-01-01 から 3000-12-31 23:59:59 UTC まで。窓の src/cm3.rs の TS_RANGE と同じ）。
+# 前は OS の gmtime の範囲で読み、Windows（UCRT の gmtime_s）と Linux で 1970 年より前・3000 年から後の答えが割れた
+TS_MIN = 0
+TS_MAX = 32535216000
+
+
 def _ts_to_dt(update_ts):
     if update_ts is None:
         return None
     try:
-        return datetime.fromtimestamp(int(update_ts) / 1000, tz=JST)
+        t = int(update_ts) / 1000
+        if not (TS_MIN <= t < TS_MAX):
+            return None
+        return datetime.fromtimestamp(t, tz=JST)
     except (TypeError, ValueError, OSError, OverflowError):
         return None
 
@@ -301,8 +323,23 @@ def normalize(raw, own_setsubi, inspect_keywords=None):
     }
 
 
+def route(cfg):
+    """取った道（版 3.117.1。最初の問い合わせの https か・プロキシの名前:番号〈直は None〉。窓の src/cm3_http.rs の Via と同じ）"""
+    url = str(cfg.get("cm3_base_url") or "").rstrip("/") + str(cfg.get("init_path") or "")
+    kind, host = sysproxy.url_type_host(url)
+    proxy = None
+    if cfg.get("use_system_proxy"):
+        try:
+            proxy = sysproxy.choose(kind, host, sysproxy.getproxies())
+        except sysproxy.ProxyProblem:
+            proxy = None
+    return {"tls": kind == "https", "proxy": proxy}
+
+
 def get_schedule(cfg, setsubi, term_kbn, inspect_keywords=None):
-    return normalize(fetch_raw(cfg, setsubi, term_kbn), setsubi, inspect_keywords)
+    data = normalize(fetch_raw(cfg, setsubi, term_kbn), setsubi, inspect_keywords)
+    data["via"] = {"engine": "py", **route(cfg)}
+    return data
 
 
 # ---------------------------------------------------------------- 一覧の表の形

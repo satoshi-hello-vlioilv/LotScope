@@ -88,8 +88,13 @@ SHAPES = [S(SCH, f"equip={e}") for e in ("S1", "S2", "S3", "S4", "S5", "S6", "S7
          [S("/api/schedule/card"), S(f"{SCH}/source", "equip=S9"), S(f"{SCH}/source", "equip=S7")]
 
 
-def scenes(world_port, blackhole):
+def scenes(urls):
+    """場面: (名前, 設定の schedule, 歩, データ元の行, この場面の環境変数〈プロキシ。{relay}・{relayhp}・{silent}・{deny} は走る係ごとの作り物〉)"""
+    world_port = int(urls["cm3"].rsplit(":", 1)[1])
+    blackhole = int(urls["hole"].rsplit(":", 1)[1])
     u = lambda name: f"http://127.0.0.1:{world_port}/{{runner}}/{name}"  # noqa: E731
+    t = lambda name, which="tls": f"{urls[which]}/{{runner}}/{name}"  # noqa: E731
+    P = {"use_system_proxy": True}
     base = {"equipments": "L-1, L-2, L-3", "timeout_sec": 2, "auto_refresh_sec": 60}
     out = [
         ("届く（一覧・HOT・釜番・結合・設備の木・パネル・結合した表）", {**base, "cm3_base_url": u("ok")}, LIST_STEPS, VIEW),
@@ -124,10 +129,10 @@ def scenes(world_port, blackhole):
         ("文字化けと HTML の壊れ方", {**base, "equipments": "L-1", "cm3_base_url": u("html")}, ONE[:1], None),
         ("答えの形の端", {**base, "equipments": "S1 S2 S3 S4 S5 S6 S7 S8 S9 SA SB", "inspect_keywords": "点検板、Y7",
                        "cm3_base_url": u("shapes")}, SHAPES, None),
-        # 1970 年より前・3000 年から後の更新時刻: Windows の gmtime_s（UCRT）が受けるかは CPython のソースで決まらない（CI で −1 秒を受けた）ので、
-        # Windows では窓が答えず Python に任せる。1 年より前（どの OS でも None）は窓が答える
+        # 1970 年より前・3000 年から後の更新時刻（版 3.117.1: 読む範囲を 1970-01-01〜3000-12-31 UTC に決め、範囲の外はどの OS でも「更新時刻なし」。
+        # 前は Windows の gmtime_s が受けるかを決められず、Windows では窓が答えず Python に任せた）
         ("1970 年より前・3000 年から後の更新時刻", {**base, "equipments": "SC SD SE", "cm3_base_url": u("shapes")},
-         [S(SCH, "equip=SC", windows_only=True), S(SCH, "equip=SD", windows_only=True), S(SCH, "equip=SE")], None),
+         [S(SCH, "equip=SC"), S(SCH, "equip=SD"), S(SCH, "equip=SE")], None),
         ("URL に種類が無い", {**base, "cm3_base_url": "nlmfangyweb1a:9085"}, ONE[:1], None),
         ("URL が決まっていない", {**base, "cm3_base_url": "", "init_path": "", "client_ip": 0}, ONE[:1], None),
         ("設備が無い", {**base, "equipments": "、", "cm3_base_url": u("ok")}, [S(SCH), S("/api/schedule"), S("/api/schedule/card")], None),
@@ -135,9 +140,41 @@ def scenes(world_port, blackhole):
         # NaN の答えは「JSON ではありません」・数でない timeout は既定の 15 秒（num_setting）
         ("窓の持たない charset（EUC-JP）", {**base, "cm3_base_url": u("eucjp")}, [S(SCH, "equip=L-1")], None),
         ("NaN の答え", {**base, "cm3_base_url": u("nan")}, [S(SCH, "equip=L-1")], None),
-        # Python に任せる形（窓は答えず、状態に「係を降りた」を書く。段 ③-6 で扱う）
-        ("https", {**base, "cm3_base_url": "https://127.0.0.1:1"}, [S(SCH, "equip=L-1", delegate=True), S(f"{SCH}/source", "equip=L-1", delegate=True)], None),
-        ("システムのプロキシ", {**base, "use_system_proxy": True, "cm3_base_url": u("ok")}, [S(SCH, "equip=L-1", delegate=True)], None),
+        # 段 ③-6（版 3.117.1）: https とシステムのプロキシも窓が取る（前は Python に任せた）。証明書は tests/fixtures/tls の作り物
+        # （試験は SSL_CERT_FILE で作り物の CA を信頼させる）。プロキシは場面の環境変数（use_system_proxy が真のときだけ読む）
+        ("https（直）", {**base, "cm3_base_url": t("tls")}, ONE + [S(SCH, "equip=__HOT__")], None),
+        ("https の証明書が信頼できない", {**base, "cm3_base_url": t("tlsbad", "tlsbad")}, ONE[:1], None),
+        ("https の証明書の名前が違う", {**base, "cm3_base_url": t("tlsname", "tlsname")}, ONE[:1], None),
+        ("https で TLS でない口", {**base, "cm3_base_url": urls["plain"]}, ONE[:1], None),
+        ("http → https の 302", {**base, "cm3_base_url": u("rtls")}, ONE[:1], None),
+        ("https が断られる", {**base, "cm3_base_url": "https://127.0.0.1:1", "timeout_sec": 10}, ONE[:1], None),
+        ("プロキシ越しの http", {**base, **P, "cm3_base_url": u("phttp")}, ONE, None, {"http_proxy": "{relay}"}),
+        ("プロキシ越しの https（CONNECT）", {**base, **P, "cm3_base_url": t("ptls")}, ONE + [S(SCH, "equip=__HOT__")], None,
+         {"https_proxy": "{relay}"}),
+        ("プロキシの 利用者:合言葉 は送らない", {**base, **P, "cm3_base_url": u("pcred")}, ONE[:1], None,
+         {"http_proxy": "http://user:p%40ss@{relayhp}", "https_proxy": "http://user:pw@{relayhp}"}),
+        ("https:// と書いたプロキシは http のプロキシ", {**base, **P, "cm3_base_url": t("phttps")}, ONE[:1], None,
+         {"HTTPS_PROXY": "https://{relayhp}"}),
+        ("小文字の環境変数が勝つ・空の値は消す", {**base, **P, "cm3_base_url": u("pnone")}, ONE[:1], None,
+         {"HTTP_PROXY": "{silent}", "http_proxy": ""}),
+        ("no_proxy で直", {**base, **P, "cm3_base_url": u("pbypass")}, ONE[:1], None,
+         {"http_proxy": "{silent}", "no_proxy": "example.com, .0.0.1"}),
+        ("30x のたびにプロキシを決め直す", {**base, **P, "cm3_base_url": f"http://localhost:{world_port}/{{runner}}/rbyp"}, ONE[:1], None,
+         {"http_proxy": "{relay}", "no_proxy": "localhost"}),
+        ("use_system_proxy が偽ならプロキシを読まない", {**base, "cm3_base_url": u("pnone2")}, ONE[:1], None, {"http_proxy": "{silent}"}),
+        ("黙るプロキシ（http）", {**base, **P, "timeout_sec": 1, "cm3_base_url": u("psil")}, ONE[:1], None, {"http_proxy": "{silent}"}),
+        ("黙るプロキシ（https の CONNECT）", {**base, **P, "timeout_sec": 1, "cm3_base_url": t("psil2")}, ONE[:1], None,
+         {"https_proxy": "{silent}"}),
+        ("CONNECT を断るプロキシ", {**base, **P, "cm3_base_url": t("pdeny")}, ONE[:1], None, {"https_proxy": "{deny}"}),
+        ("http を断るプロキシ（403）", {**base, **P, "cm3_base_url": u("pdeny2")}, ONE[:1], None, {"http_proxy": "{deny}"}),
+        ("socks のプロキシ", {**base, **P, "cm3_base_url": u("pkind")}, ONE[:1], None, {"http_proxy": "socks4://127.0.0.1:1080"}),
+        ("読めないプロキシの URL", {**base, **P, "cm3_base_url": u("pbad")}, ONE[:1], None, {"http_proxy": "http:/x"}),
+        ("番号の読めないプロキシ", {**base, **P, "cm3_base_url": u("pbad2")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:x9"}),
+        ("断られるプロキシ", {**base, **P, "timeout_sec": 10, "cm3_base_url": u("pref")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:1"}),
+        # 戻り道（版 3.117.1。配った設定の schedule.fetch_engine が "python"）: 窓は答えず、状態に「係を降りた」を書く（受け身の Python が取る）。
+        # 段 ④ まで残す（任せる歩の予算の envExtra に数える）
+        ("戻り道（fetch_engine が python）", {**base, "fetch_engine": "python", "cm3_base_url": u("engine")},
+         [S(SCH, "equip=L-1", delegate=True), S(f"{SCH}/source", "equip=L-1", delegate=True)], None),
         # 場面の名前を分ける（版 3.115.0。CM3 が受けた要求は場面ごとに比べる。「ok」はシステムのプロキシの場面〈Python だけが取る〉と共にする）
         ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("timeout")}, [S(SCH, "equip=__HOT__")], None),
         # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 ミリ秒未満・1 日を超える数）は 15 秒（cm3_schedule.timeout_of）。
@@ -148,6 +185,18 @@ def scenes(world_port, blackhole):
           for t in (0, "0", -1, "nan", "inf", "-inf", 1e-9, 0.0009, 86400, "86400", 86401, 86400.001, 2147483, 2147484, 1e7, 1e300,
                     2 ** 63, 10 ** 20)],
     ]
+    return out
+
+
+def proxy_env(env, urls, runner):
+    """場面の環境変数の作り物の URL（走る係ごとの中継・黙る・断るプロキシ）"""
+    relay = urls[f"relay_{runner}"]
+    rep = {"{relay}": relay, "{relayhp}": relay.split("://", 1)[1], "{silent}": urls["silent"], "{deny}": urls["deny"]}
+    out = {}
+    for k, v in env.items():
+        for a, b in rep.items():
+            v = v.replace(a, b)
+        out[k] = v
     return out
 
 
@@ -207,23 +256,38 @@ def serve(base):
     # （版 3.117.0。Python 無しの形の窓の試験も同じ台本を起こせる）
     fake = fakes_serve.start("schedule", str(wip))
     srv = fake["srv"]
+    urls = fake["urls"]
+    # https の作り物の CA を信頼する（窓の試験も同じ SSL_CERT_FILE を置く）。この PC のプロキシは読まない（場面ごとに置く）
+    os.environ["SSL_CERT_FILE"] = str(Path(__file__).resolve().parent / "fixtures" / "tls" / "ca.pem")
+    for k in list(os.environ):
+        if k.lower().endswith("_proxy"):
+            del os.environ[k]
     out = []
-    for i, (name, sched, steps, src_rows) in enumerate(scenes(srv.port, fake["hole_port"])):
+    for i, sc_def in enumerate(scenes(urls)):
+        name, sched, steps, src_rows = sc_def[:4]
+        env = sc_def[4] if len(sc_def) > 4 else {}
         py, rs = base / f"s{i}" / "py", base / f"s{i}" / "rs"
         for r, runner in ((py, "py"), (rs, "rs")):
             sc = {k: (v.replace("{runner}", runner) if isinstance(v, str) else v) for k, v in sched.items()}
             place(r, sc, src_rows, wip)
-        got = run(py, steps, "py")
+        pe = proxy_env(env, urls, "py")
+        os.environ.update(pe)
+        try:
+            got = run(py, steps, "py")
+        finally:
+            for k in pe:
+                os.environ.pop(k, None)
         scene = sched.get("cm3_base_url", "").split("/")[-1] if "{runner}" in str(sched.get("cm3_base_url")) else ""
         out.append({"name": name, "py": str(py), "rs": str(rs), "scene": scene, "steps": got, "files": files(py),
-                    "requests": srv.requests("py", scene) if scene else [],
+                    "requests": srv.requests("py", scene) if scene else [], "proxyEnv": proxy_env(env, urls, "rs"),
+                    "proxylog": fake["ask"]("proxylog relay_py"),
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
     # urls: 作り物の URL（名前つき。cm3・hole）。焼いた表では @URL(名前) にそろえる
     sys.stdout.write(json.dumps({"scenarios": out, "cm3": srv.url, "port": srv.port, "urls": fake["urls"]}, ensure_ascii=False, default=str) + "\n")
     sys.stdout.flush()
     # 窓が同じ作り物に問い合わせる間は起こしておく。窓の側の要求は「requests rs <場面>」「count rs <場面>」で尋ねられる（作り物の ask）
     for line in sys.stdin:
-        if line.split()[:1] in (["requests"], ["count"]):
+        if line.split()[:1] in (["requests"], ["count"], ["proxylog"]):
             sys.stdout.write(json.dumps(fake["ask"](line), ensure_ascii=False, default=str) + "\n")
             sys.stdout.flush()
     fake["close"]()

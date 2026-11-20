@@ -7,20 +7,53 @@
 //! 読み・書きごと（合計ではない）。誤りの字は Python の言葉（接続の timeout は「CM3に接続できません: timed out」、読みの timeout は
 //! 「CM3の応答がタイムアウトしました」、OS の誤りは Python の OSError の str の形〈Linux は [Errno n] 理由、Windows は [WinError n] 文〉）。
 //!
-//! 窓が取れない設定（https・システムのプロキシ・ftp など・URL に空白や ASCII でない字・数でない timeout）と、Python が落ちる答え
+//! 窓が取れない設定（ftp など・URL に空白や ASCII でない字）と、Python が落ちる答え
 //! （壊れた状態の行・途中で切れた本文・壊れた chunked）は Fail::Python（schedule.rs が係を降りて Python に任せる）。
+//!
+//! 版 3.117.1（段 ③-6）: スケジュールは https（native-tls。Linux は OpenSSL・Windows は schannel と OS の証明書の置き場）とシステムのプロキシ
+//! （src/sysproxy.rs。http は「POST http://… HTTP/1.1」、https は CONNECT の中継）も取る。届かない言葉は種類ごとに決めた字（src/cm3_net.rs）。
+//! LotDsp の 3 本（post_plain・get_once）は前のまま（http の直だけ・前の言葉）。
 
 use crate::cm3::{Fail, R};
+use crate::cm3_net::Kind;
+use crate::sysproxy::{Choice, System};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
+
+/// 問い合わせの途中の誤り: 言葉の決まった物（F）か、届かない形（N: 種類・中身と、LotDsp の前の言葉）
+#[derive(Debug)]
+enum X {
+    F(Fail),
+    N { kind: Kind, detail: String, legacy: Fail },
+}
+
+impl From<Fail> for X {
+    fn from(f: Fail) -> X {
+        X::F(f)
+    }
+}
+
+type H<T> = Result<T, X>;
+
+/// LotDsp の形（前の言葉）
+fn legacy<T>(r: H<T>) -> R<T> {
+    r.map_err(|e| match e {
+        X::F(f) => f,
+        X::N { legacy, .. } => legacy,
+    })
+}
+
+fn net(kind: Kind, detail: String, legacy: Fail) -> X {
+    X::N { kind, detail, legacy }
+}
 
 /// urllib の User-Agent（Python-urllib/<版>。製品の Python と同じ版の字）
 pub const USER_AGENT: &str = "Python-urllib/3.13";
 const MAXLINE: usize = 65536;
 
-fn py<T>(why: &'static str) -> R<T> {
-    Err(Fail::Python(why))
+fn py<T, E: From<Fail>>(why: &'static str) -> Result<T, E> {
+    Err(Fail::Python(why).into())
 }
 
 fn connect_err(reason: String) -> Fail {
@@ -122,7 +155,7 @@ fn gai_text(e: &std::io::Error) -> String {
     }
 }
 
-/// 問い合わせ先（http の URL を urllib と同じに分けた物）
+/// 問い合わせ先（http・https の URL を urllib と同じに分けた物）
 #[derive(Debug, Clone, PartialEq)]
 pub struct Target {
     /// Host の見出しに書く字（URL の netloc のまま）
@@ -133,25 +166,49 @@ pub struct Target {
     pub selector: String,
     /// urllib の full_url（「#」の後ろを除いた URL）
     pub full: String,
+    /// https か
+    pub tls: bool,
+    /// 「#」の後ろ（プロキシ越しの http の要求の行は urllib の full_url の字＝「#」の後ろも送る）
+    pub frag: Option<String>,
 }
 
-/// URL を分ける。http でない URL のうち urllib に係の無い物は「unknown url type」、https・ftp・file・data は窓が取れない
+impl Target {
+    fn scheme(&self) -> &'static str {
+        if self.tls {
+            "https"
+        } else {
+            "http"
+        }
+    }
+}
+
+/// URL を分ける（http だけ。LotDsp の形）。http でない URL のうち urllib に係の無い物は「unknown url type」、https・ftp・file・data は窓が取れない
 pub fn target(url: &str) -> R<Target> {
+    target_with(url, false)
+}
+
+/// URL を分ける。https: https も取るか（スケジュール。版 3.117.1）
+pub fn target_with(url: &str, https: bool) -> R<Target> {
     if !url.chars().all(|c| ('\x21'..='\x7e').contains(&c)) {
         return py("URL に空白・制御文字・ASCII でない字（urllib が落ちるか、窓と読みが違う）");
     }
-    let full = url.rsplit_once('#').map(|(a, _)| a).unwrap_or(url).to_string();
+    // urllib の _splittag（最後の「#」で分ける）
+    let (full, frag) = match url.rsplit_once('#') {
+        Some((a, f)) => (a.to_string(), Some(f.to_string())),
+        None => (url.to_string(), None),
+    };
     // _splittype: ([^/:]+):(.*)
     let Some(colon) = full.find(':').filter(|i| *i > 0 && !full[..*i].contains('/')) else {
         return py("URL に種類が無い（urllib は ValueError）");
     };
     let scheme = full[..colon].to_ascii_lowercase();
     let rest = &full[colon + 1..];
-    match scheme.as_str() {
-        "http" => {}
+    let tls = match scheme.as_str() {
+        "http" => false,
+        "https" if https => true,
         "https" | "ftp" | "file" | "data" => return py("http でない（https・ftp など。窓は http だけを取る）"),
         _ => return Err(connect_err(format!("unknown url type: {scheme}"))),
-    }
+    };
     // _splithost: //([^/#?]*)(.*)
     let (netloc, path) = match rest.strip_prefix("//") {
         Some(r) => {
@@ -170,17 +227,18 @@ pub fn target(url: &str) -> R<Target> {
     if netloc.contains(['%', '@', '[', ']']) {
         return py("Host に % @ [ ]（urllib の unquote・IPv6・利用者の名前）");
     }
+    let default = if tls { 443 } else { 80 };
     let (host, port) = match netloc.rsplit_once(':') {
-        Some((h, "")) => (h.to_string(), 80),
+        Some((h, "")) => (h.to_string(), default),
         Some((h, p)) if p.bytes().all(|b| b.is_ascii_digit()) => match p.parse::<u32>() {
             Ok(n) if n <= 65535 => (h.to_string(), n as u16),
             _ => return py("ポートが 65535 を超える（Python は OverflowError）"),
         },
         Some(_) => return py("ポートが数字でない（http.client は InvalidURL）"),
-        None => (netloc.clone(), 80),
+        None => (netloc.clone(), default),
     };
     let selector = if path.is_empty() { "/".to_string() } else { path };
-    Ok(Target { netloc, host, port, selector, full })
+    Ok(Target { netloc, host, port, selector, full, tls, frag })
 }
 
 /// 答え
@@ -223,13 +281,43 @@ fn latin1(b: &[u8]) -> String {
     b.iter().map(|&c| c as char).collect()
 }
 
-struct Conn {
-    r: BufReader<TcpStream>,
+/// 平文か TLS の流れ
+enum Stream {
+    Plain(TcpStream),
+    Tls(Box<native_tls::TlsStream<TcpStream>>),
 }
 
-impl Conn {
+impl Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Stream::Plain(s) => s.read(buf),
+            Stream::Tls(s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Stream::Plain(s) => s.write(buf),
+            Stream::Tls(s) => s.write(buf),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Stream::Plain(s) => s.flush(),
+            Stream::Tls(s) => s.flush(),
+        }
+    }
+}
+
+struct Conn<S: Read> {
+    r: BufReader<S>,
+}
+
+impl<S: Read> Conn<S> {
     /// 1 行（\n まで）。長すぎれば Python は LineTooLong で落ちる
-    fn line(&mut self) -> R<Vec<u8>> {
+    fn line(&mut self) -> H<Vec<u8>> {
         let mut buf = vec![];
         let n = (&mut self.r).take((MAXLINE + 1) as u64).read_until(b'\n', &mut buf).map_err(read_err)?;
         if n > MAXLINE {
@@ -238,7 +326,7 @@ impl Conn {
         Ok(buf)
     }
 
-    fn exact(&mut self, n: usize) -> R<Vec<u8>> {
+    fn exact(&mut self, n: usize) -> H<Vec<u8>> {
         let mut buf = vec![0u8; n];
         let mut got = 0;
         while got < n {
@@ -251,57 +339,42 @@ impl Conn {
         }
         Ok(buf)
     }
-}
 
-/// 読みの誤り（timeout は「応答がタイムアウト」、ほかは接続できません: OSError）
-fn read_err(e: std::io::Error) -> Fail {
-    use std::io::ErrorKind::*;
-    if matches!(e.kind(), TimedOut | WouldBlock) {
-        timeout_err()
-    } else {
-        connect_err(os_text(&e))
-    }
-}
-
-/// 1 回の問い合わせ（30x はたどらない）
-fn once(t: &Target, method: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> R<Resp> {
-    let addrs: Vec<_> = (t.host.as_str(), t.port).to_socket_addrs().map_err(|e| connect_err(gai_text(&e)))?.collect();
-    let mut last: Option<std::io::Error> = None;
-    let mut stream = None;
-    for a in addrs {
-        match TcpStream::connect_timeout(&a, timeout) {
-            Ok(s) => {
-                stream = Some(s);
+    /// 見出しの並び（空の行まで）
+    fn headers(&mut self) -> H<Vec<(String, String)>> {
+        let mut hs: Vec<(String, String)> = vec![];
+        loop {
+            let l = self.line()?;
+            if matches!(l.as_slice(), b"\r\n" | b"\n" | b"") {
                 break;
             }
-            Err(e) => last = Some(e),
+            if hs.len() >= 100 {
+                return py("見出しが 100 を超える（http.client が落ちる）");
+            }
+            let text = latin1(&l);
+            let text = text.trim_end_matches(['\r', '\n']);
+            if text.starts_with([' ', '\t']) {
+                if let Some(last) = hs.last_mut() {
+                    last.1.push_str(text);
+                }
+                continue;
+            }
+            if let Some((k, v)) = text.split_once(':') {
+                hs.push((k.to_string(), v.trim_start_matches([' ', '\t']).to_string()));
+            }
         }
+        Ok(hs)
     }
-    let Some(stream) = stream else {
-        return Err(connect_err(last.map(|e| os_text(&e)).unwrap_or_else(|| "getaddrinfo returns an empty list".into())));
-    };
-    let _ = stream.set_read_timeout(Some(timeout));
-    let _ = stream.set_write_timeout(Some(timeout));
-    // 要求（http.client: 要求の行 → Accept-Encoding: identity → 渡した見出しの順）
-    let mut req = format!("{method} {} HTTP/1.1\r\nAccept-Encoding: identity\r\n", t.selector).into_bytes();
-    for (k, v) in headers {
-        req.extend(format!("{k}: {v}\r\n").bytes());
-    }
-    req.extend(b"\r\n");
-    if let Some(b) = body {
-        req.extend_from_slice(b);
-    }
-    let mut w = stream.try_clone().map_err(|e| connect_err(os_text(&e)))?;
-    if let Err(e) = w.write_all(&req) {
-        // 送る途中の誤りは urllib が URLError に包む（timeout も「接続できません: timed out」）
-        return Err(connect_err(os_text(&e)));
-    }
-    let mut c = Conn { r: BufReader::new(stream) };
-    // 状態の行（100 Continue は飛ばす）
-    let (version, status, reason) = loop {
-        let line = c.line()?;
+
+    /// 状態の行（http.client の _read_status。100 Continue は呼ぶ側が飛ばす）→ (版, 番号, 理由)
+    fn status(&mut self) -> H<(String, u16, String)> {
+        let line = self.line()?;
         if line.is_empty() {
-            return Err(connect_err("Remote end closed connection without response".into()));
+            return Err(net(
+                Kind::Os,
+                "Remote end closed connection without response".into(),
+                connect_err("Remote end closed connection without response".into()),
+            ));
         }
         let text = latin1(&line);
         let parts = split3(&text);
@@ -317,8 +390,165 @@ fn once(t: &Target, method: &str, headers: &[(String, String)], body: Option<&[u
         if code < 100 {
             return py("状態の番号が 100 より小さい（BadStatusLine）");
         }
+        Ok((version, code, crate::pyfmt::strip(&reason).to_string()))
+    }
+}
+
+/// 読みの誤り（timeout は「応答がタイムアウト」、ほかは接続できません: OSError）
+fn read_err(e: std::io::Error) -> X {
+    use std::io::ErrorKind::*;
+    if matches!(e.kind(), TimedOut | WouldBlock) {
+        net(Kind::Timeout, String::new(), timeout_err())
+    } else {
+        let t = os_text(&e);
+        net(Kind::Os, t.clone(), connect_err(t))
+    }
+}
+
+/// 送る・つなぐ途中の誤り（urllib が URLError に包む。timeout も「接続できません: timed out」が前の言葉）
+fn send_err(e: &std::io::Error) -> X {
+    use std::io::ErrorKind::*;
+    let t = os_text(e);
+    let kind = if matches!(e.kind(), TimedOut | WouldBlock) { Kind::Timeout } else { Kind::Os };
+    net(kind, if kind == Kind::Os { t.clone() } else { String::new() }, connect_err(t))
+}
+
+/// つなぐ先（直か、プロキシ）
+#[derive(Debug, Clone, PartialEq)]
+pub enum Route {
+    Direct,
+    /// プロキシの名前:番号
+    Proxy(String),
+}
+
+/// 名前:番号 → (名前, 番号)（http.client の _get_hostport。番号が無ければ既定）
+fn host_port(hp: &str, default: u16) -> (String, u16) {
+    let (i, j) = (hp.rfind(':'), hp.rfind(']'));
+    let (name, port) = match (i, j) {
+        (Some(i), j) if j.is_none_or(|j| i > j) => (&hp[..i], hp[i + 1..].parse::<u16>().unwrap_or(default)),
+        _ => (hp, default),
+    };
+    (name.trim_start_matches('[').trim_end_matches(']').to_string(), port)
+}
+
+/// TCP でつなぐ
+fn connect(host: &str, port: u16, timeout: Duration) -> H<TcpStream> {
+    let addrs: Vec<_> = (host, port).to_socket_addrs().map_err(|e| net(Kind::Dns, String::new(), connect_err(gai_text(&e))))?.collect();
+    let mut last: Option<std::io::Error> = None;
+    for a in addrs {
+        match TcpStream::connect_timeout(&a, timeout) {
+            Ok(s) => {
+                let _ = s.set_read_timeout(Some(timeout));
+                let _ = s.set_write_timeout(Some(timeout));
+                return Ok(s);
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    match last {
+        Some(e) => Err(send_err(&e)),
+        None => Err(net(Kind::Dns, String::new(), connect_err("getaddrinfo returns an empty list".into()))),
+    }
+}
+
+/// TLS の握手の誤り → 種類（io の誤りなら io の種類。ほかは OS の TLS の材料: Linux は OpenSSL の字、Windows は schannel の番号）
+fn tls_err(e: &native_tls::Error) -> X {
+    let mut src: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
+    while let Some(s) = src {
+        if let Some(io) = s.downcast_ref::<std::io::Error>() {
+            if cfg!(windows) && io.raw_os_error().is_some_and(|n| n < 0) {
+                break; // schannel の誤り（HRESULT）
+            }
+            return send_err(io);
+        }
+        src = s.source();
+    }
+    let text = e.to_string();
+    let kind = if cfg!(windows) {
+        crate::cm3_net::os_error_code(&text).map(|n| crate::cm3_net::kind_of_schannel(n as u32)).unwrap_or(Kind::TlsOther)
+    } else {
+        crate::cm3_net::kind_of_openssl(&text)
+    };
+    net(kind, String::new(), connect_err(text))
+}
+
+fn tls_connector() -> H<&'static native_tls::TlsConnector> {
+    static C: std::sync::OnceLock<Result<native_tls::TlsConnector, String>> = std::sync::OnceLock::new();
+    match C.get_or_init(|| native_tls::TlsConnector::new().map_err(|e| e.to_string())) {
+        Ok(c) => Ok(c),
+        Err(e) => Err(net(Kind::TlsOther, String::new(), connect_err(e.clone()))),
+    }
+}
+
+/// つないで、要求を送れる流れにする（プロキシ越しの https は CONNECT で中継してから TLS）
+fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
+    let tcp = match route {
+        Route::Direct => connect(&t.host, t.port, timeout)?,
+        Route::Proxy(hp) => {
+            let (h, p) = host_port(hp, if t.tls { 443 } else { 80 });
+            connect(&h, p, timeout)?
+        }
+    };
+    if !t.tls {
+        return Ok(Stream::Plain(tcp));
+    }
+    let tcp = if matches!(route, Route::Proxy(_)) {
+        // http.client の _tunnel: CONNECT 名前:番号 HTTP/1.1・Host: 名前:番号
+        let hp = format!("{}:{}", t.host, t.port);
+        let mut w = tcp.try_clone().map_err(|e| send_err(&e))?;
+        w.write_all(format!("CONNECT {hp} HTTP/1.1\r\nHost: {hp}\r\n\r\n").as_bytes()).map_err(|e| send_err(&e))?;
+        // 答えの行と見出しだけを読む（本文は読まない）。1 バイトずつ読み、TLS の始まりを飲み込まない
+        let mut c = Conn { r: BufReader::with_capacity(1, tcp.try_clone().map_err(|e| send_err(&e))?) };
+        let (_v, code, reason) = c.status().map_err(|e| match e {
+            // 中継の答えを読む前の timeout も、ほかの所と同じ時間切れ
+            X::N { kind: Kind::Timeout, legacy, .. } => net(Kind::Timeout, String::new(), legacy),
+            x => x,
+        })?;
+        c.headers()?;
+        if code != 200 {
+            let d = format!("{code} {reason}");
+            return Err(net(Kind::ProxyRefused, d.clone(), connect_err(format!("Tunnel connection failed: {d}"))));
+        }
+        tcp
+    } else {
+        tcp
+    };
+    match tls_connector()?.connect(&t.host, tcp) {
+        Ok(s) => Ok(Stream::Tls(Box::new(s))),
+        Err(native_tls::HandshakeError::WouldBlock(_)) => Err(net(Kind::Timeout, String::new(), connect_err("timed out".into()))),
+        Err(native_tls::HandshakeError::Failure(e)) => Err(tls_err(&e)),
+    }
+}
+
+/// 1 回の問い合わせ（30x はたどらない）
+fn once(t: &Target, route: &Route, method: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> H<Resp> {
+    let mut stream = open(t, route, timeout)?;
+    // 要求（http.client: 要求の行 → Accept-Encoding: identity → 渡した見出しの順）。プロキシ越しの http は URL の全体（urllib の set_proxy）
+    let target = match (route, t.tls) {
+        (Route::Proxy(_), false) => match &t.frag {
+            Some(f) => format!("{}#{f}", t.full),
+            None => t.full.clone(),
+        },
+        _ => t.selector.clone(),
+    };
+    let mut req = format!("{method} {target} HTTP/1.1\r\nAccept-Encoding: identity\r\n").into_bytes();
+    for (k, v) in headers {
+        req.extend(format!("{k}: {v}\r\n").bytes());
+    }
+    req.extend(b"\r\n");
+    if let Some(b) = body {
+        req.extend_from_slice(b);
+    }
+    if let Err(e) = stream.write_all(&req).and_then(|_| stream.flush()) {
+        // 送る途中の誤りは urllib が URLError に包む（timeout も「接続できません: timed out」）
+        return Err(send_err(&e));
+    }
+    let mut c = Conn { r: BufReader::new(stream) };
+    // 状態の行（100 Continue は飛ばす）
+    let (version, status, reason) = loop {
+        let (version, code, reason) = c.status()?;
         if code != 100 {
-            break (version, code, crate::pyfmt::strip(&reason).to_string());
+            break (version, code, reason);
         }
         loop {
             let l = c.line()?;
@@ -330,28 +560,7 @@ fn once(t: &Target, method: &str, headers: &[(String, String)], body: Option<&[u
     if version != "HTTP/1.0" && !version.starts_with("HTTP/1.") {
         return py("知らない HTTP の版（UnknownProtocol）");
     }
-    // 見出し
-    let mut hs: Vec<(String, String)> = vec![];
-    loop {
-        let l = c.line()?;
-        if matches!(l.as_slice(), b"\r\n" | b"\n" | b"") {
-            break;
-        }
-        if hs.len() >= 100 {
-            return py("見出しが 100 を超える（http.client が落ちる）");
-        }
-        let text = latin1(&l);
-        let text = text.trim_end_matches(['\r', '\n']);
-        if text.starts_with([' ', '\t']) {
-            if let Some(last) = hs.last_mut() {
-                last.1.push_str(text);
-            }
-            continue;
-        }
-        if let Some((k, v)) = text.split_once(':') {
-            hs.push((k.to_string(), v.trim_start_matches([' ', '\t']).to_string()));
-        }
-    }
+    let hs = c.headers()?;
     let mut resp = Resp { status, reason, headers: hs, body: vec![] };
     let chunked = resp.header("transfer-encoding").is_some_and(|v| v.eq_ignore_ascii_case("chunked"));
     let length = if chunked {
@@ -418,48 +627,103 @@ fn headers_for(t: &Target, post: Option<&[u8]>, base: &str) -> Vec<(String, Stri
 
 const INF_MSG: &str = "The HTTP server returned a redirect error that would lead to an infinite loop.\nThe last 30x error message was:\n";
 
-/// 30x の行き先（urllib と同じに組める形だけ。ほかは Python に任せる）
-fn redirect_url(cur: &Target, loc: &str) -> R<String> {
+/// 30x の行き先（urllib と同じに組める形だけ。ほかは Python に任せる）。https: https の行き先もたどるか
+fn redirect_url(cur: &Target, loc: &str, https: bool) -> H<String> {
     if !loc.chars().all(|c| ('\x21'..='\x7e').contains(&c)) {
         return py("30x の行き先に空白・ASCII でない字（urllib は % で逃がす）");
     }
     let lower = loc.to_ascii_lowercase();
-    if lower.starts_with("http://") {
-        let rest = &loc[7..];
+    let abs = if lower.starts_with("http://") {
+        Some(("http", 7))
+    } else if https && lower.starts_with("https://") {
+        Some(("https", 8))
+    } else {
+        None
+    };
+    if let Some((scheme, n)) = abs {
+        let rest = &loc[n..];
         let has_path = rest.contains(['/', '?', '#']);
         let url = if has_path { loc.to_string() } else { format!("{loc}/") };
         let (u, _) = url.split_once('#').map(|(a, b)| (a.to_string(), b)).unwrap_or((url.clone(), ""));
-        if u[7..].split(['?']).next().unwrap_or("").contains("/.") {
+        if u[n..].split(['?']).next().unwrap_or("").contains("/.") {
             return py("30x の行き先の道に . の段（urljoin が畳む）");
         }
-        return Ok(format!("http://{}", &url[7..]));
+        return Ok(format!("{scheme}://{}", &url[n..]));
     }
     if loc.starts_with('/') && !loc.starts_with("//") {
         if loc.split(['?', '#']).next().unwrap_or("").contains("/.") {
             return py("30x の行き先の道に . の段（urljoin が畳む）");
         }
-        return Ok(format!("http://{}{loc}", cur.netloc));
+        return Ok(format!("{}://{}{loc}", cur.scheme(), cur.netloc));
     }
     py("30x の行き先が http の URL でも絶対の道でもない（urllib は urljoin・ほかの種類）")
 }
 
-/// CM3 へ POST して答えを受ける（30x をたどり、2xx でなければ HTTP の誤り）
+/// スケジュールの問い合わせの仕方（版 3.117.1）
+#[derive(Debug, Clone, Default)]
+pub struct Net {
+    /// システムのプロキシ（use_system_proxy。None は直）
+    pub proxy: Option<System>,
+}
+
+/// 取った道（最初の問い合わせ。状態と GET /api/schedule に書く）
+#[derive(Debug, Clone, PartialEq)]
+pub struct Via {
+    pub tls: bool,
+    pub proxy: Option<String>,
+}
+
+/// 行き先ごとのつなぐ先（Python の ProxyHandler: 30x のたびに行き先の名前で決め直す）
+fn route_of(t: &Target, n: &Net, proxies: &[(String, String)]) -> H<Route> {
+    let Some(sys) = &n.proxy else { return Ok(Route::Direct) };
+    let host = t.netloc.clone();
+    match crate::sysproxy::choose(t.scheme(), &host, proxies, &|h| sys.bypass(h)) {
+        Ok(Choice::Direct) => Ok(Route::Direct),
+        Ok(Choice::Proxy(hp)) => Ok(Route::Proxy(hp)),
+        Err(m) => Err(X::F(Fail::Cm3(m))),
+    }
+}
+
+/// CM3 へ POST して答えを受ける（30x をたどり、2xx でなければ HTTP の誤り）。http の直だけ（前の形。試験と LotDsp の部品のため）
 pub fn post(url: &str, base: &str, body: &[u8], timeout: Duration) -> R<Resp> {
-    let r = follow(url, body, timeout, &|t, b| headers_for(t, b, base))?;
+    let r = legacy(follow(url, body, timeout, &|t, b| headers_for(t, b, base), false, &Net::default(), &mut None))?;
     if (200..300).contains(&r.status) {
         return Ok(r);
     }
     Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)))
 }
 
+/// スケジュールの CM3 への POST（版 3.117.1: https とシステムのプロキシ。届かない言葉は cm3_net の種類ごとの字に、PAC の一言 note を足す）
+pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) -> (R<Resp>, Option<Via>) {
+    let mut via = None;
+    let note = n.proxy.as_ref().map(crate::sysproxy::pac_note).unwrap_or("");
+    let r = follow(url, body, timeout, &|t, b| headers_for(t, b, base), true, n, &mut via);
+    let r = match r {
+        Ok(r) if (200..300).contains(&r.status) => Ok(r),
+        Ok(r) => Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))),
+        // 設定の誤り（unknown url type・no host given）と Python に任せる形は前のまま
+        Err(X::F(f)) => Err(f),
+        Err(X::N { kind, detail, .. }) => Err(Fail::Cm3(crate::cm3_net::message(kind, &detail, note))),
+    };
+    (r, via)
+}
+
 /// LotDsp の API へ POST する（版 3.98.0。src/lotdsp.rs。urllib.request の Request〈data・Accept・Content-Type〉と同じ見出し:
 /// Origin・Referer は付けない）。2xx でない答えも Ok（呼ぶ側が HTTPError の扱いをする）
 pub fn post_plain(url: &str, body: &[u8], timeout: Duration) -> R<Resp> {
-    follow(url, body, timeout, &|t, b| {
-        let mut h = headers_for(t, b, "");
-        h.retain(|(k, _)| k != "Origin" && k != "Referer");
-        h
-    })
+    legacy(follow(
+        url,
+        body,
+        timeout,
+        &|t, b| {
+            let mut h = headers_for(t, b, "");
+            h.retain(|(k, _)| k != "Origin" && k != "Referer");
+            h
+        },
+        false,
+        &Net::default(),
+        &mut None,
+    ))
 }
 
 /// GET を 1 回（版 3.98.0。LotDsp に届くかの確かめ。30x はたどらない: 答えが返れば届いている）
@@ -470,19 +734,32 @@ pub fn get_once(url: &str, timeout: Duration) -> R<Resp> {
         ("User-Agent".to_string(), USER_AGENT.to_string()),
         ("Connection".to_string(), "close".to_string()),
     ];
-    once(&t, "GET", &h, None, timeout)
+    legacy(once(&t, &Route::Direct, "GET", &h, None, timeout))
 }
 
 type Heads<'a> = &'a dyn Fn(&Target, Option<&[u8]>) -> Vec<(String, String)>;
 
-/// POST して 30x をたどる（urllib の HTTPRedirectHandler と同じ）。たどった後の答え（2xx でなければ HTTP の誤りの答え）
-fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads) -> R<Resp> {
-    let mut t = target(url)?;
+/// POST して 30x をたどる（urllib の HTTPRedirectHandler と同じ）。たどった後の答え（2xx でなければ HTTP の誤りの答え）。
+/// https: https の URL も取るか。via: 最初の問い合わせの道を書く
+fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads, https: bool, n: &Net, via: &mut Option<Via>) -> H<Resp> {
+    let mut t = target_with(url, https)?;
+    // getproxies は opener を作るときに 1 回（Python の build_opener）
+    let proxies = n.proxy.as_ref().map(System::proxies).unwrap_or_default();
     let mut method = "POST";
     let mut visited: Vec<(String, u32)> = vec![];
     loop {
+        let route = route_of(&t, n, &proxies)?;
+        if via.is_none() {
+            *via = Some(Via {
+                tls: t.tls,
+                proxy: match &route {
+                    Route::Proxy(hp) => Some(hp.clone()),
+                    Route::Direct => None,
+                },
+            });
+        }
         let post_body = (method == "POST").then_some(body);
-        let mut r = once(&t, method, &heads(&t, post_body), post_body, timeout)?;
+        let mut r = once(&t, &route, method, &heads(&t, post_body), post_body, timeout)?;
         if (200..300).contains(&r.status) || !matches!(r.status, 301 | 302 | 303 | 307 | 308) {
             return Ok(r);
         }
@@ -498,10 +775,10 @@ fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads) -> R<Resp> {
         if method == "POST" && matches!(r.status, 307 | 308) {
             return Ok(r);
         }
-        if scheme.is_some_and(|s| matches!(s, "https" | "ftp")) {
+        if scheme.is_some_and(|s| s == "ftp" || (s == "https" && !https)) {
             return py("30x の行き先が https・ftp");
         }
-        let new_url = redirect_url(&t, &loc)?;
+        let new_url = redirect_url(&t, &loc, https)?;
         let seen = visited.iter().find(|(u, _)| *u == new_url).map(|x| x.1).unwrap_or(0);
         if seen >= 4 || visited.len() >= 10 {
             r.reason = format!("{INF_MSG}{}", r.reason);
@@ -514,7 +791,7 @@ fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads) -> R<Resp> {
         if method == "POST" {
             method = "GET";
         }
-        t = target(&new_url)?;
+        t = target_with(&new_url, https)?;
     }
 }
 

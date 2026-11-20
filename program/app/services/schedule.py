@@ -12,7 +12,8 @@ ScheduleView は「CM3 の作業予定」と「仕掛台帳（LOTNOW.sqlite3）�
                     完了予定の順に並べた表「HOT」（build_hot）
 
 設定（配った設定 config/appsettings.json の schedule。CM3 の URL・端末の IP・設備・点検の言葉は参照先マスタで直せる）:
-  cm3_base_url・init_path・client_ip・timeout_sec・use_system_proxy … CM3 への問い合わせ
+  cm3_base_url・init_path・client_ip・timeout_sec・use_system_proxy … CM3 への問い合わせ（版 3.117.1 から https とシステムのプロキシも窓が取る）
+  fetch_engine          … CM3 を取る係（既定 "window"。"python" は前の道: 窓は係を降り、受け身の Python が取る。段 ④ まで残す戻り道）
   cm3_view_url_template … 「CM3 の画面を開く」（{base}・{setsubi}・{termkbn}）
   equipments            … 設備のタブ（「L-1, L-2, L-3」。端末区分が違う設備は「L-9:2」のように : の後ろに書く。既定は term_kbn）
   inspect_keywords      … 点検の行の言葉（「点検板」。「、」「,」で区切って複数）
@@ -58,6 +59,7 @@ DEFAULTS = {
     "inspect_keywords": "点検板",
     "timeout_sec": 15,
     "use_system_proxy": False,
+    "fetch_engine": "window",
     "cache_sec": 10,
     "auto_refresh_sec": 60,
     "hot": {"title": "HOTコイル作業順", "equipments": "", "prev_value": "HOT", "result_course_column": "実績_設備ｺｰｽ",
@@ -130,7 +132,7 @@ def _safe(code):
 
 def fetch_conf(cfg):
     """取りに行く設定（状態の resigned.for と、窓への知らせに載せる。窓が降りた設定と比べる）"""
-    return {k: cfg.get(k) for k in ("cm3_base_url", "init_path", "client_ip", "timeout_sec", "use_system_proxy")}
+    return {k: cfg.get(k) for k in ("cm3_base_url", "init_path", "client_ip", "timeout_sec", "use_system_proxy", "fetch_engine")}
 
 
 def _sig(rows):
@@ -559,7 +561,8 @@ def summary(state, joined=None):
     return {"count": len(lots), "lots": len({i.get("lotNo") for i in lots}), "inspect": data.get("inspectCount", 0),
             "stop": data.get("stopCount", 0), "hit": hit, "first": times[0] if times else "", "last": times[-1] if times else "",
             "nextStop": {"time": stop.get("kanryoYotei") or "", "text": stop.get("stopText") or ""} if stop else None,
-            "updateTime": data.get("updateTime"), "fetchedAt": data.get("fetchedAt"), "error": state.get("error") or ""}
+            "updateTime": data.get("updateTime"), "fetchedAt": data.get("fetchedAt"), "error": state.get("error") or "",
+            "via": data.get("via")}
 
 
 def missing_lots(path, table, brought):

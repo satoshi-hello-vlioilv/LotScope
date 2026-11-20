@@ -5,10 +5,15 @@
 作り物の CM3（tests/schedule_fixture.Cm3Server。道の頭 /<係>/<場面>/ で場面と数えを分ける）に載せ、接続を受けない口（blackhole）も作る。
 前は答え合わせ役 tests/schedule_oracle.py の中にあった（app を import する台本）。起こすのは tests/fakes_serve.py
 （python tests/fakes_serve.py schedule 仕掛の SQLite）と、答え合わせ役。尋ねられる口（ask）: 「requests 係 場面」＝その場面で CM3 が受けた要求の並び・
-「count 係 場面」＝その数（窓の試験が途中で尋ねる）。
+「count 係 場面」＝その数（窓の試験が途中で尋ねる）・「proxylog 名前」＝作り物のプロキシが受けた要求の行と見出し。
+版 3.117.1（段 ③-6）: https の作り物（作り物の CA が出した 127.0.0.1 の証明書・名前の違う証明書・信頼しない CA の証明書。tests/fixtures/tls）・
+TLS でない口（何か来たらすぐ平文の 400 を返す）・作り物のプロキシ（中継・黙る・断る）も起こす。
 """
 import json
+import os
 import socket
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import schedule_fixture as fx  # （標準の部品だけ）
@@ -102,11 +107,12 @@ class World:
         self.html = answer("L-1", html_rows(self.update), self.update)
         self.shapes = shape_answers(self.update)
         self.port = 0
+        self.tls_port = 0
 
     def __call__(self, scene, req, k):  # noqa: C901 (場面の振り分け)
         eq, runner = req["equip"], req["path"].split("/")[1]
         base = f"/{runner}/{scene}"
-        if scene in ("ok", "concurrent", "timeout"):
+        if scene in ("ok", "concurrent", "timeout", "tls", "ptls", "phttp", "pcred", "pbypass", "pnone", "pkind", "phttps", "engine", "pnone2"):
             return fx.json_reply(self.full.get(eq) or {"status": "SUCCESS", "entity": {}})
         if scene == "change":                         # 問い合わせごとに中身が変わる（新しい世代）
             a = json.loads(json.dumps(self.full[eq]))
@@ -172,6 +178,14 @@ class World:
             return fx.reply(307, "Temporary Redirect", b"", [("Location", f"{base}/next")])
         if scene == "rloop":
             return fx.reply(302, "Found", b"", [("Location", f"{base}/loop")])
+        if scene == "rbyp":                         # 30x のたびにプロキシを決め直す（localhost は no_proxy で直・行き先の 127.0.0.1 はプロキシ越し）
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"http://127.0.0.1:{self.port}{base}/next?eq={eq}")])
+            return fx.json_reply(self.small[eq])
+        if scene == "rtls":                         # http → https の 302（https の行き先もたどる）
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"https://127.0.0.1:{self.tls_port}{base}/next?eq={eq}")])
+            return fx.json_reply(self.small[eq])
         if scene == "rnoloc":
             return fx.reply(302, "Found", b"", [])
         if scene == "silent":
@@ -202,12 +216,152 @@ def blackhole():
     return s, held
 
 
+TLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "tls")
+
+
+def tls_files(name):
+    return os.path.join(TLS, f"{name}.pem"), os.path.join(TLS, f"{name}.key")
+
+
+def _pipe(a, b):
+    try:
+        while True:
+            d = a.recv(65536)
+            if not d:
+                break
+            b.sendall(d)
+    except OSError:
+        pass
+    finally:
+        for x in (a, b):
+            try:
+                x.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+
+class Proxy:
+    """作り物のプロキシ（版 3.117.1）。mode: relay（中継。「POST http://名前:番号/道 HTTP/1.1」は道だけにして行き先へ送り、CONNECT は
+    「200 Connection established」の後に流れをそのまま中継）・silent（受けて黙る）・deny（403 Forbidden で断る）。
+    log に受けた要求の行と見出しを残す（窓と Python で比べる: 利用者:合言葉 を送らない・URL の全体・CONNECT の行）"""
+
+    def __init__(self, mode):
+        self.mode = mode
+        self.log = []
+        self.lock = threading.Lock()
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(64)
+        self.port = self.sock.getsockname()[1]
+        self.url = f"http://127.0.0.1:{self.port}"
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._one, args=(c,), daemon=True).start()
+
+    def _one(self, c):
+        up = None
+        try:
+            data = b""
+            while b"\r\n\r\n" not in data:
+                got = c.recv(65536)
+                if not got:
+                    return
+                data += got
+            head, _, rest = data.partition(b"\r\n\r\n")
+            lines = head.decode("latin-1").split("\r\n")
+            hs = [x.split(": ", 1) for x in lines[1:]]
+            with self.lock:
+                self.log.append({"line": lines[0], "headers": hs})
+            if self.mode == "silent":
+                c.settimeout(30)
+                while c.recv(65536):
+                    pass
+                return
+            if self.mode == "deny":
+                c.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                return
+            method, target, ver = lines[0].split(" ", 2)
+            if method == "CONNECT":
+                host, port = target.rsplit(":", 1)
+                up = socket.create_connection((host, int(port)), timeout=10)
+                up.settimeout(None)
+                c.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                if rest:
+                    up.sendall(rest)
+            else:
+                assert target.startswith("http://")
+                hostport, _, path = target[7:].partition("/")
+                host, _, port = hostport.partition(":")
+                up = socket.create_connection((host, int(port or 80)), timeout=10)
+                up.settimeout(None)
+                path = "/" + path.split("#", 1)[0]
+                up.sendall(f"{method} {path} {ver}\r\n".encode("latin-1") + "".join(f"{k}: {v}\r\n" for k, v in hs).encode("latin-1") + b"\r\n" + rest)
+            t = threading.Thread(target=_pipe, args=(c, up), daemon=True)
+            t.start()
+            _pipe(up, c)
+            t.join(10)
+        except OSError:
+            pass
+        finally:
+            for x in (c, up):
+                if x is not None:
+                    try:
+                        x.close()
+                    except OSError:
+                        pass
+
+    def close(self):
+        self.sock.close()
+
+
+class PlainQuick:
+    """TLS でない口（何か来たらすぐ平文の 400 を返して閉じる。https の URL で http の口を指した形）"""
+
+    def __init__(self):
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(16)
+        self.port = self.sock.getsockname()[1]
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            try:
+                c.settimeout(5)
+                c.recv(1024)
+                c.sendall(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                time.sleep(0.05)
+            except OSError:
+                pass
+            finally:
+                c.close()
+
+    def close(self):
+        self.sock.close()
+
+
 def start(wip):
-    """作り物の CM3 と、接続を受けない口を起こす。wip は仕掛の SQLite（釜番つき。届く場面の予定の元）。
-    → {"urls": {"cm3": URL, "hole": 接続を受けない口の URL}, "close", "ask", "srv": 作り物の CM3, "hole_port": 接続を受けない口の番号}"""
+    """作り物の CM3 と、接続を受けない口と、https・プロキシの作り物を起こす。wip は仕掛の SQLite（釜番つき。届く場面の予定の元）。
+    → {"urls": {名前: URL}, "close", "ask", "srv": 作り物の CM3, "hole_port": 接続を受けない口の番号}"""
     world = World(wip)
     srv = fx.Cm3Server(world)
     world.port = srv.port
+    tls = fx.Cm3Server(world, tls=tls_files("server"), share=srv)
+    world.tls_port = tls.port
+    tlsname = fx.Cm3Server(world, tls=tls_files("wrongname"), share=srv)
+    tlsbad = fx.Cm3Server(world, tls=tls_files("untrusted"), share=srv)
+    plain = PlainQuick()
+    proxies = {"relay_py": Proxy("relay"), "relay_rs": Proxy("relay"), "silent": Proxy("silent"), "deny": Proxy("deny")}
     bh, held = blackhole()
 
     def ask(line):
@@ -217,11 +371,20 @@ def start(wip):
         if cmd[:1] == ["count"]:
             with srv.lock:
                 return sum(1 for (ru, sc, _r) in srv.log if ru == cmd[1] and sc == cmd[2])
+        if cmd[:1] == ["proxylog"]:
+            p = proxies[cmd[1]]
+            with p.lock:
+                out = list(p.log)
+                p.log.clear()
+            return out
         return None
 
     def close():
-        srv.close()
+        for x in (srv, tls, tlsname, tlsbad, plain, *proxies.values()):
+            x.close()
         bh.close()
         held.close()
     hole_port = bh.getsockname()[1]
-    return {"urls": {"cm3": srv.url, "hole": f"http://127.0.0.1:{hole_port}"}, "close": close, "ask": ask, "srv": srv, "hole_port": hole_port}
+    urls = {"cm3": srv.url, "hole": f"http://127.0.0.1:{hole_port}", "tls": tls.url, "tlsname": tlsname.url, "tlsbad": tlsbad.url,
+            "plain": f"https://127.0.0.1:{plain.port}", **{k: p.url for k, p in proxies.items()}}
+    return {"urls": urls, "close": close, "ask": ask, "srv": srv, "hole_port": hole_port}

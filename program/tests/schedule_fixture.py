@@ -181,17 +181,26 @@ class Cm3Server:
     handler(場面, 要求, 回数) → 答えのバイト列か ("sleep", 秒)（受けて黙る）か None（何も言わずに閉じる）。
     要求は {"method", "path", "headers": [(名前, 値)], "body", "equip"}。log に (走る係, 場面, 要求) を残す"""
 
-    def __init__(self, handler):
+    def __init__(self, handler, tls=None, share=None):
+        """tls: (証明書, 鍵) の道（版 3.117.1。https の作り物。握手は受けた糸で）。share: 数えと記録を共にする作り物（http と https で同じ場面の数え）"""
         import socket
         self.handler = handler
-        self.log = []
-        self.counts = {}
-        self.lock = threading.Lock()
+        if share is not None:
+            self.log, self.counts, self.lock = share.log, share.counts, share.lock
+        else:
+            self.log = []
+            self.counts = {}
+            self.lock = threading.Lock()
+        self.tls = None
+        if tls:
+            import ssl
+            self.tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.tls.load_cert_chain(*tls)
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
         self.sock.listen(64)
         self.port = self.sock.getsockname()[1]
-        self.url = f"http://127.0.0.1:{self.port}"
+        self.url = f"{'https' if tls else 'http'}://127.0.0.1:{self.port}"
         threading.Thread(target=self._loop, daemon=True).start()
 
     def _loop(self):
@@ -205,6 +214,13 @@ class Cm3Server:
     def _one(self, c):
         import time as _t
         try:
+            if self.tls:
+                c.settimeout(10)
+                try:
+                    c = self.tls.wrap_socket(c, server_side=True)
+                except OSError:          # 握手に失敗した（信頼しない・名前が違うと相手が断った）
+                    return
+                c.settimeout(None)
             data = b""
             while b"\r\n\r\n" not in data:
                 got = c.recv(65536)

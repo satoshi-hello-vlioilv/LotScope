@@ -50,10 +50,13 @@ unicode-normalization = "0.1"
 regex = "1"
 # 画面の CSP の印（版 3.85.0。src/page.rs。secrets.token_urlsafe と同じ暗号の乱数。Tauri が既に使っている版）
 getrandom = "0.3"
+# CM3 の https（版 3.117.1。段 ③-6。src/cm3_http.rs）: OS の証明書の置き場を使う TLS（Linux は OpenSSL、Windows は schannel と Windows の証明書ストア）。
+# 利用者の決め 2026-11-17（CM3 は https とプロキシ・社内 LAN か VPN からだけ）。Linux で組むには libssl-dev が要る
+native-tls = "0.2"
 
 # 本物の Python を PID で見る・止める（src/proc.rs）・ショートカットを作る（src/lnk.rs）。版は Tauri が使っているものに合わせる（同じ crate を2つ持たない）
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Threading", "Win32_System_Com", "Win32_UI_Shell", "Win32_Storage_FileSystem", "Win32_System_WindowsProgramming", "Win32_System_SystemInformation", "Win32_System_Diagnostics_Debug", "Win32_System_JobObjects", "Win32_Security"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Threading", "Win32_System_Com", "Win32_UI_Shell", "Win32_Storage_FileSystem", "Win32_System_WindowsProgramming", "Win32_System_SystemInformation", "Win32_System_Diagnostics_Debug", "Win32_System_JobObjects", "Win32_Security", "Win32_System_Registry"] }
 
 [profile.release]
 opt-level = 3
