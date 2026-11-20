@@ -1072,6 +1072,25 @@
    "lotdsp の entity_of は app の読み手（lotdsp_progress）で作り物の JSON を作る（見本を移すだけでは app が残る）→ 答えを表に焼いた",
    "lotdsp の表は 6 MB（見込み 3.4 MB）: 問い合わせの本文（画面の見本の 16 進）が約 25 通り。books.json の maxMB 7",
    "答え合わせ役の場面（py/）の作り物のブラウザの包みは sys.executable の道を持つ（PC ごとに違う）→ 窓の試験が rs/ に作る"
-  ]
+  ],
+  "built_3117_1": {
+   "about": "作った形（版 3.117.1・ブランチ stage3g）。first_fixes 9〜13 と K5（焼く前の直し 3 つ）・schedule を焼く。採点の中身（rounds・evaluation）は書き換えていない",
+   "cut_line": "切る線の ①〜⑧ を全部入れた（① 事例の表 2 つと Python の直し → ② 窓の https → ③ 窓のプロキシと Windows の読み手 → ④ 戻り道 fetch_engine・状態と title → ⑤ K5 → ⑥ schedule を焼く → ⑦ desktop.yml の Windows の本物の段 → ⑧ 予算・文書・版）。⑦ は手元で流せない（Windows の CI の最初の記録で確かめる）",
+   "first_fixes": {
+    "9": "native-tls（Linux 7 crate〈見込み 5。foreign-types の 2 つが多い〉・Windows 2）。Windows だけの所は作業用クレートで clippy --target x86_64-pc-windows-msvc（Iterator::last の指摘を直した）。ci.yml の apt に libssl-dev。Windows の CI の組む時間の増えは最初の記録で読む（手元では測れない）",
+    "10": "schedule.fetch_engine（既定 window・\"python\" で降りる。resigned.for に入る）を envExtra 2 に数えた。via（engine・tls・proxy）を状態・summary・GET /api/schedule に書き、データの時刻の title に出す。schedule_parity の「戻り道（fetch_engine が python）」と降りて戻るの 2 形目を fetch_engine にした。入口の条件 (4) は計画書にある（利用者の確認待ち）",
+    "11": "tests/fixtures/sysproxy_cases.json（78 事例）・tests/test_sysproxy_cases.py（urllib の関数を直に。Linux は Windows の節を ast で組む）・cargo test --test sysproxy_cases。変異 3 つで落ちることを見た",
+    "12": "desktop.yml の windows-test に「作り物の CA を証明書ストアに入れる」（schedule_parity の https の場面を schannel の本物で）・「TLS とプロキシを Windows の本物で」（HKCU を書いて sysproxy_cases の ignored の試験で Windows の Python と比べ、finally で戻す。PAC の一言も）・「作り物の CA とプロキシの設定を片付ける」（always）。手元では流していない",
+    "13": "tests/fixtures/cm3_net_cases.json・services/cm3_net.py・src/cm3_net.rs。時間切れは 1 つ・名前を引けないは決めた言葉・TLS 3 つ・407・プロキシに届かない。利用者:合言葉 は Python も送らない（sysproxy.clean）"
+   },
+   "K5": "(1) 名前が引けないは OS の字を使わない決めた言葉（印でそろえない）(2) CM3 への要求は設備ごとの並び (3) 1 本多く見えたのは timeout の 19 場面が同じ CM3 の場面の名前で要求が積もったため（取る数は同じ）。場面の名前を「名前~番号」に",
+   "windowsOnly": "更新時刻の範囲を 1970〜3000 年に決め、Windows だけの任せる 2 歩を閉じた（TS_RANGE・TS_MIN・TS_MAX）",
+   "found_while_building": [
+    "焼くときの 2 回目（別の PC の形）が localhost の作り物の URL・答えの上の段の port を見つけた（@URL(cm3local)・drop）。PC の指紋の見張りが socks の場面のポート 1080 を止めた（閉じた口 :1 に）",
+    "schedule_fixture.py が builder・equipgroups の元なので、両方を焼き直した（builder は届かない言葉の一言で葉が変わった）",
+    "Windows の窓（schannel）は SSL_CERT_FILE を読まないので、schedule_parity の https の場面のために Windows の CI で作り物の CA を証明書ストアに入れる段が要った",
+    "版を上げた後の焼きは Cargo.lock の版の行で --locked が落ちる（cargo update -p defect-analyzer-desktop --offline）"
+   ]
+  }
  }
 }

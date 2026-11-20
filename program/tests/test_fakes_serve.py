@@ -7,7 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import os
 import urllib.request
+from unittest import mock
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
@@ -51,7 +53,9 @@ class FakesServe(unittest.TestCase):
             lotlist_fixture.make_wip(str(wip), n=40)
             schedule_fixture.add_kama(wip)
             p, first = self.start("schedule", str(wip))
-            self.assertEqual(sorted(first["urls"]), ["cm3", "hole"])
+            # 版 3.117.1: https の作り物（tls・tlsname・tlsbad・TLS でない口 plain）とプロキシ（中継 relay_py・relay_rs・黙る・断る・407）も名乗る
+            self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3local", "deny", "hole", "plain", "relay_py", "relay_rs", "silent",
+                                                     "tls", "tlsbad", "tlsname"])
 
             def ask(line):
                 p.stdin.write(line + "\n")
@@ -66,6 +70,17 @@ class FakesServe(unittest.TestCase):
             self.assertEqual(ask("count rs sjis"), 1)
             self.assertEqual(len(ask("requests rs sjis")), 1)
             self.assertEqual(ask("count py sjis"), 0, "係（道の頭）ごとに数える")
+            # 中継のプロキシ越しの http（「POST http://… HTTP/1.1」を道にして送る）と、受けた要求の行（proxylog は読んだら空にする）
+            via = urllib.request.build_opener(urllib.request.ProxyHandler({"http": first["urls"]["relay_rs"]}))
+            req = urllib.request.Request(first["urls"]["cm3"] + "/rs/ok/init", data=json.dumps({"setsubiName": "L-1"}).encode("utf-8"))
+            # この PC の no_proxy（127.0.0.1 を直にする）を読まない
+            with mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy")}, clear=True), \
+                    via.open(req, timeout=5) as r:
+                self.assertEqual(json.loads(r.read().decode("utf-8"))["status"], "SUCCESS")
+            log = ask("proxylog relay_rs")
+            self.assertEqual([x["line"].split(" ")[0] for x in log], ["POST"])
+            self.assertTrue(log[0]["line"].split(" ")[1].startswith("http://127.0.0.1:"))
+            self.assertEqual(ask("proxylog relay_rs"), [])
             self.stop(p)
 
     def test_non_ascii_answers_survive_a_non_utf8_pipe_under_isolated_mode(self):

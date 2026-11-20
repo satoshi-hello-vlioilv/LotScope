@@ -40,7 +40,8 @@ class BakedTables(unittest.TestCase):
         phases = json.loads((bless.BAKED / "books.json").read_text(encoding="utf-8"))["bakedPhases"]
         self.assertEqual(list(bless.PHASES), phases)
         self.assertEqual(bless.ci_shape().PHASES, bless.PHASES)
-        self.assertEqual(phases, ["3.115.0", "3.116.0", "3.117.0"], "この版で焼いた版の並び（版を足したらここも）")
+        # 版 3.117.1: schedule を焼いた（③-6 と同じ版）
+        self.assertEqual(phases, ["3.115.0", "3.116.0", "3.117.0", "3.117.1"], "この版で焼いた版の並び（版を足したらここも）")
         self.assertEqual({b["phase"] for b in bless.BOOKS.values() if b["phase"] in phases}, set(phases), "焼いた版ごとに本がある")
 
     def test_packed_tables_open_and_stay_under_the_size_limits(self):
