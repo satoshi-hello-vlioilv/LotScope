@@ -400,7 +400,12 @@ fn a_scene_comes_back_from_its_declaration() {
     assert_eq!(std::fs::read(b.join("bin.sqlite3")).unwrap(), [0u8, 1, 2, 255, 0, 7], "バイトのまま");
     assert_eq!(std::fs::metadata(b.join("share/sub/old.txt")).unwrap().modified().unwrap(), old, "遠い更新時刻はそのまま");
     let lock_b = std::fs::read_to_string(b.join("share/master.lock.json")).unwrap();
-    assert!(lock_b.contains(&b.join("share").display().to_string()), "道は作った所の字: {lock_b}");
+    // 区切りの字はそろえて比べる: Windows では戻す道の根を「/」で書く（`Ctx::unsub`。版 3.117.0）ので、根は「C:/…/b」・
+    // 続きは宣言のままの「\share」になる。Windows は「/」も区切りに読むので、指す先は同じ（PR #117 の Windows の CI で、
+    // 字をそのまま比べていたこの行が落ちた）
+    let slashed = |s: &str| s.replace('\\', "/");
+    assert!(slashed(&lock_b).contains(&slashed(&b.join("share").display().to_string())), "道は作った所の字: {lock_b}");
+    assert!(!slashed(&lock_b).contains(&slashed(&a.join("share").display().to_string())), "作る前の所の字が残らない: {lock_b}");
     #[cfg(unix)]
     {
         use std::os::unix::fs::{FileTypeExt, PermissionsExt};
