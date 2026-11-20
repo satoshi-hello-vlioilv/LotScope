@@ -379,7 +379,11 @@ pub const PAC_NOTE: &str = "（プロキシの自動設定〈PAC〉には対応�
 impl System {
     /// この PC の設定（環境変数と、Windows は HKCU のレジストリ）
     pub fn read() -> System {
-        System { env: std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect(), reg: read_reg(), nt: cfg!(windows) }
+        System {
+            env: std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect(),
+            reg: read_reg(),
+            nt: cfg!(windows),
+        }
     }
 
     pub fn proxies(&self) -> Vec<(String, String)> {
@@ -430,7 +434,9 @@ fn read_reg() -> Option<Reg> {
         }
         let data = &buf[..len2 as usize];
         match ty {
-            t if t == REG_DWORD && data.len() >= 4 => Some(RegVal::Int(i64::from(u32::from_le_bytes([data[0], data[1], data[2], data[3]])))),
+            t if t == REG_DWORD && data.len() >= 4 => {
+                Some(RegVal::Int(i64::from(u32::from_le_bytes([data[0], data[1], data[2], data[3]]))))
+            }
             t if t == REG_QWORD && data.len() >= 8 => {
                 let mut b = [0u8; 8];
                 b.copy_from_slice(&data[..8]);
@@ -444,7 +450,12 @@ fn read_reg() -> Option<Reg> {
             _ => None,
         }
     };
-    let reg = Reg { enable: value("ProxyEnable"), server: value("ProxyServer"), overrides: value("ProxyOverride"), autoconfig: value("AutoConfigURL") };
+    let reg = Reg {
+        enable: value("ProxyEnable"),
+        server: value("ProxyServer"),
+        overrides: value("ProxyOverride"),
+        autoconfig: value("AutoConfigURL"),
+    };
     // SAFETY: 開けた鍵を閉じる
     unsafe {
         let _ = RegCloseKey(key);

@@ -298,7 +298,8 @@ fn schedule_matches_python() {
             };
             let rkey = format!("{name} CM3 への要求");
             let pr = bk.want(&rkey, || sorted(sc["requests"].as_array().unwrap().iter().map(req_view).collect()));
-            let wr = sorted(live.ask(&format!("requests rs {scene}")).as_array().cloned().unwrap_or_default().iter().map(req_view).collect());
+            let wr =
+                sorted(live.ask(&format!("requests rs {scene}")).as_array().cloned().unwrap_or_default().iter().map(req_view).collect());
             bk.note_files(&rkey, &wr, &pr);
             let (pr, wr) = (bk.s(&pr).as_array().cloned().unwrap_or_default(), bk.s(&wr).as_array().cloned().unwrap_or_default());
             req_cmp += pr.len();

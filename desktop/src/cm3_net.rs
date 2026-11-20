@@ -73,7 +73,9 @@ pub fn message(kind: Kind, detail: &str, note: &str) -> String {
         Kind::TlsNot => "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）".to_string(),
         Kind::TlsOther => format!("CM3に接続できません: 暗号の通信（TLS）を始められません{HINT}"),
         Kind::ProxyRefused => format!("CM3に接続できません: プロキシが中継を断りました（{detail}）{HINT}"),
-        Kind::ProxyAuth => "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string(),
+        Kind::ProxyAuth => {
+            "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string()
+        }
         Kind::ProxyUnreachable => format!("CM3に接続できません: プロキシ（{detail}）に届きません{HINT}"),
         Kind::Text => format!("CM3に接続できません: {detail}"),
     };
@@ -98,7 +100,8 @@ const OPENSSL_VERIFY: [(&str, Kind); 9] = [
 ];
 
 /// OpenSSL の理由の字（平文の答えを TLS の記録として読んだ）
-const OPENSSL_NOT_TLS: [&str; 5] = ["wrong version number", "record layer failure", "packet length too long", "http request", "unknown protocol"];
+const OPENSSL_NOT_TLS: [&str; 5] =
+    ["wrong version number", "record layer failure", "packet length too long", "http request", "unknown protocol"];
 
 /// Linux（OpenSSL）の TLS の誤りの字 → 種類
 pub fn kind_of_openssl(text: &str) -> Kind {

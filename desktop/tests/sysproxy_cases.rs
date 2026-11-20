@@ -10,12 +10,7 @@ fn cases() -> Value {
 }
 
 fn env_of(c: &Value) -> Vec<(String, String)> {
-    c["env"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|x| (x[0].as_str().unwrap().to_string(), x[1].as_str().unwrap().to_string()))
-        .collect()
+    c["env"].as_array().into_iter().flatten().map(|x| (x[0].as_str().unwrap().to_string(), x[1].as_str().unwrap().to_string())).collect()
 }
 
 fn val(v: Option<&Value>) -> Option<RegVal> {
