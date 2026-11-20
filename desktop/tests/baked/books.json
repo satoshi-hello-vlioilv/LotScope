@@ -1,5 +1,10 @@
 {
- "about": "答え合わせ役 36 本の行き先（版 3.116.0）。phase: 3.115.0・3.116.0 は窓が焼いた表で比べる本（焼いた版）・3.117.0 は次の版で焼く本（理由は why）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）",
+ "about": "答え合わせ役 36 本の行き先（版 3.117.0）。phase: 3.115.0・3.116.0・3.117.0 は窓が焼いた表で比べる本（焼いた版）・3.117.1・3.117.2 は後の版で焼く本（理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。案と採点は program/tools/ui-proposals/2026-11-stage3f.json）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）",
+ "bakedPhases": [
+  "3.115.0",
+  "3.116.0",
+  "3.117.0"
+ ],
  "books": {
   "name_key": {
    "phase": "3.115.0",
@@ -232,39 +237,43 @@
     "equipgroups_write_parity"
    ],
    "sources": [
-    "tests/equipgroups_oracle.py"
+    "tests/equipgroups_oracle.py",
+    "tests/oracle_gate.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_equipgroups.py",
+    "tests/schedule_fixture.py"
    ],
-   "why": "3.117.0 へ送った（作り物の CM3 を起こしたままにする本）。Python 無しの形で作り物の CM3（schedule_fixture.Cm3Server。標準の部品だけ）を app なしで起こす台本と、場面のファイルの中の作り物の URL（ポート）を名前つきで置き換える係（Ctx::url を場面にも）が要る。3.116.0 は場面の台本（指紋）・詰める形・ci-shape までを作り、起こしたままの台本は作っていない"
+   "why": "作り物の CM3 を起こしたままにする本（版 3.117.0 で焼いた）。作り物は app を import しない台本 tests/fakes_serve.py（種類 equipgroups。中身は tests/fakes_equipgroups.py）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする。場面の配った設定の中の作り物の URL（流すたびに変わるポート）は名前つきの印 @URL(cm3)。詰めた形"
   },
   "routes": {
-   "phase": "3.117.0",
+   "phase": "3.117.2",
    "tests": [
     "routes_parity"
    ],
    "sources": [
     "tests/routes_oracle.py"
    ],
-   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面）。場面が作業フォルダの外（/tmp/tpa-ui-*）で、キー・元の id が乱数（尋ねる設備が流すたびに替わる）。場面を標準の部品だけの台本（決めたキー・作業フォルダの下・決めた更新時刻）に出し、ui_server.py も同じ台本を呼ぶ形にしてから焼く（採点の first_fixes 2・9）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる"
+   "why": "3.117.2 で焼く（開発用サーバー ui_server.build の場面）。場面が作業フォルダの外（/tmp/tpa-ui-*）で、キー・元の id が乱数（尋ねる設備が流すたびに替わる）。場面を標準の部品だけの台本（決めたキー・作業フォルダの下・決めた更新時刻）に出し、ui_server.py も同じ台本を呼ぶ形にしてから焼く（採点の first_fixes 2・9）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる"
   },
   "pivot": {
-   "phase": "3.117.0",
+   "phase": "3.117.2",
    "tests": [
     "pivot_parity"
    ],
    "sources": [
     "tests/pivot_oracle.py"
    ],
-   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。routes と同じ台本が要る。今のそろえる決まりで揺れは 0 だが、場面が作業フォルダの外なので宣言にできない）"
+   "why": "3.117.2 で焼く（開発用サーバー ui_server.build の場面。routes と同じ台本が要る。今のそろえる決まりで揺れは 0 だが、場面が作業フォルダの外なので宣言にできない）"
   },
   "schedule": {
-   "phase": "3.117.0",
+   "phase": "3.117.1",
    "tests": [
     "schedule_parity"
    ],
    "sources": [
     "tests/schedule_oracle.py"
    ],
-   "why": "3.117.0 へ送った（③-6 の schedule.rs の直しと同じ版）。試験が途中で作り物の CM3 に尋ねる（requests・count）ので、Python 無しの形の起こしたままの台本に同じ口が要る。焼く前に直す物: 場面「名前が引けない」の言葉（PC の DNS で変わる。その言葉だけを 1 つの印に）・CM3 への要求の並び（糸の順。設備ごとに比べる）・「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」・Host の見出しと viewUrl のポート・changedAt と fetchedAt"
+   "why": "3.117.1 で焼く（③-6〈CM3 の https・プロキシ〉の schedule.rs の直しと同じ版。③-6 の後に 1 回だけ焼く）。試験が途中で作り物の CM3 に尋ねる（requests・count）ので、Python 無しの形の起こしたままの台本に同じ口が要る。焼く前に直す物: 場面「名前が引けない」の言葉（PC の DNS で変わる。その言葉だけを 1 つの印に）・CM3 への要求の並び（糸の順。設備ごとに比べる）・「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」・Host の見出しと viewUrl のポート・changedAt と fetchedAt"
   },
   "conversions": {
    "phase": "3.116.0",
@@ -298,24 +307,24 @@
    "why": "9 場面の歩の答えと終わった後のファイルを詰めた形で焼く（2 MB の境の本文は繰り返しの字の作り方で持つ）"
   },
   "ops": {
-   "phase": "3.117.0",
+   "phase": "3.117.2",
    "tests": [
     "ops_parity"
    ],
    "sources": [
     "tests/ops_oracle.py"
    ],
-   "why": "3.117.0 へ送った（tools/ops-bench.py の場面。/tmp/tpa-ops-* と乱数のキー。create_app・MasterStore を使わない台本に出してから焼く）"
+   "why": "3.117.2 で焼く（tools/ops-bench.py の場面。/tmp/tpa-ops-* と乱数のキー。create_app・MasterStore を使わない台本に出してから焼く）"
   },
   "dashboard": {
-   "phase": "3.117.0",
+   "phase": "3.117.2",
    "tests": [
     "dash_parity"
    ],
    "sources": [
     "tests/dashboard_oracle.py"
    ],
-   "why": "3.117.0 へ送った（開発用サーバー ui_server.build の場面。panel.source・panel.equip が乱数のキーで問い合わせそのものが替わる・80 時間前の更新時刻。routes と同じ台本が要る）"
+   "why": "3.117.2 で焼く（開発用サーバー ui_server.build の場面。panel.source・panel.equip が乱数のキーで問い合わせそのものが替わる・80 時間前の更新時刻。routes と同じ台本が要る）"
   },
   "settings": {
    "phase": "3.116.0",
@@ -376,9 +385,17 @@
     "lotdsp_parity"
    ],
    "sources": [
-    "tests/lotdsp_oracle.py"
+    "tests/lotdsp_oracle.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_lotdsp.py",
+    "tests/lotdsp_samples.py",
+    "tests/lotdsp_cdp_fake.py",
+    "tests/fixtures/lotdsp_fake_tables.json",
+    "tests/fixtures/lotdsp_progress_L7150C0.html",
+    "tests/fixtures/lotdsp_html_cases.json"
    ],
-   "why": "3.117.0 へ送った（作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本）。Python 無しの形で lotdsp_cdp_fake.py と作り物の API を app なしで起こす台本と、url・search_url・base のポートの名前つきの置き換え（API・サイトの 2 つ）が要る。10 MB の境の本文は詰める形の繰り返しの字で持てる"
+   "why": "作り物の LotDsp の API・サイト・ブラウザを起こしたままにする本（版 3.117.0 で焼いた）。API とサイトは app を import しない台本 tests/fakes_serve.py（種類 lotdsp。中身は tests/fakes_lotdsp.py・答えは焼いた見本 tests/fixtures/lotdsp_fake_tables.json）が起こし、作り物のブラウザ（tests/lotdsp_cdp_fake.py）は窓の試験が包みを作って起こす。作り物の URL は名前つきの印 @URL(lotdsp)。詰めた形。表が大きいのは問い合わせの本文（画面の見本 100 KB を 16 進にした字が約 25 通り。10 MB の境の本文は繰り返しの字で持つ）。かかった秒（direct[].seconds）は持たない",
+   "maxMB": 7.0
   }
  }
 }

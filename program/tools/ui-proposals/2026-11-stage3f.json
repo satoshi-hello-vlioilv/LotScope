@@ -1,0 +1,1077 @@
+{
+ "title": "版 3.117.0（Rust 化の段 ③ の残り: 残り 7 本の焼き・Windows でも表と比べる・③-6 CM3 の https とプロキシ・凍らせる Python の写し）— 段 ④ の入口までの進め方",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（試験の答えの元を Python の app から外す 3 版目と、スケジュールの CM3 を https・プロキシ越しに窓がつなぐ ③-6）なので決まり 2026-11-06（案の採点は 1 回だけ。届かなくても 1 位に指摘を直して入れた形で作る。作った後の採点も 1 回だけ）。製品の答えが変わるのは ③-6 だけ（https の CM3・Windows の設定のプロキシに窓が届く。届かないときの言葉）。版を 2 つに割る案は、この 1 つの比較で作った後を版ごとの節（built_3117・built_3118）に書く。採点はまだ（別の係がする。score・minus・seen・evaluator は空）",
+ "measured": {
+  "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/（run7.py・run7.json・run7.log〈7 本を 3 巡〉・cache1〜3・wobble7.py・wobble7.json・pack7.py・pack2-cache1.json・census.py・census.json・fixed_run.py・cacheF1〜3・wobbleF.json〈キーと作業フォルダを決めた形〉・crates/deps.py・deps.json〈crates.io の依存の表〉・tls/proxy_probe.py・proxy_probe.json・proxy_probe-nokeyusage.json〈urllib の https とプロキシ〉・notes.md）。作業フォルダ stage3e（72d355a → 66aa863）は読むだけ。cargo は 1 度も動かしていない（主の知らせで、共有の cargo の作業フォルダは check-all が使っている）。答え合わせ役は nice 19 で 1 本ずつ",
+  "books7": {
+   "about": "残り 7 本の答え合わせ役を 3 巡（12:37・12:39・12:41。分の境をまたぐ）。secs3 は流す時間（秒）・answerMB は Python の答えの UTF-8 のバイト・packedMB は中身を失わない詰め方（同じ部分は参照・長い繰り返しは作り方。本当に詰めて往復 7/7）・steps は method と path か status と本文を持つ表の数・sceneMB は場面のフォルダ（ui_server と ops-bench の 4 本は /tmp/tpa-ui-*・/tmp/tpa-ops-*）",
+   "equipgroups": {
+    "secs3": [
+     3.1,
+     3.2,
+     3.9
+    ],
+    "answerMB": 1.29,
+    "packedMB": 0.22,
+    "leaves": 58714,
+    "steps": 335,
+    "sceneMB": 2.01,
+    "sceneFiles": 1873,
+    "wobbleRaw": 2338,
+    "wobbleAfterSettle": 0,
+    "wobbleKinds": {},
+    "wobbleAfterFixedKeysAndDir": null,
+    "kindsAfterFixed": null
+   },
+   "schedule": {
+    "secs3": [
+     5.5,
+     5.1,
+     5.1
+    ],
+    "answerMB": 2.62,
+    "packedMB": 0.52,
+    "leaves": 145898,
+    "steps": 418,
+    "sceneMB": 5.38,
+    "sceneFiles": 1476,
+    "wobbleRaw": 1613,
+    "wobbleAfterSettle": 1291,
+    "wobbleKinds": {
+     "ポート（127.0.0.1:番号）": 1045,
+     "そのほか（body）": 62,
+     "そのほか（equip）": 62,
+     "時刻の数（fetchedAt）": 48,
+     "時刻の数（changedAt）": 48,
+     "かかった ms（server）": 25,
+     "数（port）": 1
+    },
+    "wobbleAfterFixedKeysAndDir": null,
+    "kindsAfterFixed": null
+   },
+   "lotdsp": {
+    "secs3": [
+     35.0,
+     34.6,
+     34.2
+    ],
+    "answerMB": 30.54,
+    "packedMB": 3.43,
+    "leaves": 20508,
+    "steps": 182,
+    "sceneMB": 0.28,
+    "sceneFiles": 55,
+    "wobbleRaw": 49,
+    "wobbleAfterSettle": 49,
+    "wobbleKinds": {
+     "ポート（127.0.0.1:番号）": 49
+    },
+    "wobbleAfterFixedKeysAndDir": null,
+    "kindsAfterFixed": null
+   },
+   "routes": {
+    "secs3": [
+     1.2,
+     1.0,
+     1.1
+    ],
+    "answerMB": 1.52,
+    "packedMB": 1.1,
+    "leaves": 61269,
+    "steps": 91,
+    "sceneMB": 2.05,
+    "sceneFiles": 63,
+    "wobbleRaw": 330,
+    "wobbleAfterSettle": 156,
+    "wobbleKinds": {
+     "そのほか（query）": 35,
+     "そのほか（キー）": 26,
+     "そのほか（ファイルID）": 24,
+     "乱数のキー・id（8 桁の 16 進）": 23,
+     "かかった ms（server）": 20,
+     "そのほか（key）": 12,
+     "葉の有無（形が違う）": 8,
+     "ポート（127.0.0.1:番号）": 2,
+     "かかった ms（ms）": 2,
+     "そのほか（kind）": 1,
+     "そのほか（error）": 1,
+     "そのほか（file）": 1,
+     "数（status）": 1
+    },
+    "wobbleAfterFixedKeysAndDir": 37,
+    "kindsAfterFixed": {
+     "そのほか（ファイルID）": 24,
+     "かかった ms（server）": 11,
+     "ポート（127.0.0.1:番号）": 2
+    }
+   },
+   "pivot": {
+    "secs3": [
+     1.4,
+     1.4,
+     1.4
+    ],
+    "answerMB": 0.91,
+    "packedMB": 0.55,
+    "leaves": 47339,
+    "steps": 0,
+    "sceneMB": 1.06,
+    "sceneFiles": 33,
+    "wobbleRaw": 488,
+    "wobbleAfterSettle": 0,
+    "wobbleKinds": {},
+    "wobbleAfterFixedKeysAndDir": 0,
+    "kindsAfterFixed": {}
+   },
+   "dashboard": {
+    "secs3": [
+     5.1,
+     4.6,
+     4.6
+    ],
+    "answerMB": 2.07,
+    "packedMB": 1.05,
+    "leaves": 87616,
+    "steps": 365,
+    "sceneMB": 1.64,
+    "sceneFiles": 52,
+    "wobbleRaw": 6995,
+    "wobbleAfterSettle": 449,
+    "wobbleKinds": {
+     "かかった ms（server）": 169,
+     "時刻の数（at）": 135,
+     "そのほか（キー）": 65,
+     "そのほか（ファイルID）": 55,
+     "乱数のキー・id（8 桁の 16 進）": 14,
+     "ポート（127.0.0.1:番号）": 5,
+     "そのほか（equip）": 3,
+     "そのほか（raw）": 3
+    },
+    "wobbleAfterFixedKeysAndDir": 348,
+    "kindsAfterFixed": {
+     "かかった ms（server）": 153,
+     "時刻の数（at）": 135,
+     "そのほか（ファイルID）": 55,
+     "ポート（127.0.0.1:番号）": 5
+    }
+   },
+   "ops": {
+    "secs3": [
+     12.9,
+     12.8,
+     12.8
+    ],
+    "answerMB": 4.22,
+    "packedMB": 1.59,
+    "leaves": 262861,
+    "steps": 172,
+    "sceneMB": 49.11,
+    "sceneFiles": 123,
+    "wobbleRaw": 3934,
+    "wobbleAfterSettle": 1685,
+    "wobbleKinds": {
+     "一時フォルダ（/tmp/tpa-ops-*・tpa-ui-*）": 804,
+     "そのほか（キー）": 755,
+     "そのほか（ファイルID）": 126
+    },
+    "wobbleAfterFixedKeysAndDir": 126,
+    "kindsAfterFixed": {
+     "そのほか（ファイルID）": 126
+    }
+   },
+   "total": {
+    "secs": 64.2,
+    "answerMB": 43.17,
+    "packedMB": 8.46,
+    "wobbleAfterSettle": 3630
+   }
+  },
+  "wobble": "3 巡に今の settle（stage3e の settle.json と near_times・near_epoch・@DAY の Python の写し。採点者の wobble2.py と同じ写し）を当てた後に残る葉は 7 本で 3,630（前の採点の測り 約 3,600 と同じ桁）: ops 1,685（/tmp/tpa-ops-* 804・キー 755・ファイルID 126）・schedule 1,291（ポート 1,045〈headers 918・remote 68・viewUrl 54・cm3 5〉・CM3 への要求の並び 124〈body 62・equip 62〉・fetchedAt 48・changedAt 48・timing.server 25・port 1）・dashboard 449（timing.server 169・at 135〈80 時間前の更新時刻〉・キー 65・ファイルID 55・src の id 14・ポート 5・equip 3・raw 3）・routes 156（query 35・キー 26・ファイルID 24・src の id 23・timing.server 20・key 12・asks[15] の形の違い 12 葉・ms 2・ポート 2）・lotdsp 49（ポート: url 37・search_url 11・base 1）・equipgroups 0・pivot 0",
+  "fixed_keys_and_dir": "★試し（fixed_run.py。stage3e のファイルは変えない）: 包みの中で tempfile.mkdtemp（tpa-ui-・tpa-ops-）を決めたフォルダに、uuid.uuid4 を決めた並びに差し替えてから答え合わせ役を runpy で 3 巡（分の境をまたぐ）。今の settle の後に残る葉: routes 156 → 37（ファイルID 24・timing.server 11・place のポート 2。形の違い 12 → 0 ＝「尋ねる設備が替わる」は消えた）・dashboard 449 → 348（timing.server 153・at 135・ファイルID 55・ポート 5）・ops 1,685 → 126（ファイルID だけ）・pivot 0 → 0。4 本の計 2,290 → 511（−78%）。残りは全部、今ある仕組みで持てる種類: ファイルID は fid_key（@FID）・ポートは url_key（@URL）・at は決めた日付の os.utime・timing は試験が比べる前に落としている鍵。新しいそろえる決まりは要らない。乱数のキーの元は 2 か所だけ（app/services/work_log.py:213 の uuid4().hex[:12]・data_sources.py:168 の \"s\"+uuid4().hex[:8]）。試験データの乱数は random.Random(種) で決まっている（lotlist_fixture.py・ops-bench.py の ops_of）",
+  "scenes": "ui_server.build の場面（routes）: 元 0.79 MB（share.sqlite3 0.16・共有 0.30・【New】実績 0.37。SQLite）＋ Python の写し（cache）1.03 MB＋マスタ（base/data の JSON・CSV 12 本）0.23 MB。pivot 1.06 MB（SQLite 18 本 0.87・JSON 0.16）・dashboard 1.64 MB（SQLite 33 本 1.45・JSON 0.17）。ops-bench の場面は 49.1 MB = 元（実績）23.9 MB＋Python の写し 23.9 MB＋マスタ 0.2 MB。equipgroups 2.0 MB（1,873 ファイル。同じ中身が多い）・schedule 5.4 MB（1,476 ファイル）・lotdsp 0.28 MB（55 ファイル）。→ SQLite を台本（指紋 made_print。3.116.0 の bk.script）で作り、マスタの JSON だけを場面の宣言に持てば、4 本の宣言は 1 本あたり 0.2 MB 前後",
+  "app_dependence": "残り 7 本の答え合わせ役の app の import: equipgroups 5・schedule 3・lotdsp 5・routes 4・pivot 3・dashboard 3・ops 2（＋ ui_server.py の 10 行・ops-bench.py の 5 行）。作り物そのものは stdlib: tests/schedule_fixture.py（256 行。Cm3Server・serve・responses・add_kama）・tests/lotdsp_cdp_fake.py（241 行）・schedule_oracle.py の World と blackhole と起こしたままの口（requests・count を標準入力で受ける。44〜216・364〜424 行）・lotdsp_oracle.py の作り物の API（class Api・start_server。47〜83 行）。app を借りているのは lotdsp の見本だけ（FIXTURE・entity_of・html_with_offs・with_cells を app を import する tests/test_lotdsp_api.py・test_lotdsp_rules.py から）。ui_server.build が app に頼るのは create_app・MasterStore・MasterRepository（work_log_sync・format_create・shift_create・equip_group_create・data_source_put）・clean_row 4 つ・app_env.load_settings で、SQLite は stdlib の lotlist_fixture が作る。一時フォルダは ui_server.py:25・ops-bench.py:39 のモジュールの頭の mkdtemp",
+  "bake_now": "desktop/tests/common/bake.rs（1,852 行 → 66aa863 で +30）: Ctx::url は 1 つだけ（@URL）・Bake::live は表で流すとき None（起こしたままの相手が無い）・場面の台本 bk.script は 1 つ（流して終わる形）・builder の本は Python 無しの形で窓の試験の側の作り物（bake::serve_404）を起こす前例がある。焼いた表は 34 ファイル・23.95 MB（上限 40 MB）。7 本を足すと 答え 約 8.5 MB＋場面の宣言 約 1〜2 MB で 約 34 MB（上限まで 約 6 MB。Windows の表を丸ごと持つ案は上限を超える）",
+  "pc_dependence": {
+   "history": "焼いた表が焼いた PC に頼って CI で落ちた・採点で見つかった種類（3.115.0〜3.116.0）: リポジトリが家の下（@HOME）・root でない利用者・SQLite の版（頭のバイト）・フォルダを読む順・名前を引く係の言葉・錠の秒の端数・Windows の道の区切りと短い名前・timeout の上限（poll の無い OS）・取り出しの更新時刻と権限・画面の指紋・名乗りの鍵の利用者・PC の名前（ホスト名。3.116.0 の Linux の CI で初めて）。12 種のうち手元で先に見つけたのは 4（採点 1・ci-shape 3）、CI で初めては 8",
+   "census": {
+    "about": "census.py: 7 本の生の答えの中で、今の PC に頼る字を含む葉の数（今の settle が吸う物も含む）",
+    "equipgroups": {
+     "@WORK": 226,
+     "リポジトリの根": 44,
+     "利用者の名前（鍵 login など）": 2335
+    },
+    "schedule": {
+     "@WORK": 313,
+     "127.0.0.1:番号": 1047,
+     "装置:inode（ファイルID）": 1165,
+     "リポジトリの根": 53
+    },
+    "lotdsp": {
+     "127.0.0.1:番号": 53,
+     "@WORK": 3,
+     "リポジトリの根": 1
+    },
+    "routes": {
+     "一時フォルダ（/tmp/）": 60,
+     "装置:inode（ファイルID）": 1167,
+     "利用者の名前（鍵 login など）": 8,
+     "ホスト名": 8,
+     "127.0.0.1:番号": 2
+    },
+    "pivot": {
+     "一時フォルダ（/tmp/）": 488,
+     "装置:inode（ファイルID）": 2298
+    },
+    "dashboard": {
+     "利用者の名前（鍵 login など）": 40,
+     "ホスト名": 40,
+     "一時フォルダ（/tmp/）": 1691,
+     "127.0.0.1:番号": 5,
+     "装置:inode（ファイルID）": 55
+    },
+    "ops": {
+     "一時フォルダ（/tmp/）": 804,
+     "リポジトリの根": 14,
+     "ホスト名": 78,
+     "利用者の名前（鍵 login など）": 64,
+     "装置:inode（ファイルID）": 126
+    },
+    "note": "「装置:inode」は HH:MM の字も拾うので pivot・schedule・routes の大きい数は使わない（本物のファイルID は ops 126・dashboard 55・routes 24）"
+   },
+   "pc_name": "ホスト名「vm」は dashboard 40・ops 78・routes 8 葉（updated_by.pc・access.who.key「vm@root」）。配った設定の identity.pc_name を場面で決めれば出ない（equipgroups_oracle は \"PC-ORACLE\" に決めている。ui_server.build・ops-bench.build は決めていない）。66aa863 の @HOST は名乗りの表の pc だけをそろえる",
+   "proxy_env": "この PC の環境変数に https_proxy・HTTPS_PROXY・no_proxy・NO_PROXY・npm_config_https_proxy・DOCKER_HTTPS_PROXY などがある。use_system_proxy を真にした場面（③-6 で窓が受ける）は、試験が *_proxy を決めないと答えが流す PC で変わる"
+  },
+  "cm3_now": "窓: desktop/src/cm3_http.rs（541 行。std の TcpStream で urllib を写した手書きの HTTP/1.1。見出しの並び・chunked・30x・誤りの字〈[Errno n]・[WinError n]〉まで同じ）。schedule.rs の Cfg::fetch_plan は use_system_proxy が真なら Fail::Python（係を降りる）、cm3_http::target は https・ftp・file・data を Fail::Python。Python: app/services/cm3_schedule.py の fetch_raw（urllib。use_system_proxy が偽なら ProxyHandler({})＝直・真なら build_opener()＝環境変数か Windows の設定）。任せる歩は schedule_oracle.py の 3（https 2・システムのプロキシ 1）と Windows だけ 2（更新時刻が 1970 年より前・3000 年から後）。TLS の crate は Cargo.lock に 0（438 crate。rustls・native-tls・schannel・ring・openssl 無し。reqwest 0.13.5 は tauri が TLS なしで引く）",
+  "urllib_rules": "Python 3.13.18 の urllib.request（製品の Python と同じ 3.13）: getproxies() は環境変数（名前が _proxy で終わる物。小文字が勝つ）が 1 つでもあればそれだけを使い、無いときだけ Windows の getproxies_registry（HKCU\\…\\Internet Settings の ProxyEnable が真なら ProxyServer。「=」も「;」も無ければ http・https・ftp に同じ値・種類の無い address には http://・socks は socks4:// にして http/https の代わり）。proxy_bypass も同じ分かれ方: 環境変数のプロキシがあれば no_proxy（, 区切り・後ろ一致・* は全部）、無ければ ProxyOverride（; 区切り・<local> は「.」の無い host・ほかは fnmatch。3.13 は名前を引かない）。関係のない *_proxy（npm_config_https_proxy など）が 1 つあるだけで Windows の設定は読まれない（コードから。Windows では測っていない）",
+  "proxy_probe": "作り物の https の口（自分で作った CA）と作り物のプロキシに、製品の fetch_raw と同じ作り方の urllib を当てた（22 場面）。送る物: https を直に＝http と同じ見出しの並び（Origin・Referer が https://…）を TLS の中で／https をプロキシ越し＝「CONNECT host:port HTTP/1.1」と「Host: host:port」だけ（User-Agent 無し）→ 200 の後に TLS／http をプロキシ越し＝要求の行が絶対 URI（POST http://host:port/path HTTP/1.1）で見出しは直と同じ／プロキシの URL に 利用者:合言葉 があれば Proxy-Authorization: Basic が付く（利用者の決めは「認証なし」）／種類の無いプロキシ（127.0.0.1:口）も同じ／no_proxy に当たれば直／use_system_proxy が偽なら環境変数があっても直。失敗の字: 信じない CA＝「[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1035)」・名前が違う＝「…IP address mismatch, certificate is not valid for '127.0.0.1'. (_ssl.c:1035)」・TLS でない口＝「_ssl.c:1018: The handshake operation timed out」（OpenSSL の言葉と C の行番号。Python の修正版で変わり、Rust のどの TLS の crate でも 1 字までは写せない）。プロキシ: 407（https）＝「CM3に接続できません: Tunnel connection failed: 407 Proxy Authentication Required」・407（http）＝「CM3がHTTPエラーを返しました: 407 …」・閉じる＝「Remote end closed connection without response」・黙る（https の CONNECT）＝「CM3に接続できません: timed out」／黙る（http）＝「CM3の応答がタイムアウトしました」（同じ黙るでも言葉が違う）・届かない＝「[Errno 111] Connection refused」・名前が引けない＝「[Errno -2] Name or service not known」。Python 3.13 は X509 を厳しく見る（VERIFY_X509_STRICT）: 鍵の使い道（keyUsage）の無い CA は「CA cert does not include key usage extension」で断る",
+  "crates": {
+   "about": "crates/deps.py: crates.io の依存の表から、optional でない依存と既定の feature をたどった見積もり（cargo では組んでいない）。new は今の Cargo.lock に無い crate の数、KB は .crate の大きさの計",
+   "native-tls": {
+    "windows": {
+     "all": 4,
+     "new": 2,
+     "newNames": [
+      "native-tls",
+      "schannel"
+     ],
+     "newKB": 63
+    },
+    "linux": {
+     "all": 16,
+     "new": 5,
+     "newNames": [
+      "native-tls",
+      "openssl",
+      "openssl-macros",
+      "openssl-probe",
+      "openssl-sys"
+     ],
+     "newKB": 428
+    }
+   },
+   "schannel（Windows だけ直に）": {
+    "windows": {
+     "all": 3,
+     "new": 1,
+     "newNames": [
+      "schannel"
+     ],
+     "newKB": 34
+    },
+    "linux": {
+     "all": 3,
+     "new": 1,
+     "newNames": [
+      "schannel"
+     ],
+     "newKB": 34
+    }
+   },
+   "rustls(ring)+rustls-native-certs": {
+    "windows": {
+     "all": 14,
+     "new": 9,
+     "newNames": [
+      "ring",
+      "rustls",
+      "rustls-native-certs",
+      "rustls-pki-types",
+      "rustls-webpki",
+      "schannel",
+      "subtle",
+      "untrusted",
+      "zeroize"
+     ],
+     "newKB": 2088
+    },
+    "linux": {
+     "all": 13,
+     "new": 9,
+     "newNames": [
+      "openssl-probe",
+      "ring",
+      "rustls",
+      "rustls-native-certs",
+      "rustls-pki-types",
+      "rustls-webpki",
+      "subtle",
+      "untrusted",
+      "zeroize"
+     ],
+     "newKB": 2063
+    }
+   },
+   "rustls(ring)+rustls-platform-verifier": {
+    "windows": {
+     "all": 14,
+     "new": 8,
+     "newNames": [
+      "ring",
+      "rustls",
+      "rustls-pki-types",
+      "rustls-platform-verifier",
+      "rustls-webpki",
+      "subtle",
+      "untrusted",
+      "zeroize"
+     ],
+     "newKB": 2092
+    },
+    "linux": {
+     "all": 15,
+     "new": 10,
+     "newNames": [
+      "openssl-probe",
+      "ring",
+      "rustls",
+      "rustls-native-certs",
+      "rustls-pki-types",
+      "rustls-platform-verifier",
+      "rustls-webpki",
+      "subtle",
+      "untrusted",
+      "zeroize"
+     ],
+     "newKB": 2122
+    }
+   },
+   "winreg（プロキシの設定の読み手）": {
+    "windows": {
+     "all": 4,
+     "new": 0,
+     "newNames": [],
+     "newKB": 0
+    },
+    "linux": {
+     "all": 4,
+     "new": 0,
+     "newNames": [],
+     "newKB": 0
+    }
+   },
+   "windows-registry": {
+    "windows": {
+     "all": 4,
+     "new": 1,
+     "newNames": [
+      "windows-registry"
+     ],
+     "newKB": 14
+    },
+    "linux": {
+     "all": 4,
+     "new": 1,
+     "newNames": [
+      "windows-registry"
+     ],
+     "newKB": 14
+    }
+   },
+   "note": "native-tls は Windows で schannel（Windows の証明書ストアと Windows の検証そのもの）・Linux で OpenSSL（システムの libssl に結ぶ。手元は 3.0.13。SSL_CERT_FILE が効くので作り物の CA を Python と同じ環境変数で信じさせられる）。rustls は ring が C と asm を組む（cc は lock にある）。プロキシの設定の読み手は、直の依存の windows 0.62 に feature Win32_System_Registry を足せば新しい crate は 0（winreg 0.55 は embed-resource の build 用に lock にあるだけ）"
+  },
+  "times": "手元の check-all（b3116/check1）: js 9・cargo-build 32・fmt-clippy 37・py-tests 327・cargo-test 618・ci-shape 555・verify 2,183・verify-local 14 ＝ 3,775 秒（63 分）。Windows の CI: 3.116.0 は仕事 約 80 分（上限 90 分・余り 約 10 分。主の知らせ）。3.115.0（1d9e35c）の試験 62 本の計 2,292 秒のうち route_reach 1,098.8（48%）・builder_cases 135.8・lib 119.1。残り 7 本の試験は Windows で equipgroups 56.6・ops 45.4・schedule 45.0・lotdsp 19.4・dash 17.3・pivot 4.8・routes 3.8 ＝ 192 秒。仕事は 1 つ（windows）で、cargo test（debug）→ Python の段 → exe（release）→ 自己診断 → 更新の通し（3.115.0 で 1,668 秒）の順。cargo test と exe は別の組み（debug と release）なので、仕事を 2 つに割っても組み直しは増えない（取り出しと道具の支度 約 2〜3 分が 2 回になる）",
+  "frozen": "凍らせた Python を相手にする 8 試験が呼ぶ台本は share_reader_oracle・masters_oracle・mirror_oracle（2 試験）・place_oracle・seeds_oracle（3 試験）。import の閉包はどの台本も app の .py 74〜75 本（create_app が全部を引く。78 本・25,798 行・1.59 MB のうち）＋台本と手伝い 0.13 MB。写しを部分にする余地はほぼ無い。program/app 全体は 7.9 MB（static・templates を含む）",
+  "windows_unknown": "Windows の測るだけの数（表と違う歩）は未着。上限の目安（s3e/osdiff.json）: 焼いた 21 本で道の字を含む歩 311・OS の誤りの字を含む歩 113（release_place.tables 84・worklog_write 9・builder 8・release_place 7・mirror 5）。少ない場合＝ 0〜50 歩、多い場合＝ 300〜900 歩（6,002 歩の 5〜15%）で案を書く。calc の pow は 1,887 歩のうち 0〜十数歩の見込み（Linux で掛け算と違うのは 9 歩）",
+  "not_measured": [
+   "Windows の測るだけの数・Windows の pow・Windows での route_reach を割ったときの時間（runner の CPU の数）",
+   "cargo の組む時間（TLS の crate を足した増え。ring・openssl-sys は C を組む）",
+   "7 本を焼いた後の cargo-test・ci-shape の時間（見込みだけ）",
+   "Windows の本物の設定（HKCU の ProxyServer・ProxyOverride）と証明書ストアでの動き（手元は Linux）",
+   "利用者の現場の CM3 の証明書の形（社内 CA か・中間証明書を送るか）とプロキシの形（PAC か・手で書いた ProxyServer か）"
+  ]
+ },
+ "inventory": [
+  "T1 残り 7 本は答え 43.2 MB・詰めて 約 8.5 MB・流す時間 計 約 63 秒。揺れは今の決まりの後に 3,630 葉で、キーと作業フォルダを決めるだけで ui_server・ops-bench の 4 本は 2,290 → 511 葉になり、残りは今ある仕組み（@FID・@URL・決めた utime・timing を落とす）で持てる。新しいそろえる決まりを足す所は schedule の changedAt・fetchedAt（timeKeys）だけ",
+  "T2 起こしたままの 3 本の作り物は、もう stdlib で書いてある（app を借りるのは lotdsp の見本だけ）。要るのは「起こす口を答え合わせ役から切り離す」ことと、焼く係の「名前つきの URL をいくつか」（Ctx::url は 1 つ）・「表で流すときに起こしたままの相手を持つ」こと",
+  "T3 schedule は ③-6 で schedule.rs・cm3_http.rs が変わる本。先に焼くと ③-6 で範囲つきに焼き直す（新しい場面は範囲の外の歩を増やす）。③-6 の後に 1 回だけ焼く順が手戻りが無い",
+  "T4 「焼いた表が焼いた PC に頼る」は 12 種のうち 8 種を CI で初めて知った。ci-shape は知っている種類を足していく作りなので、知らない種類（今回はホスト名）は通る。③-6 は新しい種類を持ち込む（環境変数の *_proxy・SSL_CERT_FILE・Windows の設定・証明書ストア・OS の誤りの字の言語）",
+  "T5 Windows の CI は余り 約 10 分。試験の時間の 48% は route_reach（④ で消す試験）。cargo test と exe・更新の通しは別の組みなので、仕事を 2 つに割れば各々 45 分前後になる",
+  "T6 ③-6 の TLS の失敗の言葉は Python と 1 字までは合わせられない（OpenSSL の言葉と _ssl.c の行番号）。プロキシの失敗の言葉は urllib の中でも食い違っている（黙るプロキシ: https は「接続できません: timed out」・http は「タイムアウトしました」）。利用者の決め（届かないときは VPN と社内 LAN の確認を促す）と合わせて、言葉は人が決めた事例の表にし、Python と窓を同じ版で同じ言葉にするのが筋",
+  "T7 表の大きさは 23.95 MB → 約 34 MB（上限 40 MB）。Windows の答えを丸ごと 2 つ目の表に持つと上限を超える。上書き（variants.nt）は Linux の表を焼き直すたびに古くなりうる（Windows の CI を 1 往復＝約 80 分）",
+  "T8 凍らせる写しは app の .py のほぼ全部（1.6 MB・25,798 行）。段 ④ の直前の版の物でなければ意味が薄い（3.117.0 で写して 3.118.0 で app を直すと写し直し）",
+  "T9 1 版の往復は 作る → 作った後の採点 → 直す → check-all 約 65 分 → CI 約 80 分で半日〜1 日。作る係は 5 時間ごとの上限で止まる。版を割ると往復が増え、太らせると止まったときに main に入っていない物が増える"
+ ],
+ "common": {
+  "about": "測りで分かった、案によらず入れる土台（どの案の what の最初にも「土台 K1〜K7」と書く。手間の目安: Python 250〜350 行・Rust 80〜140 行・事例の表 60〜100 件。③-6 の製品の部分〈K7〉は別に Rust 550〜800 行・Python 80〜140 行）。主の知らせ（焼いた表が焼いた PC に頼る割れを 2 版続けて CI で初めて知った）への手は K1〜K4",
+  "items": [
+   "K1 2 回目の焼きを「別の PC の形」で流す: bless.py は今、同じ PC で分の境をまたいで 2 回焼いて同じかを見る。2 回目を ci-shape と同じ名前空間（unshare -u で PC の名前を替える・リポジトリを家の下の別の道に bind・HOME・TZ=Asia/Tokyo・TMPDIR=/dev/shm・/usr/bin/python3〈SQLite の版が違う〉・取り出しを 5 日前の 775/664・*_proxy と SSL_CERT_FILE を置く・LANG を替える）で流し、1 回目と 1 字でも違えば書かずに止めて違う葉の道を出す。「CI で初めて知る」を「焼くときに知る」へ移す（知らない種類でも、2 つの形の間で違えば止まる）。root でない利用者の歩は今の --user のまま。流せない PC（root でない・unshare が無い）では焼かない",
+   "K2 PC の指紋の見張り: bless.py --check（py-tests で毎回流れる）が、表の葉に焼いた PC の指紋が字のまま残っていれば落とす。今はリポジトリの根・家・cargo の作業フォルダだけ → PC の名前・利用者の名前（名前の欄の外）・TMPDIR・/tmp/tpa-*・127.0.0.1:番号（@URL の外）・装置:inode の形・*_proxy の値・焼いた日の日付を足す（測りの census.py が元。短い PC の名前〈vm〉は葉の全体か段の境で比べる）。指紋は表の sources の隣に bakedOn として持つ（PC の名前そのものは持たず sha256 の頭）",
+   "K3 場面で決める（そろえる決まりを足さない）: (a) ui_server.build・ops-bench.build に作業フォルダの引数（試験の作業フォルダの下。モジュールの頭の mkdtemp をやめる）・キーを決める口（work_log と data_sources のキーの関数 2 つを、設備の名前・元の名前から決めた字に差し替える。製品の Python は変えず道具の側で）・配った設定の identity.pc_name（\"PC-UI\"）・HOT の更新時刻は決めた遠い日付（今から 80 時間前 → 2026-09-25。古さのしきい 36 時間より古ければ同じ答え）。測り: これだけで 4 本の揺れは 2,290 → 511 葉、「尋ねる設備が替わる」は消える。(b) 窓の試験（common の 1 か所）と答え合わせ役（oracle_gate の 1 か所）は頭で *_proxy・SSL_CERT_FILE・SSL_CERT_DIR を外し、プロキシの場面は場面が決めた値だけを入れる。(c) かかった ms（親の鍵が timing の数・work.ms）は焼く前に落とす（試験は今も比べる前に落としている）。(d) 残りは今ある仕組み: ファイルID は fid_key・作り物の URL は名前つきの @URL(名前)（Bake が起こした URL だけ。Host の見出しの番号もその番号のときだけ）・schedule の changedAt・fetchedAt は timeKeys",
+   "K4 ci-shape に形を足す: env（*_proxy に閉じた口・SSL_CERT_FILE に空のファイル・LANG=C と ja_JP.UTF-8・umask 077 で流す）。名前を引く本（NODNS_TESTS）に schedule・equipgroups を足す。足した 7 本は 3 つの形（runner・nopy・nodns）に入る。K1 と同じ名前空間の作りを 1 つの関数にして bless.py と共に使う",
+   "K5 schedule を焼く前の直し 3 つ（3.116.0 の送り書き）: 場面「名前が引けない」の言葉（PC の名前を引く係で変わる）は表と比べるときだけ 1 つの印に（Python と比べる形では字のまま・変異つき）／CM3 への要求の記録は設備ごとに分けて比べる（糸の順で並びが替わる。測り: body 62・equip 62 葉）／「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」を Python と窓でそろえる",
+   "K6 段 ④ の入口の 3 条件（35 本が Python 無しで流れる・Windows の CI が表と比べている・凍らせる写しがある）を books.json・RUST_PORT_PLAN.md・delegates_budget.json に書く。任せる歩の予算は 11 → 8（口 7・道 1）・Windows だけ 2 → 0。CLAUDE.md の評価関数の行を足す",
+   "K7 ③-6 の決め（どの案も同じ。利用者の決め 2026-11-17 と今回の頼み）: https とプロキシ越しの CM3 は窓が取る（降りない）／プロキシを見るのは use_system_proxy が真のときだけ（今と同じ。偽は直）／読み方は urllib と同じ（環境変数の *_proxy が 1 つでもあればそれだけ・無ければ Windows の ProxyEnable・ProxyServer・ProxyOverride。<local>・fnmatch・種類の無い address に http://）／送る物も urllib と同じ（https は「CONNECT host:port HTTP/1.1」と Host だけ・http は絶対 URI。測りの proxy_probe.json）／認証は作らない（プロキシの URL に 利用者:合言葉 があっても送らず、407 は「プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）」）／届かない・TLS の失敗・プロキシの失敗の言葉は、人が決めた事例の表 tests/fixtures/cm3_net_cases.json（種類: 名前が引けない・届かない・時間切れ・証明書を信じられない・証明書の名前が違う・TLS でない・プロキシに届かない・プロキシが断る・プロキシが認証を求める。どの言葉も「VPN か社内 LAN につながっているかを確かめてください」を含む）を Python（cm3_schedule.py）と窓が同じ版で読む（TLS の言葉は OpenSSL の字と行番号で 1 字までは合わせられないため）／Windows だけの 2 歩（更新時刻が 1970 年より前・3000 年から後）は人の事例の表で決めて窓が答える／作り物の https の CM3 と作り物のプロキシで Python と突き合わせてから入れ替える／RUST_PORT_PLAN.md に決めと測りを書く"
+  ]
+ },
+ "axes": {
+  "about": "案の方向の並び（偏りの確かめ）。列は 版の割り方／起こしたままの 3 本の作り物の持ち方／ui_server・ops-bench の 4 本の場面の持ち方／Windows の表の持ち方／③-6 の TLS と試験の信じさせ方／凍らせる写し／Windows の CI の時間の手当て",
+  "A": "1 版で全部（④ は 3.118.0）／stdlib の台本を起こしたまま（答え合わせ役と同じ台本）／SQLite は台本の指紋・マスタは app が書いた物を宣言に／上書き variants.nt（posix の答えの指紋つき）／native-tls（Windows は schannel）・Linux は SSL_CERT_FILE・Windows は試験だけの足す根／3.117.0 の最後に丸ごと写す／仕事を 2 つに割る",
+  "B": "2 版: ③-6 と土台を先（3.117.0）→ 7 本・上書き・写し（3.118.0）。④ は 3.119.0／A と同じ／A と同じ／上書き（数を読んでから 2 版目で）／native-tls・前の道へ戻す設定を ④ まで残す／2 版目（④ の直前）に写す／1 版目で仕事を 2 つに割る",
+  "C": "1 版（切る線つき）／窓の試験の側（Rust）に作り物を 1 つ持ち、Python には URL を渡す／A と同じ／上書き／rustls＋rustls-platform-verifier・証明書は試験の中で作る（rcgen）／丸ごと写す／route_reach を子のプロセス 4 つに割る",
+  "D": "1 版（切る線つき）／作り物の振る舞いを表（データ）に録り、Rust の再生の口 1 つ／routes・pivot・dashboard は共通の場面を論理の形の SQLite で表に（台本なし）・ops だけ台本／違いの多い本は丸ごと 2 つ目の表・少ない本は上書き／rustls＋rustls-native-certs・置き物の証明書／写さず git の印（タグ）から試験のときに取り出す／Windows では焼いた本を表とだけ比べる（Python を起こさない）",
+  "E": "2 版: 手元で確かめ切れる物を先（土台・6 本。3.117.0）→ Windows の CI が要る物を後（③-6・schedule・Windows でも表と比べる・写し。3.118.0）。④ は 3.119.0／A と同じ／A と同じ／OS によらない形に直してから（道・OS の誤りの字の対応表）残りだけ上書き／native-tls・Windows の CI で HKCU の設定と証明書ストアの本物を通す／2 版目に写す／2 版目で仕事を 2 つに割る＋ cargo test だけの手で起こす仕事",
+  "F": "1 版（切る線つき）／A と同じ／場面の元を 1 つの台本に（SQLite もマスタの JSON も stdlib の台本が直に書き、ui_server・ops-bench・試験が同じ物を読む。表は指紋だけ）／上書き／native-tls／丸ごと写す／仕事を 2 つに割る",
+  "G": "小さい版を 4 つ刻む（3.117.0〜3.117.3。どこで止まっても main に入る順）。④ は 3.118.0／A と同じ／A と同じ／上書き（最後の版）／native-tls／最後の版に写す／最初の版で仕事を 2 つに割る"
+ },
+ "visible": [
+  "どの案も画面の見た目は変えない。③-6（K7）で、スケジュールのタブが https の CM3 と Windows の設定のプロキシ越しの CM3 に、Python が止まっていても届くようになる",
+  "CM3 に届かないときの知らせの言葉が変わる（Python の例外の英語の字 → 人が決めた日本語の言葉＋「VPN か社内 LAN につながっているかを確かめてください」）。言葉は Python と窓で同じ版から同じ",
+  "案 B だけ: ④ まで、スケジュールの取り方を前の道（Python）へ戻す設定を残す（現場の CM3 で窓の TLS・プロキシが通らなかったときの逃げ道）"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像なし（測った数とコード）。測った物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/ の run7.json・wobble7.json・wobbleF.json・pack2-cache1.json・census.json・crates/deps.json・tls/proxy_probe.json・notes.md",
+   "self_check": "案を作った者が採点に渡す前に自分で確かめたこと: (1) 作業フォルダ stage3e は読むだけにした（書いたファイルは無い。git は log と show --stat を読んだだけ）。cargo は 1 度も動かしていない（主の知らせ: 共有の cargo の作業フォルダは check-all が使っている）。答え合わせ役と測りは nice -n 19・PYTHONDONTWRITEBYTECODE=1 で 1 本ずつ流し、自分が増やした /tmp/tpa-ui-*・tpa-ops-* は台本が消した。(2) 残り 7 本を分の境をまたいで 3 巡流し、大きさ・歩・時間・揺れ（今の settle を当てた後）を本ごとに出した。揺れの計 3,630 は前の採点の測り（約 3,600）と同じ桁で、種類も同じ。(3) 「キーと作業フォルダを決めれば揺れが消えるか」は、stage3e を変えずに包み（fixed_run.py）で uuid4 と mkdtemp を差し替えて 3 巡流して確かめた（4 本で 2,290 → 511 葉。残りは @FID・@URL・utime・timing で持てる種類だけ）。包みは uuid4 の全部を差し替えているので、本物の作り（キーの関数 2 つだけを差し替える）とは呼ぶ順が違いうる。(4) ③-6 は、製品の fetch_raw と同じ作り方の urllib を作り物の https の口と作り物のプロキシに当てて、送る物と失敗の字を 22 場面で読んだ（tls/proxy_probe.json）。手元は Linux なので、Windows の設定（HKCU）と証明書ストアの動きは urllib のコードを読んだだけで、動かしていない。(5) crate の重さは crates.io の依存の表をたどった見積もり（optional でない依存と既定の feature）。cargo では組んでいないので、組む時間と feature の伝わり方は確かめていない。(6) 時間は記録から: check-all は b3116/check1 の summary.txt、Windows は 3.115.0 の試験ごとの時間（s3e/ci-win-1d9e35c-times.json）と主の知らせ（3.116.0 は約 80 分）。7 本を足した後・仕事を割った後・route_reach を割った後の時間は見込みで、測っていない。(7) 測っていない物は measured.not_measured に並べた（Windows の違う歩の数・Windows の pow・現場の CM3 の証明書とプロキシの形 など）。Windows の数は「少ない場合（〜50 歩）」「多い場合（300 歩〜）」の両方を案ごとに書いた。(8) 手間の行数・区切りの数・表の大きさは、3.115.0・3.116.0 の実績（7 本で 17.25 MB・詰める形）と今回の詰めた測り（7 本で 8.46 MB）からの見込み。(9) 案の方向を axes に並べて偏りを見た: 版の割り方は 1 版（A・C・D・F）・製品を先の 2 版（B）・手元／Windows で割る 2 版（E）・4 つに刻む（G）。作り物は stdlib の台本（A・B・E・F・G）・Rust に 1 つ（C）・データの再生（D）。ui の場面は SQLite だけ台本（A ほか）・全部を表（D）・全部を台本（F）。Windows の表は 上書き（A・B・C・F・G）・丸ごと（D）・OS によらない形に直してから（E）。TLS は native-tls（A・B・E・F・G）・rustls＋platform-verifier（C）・rustls＋native-certs（D）。写しは 丸ごと写す（A・C・F・G は ③ の最後・B・E は ④ の直前）・git の印（D）。時間の手当ては 仕事を割る（A・B・E・F・G）・route_reach を割る（C）・Windows で Python を起こさない（D）。(10) 主の知らせ（焼いた表が焼いた PC に頼る割れを先に塞ぐ・Windows の時間）は、共通の土台 K1〜K4 と、案ごとの pc_guard・time に入れた。今回の測りで見つけた新しい種類は 2 つ: この PC の環境変数に *_proxy がある（③-6 の場面が流す PC で変わる）・ホスト名は配った設定の identity.pc_name を場面で決めれば元から出ない。(11) 案を作った者の推し（採点ではない）: E。理由: 残りの不確かさは Windows の CI でしか分からない物（違う歩の数・設定と証明書ストアの本物）に固まっていて、手元で確かめ切れる 6 本と土台を先に閉じれば、後ろの版は Windows の往復だけに集中できる。次点は A（1 回で通れば最短だが、3.116.0 が 14 本の予定を 7 本で切った実績から太すぎる）と G（止まったときの損が最小だが決まった手間が 4 回）。(12) 採点の欄（score・minus・seen・evaluator）は空のまま。python program/tools/ui_score.py は採点が入るまで判定しない。",
+   "proposals": {
+    "A 1 版で全部（3.116.0 の送り書きどおり・stdlib の台本を足す）": {
+     "what": [
+      "土台 K1〜K7",
+      "順: (1) 土台 → (2) 揺れの無い 3 本（pivot・equipgroups・lotdsp）→ (3) routes・dashboard・ops → (4) ③-6 → (5) schedule（③-6 の後に 1 回だけ焼く）→ (6) Windows の上書き → (7) 写し",
+      "作り物: tests/fakes_serve.py（stdlib）に、schedule_oracle.py の World と blackhole・lotdsp_oracle.py の Api と見本（FIXTURE・entity_of・html_with_offs・with_cells を app を import しない置き場へ）・equipgroups の fx.serve を切り出す。標準出力の 1 行目に {名前: URL}、標準入力で requests・count を受ける。答え合わせ役は同じ台本を import する（作り物は 1 つ）。焼く係: Ctx の URL を名前つきに（@URL(cm3)・@URL(hole)・@URL(lotdsp)・@URL(site)）、Bake::live は表で流すとき fakes_serve.py を標準の Python で起こしたままにする（bk.fakes）",
+      "ui の 4 本: tests/scenes/ui_scene.py・ops_scene.py（stdlib。lotlist_fixture・schedule_fixture.add_kama・ops-bench の write を呼んで SQLite だけを作る。表は指紋 made_print）。マスタの JSON（0.2 MB 前後）は app が書いた物を場面の宣言に写す（キーは K3 で決まる）。ui_server.py・ops-bench.py も同じ台本を呼ぶ",
+      "Windows: 上書き variants.nt。desktop.yml の手で起こす仕事が TPA_BLESS=nt で焼いて成果物に置き、bless.py --take-nt で取り込む。nt の項目は「上書きした posix の答えの指紋」を持ち、posix が変わったら --check が古いと言う。少ない場合（〜50 歩）: そのまま上書きにして TPA_MEASURE を外す。多い場合（300 歩〜）: 道と OS の誤りの字のそろえる決まりを先に足し、それでも 1 本で 100 歩を超える本だけ 3.118.0 へ送る（そのとき ④ は 3.119.0）。calc の pow の違う歩は上書き",
+      "③-6 の作り: native-tls（Windows は schannel＝Windows の証明書ストアと Windows の検証・Linux は OpenSSL）。cm3_http.rs の TcpStream を「読む・書く物」に一般化し、https は TLS で包む・プロキシは http＝絶対 URI／https＝CONNECT。プロキシの読み手 src/sysproxy.rs（環境変数 → Windows は windows crate に feature Win32_System_Registry を足して HKCU を読む。新しい crate 0）。作り物 tests/cm3_net_fixture.py（https の口・プロキシ。10 年の作り物の CA と鍵を tests/fixtures に置く）。信じさせ方: Linux は SSL_CERT_FILE（Python と同じ環境変数）・Windows は feature \"testing\" の足す根（窓の exe には入らない）",
+      "写し: 3.117.0 の最後に program/tests/legacy/3.117.0/ へ app の .py と 5 台本を写し、指紋（sha256）を test_baked_tables が見る。bake::frozen_python の 8 試験は写しを相手に流す",
+      "時間: desktop.yml の Windows の仕事を 2 つに割る（windows-test: cargo test と Python の段／windows-exe: exe・自己診断・更新の通し・ZIP。release は両方を待つ）"
+     ],
+     "numbers": {
+      "delegates": "11 → 8（口 7・道 1）。Windows だけ 2 → 0",
+      "tables": "23.95 → 約 34 MB（7 本の答え 約 8.5 MB＋宣言 約 1〜2 MB）。nt の上書きは少ない場合 +0.1 MB 未満・多い場合 +1〜3 MB。上限 40 MB に収まる見込み（lotdsp 3.4 MB に maxMB）",
+      "time": "手元の check-all 63 → 約 68〜70 分（7 本の表との比べ +約 1 分・ci-shape +3.5〜5 分・③-6 の試験 +約 1 分。K1 は焼くときだけ: 7 本で +2〜4 分）。Windows の CI: 1 つの仕事 約 80 分 → windows-test 約 45〜48 分・windows-exe 約 40 分（測っていない見込み。支度が 2 回で runner の分は +3〜5 分）",
+      "versions": "1 版（3.117.0）。④ は 3.118.0。作る係の区切り（5 時間の上限 1 回ぶん）は 約 6〜7"
+     },
+     "windows": {
+      "few": "〜50 歩: 同じ版で上書きと「Windows でも表と比べる」に切り替える。Windows の CI は 手で起こす焼き 1 回＋取り込んだ後の 1 回",
+      "many": "300 歩〜: そろえる決まり（道・OS の誤りの字）を足して数え直し、残りが多い本は次の版へ。入口の条件 (2) がこの版で満たせず ④ が 1 版遅れる"
+     },
+     "pc_guard": "K1〜K4。足す種類は ③-6 の環境変数（K3 (b)）と、作り物のポート（名前つきの URL）",
+     "risks": [
+      "1 版に 7 つの塊が入る。使用量の上限で途中で止まると、main に入っていない仕事が最大で 5〜6 区切りぶん溜まる（3.116.0 は 14 本の予定が 7 本で切れた）",
+      "③-6（製品の変更）と表の仕事が同じ PR に入るので、③-6 が Windows の CI で落ちると 35 本の焼きも一緒に待つ",
+      "native-tls は Linux でシステムの libssl に結ぶ（手元 3.0.13・CI の ubuntu。ci.yml の apt の行に libssl-dev は無いので足す）。Linux の試験の TLS は OpenSSL・製品は schannel で、検証の道が違う（Windows の本物の検証は Windows の CI でだけ通る）",
+      "上書きは、Linux の表を焼き直すたびに古くなりうる（その歩に当たる製品の変更のたびに Windows の焼きが 1 往復）",
+      "マスタの JSON を宣言に持つので、app の書く形（rev・updated_by）が変わると 4 本とも焼き直し（④ の後は変わらない）",
+      "写しを 3.117.0 で作った後に app を直すと写し直し（④ が 3.118.0 なら直さない前提）"
+     ],
+     "stage4": "3.117.0 が入れば入口の 3 条件がそろい、④ は 3.118.0。④ の時点で: 35 本が Python 無しで流れる（標準の Python は 場面の台本 4・作り物の台本 1・独立の答え 4 に残る）・Windows は表と比べている・写しは legacy/3.117.0",
+     "size": "Rust 1,300〜2,100 行（土台 80〜140・7 本を焼く係に載せる 500〜800・起こしたままの相手 80〜120・nt 80〜140・③-6 550〜800・写しの切り替え 40〜70）・Python 1,150〜1,700 行（土台 250〜350・作り物の切り出し 250〜350・場面の台本 270〜400・bless の nt 80〜120・③-6 の言葉と作り物 280〜420・写しの見張り 40〜60）・YAML 80〜120 行・事例の表 60〜100 件。特大",
+     "verify": [
+      "揺れが 0 か: python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/run7.py 1 2 3 && python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/wobble7.py（作った後は答え合わせ役が決めた形で流れるので、残る葉が 0 になる。今は 3,630）",
+      "焼き: python program/tools/bless.py equipgroups schedule lotdsp routes pivot dashboard ops（2 回目は K1 の別の PC の形。違えば書かない）・python program/tools/bless.py --check・--stats --base origin/main・--no-python",
+      "python program/tools/ci-shape.py 記録 --shape runner,nopy,nodns,env",
+      "cargo test --test schedule_parity --test lotdsp_parity --test equipgroups_write_parity --test routes_parity --test pivot_parity --test dash_parity --test ops_parity（そのまま・TPA_NO_PYTHON=1・TPA_SETTLE_DROP=@URL(cm3) の変異）・cargo test --test bake_selftest",
+      "③-6: cargo test --test cm3_net_cases・python -m unittest tests.test_cm3_net_cases（人の事例の表）・schedule_parity の https・プロキシの場面が same・python program/tools/delegate-count.py 作業フォルダ --check（total 8・Windows だけ 0）",
+      "Windows: 手で起こす仕事の成果物を python program/tools/bless.py --measured フォルダ → 取り込み → 次の CI で表と比べて通る"
+     ],
+     "visible": "K7 のとおり（https・プロキシ越しの CM3 に窓が届く・届かないときの言葉）",
+     "score": {
+      "order": 6,
+      "chunk": 2,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 2,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 6・windows: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5・stage4（④ は 3.118.0）: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      }
+     ],
+     "seen": "送り書きどおりに 1 版で全部を入れる形。型は今までと同じ 1 つ（stdlib の台本・場面の台本の指紋・上書き・native-tls）で、決めの置き場は増えない。測って見えたこと: (1) 7 本の大きさ・流す時間・app の頼り方は案のとおり（自分で流して同じ: 1.29・2.62・30.54・1.52・0.91・2.07・4.22 MB）。(2) 順の (2)「揺れの無い 3 本（pivot・equipgroups・lotdsp）」は、同じ PC の 3 巡でだけ正しい。TMPDIR を替えると pivot は 488 葉（path 486・error 2）が違い（settle の @UI は /tmp/tpa-ui- の字にだけ効く）、lotdsp は direct[8].seconds の 1 葉も替わる。pivot は場面の台本（順の (3)）が先に要る。(3) 順の (3) の routes は、キーと作業フォルダを決めても asks[15] が ext4 で 503（実績_BAD）・tmpfs で 404（実績_SL3）に替わる（10 回流して ext4 5/5・tmpfs 5/5）。案の verify 1「残る葉が 0 になる」は成り立たない（消した SL3 の inode を BAD が使い回すかで替わる。K3 では塞がらない）。(4) Windows の数は 206 歩（34 表・5,807 歩）で、案の「少ない（〜50）」と「多い（300〜）」の間。23 表は 0、171 歩（83%）は release_place・place・fs の 3 本に固まる。「1 本で 100 歩を超える本だけ次へ送る」に当たる本は無いが、3 本は歩の半分以上（83/122・64/81・24/46）が違い、上書きより丸ごとの表が合う。(5) native-tls は測りどおり軽い（新しい crate は Windows 2・Linux 5。Linux の組み 18 秒。Linux から Windows 向けの cargo check が通るので、作業用クレートで型を確かめられる）。(6) 仕事を 2 つに割る見込み（45 分・40 分）は記録と合う（cargo test の段 40.5 分・release 6 分・自己診断 3 分・更新の通し 28 分）。割れ・落とし穴: 7 つの塊が 1 つの PR に入り、切る線は Windows が多い場合の 1 つだけ。3.116.0 は 14 本の予定が 7 本で切れ、作った後の採点は 27.5・35.5 点だった。③-6（製品の道の入れ替え）が表の仕事と同じ PR にあり、現場で 1 度も確かめないまま次の版で Python を外す。"
+    },
+    "B ③-6 を先に出す 2 版（製品の変更と土台 → 7 本・Windows・写し）": {
+     "what": [
+      "土台 K1〜K7",
+      "3.117.0: ③-6（K7。作りは A と同じ native-tls・sysproxy.rs・作り物は stdlib）＋ K1・K2・K4（今ある 28 本の表にも効く。別の PC の形で 28 本を焼き直して違いが 0 かを見る）＋ K5（schedule の直し）＋ Windows の仕事を 2 つに割る＋ Windows の測りの数を読んで、そろえる決まりで減らせる分だけ先に減らす（上書きはまだ作らない）",
+      "3.117.0 に逃げ道: 設定 schedule.fetch_engine（既定 window）。\"python\" にすると前の道（窓が降りて Python が取る）に戻る。④ で設定ごと消す。現場の本物の CM3（https・プロキシ）で 1 版ぶん確かめる時間を取る",
+      "3.118.0: 7 本を焼く（作り物・場面の持ち方は A と同じ。schedule は ③-6 の後なので 1 回だけ）＋ Windows の上書きと「Windows でも表と比べる」＋ 写し（④ の直前の版なので写し直しが無い）",
+      "採点は 1 回（この比較）。作った後は版ごとの節（built_3117・built_3118）"
+     ],
+     "numbers": {
+      "delegates": "3.117.0 で 11 → 8・Windows だけ 2 → 0。3.118.0 は変わらない",
+      "tables": "3.117.0: 23.95 MB のまま（K1 で焼き直した差分だけ）。3.118.0: 約 34 MB＋ nt",
+      "time": "3.117.0: check-all 63 → 約 64〜65 分・Windows は 2 つの仕事（約 45 分・約 40 分）。3.118.0: check-all 約 68〜70 分・Windows 約 46〜48 分・約 40 分",
+      "versions": "2 版（3.117.0・3.118.0）。④ は 3.119.0。区切りは 約 3 ＋ 約 4"
+     },
+     "windows": {
+      "few": "3.118.0 で上書きにして切り替える（3.117.0 のうちに数を 2 回読める: 66aa863 の後と 3.117.0 の後）",
+      "many": "3.117.0 でそろえる決まりを足して減らし、3.118.0 で残りを上書き。2 版あるので ④ は遅れない"
+     },
+     "pc_guard": "K1〜K4 を 7 本より先に入れ、今ある 28 本で効き目を確かめてから 7 本を焼く（別の PC の形で 28 本を焼き直して 0 か・ホスト名の割れ〈66aa863 の前の表〉を K1 が止めるかを変異で見る）",
+     "risks": [
+      "版が 1 つ増える（往復 +半日〜1 日）。④ が 3.119.0 になる",
+      "3.117.0 の時点では入口の条件は 1 つも増えない（35 本のうち 28 本のまま・Windows は測るだけ・写しなし）。3.118.0 が 7 本＋Windows＋写しで太い（A から ③-6 を抜いた大きさ）",
+      "逃げ道の設定（fetch_engine）は、消し忘れると ④ の後に効かない設定が残る。逃げ道がある間は delegate-count が「設定で降りる形」を 1 つ数える（予算に envExtra として書く）",
+      "schedule の答え合わせ役は 3.117.0 で場面が増え、3.118.0 でもう 1 度触る（作り物の切り出し）"
+     ],
+     "stage4": "③-6 が 1 版早く現場に出る（④ の前に 2 版ぶんの確かめの時間）。入口の 3 条件は 3.118.0 でそろい、④ は 3.119.0。A より 1 版遅いが、④ に入る時点で ③-6 の現場の報告を 1 回受けられる",
+     "size": "3.117.0: Rust 700〜1,000 行（③-6 550〜800・土台 80〜140・逃げ道 30〜50）・Python 600〜900 行・YAML 60〜90 行。3.118.0: Rust 700〜1,200 行・Python 650〜950 行・YAML 40〜60 行。計は A＋約 100 行。大＋大",
+     "verify": [
+      "3.117.0: A の ③-6 の確かめ＋ python program/tools/bless.py --all（2 回目が別の PC の形で 28 本とも同じ）＋変異（66aa863 の @HOST を TPA_SETTLE_DROP=@HOST で外して、K1 が「違う」と止めること）",
+      "逃げ道: schedule_parity に fetch_engine=python の場面（窓が降りる・状態の resigned）・test_schedule.py",
+      "3.118.0: A の 7 本と Windows の確かめ",
+      "現場: 3.117.0 を配った PC で、スケジュールのタブが https・プロキシ越しの CM3 を窓で読めたか（利用状況の印の python の様子と状態のファイルの書き手 rs）を利用者に 1 回確かめてもらう"
+     ],
+     "visible": "K7＋逃げ道の設定（画面には出さず、配った設定の項目）",
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 4,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 4（3.118.0）・windows: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      }
+     ],
+     "seen": "製品の変更（③-6）と土台を先に出し、戻り道（fetch_engine）と現場の確かめを持つただ 1 つの案。今の現場は https・プロキシを Python が取っているので、入れ替えを早く出して ④ の前に 2 版ぶんの時間を取るのは筋が良い。Windows の仕事を 1 版目で割り、数を 2 回読む。測って見えたこと: (1) ③-6 の作り（native-tls・windows クレートの feature・urllib の読み方）は測りと合う。urllib の源を読むと、案の決まりのほかに ProxyOverride の fnmatch が Windows では大文字小文字を区別しない・「=」の無い段で読みが止まる・30x のたびに決め直す・socks だけの設定は開けない、がある（どの案の K7 にも無い）。(2) K1 を今ある 28 本で確かめる手は良いが、ci-shape（66aa863）はもう PC の名前・利用者・TMPDIR・Python・時差を替えて流しており、K1 が新しく見る種類は env（*_proxy・SSL_CERT_FILE・LANG）だけ。形を替えて増える葉（自分の測りで約 2,360）は全部 ci-shape が替える種類だった。(3) 3.117.0 は入口の条件を 1 つも進めない（28/35 のまま）。3.118.0 が 7 本＋Windows＋写しで、3.116.0 が切れた大きさ（14 本の予定）に近い。routes の inode の割れ・pivot の TMPDIR（A の seen 2・3）は 3.118.0 に乗る。切る線が無い。(4) 戻り道の設定は「窓が降りる形」を 1 つ足す（予算に数える）が、④ で消える 2 版だけの物で、守りとしては得の方が大きい。"
+    },
+    "C 作り物を窓の試験の側（Rust）に 1 つ持つ（Python には URL を渡す）": {
+     "what": [
+      "土台 K1〜K7",
+      "作り物を Rust に書く: desktop/tests/common/fakes.rs に CM3（World の場面の振り分け・chunked・HTTP/1.0 と 1.1・30x・500・黙る・閉じる・charset）・blackhole・LotDsp の API とサイト・プロキシ・https の口。答え合わせ役は URL を引数で受ける（--cm3 URL --hole 口 --lotdsp URL）。作り物は 1 つで、Python と窓が同じ物に尋ねる。要求の記録と数は試験の中の変数（標準入力の requests・count の口が要らない）。前例は builder の本の bake::serve_404。見えない Edge の作り物（lotdsp_cdp_fake.py）は外の実行ファイルとして起こす物なので stdlib の台本のまま",
+      "書き直しの確かめ: Python があるうちに「Rust の作り物に替えても Python の答えが前と同じ」を 1 回突き合わせる（今の cache1 の答えと、ポートと時刻をそろえて比べる）",
+      "ui の 4 本・Windows の上書き・写しは A と同じ",
+      "③-6 の作り: rustls（ring）＋ rustls-platform-verifier（Windows は OS の検証 API で Windows の証明書ストア・Linux は OS の根）。作り物の https の口も rustls のサーバーで書き、証明書は試験の中で作る（dev-dependencies に rcgen。期限の切れる置き物が無い）。試験の根は platform-verifier の足す根で（feature \"testing\"）",
+      "時間: route_reach（Windows で約 1,100 秒）を場面ごとに子のプロセス 4 つに割って並べる（仕事は 1 つのまま）。起こしたままの Python が 3 本ぶん減る",
+      "切る線: 足りなければ ③-6 を 3.118.0 へ（schedule は http の場面だけで先に焼き、③-6 で範囲つきに焼き直す）"
+     ],
+     "numbers": {
+      "delegates": "11 → 8・Windows だけ 2 → 0（切る線を使うと 3.117.0 は 11 のまま）",
+      "tables": "約 34 MB（A と同じ。Host の見出しのポートは試験が起こした口なので名前つきの置き換えが試験の中で閉じる）",
+      "time": "check-all 約 68〜70 分（ring の C と asm の組みで cargo-build・fmt-clippy・cargo-test に +1〜2 分の見込み。測っていない）。Windows: route_reach 1,100 → 300〜400 秒（runner が 4 つの CPU のとき。測っていない）で 80 → 約 68〜72 分＋ TLS の crate の組み +1〜2 分",
+      "versions": "1 版（切る線で 2 版）。④ は 3.118.0（切る線で 3.119.0）。区切りは 約 7〜9"
+     },
+     "windows": {
+      "few": "A と同じ（同じ版で上書き）",
+      "many": "A と同じ。仕事を割っていないので、焼きの往復は 1 回 約 70 分"
+     },
+     "pc_guard": "K1〜K4。作り物が試験の実行ファイルの中にあるので、Python の版・SQLite の版・起こす時間（Windows の Python の起動）に頼る所が 3 本ぶん減る。作り物のポートは試験が知っている",
+     "risks": [
+      "World（場面の振り分け 約 170 行）と Cm3Server（約 80 行）・LotDsp の API を Rust に書き直す（450〜750 行）。④ で Python が消えた後も残る物だが、書き直しで作り物の振る舞いが変われば前の版の答えと差が出る（同じ作り物に尋ねるので食い違いにはならず、気づきにくい）",
+      "crate が増える: Windows +8・Linux +10（ring・rustls・rustls-webpki・rustls-pki-types・rustls-platform-verifier・subtle・untrusted・zeroize ほか。約 2.1 MB）＋ dev の rcgen。ring は C と asm を組む（Windows の CI の MSVC では通る見込みだが測っていない）",
+      "Linux の試験の検証は webpki、製品の Windows は OS の API で、道が違う（A の OpenSSL と schannel の違いと同じ種類）。webpki は SAN の無い証明書・v1 の CA を断る（現場の社内 CA の形は分からない。Windows の道は OS の検証なので通る見込み）",
+      "route_reach を割っても余りは 18〜22 分で、nt の焼きの往復は 1 回 約 70 分かかる",
+      "1 版が A より太い（Rust +700 行）"
+     ],
+     "stage4": "④ の後、起こしたままの 3 本は標準の Python を使わない（cdp の作り物だけ残る）。作り物が Rust にあるので、④ で答え合わせ役（Python）を消しても作り物は残る。入口の条件は 3.117.0 でそろう（切る線を使わなければ）",
+     "size": "Rust 2,000〜3,000 行（作り物 700〜950・7 本 500〜800・③-6 550〜800・土台・nt・写し・route_reach の割り 50〜90）・Python 750〜1,100 行（答え合わせ役の引数・場面の台本・土台。作り物の 約 150 行は消す）・YAML 40〜60 行。特大",
+     "verify": [
+      "書き直しの前後: 今の答え（s3f/cache1 の schedule・lotdsp・equipgroups）と、Rust の作り物に替えた後の Python の答えを、ポートと時刻をそろえて比べる（違いは 0 か、場面ごとに理由を書く）",
+      "cargo test --test schedule_parity --test lotdsp_parity --test equipgroups_write_parity（そのまま・TPA_NO_PYTHON=1。呼ばれる Python の台本が lotdsp_cdp_fake.py だけかを ci-shape の nopy の記録で見る）",
+      "cargo tree -e normal | grep -c（足した crate の数が見積もりどおりか）・cargo build --timings（組む時間）",
+      "Windows の CI の route_reach の段の時間（割る前 約 1,100 秒）",
+      "ほかは A と同じ"
+     ],
+     "visible": "K7 のとおり",
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 8,
+      "place": 7,
+      "layout": 2,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 4（Windows の上書きは A と同じ）: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5・切る線: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      }
+     ],
+     "seen": "作り物を窓の試験の側（Rust）に 1 つ持つ形。Python と窓が同じ作り物に尋ね、④ の後も作り物が残る。起こす Python が 3 本ぶん減り、ポートは試験が知っている。測って見えたこと: (1) rustls（ring）＋rustls-platform-verifier は新しい crate が Windows 8・Linux 10（案のとおり）。Linux の組みは 12 秒で軽いが、Linux から cargo check --target x86_64-pc-windows-msvc が ring の build.rs（lib.exe が無い）で落ちる（rc 101）。native-tls は通る（rc 0）。窓の全体はもともと libsqlite3-sys で Windows 向けに組めず作業用クレートで型を確かめているが、TLS に触れる Windows の部分はその手も使えなくなる。(2) 作り物の書き直しは 700〜950 行で、World（場面の振り分け）・chunked・charset・黙る・閉じるを Rust に写す。作り物の振る舞いが変わっても Python と窓は同じ答えになるので、前後の突き合わせ（案の verify 1）を落とすと気づけない。schedule_fixture・lotlist_fixture は今も stdlib だけで import できる（app を止めて確かめた）ので、書き直さなくても Python 無しで起こせる。(3) route_reach を割る（計画書の決め）のは良いが、仕事は 1 つのままなので Windows の往復は 1 回 約 70 分で、Windows の数を読む回数が増えない。(4) 1 版で Rust 2,000〜3,000 行は 7 案でいちばん太い。"
+    },
+    "D 作り物と場面をデータで持つ（録って再生・台本を作らない）": {
+     "what": [
+      "土台 K1〜K7",
+      "作り物を表にする: python program/tests/fakes_dump.py（stdlib）が、World の答え（場面 × 設備 × 何回目 → 状態・見出し・本文・chunked・HTTP の版・待つ・閉じる）と LotDsp の API・サイトの答えを desktop/tests/baked/fakes/*.json に書く（bless は書かない。人が dump を流して差分を見る第 2 の線の側）。試験は Rust の再生の口 1 つ（desktop/tests/common/replay.rs。表を読んで要求に当たる答えを返し、要求を記録する。録っていない要求は 599 を返して試験を落とす）を起こし、答え合わせ役にも URL を渡す",
+      "routes・pivot・dashboard は共通の場面を 1 つの表（desktop/tests/baked/scenes/ui.json）に持つ。SQLite は論理の形（表の定義と行。bake::sqlite_logical の逆）で入れ、窓の試験が rusqlite（exe に入れてある同じ版）で作る。台本も Python も要らず、SQLite の版に頼らない。ops（元 23.9 MB）は入らないので stdlib の台本（指紋）",
+      "Windows: 違いの多い本は丸ごと 2 つ目の表（<本>.nt.json）、少ない本は上書き。表の計の上限 40 MB を見直す（丸ごとは 1 本ごとに +0.2〜3 MB）",
+      "③-6 の作り: rustls（ring）＋ rustls-native-certs（Windows の証明書ストアから根を読んで自分で検証する＝Python の ssl と同じ形）。再生の口の https は rustls のサーバーと置き物の証明書（10 年）",
+      "写し: 写さない。program/tests/legacy.json に版の印（タグ v3.117.0 と program/app の木の指紋）だけを書き、凍らせた相手の 8 試験は試験のときに git archive で target/tmp へ取り出す（CI は取り出しでその印を fetch する）",
+      "時間: Windows では焼いた本を表とだけ比べる（Python を起こさない。Windows の Python との突き合わせは凍らせた 8 試験と Python の段だけ残す）",
+      "切る線: 足りなければ ③-6 を 3.118.0 へ"
+     ],
+     "numbers": {
+      "delegates": "11 → 8・Windows だけ 2 → 0",
+      "tables": "約 34 MB ＋ 作り物の表 約 0.5〜1.5 MB（CM3 の答えは設備 3 つ × 場面で重なりが多い。LotDsp の 10 MB の境の本文は作り方）＋ 共通の場面 約 1.5〜2.5 MB（元 0.79 MB の SQLite を行の JSON にした見込み。測っていない）− 3 本の宣言の重なり。丸ごとの nt は多い場合 +3〜8 MB で上限 40 MB を超える",
+      "time": "check-all 約 67〜69 分。Windows: 焼いた 35 本が Python を起こさなくなる分だけ縮む（見込み −3〜8 分。Windows の Python の起動と答え合わせ役の時間。測っていない）",
+      "versions": "1 版（切る線で 2 版）。④ は 3.118.0。区切りは 約 7〜8"
+     },
+     "windows": {
+      "few": "上書きだけで足りる。丸ごとの表は作らない",
+      "many": "多い本（見込み: release_place・worklog_write・fs・builder）を丸ごと 2 つ目の表にする。上書きより差分が読みやすいが、Linux を焼き直すたびに Windows も焼く往復が要る"
+     },
+     "pc_guard": "K1〜K4。場面の SQLite を rusqlite で作るので「答え合わせ役の Python に付く SQLite の版」の種類（3.115.0 の CI の 3 回目）が 3 本で元から消える。作り物がデータなので Python の版にも頼らない",
+     "risks": [
+      "再生の口は作り物の理屈を持たない: 窓が録っていない要求（順が違う・回数が多い）をすると答えが無い。何回目で変わる場面は録る回数の上限が要る。場面を足すたびに dump し直す",
+      "SQLite を論理の形から作ると、rowid・ページの並び・索引・型の親和性・BLOB と REAL の字の往復が元と違いうる（窓の答えが変わらないことを Python があるうちに 1 回突き合わせる）。lotlist_fixture は ui-eval の開発用サーバーでも使うので、場面の元が 2 つになる（台本と表）",
+      "Windows で Python と比べるのをやめると、④ までの間 Windows の Python と窓の食い違い（ntpath・Windows の誤りの字）を 35 本では見なくなる",
+      "git の印は、浅い取り出し・タグの消し忘れ・fork で試験が流れなくなる。写しが repo に無いので「直していないこと」は木の指紋で見る",
+      "rustls-native-certs は根だけを読む。中間証明書を送らない CM3 は Python（CA ストアも読む）で通って窓で落ちうる。Windows の検証（AIA の取り寄せ・社内の配った根の扱い）とも違う",
+      "新しい仕組みが 3 つ（再生・論理の SQLite・git の印）入り、1 版が太い"
+     ],
+     "stage4": "④ の後に標準の Python が要るのは ops の台本・cdp の作り物・独立の答え 4 だけ（6 本は Python を 1 行も呼ばない）。入口の条件は 3.117.0 でそろう（写しは印で代える。計画書の「写しがある」の読み替えが要る）",
+     "size": "Rust 1,700〜2,500 行（再生 250〜350・論理の SQLite 150〜220・7 本 500〜800・nt 120〜180・③-6 550〜800・土台）・Python 700〜1,050 行（dump 150〜220・ops の台本 120〜180・土台・③-6 の言葉）・YAML 50〜70 行。特大",
+     "verify": [
+      "再生: bake_selftest に「録っていない要求で落ちる・表の本文を 1 字変えると窓の答えが変わって落ちる」",
+      "論理の SQLite: 今の場面（lotlist_fixture が作った物）と表から作った物で、routes・pivot・dashboard の Python の答えが同じ（s3f/cacheF1 と比べる）",
+      "TPA_NO_PYTHON=1 の ci-shape の記録で、6 本が Python を 1 度も呼ばないこと",
+      "git の印: 浅い取り出し（git clone --depth 1）で凍らせた 8 試験が分かる言葉で落ちる／印を fetch すれば流れる",
+      "ほかは A と同じ"
+     ],
+     "visible": "K7 のとおり",
+     "score": {
+      "order": 5,
+      "chunk": 3,
+      "hierarchy": 3,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 2,
+      "intuitive": 3,
+      "form": 5,
+      "place": 5,
+      "layout": 2,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 7・切る線: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 6「Windows では焼いた本を表とだけ比べる（Python を起こさない）」: ④ までの間、Windows の Python と窓の突き合わせ（ntpath・Windows の誤りの字）が 35 本で消える。表は窓が自分で焼いた答えなので、Windows だけの食い違いは表にも Python にも現れなくなる（案の risks 3 も認める）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 4「rustls＋rustls-native-certs」: rustls-native-certs 0.8.5 の windows.rs は CurrentUser の ROOT だけを読む（源を読んだ）。今の現場の Python の ssl は ROOT と CA の両方を読むので、中間証明書を送らない CM3 は Python で通って窓で落ちる。試験は置き物の証明書なので、この違いは見えない"
+      }
+     ],
+     "seen": "新しい仕組みを 3 つ（録って再生・論理の形の SQLite・git の印）入れる形。測りに合う考えが 2 つある: (a) Windows で表とだけ比べる形は、④ の後に残るただ 1 つの形で、ほかの 6 案はそれを Windows で流す手を持たない。(b)「違いの多い本は丸ごと 2 つ目の表」は Windows の測りの偏りに合う（206 歩のうち 171 歩が release_place・place・fs。3 本の表は計 0.6 MB なので、案の numbers の「+3〜8 MB で上限を超える」は当たらない）。割れ・落とし穴: (1) 再生の口は作り物の理屈を持たない。schedule は糸の順で CM3 への要求の並びが替わる（自分の測りでも equip・body が 61+61 葉）ので、「何回目の要求か」で答えを引く再生は並びの違いで別の答えを返す。(2) SQLite を論理の形から作ると場面の元が 2 つになる（台本と表）。(3) git の印は actions/checkout の浅い取り出しでは無く、凍らせた 8 試験が CI で流れなくなる恐れ。計画書の入口の条件「写しがある」の読み替えも要る。(4) rustls（ring）は Linux から Windows 向けの cargo check が落ちる（C と同じ）。(5) Windows で Python をやめるのは ④ の前では早い（上の減点）。測るだけで足せば足りる。"
+    },
+    "E 手元で確かめ切れる物を先・Windows の CI が要る物を後（2 版）": {
+     "what": [
+      "土台 K1〜K7",
+      "割り方の理由: 3.115.0・3.116.0 で往復を増やしたのは「手元で流せない PC の形」。残りの仕事を、手元（Linux・check-all・ci-shape・K1）で確かめ切れる物と、Windows の CI でしか確かめられない物に分け、後ろを 1 つの版にまとめて専用の速い往復で回す",
+      "3.117.0（手元で閉じる）: 土台 K1〜K6 ＋ 6 本（pivot・equipgroups・lotdsp・routes・dashboard・ops。作り物と場面の持ち方は A と同じ）。Windows の CI は測るだけのまま（落ちない）で、足した 6 本の Windows の違いも数える。schedule は ③-6 で変わる本なので焼かない",
+      "3.118.0（Windows の CI が要る）: ③-6（K7。native-tls・sysproxy.rs）＋ schedule を焼く（③-6 の後に 1 回だけ）＋ Windows でも表と比べる ＋ 写し（④ の直前）＋ Windows の仕事を 2 つに割る ＋ 手で起こす「cargo test だけ」の仕事（約 45 分。焼きと確かめの往復に使う）",
+      "Windows の表は「OS によらない形に直してから」: 測りの記録を種類に分け、(i) 道の字は今の決まり (ii) OS の誤りの字（[Errno n] 文 と [WinError n] 文）は、表と比べるときだけ種類の印 @OSERR(種類) にそろえる対応表（人が書く 10〜20 行。Python と比べる形では字のまま・変異つき） (iii) 残りだけ上書き variants.nt。上書きを小さく保ち、Linux の焼き直しで古くなりにくくする",
+      "③-6 の Windows の本物: Windows の CI の中で HKCU の ProxyEnable・ProxyServer・ProxyOverride を書いて窓の読み手が urllib（Windows の Python の getproxies・proxy_bypass）と同じ答えかを比べ、終わったら戻す。作り物の CA を LocalMachine\\Root に入れて schannel の本物の検証で https の作り物に届くかを 1 場面通し、終わったら消す（自己診断の 10b に 1 項目）",
+      "採点は 1 回（この比較）。作った後は版ごとの節（built_3117・built_3118）"
+     ],
+     "numbers": {
+      "delegates": "3.117.0 は 11 のまま。3.118.0 で 11 → 8・Windows だけ 2 → 0",
+      "tables": "3.117.0: 23.95 → 約 33 MB（6 本。schedule 0.5 MB は次）。3.118.0: 約 34 MB ＋ 上書き（対応表の後。少ない見込み）",
+      "time": "3.117.0: check-all 約 67〜69 分・Windows は今の 1 つの仕事 約 80 分に +1 分未満（6 本の測りの手間。余り 約 9 分）。3.118.0: check-all 約 69〜70 分・Windows は 2 つの仕事（約 46〜48 分・約 40 分）",
+      "versions": "2 版（3.117.0・3.118.0）。④ は 3.119.0。区切りは 約 4 ＋ 約 4"
+     },
+     "windows": {
+      "few": "3.118.0 の最初の手で起こす仕事 1 回で上書きを焼き、次の CI で切り替えが通る",
+      "many": "対応表（OS の誤りの字）で 113 歩ぶん、道の決まりで最大 311 歩ぶんが消える見込み（s3e/osdiff.json の上限）。残りを上書き。3.117.0 の CI が 6 本ぶんの数も出すので、3.118.0 を始める前に全部の数が分かる"
+     },
+     "pc_guard": "K1〜K4 を 3.117.0 の最初に入れ、6 本を焼く前に今ある 28 本で確かめる（別の PC の形で焼き直して 0）。3.117.0 の合格の線を「CI が 1 回で通る」に置く（落ちたら K1 に足りない形を足してから進む）。Windows の形は手元に無いので、3.118.0 は「cargo test だけの仕事」で 1 往復を 約 45 分にする",
+     "risks": [
+      "版が 1 つ増える（往復 +半日〜1 日）。④ は 3.119.0",
+      "3.117.0 は Windows の仕事を割らないので余り 約 9 分のまま 1 回通す（6 本の測りの手間が見込みより大きいと時間切れ。そのときは仕事を割るのを 3.117.0 に前倒しする）",
+      "③-6（製品の変更）が後ろの版になり、現場に出るのが A・B より遅い。④ の直前の版に ③-6・Windows・写しが重なる",
+      "CI の中で HKCU と証明書ストアを書き換える。戻し損ねても runner は使い捨てだが、同じ仕事の後ろの段（更新の通し）に効かないよう、仕事を割った後の windows-test の側だけで行う",
+      "@OSERR の対応表はそろえる決まりを 1 つ増やす（そろえすぎの種）。種類の印にするのは OS の誤りの文だけで、言葉のほかの部分は字のまま比べる"
+     ],
+     "stage4": "入口の 3 条件は 3.118.0 でそろい、④ は 3.119.0。3.117.0 の時点で 34/35 本・3.118.0 で 35 本。Windows の上書きが小さいので、④ の後に製品を直しても Windows の焼きの往復が少ない",
+     "size": "3.117.0: Rust 650〜1,050 行・Python 850〜1,250 行（土台・作り物の切り出し・場面の台本）。3.118.0: Rust 800〜1,250 行（③-6 550〜800・schedule 150〜250・nt と対応表 140〜200・写し）・Python 450〜700 行・YAML 100〜150 行。大＋大",
+     "verify": [
+      "3.117.0: A の 6 本の確かめ＋ CI（Linux）が 1 回で通ること＋ Windows の成果物 bake-measure を python program/tools/bless.py --measured で読む（6 本ぶんも）",
+      "3.118.0: 対応表の変異（TPA_SETTLE_DROP=@OSERR で Windows の違う歩が元の数に戻る・誤りの種類を 1 つ入れ替えると落ちる）・bless.py --measured が 0・desktop.yml から TPA_MEASURE を外した CI",
+      "Windows の CI の中: python -c で urllib.request.getproxies()・proxy_bypass() の答えを出し、窓の sysproxy の試験（cargo test --lib sysproxy。環境変数 TPA_SYSPROXY_LIVE=1 のときだけ本物の HKCU を読む）と比べる",
+      "ほかは A と同じ（③-6・写し）"
+     ],
+     "visible": "K7 のとおり（3.118.0 から）",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 4・windows（対応表の後に上書き）: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 3（3.118.0 に ③-6・Windows・写し。④ は 3.119.0）: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      }
+     ],
+     "seen": "手元で確かめ切れる物と Windows の CI が要る物に分ける 2 版。Windows の本物（HKCU の設定を urllib と比べる・証明書ストアに入れた CA で schannel の本物の検証）を通すただ 1 つの案で、③-6 の現場の道にいちばん近い確かめを持つ。測って見えたこと: (1)「OS によらない形に直してから」の効き目は小さい。206 歩のうち OS の誤りの字は 23 歩（builder 9・worklog_write 9・mirror 5）で、171 歩は release_place・place・fs の道の門の答えそのもの（problem・ok・dest が OS で違う。区切りの置き換えでは消えない）。案の「道の決まりで最大 311 歩ぶんが消える」は当たらない。23 歩のためにそろえる決まり（@OSERR）を 1 つ足すより、上書きに入れる方が決めの置き場が増えない。(2) 3.117.0 は土台＋6 本（うち ui の 4 本）で、3.116.0 が入れた量（土台＋易しい 7 本）より重い。routes の inode の割れ・pivot の TMPDIR（A の seen 2・3）がここに乗る。切る線が無い。(3) 3.117.0 は Windows の仕事を割らず余り 9 分 49 秒のまま通す（記録: 80 分 11 秒・上限 90 分）。計画書は「次の版の最初に手当てする」と決めている。(4) ③-6・Windows の切り替え・写しが ④ の直前の 1 版に重なり、③-6 が現場に出てから ④ までが 1 版。(5) fnmatch が Windows では大文字小文字を区別しない、のような OS で変わる読み方は、この案の Windows の中の比べでだけ見つかる（ほかの案は Linux の環境変数の道しか突き合わせない）。"
+    },
+    "F 場面の元を 1 つの台本にする（開発用サーバーの場面を前倒しで app から外す）": {
+     "what": [
+      "土台 K1〜K7",
+      "tests/scenes/ui_scene.py・ops_scene.py（stdlib）が、SQLite だけでなくマスタの JSON（work_log_files・shift_patterns・equipment_groups・display_formats・data_sources・want.json・配った設定）も直に書く（MasterRepository・clean_row を通さない。キー・id・rev・updated_by は台本が決めた字）。ui_server.build は「台本を流して create_app に渡す」だけになり、app の import は 10 → 3（create_app・MasterStore・serve_http）。ops-bench.py も同じ。試験の 4 本・ui_server・ops-bench・rust-port-bench が同じ 1 つの場面を読む",
+      "場面の宣言は台本の作った物の指紋だけ（SQLite も JSON も made_print）。表に場面の中身を持たないので 4 本の宣言はほぼ 0。場面と表のずれは「台本が作った物の指紋が違う」の 1 つで見る",
+      "Python があるうちに 1 回: 台本の場面 ＝ app が書いた場面（今の build の後のファイル）を、ファイルごとに JSON で比べる試験（tests/test_ui_scene.py。段 ④ で消す）",
+      "作り物・Windows の上書き・③-6（native-tls）・写し・仕事を 2 つに割るのは A と同じ",
+      "切る線: 足りなければ ③-6 を 3.118.0 へ"
+     ],
+     "numbers": {
+      "delegates": "11 → 8・Windows だけ 2 → 0",
+      "tables": "約 33 MB（A より 4 本の宣言ぶん 約 0.8 MB 小さい）",
+      "time": "check-all 約 68〜70 分（ui_scene の試験 +数秒）。Windows は A と同じ（2 つの仕事）",
+      "versions": "1 版（切る線で 2 版）。④ は 3.118.0。区切りは 約 7〜8"
+     },
+     "windows": {
+      "few": "A と同じ",
+      "many": "A と同じ"
+     },
+     "pc_guard": "K1〜K4。場面の中身（キー・PC の名前・利用者・更新時刻・id）を全部台本が決めるので、app が場面に書く「流した PC の名乗り」（updated_by の login と pc）が 4 本から消える（測り: 利用者 root が dashboard 40・ops 64・routes 8 葉、ホスト名が 40・78・8 葉）",
+     "risks": [
+      "マスタの行を台本が直に書くと、app が書く形（id の振り方・rev・updated_by・並び・work_log_sync が拾うファイルID）とずれうる。ファイルID（装置:inode）は作るたびに変わるので台本では決められず、@FID の仕組みで後から引き直す",
+      "開発用サーバーの場面が変わる（キー・PC の名前・更新時刻を決める）。画面の評価関数 ui-eval-*.mjs（80 本超。check-all に入っていない）が同じ場面に乗っているので、どれかが乱数のキーや「80 時間前」に頼っていれば落ちる。全部を流して確かめる手間（1 本 1〜5 分）がこの版に乗る",
+      "④ で開発用サーバーを窓に替える仕事の一部を前倒しするが、この版の目的（入口の 3 条件）には直に効かない仕事が 250〜350 行ぶん増える",
+      "1 版が A より太い"
+     ],
+     "stage4": "入口の条件は 3.117.0 でそろう。④ で「開発用サーバーを窓に替える」（計画書の app に頼る道具の表: 300〜600 行）のうち場面の部分が済んでいて、ui_server.py に残る app は 3 行。④ の最初の版が軽くなる",
+     "size": "Rust 1,300〜2,050 行（A と同じ。宣言の写しが要らない分 −50）・Python 1,400〜2,050 行（場面の台本 400〜550・突き合わせの試験 60・ほかは A と同じ）・YAML 80〜120 行。特大",
+     "verify": [
+      "python -m unittest tests.test_ui_scene（台本の場面 ＝ app が書いた場面。ファイルごと）",
+      "揺れ: python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/run7.py 1 2 3 && python3 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f/wobble7.py（4 本の残る葉が 0。今は fixed_run の形で 511）",
+      "画面の評価関数を全部流す（node program/tools/ui-eval-*.mjs。場面を変えた影響）・node program/tools/ui-check.mjs で前後を撮る",
+      "ほかは A と同じ"
+     ],
+     "visible": "K7 のとおり。開発用サーバーの見た目は変わらない（設備のキーと PC の名前が決めた字になる）",
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 8,
+      "place": 8,
+      "layout": 2,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5（Windows の上書きは A と同じ）: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5・切る線: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      }
+     ],
+     "seen": "場面の元を 1 つの台本にして、試験・開発用サーバー・ops-bench が同じ物を読む形。場面の中身（キー・PC の名前・利用者・更新時刻）を台本が全部決めるので、決めの置き場はいちばん揃う。測りでも、形を替えて違う葉（PC の名前 126・利用者 2,464・TMPDIR の道 2,238）は場面を app が書くことから来ている。割れ・落とし穴: (1) マスタの行を台本が直に書くと、work_log_sync が拾うファイルID・id の振り方とずれうる（案も認める）。routes の inode の割れ（A の seen 3）は台本にしても、SL3 を消して BAD を作る順が同じなら残る。(2) 開発用サーバーの場面が変わり、check-all に入っていない画面の評価関数（ui-eval-*.mjs。80 本超）を全部流す手間がこの版に乗る。入口の 3 条件には直に効かない仕事が 250〜350 行。(3) A より太い 1 版で、切る線は ③-6 を送る 1 つ。(4) ④ の最初の版が軽くなる得は本物だが、④ に入る前に片付ける理由は無い（④ の中で同じ仕事ができる）。"
+    },
+    "G 小さい版を 4 つ刻む（どこで止まっても main に入る順）": {
+     "what": [
+      "土台 K1〜K7",
+      "刻む理由: 作る係は 5 時間ごとの上限で止まる。1 つの版を 1〜2 区切りの大きさにして、止まっても損が 1 区切りを超えないようにする。版は小数点の版（3.117.0〜3.117.3。これまでも 3.52.1・3.57.1 などがある）。作り物・場面・Windows・③-6 の持ち方は A と同じ",
+      "3.117.0: 土台 K1〜K4 ＋ Windows の仕事を 2 つに割る ＋ 揺れの無い 3 本（pivot・equipgroups・lotdsp）。K1 を今ある 28 本で確かめる",
+      "3.117.1: routes・dashboard・ops（場面の台本）",
+      "3.117.2: ③-6（K7）＋ schedule（K5。③-6 の後に 1 回だけ焼く）",
+      "3.117.3: Windows の上書きと「Windows でも表と比べる」＋ 写し。3.117.0〜3.117.2 の Windows の CI が毎回 測りの数を出すので、数は 3 回読める",
+      "check-all は版ごとに流すが、窓の通し（--verify。2,183 秒）は起動・更新・配布の流れに触れる 3.117.2 だけにする（CLAUDE.md の決めは「その流れを変えたら通しを確かめる」。ほかの 3 つは約 30 分）",
+      "採点は 1 回（この比較）。作った後の採点は版ごとの節（built_3117_0〜built_3117_3）で 4 回"
+     ],
+     "numbers": {
+      "delegates": "3.117.2 で 11 → 8・Windows だけ 2 → 0",
+      "tables": "3.117.0: 約 28 MB（+3 本 4.2 MB）・3.117.1: 約 32 MB（+3 本 3.7 MB と宣言）・3.117.2: 約 33 MB・3.117.3: 約 34 MB ＋ nt",
+      "time": "版ごとの check-all: 約 30〜35 分（--verify なし）・3.117.2 だけ 約 68 分。Windows の CI は 2 つの仕事（約 45 分・約 40 分）× 4 回。往復の計は 作る＋作った後の採点＋直し が 4 回",
+      "versions": "4 版（3.117.0〜3.117.3）。④ は 3.118.0。区切りは 約 2 ＋ 2 ＋ 2.5 ＋ 1.5"
+     },
+     "windows": {
+      "few": "3.117.3 で上書き（数は 3 回読んである）",
+      "many": "3.117.0〜3.117.2 の間に、そろえる決まりを版ごとに少しずつ足して減らせる。3.117.3 に残りの上書き"
+     },
+     "pc_guard": "K1〜K4 を最初の版に入れる。版ごとに CI が流れるので、PC に頼る割れが出ても 1 版ぶん（3 本）の表で済む（3.116.0 は 7 本をまとめて焼いて 2 本が CI で落ちた）",
+     "risks": [
+      "往復が 4 回になる。作った後の採点が 4 回（決まり 2026-11-06 は版ごとに 1 回）・PR が 4 つ・更新履歴と RELEASE の書き直しが 4 回。1 回あたりは小さいが、決まった手間（採点の係を起こす・CI を待つ・マージ）が 4 回ぶん",
+      "「早めに終わらせたい」に対して、暦の上では A より長くなりうる（A が 1 回で通れば A の方が速い。A が途中で 1 度止まれば同じくらい）",
+      "--verify を 3 つの版で省く。program の中身（tests・tools）は変えるが起動・更新・配布の流れには触れないので決めの内だが、省いた版で通しが壊れていたら次に流す版まで気づかない",
+      "小数点の版が 4 つ続くと、現場の PC が 4 回更新を取り込む（推奨アップデートにしなければ任意）"
+     ],
+     "stage4": "入口の 3 条件は 3.117.3 でそろい、④ は 3.118.0（版の番号は A と同じ）。途中で止まっても、そこまでの版の本は Python 無しで流れる形で main にある",
+     "size": "計は A と同じ（Rust 1,300〜2,100 行・Python 1,150〜1,700 行・YAML 80〜120 行）を 4 つに: 3.117.0 中・3.117.1 中・3.117.2 大・3.117.3 中",
+     "verify": [
+      "版ごとに: bash program/tools/check-all.sh 記録（3.117.2 は --verify）・python program/tools/bless.py その版の本（2 回目は別の PC の形）・--check・ci-shape",
+      "版ごとに Windows の成果物 bake-measure を python program/tools/bless.py --measured で読み、数を RUST_PORT_PLAN.md に足す",
+      "ほかは A と同じ（本ごと・③-6・Windows・写し）"
+     ],
+     "visible": "K7 のとおり（3.117.2 から）",
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の what 6（3.117.3 に上書きと「Windows でも表と比べる」）: Windows の切り替えを「Windows の Python が場面を作る形（Mode::Python）での違う歩」の上書きで書いている。④ の後に残るのは表から場面を作る形（TPA_NO_PYTHON=1）だけだが、その形は Windows で 1 度も流れていない（bake.rs の write_measure は Mode::Python だけ。PR #116 の記録では 34 表のうち「oracle が違う」27・「scene が違う」12）。入口の条件 (2) を満たしたと言っても、④ の後の形で通るかは見えない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の what 5（3.117.2 に ③-6。④ は 3.118.0）: ③-6 が現場の https・プロキシ（Windows の設定・証明書ストア）で通ったかを確かめる手と、通らなかったときの戻り道が無いまま、入口の条件がそろえば ④（Python を外す）に入る。今の現場は https とプロキシを Python（urllib）が取っている（schedule.rs:224 と cm3_http::target が係を降りる）ので、③-6 は現場の道そのものの入れ替え。通ったかどうかは試験（作り物の CA・環境変数のプロキシ）からは見えない"
+      }
+     ],
+     "seen": "1 つの版を作る係の 1〜2 区切りの大きさに刻み、どこで止まっても main に入る順にした形。型は A と同じ 1 つで、決めの置き場は増えない。3.115.0・3.116.0 の割れ方（太い版が切れる・焼いた表の割れを CI で初めて知る・作った後の採点が 27.5・35.5 点）に正面から当たるのはこの案だけで、版ごとに CI が流れるので、Windows の測りを切り替えの前に 3 回ただで読める。測って見えたこと: (1) 3.117.0 の「揺れの無い 3 本」に pivot を入れているが、pivot は ui_server.build の場面の本で、TMPDIR を替えると 488 葉が違う。場面の台本（3.117.1 の仕事）が先に要るので、pivot は ui の本の版へ移す（順の割れ）。(2) 3.117.1 の routes は、キーと作業フォルダを決めても asks[15] が ext4 で 503・tmpfs で 404 に替わる（A の seen 3）。版が小さいので、割れても戻すのは 3〜4 本の表で済む。(3) 版ごとの check-all は verify なしで 26〜31 分（b3116 の記録: 1,575〜1,875 秒）、Windows は仕事を割った後で約 44 分と約 39 分（記録から）。決まった手間（check-all・CI・作った後の採点・更新履歴と RELEASE）が 4 回かかり、うまく行く 1 版（A）より暦では長い。ただし A が 1 度切れれば同じ 2 往復以上になり、3.116.0 は実際に切れた。(4) ③-6 が 3 つ目で、現場に出てから ④ までが小さい 1 版。戻り道も現場の確かめも無い（B にだけある）。Windows の本物の確かめ（E）も無い。(5) verify を 3 つの版で省くのは CLAUDE.md の決めの内だが、③-6 の版は Cargo.toml に TLS の crate が入り exe が変わるので必ず流す。割れは順と足りない手で、作りの型ではない。first_fixes で直せる。"
+    }
+   },
+   "measured": {
+    "about": "案を作った者の測りの要点（全部はファイルの上の measured）。採点者が自分で測った数はここの evaluator に足す",
+    "proposer": {
+     "books7": "答え 43.2 MB・詰めて 8.46 MB・流す時間 計 約 63 秒・歩 1563（本ごとは measured.books7）",
+     "wobble": "今の settle の後 3,630 葉（ops 1,685・schedule 1,291・dashboard 449・routes 156・lotdsp 49・equipgroups 0・pivot 0）",
+     "fixed": "キーと作業フォルダを決めると ui_server・ops-bench の 4 本は 2,290 → 511 葉（routes 37・dashboard 348・ops 126・pivot 0）。残りは今ある仕組みで持てる",
+     "proxy": "urllib は https をプロキシ越しに「CONNECT host:port HTTP/1.1＋Host」で、http は絶対 URI で送る。TLS の失敗の字は OpenSSL の言葉と _ssl.c の行番号入り。この PC の環境変数に *_proxy がある",
+     "crates": "native-tls は Windows +2・Linux +5 crate／rustls 系は +8〜10 crate（約 2.1 MB。ring は C と asm）／プロキシの読み手は windows crate の feature だけで +0",
+     "time": "check-all 3,775 秒（63 分）・Windows の CI 約 80 分（上限 90）・route_reach が Windows の試験の 48%（1,099 秒）",
+     "frozen": "写しは app の .py のほぼ全部（74〜75 本・1.58 MB）"
+    },
+    "evaluator": {
+     "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-score/（run7b.py・run7b.json・cacheB-*・wobbleB.py・wobbleB.json・fixedB.py・wobbleFx.json・tls/・win-job.log・win-measured.txt・notes.md）",
+     "books7": "7 本の答えのバイトは案と同じ（equipgroups 1,288,301・schedule 2,619,7xx・lotdsp 30,539,498・routes 1,516,054・pivot 905,061・dashboard 2,071,140・ops 4,216,755）。流す時間は 3.8〜4.8・5.3〜7.6・35.7・1.6〜1.7・1.7〜2.3・6.1〜7.8・16.1〜22.3 秒",
+     "wobble_by_pc_shape": {
+      "about": "案の settle の写し（nameKeys・@HOST を持たない）を当てた後に残る葉。base に対して",
+      "pc（別の PC の名前・TZ=Asia/Tokyo・TMPDIR=/dev/shm・/usr/bin/python3・*_proxy なし）": {
+       "計": 6065,
+       "equipgroups": 0,
+       "schedule": 1295,
+       "lotdsp": 50,
+       "routes": 222,
+       "pivot": 488,
+       "dashboard": 2247,
+       "ops": 1763,
+       "形で増えた種類": "TMPDIR の道 2,238（pivot 488・dashboard 1,691・routes 59）・PC の名前 126（routes 8・dashboard 40・ops 78）"
+      },
+      "user（daemon）": {
+       "計": 6071,
+       "equipgroups": 2338,
+       "schedule": 1245,
+       "lotdsp": 50,
+       "routes": 185,
+       "pivot": 0,
+       "dashboard": 490,
+       "ops": 1763,
+       "形で増えた種類": "利用者の名前 2,464（equipgroups 2,338・ops 78・dashboard 40・routes 8。本物の settle は nameKeys で吸う）"
+      },
+      "同じ PC の分": "形の種類を引くと 約 3,600〜3,700 で、案の 3,630 と合う"
+     },
+     "fixed_keys_and_dir": "作業フォルダを決め、new_key 2 つだけを呼んだ順で決めて ext4 と tmpfs で流すと、残る葉は 464（routes 58・pivot 0・dashboard 280・ops 126）。new_key を呼ぶ数は routes 13+2・pivot 12・dashboard 13+1・ops 57 で、順は名前の順（ファイル系によらない）。routes の asks[15]（GET /api/worklog。同じキー）は ext4 で 503（実績_BAD・copying）・tmpfs で 404（実績_SL3・missing）。同じ形で 10 回: ext4 5/5 が 503・tmpfs 5/5 が 404。乱数のキーの 3 巡でも base 404・pc 404・user 503",
+     "tls_crates": "今の Cargo.lock（438 crate）に無い crate: native-tls ＝ Linux 5・Windows 2／rustls（ring）＋rustls-platform-verifier 0.6 ＝ Linux 10・Windows 8／schannel 直 ＝ Windows 1（案と同じ）。Linux の debug の組み（空から・4 CPU）: native-tls 18.4 秒・rustls（ring）12.0 秒。Linux から cargo check --target x86_64-pc-windows-msvc: native-tls は通る（rc 0）・rustls（ring）は落ちる（rc 101。ring の build.rs が lib.exe を探す）。ci.yml の apt の行に libssl-dev は無い。native-tls 0.2.18 には add_root_certificate がある（試験だけの足す根は作れる）。rustls-native-certs 0.8.5 の Windows は CurrentUser の ROOT だけを読む",
+     "urllib": "案の読み方は源と合う（環境変数が 1 つでもあれば Windows の設定を読まない・ProxyEnable／ProxyServer／ProxyOverride・<local>・fnmatch・名前を引かない）。案に無い決まり: fnmatch は Windows で os.path.normcase を通す（大文字小文字を区別しない。Linux の試験とは答えが違う）・ProxyServer の段に「=」が無いと ValueError で、そこまでに読んだ分だけ残る・ProxyHandler は 30x のたびに決め直す・socks だけの設定は socks4:// になり開けない・REQUEST_METHOD があると大文字の HTTP_PROXY を捨てる・AutoConfigURL（PAC）と自動検出は読まない",
+     "windows_measured": {
+      "about": "PR #116 の Windows の仕事（job 135564144997・commit 4c00cc7）の bless.py --measured の出力。Windows の Python が場面を作る形（Mode::Python）での数",
+      "計": "表 34・歩 5,807・posix の表と違う歩 206（3.5%）・表にあって答えない歩 198",
+      "本ごと": {
+       "release_place": "83/122（答えない 104）",
+       "place": "64/81（答えない 2）",
+       "fs": "24/46（答えない 8）",
+       "builder": "9/108",
+       "worklog_write": "9/165",
+       "mirror": "5/41",
+       "calc": "3/1,887",
+       "settings.bundle": "3/85",
+       "settings_write": "3/105",
+       "settings.pages": "2/447",
+       "masters": "1/50",
+       "release_place.tables": "0/44（答えない 84）",
+       "ほか 22 表": "0"
+      },
+      "種類": "道の門の答え（problem・ok・dest・asked・configured。OS で決まりが違う）171 歩（3 本）・OS の誤りの字 23 歩・calc の最後の桁 3 歩（乱数 2・24・29）・PC の名前 2〜3 歩（66aa863 で @HOST に直し済み）・ログイン ID の読み方 2 歩・改行で 54 → 58 バイト 1 歩・ブラウザの置き場と版 3 歩・道の区切り 1 歩",
+      "oracle・scene": "34 表のうち「oracle が違う」27・「scene が違う」12（Windows では問い合わせと場面の宣言そのものが表と違う）",
+      "時間": "仕事 80 分 11 秒（上限 90 分）。cargo test の段 40 分 32 秒（route_reach 1,120 秒・lib 147 秒）・release の組み 6 分 04 秒・自己診断 2 分 44 秒・更新の通し 28 分 12 秒"
+     },
+     "check_all": "b3116 の記録: check1 4,040 秒・check2 3,775 秒・check3 3,856 秒（63〜67 分）。verify を除くと 1,575〜1,875 秒（26〜31 分）。ci-shape は 555〜881 秒",
+     "fakes": "app の import を止めると: schedule_fixture・lotlist_fixture・lists_scene・scene_files は import できる／schedule_oracle・lotdsp_oracle・equipgroups_oracle・test_lotdsp_api・test_lotdsp_rules は落ちる（案のとおり。lotdsp の見本は app を import する試験から借りている）",
+     "now_and_keys": "乱数のキーの元は 2 か所（work_log.py:212・data_sources.py:166 の new_key）・mkdtemp はモジュールの頭（ui_server.py:25・ops-bench.py:39）・今の日時は DASHBOARD_NOW で決めてある（案のとおり）。試験の作業フォルダは temp_dir() の下（common.rs:29）なので、ci-shape の TMPDIR=/dev/shm はファイル系も替える"
+    }
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-19。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流して測った数と読んだコードで採点した。物差しの読み替えは 2026-11-stage3e.json の採点と同じ: 順序＝版の並びが段 ③→④ の流れと入口の条件に沿うか・チャンク＝版の切り方（作る係が止まっても入る大きさか）・階層化＝版ごとの狙いが 1 つか・視覚化＝効き目と残り（割れた所・現場で通ったか）が数で見えるか・ステップ数＝合計の手間と往復の数・考えさせない＝落とし穴の少なさ・直感的＝今までの型（事例の表・独立の答え・焼いた表・ci-shape）に沿うか・形と色／言葉と置き場＝決まりと答えの元が 1 か所か・整列＝範囲の釣り合い・調子＝理由の明るさ。減点: 守りが消える −10（lost）・割れた所や確かめた状態が見えない −3（hidden_state）・手が増える −2（more_steps）。流した物（台本と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-score/。作業フォルダ stage3e〈66aa863〉は読むだけ・git の操作はしていない・共有の cargo の作業フォルダでは cargo を動かしていない。流す前後で stage3e に新しいファイルが無いことを find -newer で見た）: (1) run7b.py … 残り 7 本の答え合わせ役を nice 19 で 1 本ずつ、PC の形を替えて 3 巡（base＝今の PC／pc＝unshare -u で別の PC の名前・TZ=Asia/Tokyo・TMPDIR=/dev/shm・HOME 別・LANG=C・*_proxy なし・/usr/bin/python3〈SQLite 3.45〉／user＝daemon。run7b.json・cacheB-*）。(2) wobbleB.py … 案の wobble7.py（今の settle の写し）を形ごとに当て、残る葉を種類（PC の名前・利用者・TMPDIR の道 を足した）ごとに数えた（wobbleB.json）。(3) fixedB.py … 作業フォルダを決め、キーを作る関数 2 つ（work_log.new_key・data_sources.new_key）だけを差し替えて、ext4 と tmpfs で 4 本（wobbleFx.json）。routes は同じ形で 10 回（ext4 5・tmpfs 5）。(4) tls/ … 小さなクレート 3 つ（native-tls／rustls〈ring〉＋rustls-platform-verifier／schannel 直）を本物の cargo 1.97.0 で: cargo tree を Linux と x86_64-pc-windows-msvc で数え、今の Cargo.lock（438 crate）に無い crate を引き算・Linux の debug の組む時間・Linux から Windows 向けの cargo check。(5) app の import を止める finder を入れて、作り物と答え合わせ役の台本が import できるか。(6) Python 3.13.18 の urllib.request の源（getproxies_environment・getproxies_registry・proxy_bypass_registry・_proxy_bypass_winreg_override・ProxyHandler）を読んだ。rustls-native-certs 0.8.5 の windows.rs と native-tls 0.2.18 の源も読んだ。(7) PR #116 の Windows の仕事（job 135564144997・commit 4c00cc7）の記録を gh api で取り（win-job.log）、bless.py --measured の出力（win-measured.txt）と段ごとの時間を自分で数えた。成果物（bake-measure の JSON）は置き場に届かず取れなかった。(8) grep とコード読み: bake.rs（write_measure は Mode::Python だけ・live は表で流すとき None・Ctx::url は 1 つ）・ci-shape.py（66aa863 で PC の名前を替える）・desktop.yml・books.json・settle.json・routes_oracle.py・ui_server.py・ops-bench.py・schedule.rs・cm3_schedule.py・RUST_PORT_PLAN.md（2400〜2646 行）・check-all の記録 b3116/check1〜3。測っていない物: Windows の本物（HKCU・証明書ストア・schannel の誤り）・Windows で表から場面を作る形・7 本を焼いた後の時間・現場の CM3 の証明書とプロキシの形。メモは notes.md。",
+ "evaluation": {
+  "verified_claims": [
+   "残り 7 本の答えの大きさ・流す時間・歩: 正しい（自分で 3 つの形で流した）",
+   "同じ PC での揺れ 3,630 葉と種類: 正しい（形の種類を引いた自分の数 約 3,600〜3,700 と合う）",
+   "乱数のキーの元が 2 か所・mkdtemp がモジュールの頭・今の日時が決めてある: 正しい",
+   "作り物（schedule_fixture ほか）は stdlib だけ・lotdsp の見本は app を import する試験から借りている: 正しい（import を止めて確かめた）",
+   "TLS の crate の数（native-tls は Windows 2・Linux 5／rustls 系は 8〜10）: 正しい（本物の cargo tree）",
+   "urllib の Windows のプロキシの読み方（環境変数が先・ProxyEnable／ProxyServer／ProxyOverride・<local>・fnmatch）: 正しい（源を読んだ）。足りない決まりは discrepancies 9",
+   "Windows の仕事を 2 つに割った時間の見込み（約 45 分・約 40 分）: 記録と合う（約 44 分・約 39 分）",
+   "凍らせる写しの大きさ（app の .py 78 本・25,798 行・1.59 MB）: 正しい",
+   "窓が https とシステムのプロキシで係を降りる（schedule.rs:224・cm3_http::target）: 正しい"
+  ],
+  "discrepancies": [
+   "1 Windows の数は「未着」→ 出ている: 34 表・5,807 歩のうち違う歩 206・答えない歩 198。案の「少ない（〜50）」と「多い（300〜）」の間で、23 表は 0・171 歩（83%）が release_place・place・fs の 3 本に固まる。どの案の few／many の枝にもそのままは当たらない",
+   "2 「Windows の答えを丸ごと 2 つ目の表に持つと上限を超える」（T7・D の numbers）: 違いの多い 3 本の表は 0.23＋0.23＋0.14 ＝ 0.6 MB。丸ごと持つのがその 3 本だけなら上限に関係しない",
+   "3 「キーと作業フォルダを決めれば『尋ねる設備が替わる』は消える（形の違い 12 → 0）」（fixed_keys_and_dir・T1）: 消えない。routes の asks[15] は同じキーでも ext4 で 503（実績_BAD）・tmpfs で 404（実績_SL3）。元はキーの乱数でなく、消した SL3 の inode を BAD が使い回すかどうか（routes_oracle.py:115 の注の種類）。案の試しは同じフォルダ・同じファイル系の 3 巡だった",
+   "4 「揺れの無い 3 本（pivot・equipgroups・lotdsp）」（A の順・G の 3.117.0）: pivot は TMPDIR を替えると 488 葉が違う（settle の @UI は /tmp/tpa-ui- の字だけ）。lotdsp は 49 でなく 50（direct[8].seconds が 0.4／0.5）",
+   "5 「E: 道の決まりで最大 311 歩ぶん・対応表で 113 歩ぶんが消える見込み」: 実際の違いは道の門の答えそのもの（171 歩）で区切りの置き換えでは消えず、OS の誤りの字は 23 歩",
+   "6 Windows の測りは Windows の Python が場面を作る形だけ。表から場面を作る形（④ の後の形）は Windows で流れておらず、34 表のうち oracle 27・scene 12 が表と違う。どの案の「Windows でも表と比べる」も、どちらの形かを書いていない（D だけが表とだけ比べる形）",
+   "7 「K1 は知らない種類でも止まる」: 2 回目の形が替える種類だけ。ci-shape（66aa863）はもう PC の名前・利用者・TMPDIR（ファイル系も）・Python・時差・家を替えており、K1 が足すのは env（*_proxy・SSL_CERT_FILE・LANG）と「焼くときに知る」こと。自分の測りで形を替えて増えた約 2,360 葉は全部 ci-shape が替える種類",
+   "8 「手元の check-all（b3116/check1）＝ 3,775 秒」: それは check2。check1 は 4,040 秒・check3 は 3,856 秒",
+   "9 K7 の urllib の読み方に無い決まり: ProxyOverride の fnmatch は Windows で大文字小文字を区別しない・「=」の無い段で止まり前の段だけ残る・30x のたびに決め直す・socks だけの設定・REQUEST_METHOD・PAC は読まない",
+   "10 rustls（ring）は Linux から Windows 向けの cargo check が落ちる（C・D の risks に無い）。rustls-native-certs は ROOT だけ（D の risks は「根だけ」と書くが、今の Python が CA も読むこととの違いは試験で見えない）"
+  ],
+  "rank": [
+   {
+    "proposal": "G 小さい版を 4 つ刻む（どこで止まっても main に入る順）",
+    "total": 60.0,
+    "why": "太い版が切れる・CI で初めて割れを知る、という 2 版続いた割れ方に当たるただ 1 つの切り方。型は今までと同じで、割れは順（pivot・③-6 の位置）と足りない手（戻り道・Windows の本物・④ の後の形の測り）だけ"
+   },
+   {
+    "proposal": "B ③-6 を先に出す 2 版（製品の変更と土台 → 7 本・Windows・写し）",
+    "total": 57.1,
+    "why": "③-6 を先に出し、戻り道と現場の確かめを持つ。2 版目が 7 本＋Windows＋写しで太く、切る線が無い"
+   },
+   {
+    "proposal": "E 手元で確かめ切れる物を先・Windows の CI が要る物を後（2 版）",
+    "total": 55.6,
+    "why": "Windows の本物の確かめがいちばん厚い。OS によらない形の効き目は測りでは小さく、1 版目が重く余り 10 分のまま"
+   },
+   {
+    "proposal": "A 1 版で全部（3.116.0 の送り書きどおり・stdlib の台本を足す）",
+    "total": 45.5,
+    "why": "1 回で通れば最短だが、7 つの塊を 1 つの PR に入れ、切る線が無い"
+   },
+   {
+    "proposal": "F 場面の元を 1 つの台本にする（開発用サーバーの場面を前倒しで app から外す）",
+    "total": 44.5,
+    "why": "場面の元は 1 つに揃うが、入口の条件に効かない仕事と画面の評価関数の確かめが乗る"
+   },
+   {
+    "proposal": "C 作り物を窓の試験の側（Rust）に 1 つ持つ（Python には URL を渡す）",
+    "total": 43.4,
+    "why": "作り物が Rust に残るのは良いが、書き直しと ring でいちばん太い"
+   },
+   {
+    "proposal": "D 作り物と場面をデータで持つ（録って再生・台本を作らない）",
+    "total": 28.9,
+    "why": "新しい仕組み 3 つ・Windows の Python との突き合わせを ④ の前にやめる・証明書の読み方が今の現場と変わる"
+   }
+  ],
+  "first_fixes": [
+   "1 版の並びを入れ替える（G の 4 版のまま）。3.117.0 ＝ 時間の手当て＋土台＋Windows の測り直し＋起こしたままの相手＋equipgroups・lotdsp／3.117.1 ＝ ③-6（戻り道つき）＋ K5 ＋ schedule／3.117.2 ＝ 場面の台本＋ pivot・routes・dashboard・ops／3.117.3 ＝ Windows の切り替え＋写し＋ K6。理由: pivot は場面の台本が先に要る（TMPDIR を替えると 488 葉）。③-6 は現場の確かめに日数がかかるので、起こしたままの相手ができた次の版で出す（④ まで 2 版）。確かめ: 版ごとに books.json の phase と RUST_PORT_PLAN.md の入口の条件の数（n/35）が進む",
+   "2 3.117.0 の最初のコミットは .github/workflows/desktop.yml だけ: Windows の仕事を windows-test（cargo test・Python の段・測り）と windows-exe（release・自己診断・更新の通し・ZIP）に割り、release は両方を needs にする。workflow_dispatch の入力で windows-test だけを起こせるようにする。確かめ: その PR の最初の CI で 2 つの仕事の時間（見込み 約 44 分・約 39 分。上限 90 分はそのまま）",
+   "3 Windows の測りを ④ の後の形でも取る（3.117.0）: windows-test に、焼いた本の試験だけを TPA_NO_PYTHON=1・TPA_MEASURE=<別のフォルダ> でもう 1 回流す段を足し、bake.rs の write_measure（今は Mode::Python だけ）が表で流す形でも記録を書き、bless.py --measured が 2 つの形の数を別の行で出す。入口の条件 (2) を「Windows の CI が TPA_NO_PYTHON=1 の形で焼いた表と比べている（Python と比べる形は ④ まで残す）」と書き直す（RUST_PORT_PLAN.md・books.json の about）。確かめ: 3.117.0 の Windows の CI の記録に、本ごとの「Python の形の違う歩」と「表だけの形の違う歩・場面を作れなかった表」が並ぶ",
+   "4 Windows の表の持ち方を測りに合わせる（3.117.3）: release_place（83/122）・place（64/81）・fs（24/46）は丸ごと 2 つ目の表 <本>.nt.json（場面・問い合わせ・答えを Windows の形で。計 +0.6 MB）。残り 8 表の 35 歩（builder 9・worklog_write 9・mirror 5・calc 3・settings.bundle 3・settings_write 3・settings.pages 2・masters 1）は上書き variants.nt（上書きした posix の答えの指紋つき）。OS の誤りの字 23 歩は上書きに入れ、そろえる決まり（@OSERR）は足さない。表にあって答えない歩（release_place 104・release_place.tables 84・fs 8・place 2）は「Windows では流さない歩」の並びとして nt の側に持ち、増減したら落とす。焼くのは windows-test の手で起こす仕事（TPA_BLESS=nt）の成果物を bless.py --take-nt で取り込む。確かめ: bake_selftest に変異 3 つ（上書きの元の posix の答えを 1 字変えると --check が古いと言う・流さない歩を 1 つ消すと落ちる・nt の答えを 1 字変えると Windows の形で落ちる）、desktop.yml から TPA_MEASURE を外した CI が通る",
+   "5 改行の元を突き止める（3.117.0）: settings.bundle の「途中で切れた（54 バイト／58 バイト）」は Windows で場面のファイルの改行が CRLF になった形（settings_oracle.py:412 が read_bytes の半分で切る）。元が取り出しの CRLF か、答え合わせ役の write_text の改行の変換かを Windows の測りの記録（scene の違い）で見分け、前者なら .gitattributes に program/data/**・program/config/**・program/app/master_defaults/**・program/tests/fixtures/**・desktop/tests/baked/** の *.json を -text で足す（今は changelog.json だけ）、後者なら答え合わせ役の書き方を改行を変えない形にする。確かめ: 次の Windows の測りで settings.bundle のその歩と「scene が違う」の数が減る",
+   "6 routes の場面の inode の使い回しを止める（3.117.2。tests/scenes/ui_scene.py と routes_oracle.py:113〜117）: 登録の後に消す SL3 のファイルは、消さずに場面の外（作業フォルダの keep/）へ名前を替えて握ったままにする（inode が空かない）。BAD はその後に作る。Python と窓の両方で「SL3 は 404・missing」「BAD は 503・copying」を routes_parity の名前つきの歩で言う。確かめ: 台本を /tmp（ext4）と /dev/shm（tmpfs）で 5 回ずつ流して asks[15]・[35]・[67] の status が同じ（流し方は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-score/fixedB.py）・ci-shape の runner の形（TMPDIR=/dev/shm）で routes_parity が通る",
+   "7 場面で決める（K3）の足し（3.117.0 と 3.117.2）: (a) キーは work_log.new_key・data_sources.new_key の 2 つだけを道具の側で差し替える（uuid4 全部は差し替えない。一時ファイルの名前や錠の印まで決めてしまう）。呼ぶ順は名前の順でファイル系によらない（routes 13+2・pivot 12・dashboard 13+1・ops 57 回）。(b) かかった時間の葉は timing.server・work.ms のほかに lotdsp の direct[].seconds も焼く前に落とす。(c) dashboard の at 135 葉は「80 時間前」（ui_server.py:165）を決めた日付の os.utime にする。(d) settle.json の @UI・@OPS（/tmp/tpa-ui-・/tmp/tpa-ops- の字に頼る形）は 4 本を焼いたら消す。(e) 窓の試験と答え合わせ役の頭で *_proxy・SSL_CERT_FILE・SSL_CERT_DIR を外す。確かめ: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-score/run7b.py の 3 つの形（base・pc・user）で流し、wobbleB.py の残る葉が 7 本とも 0（今は pc 6,065・user 6,071）",
+   "8 K1 は薄く作る（3.117.0）: 新しい仕組みにせず、bless.py の 2 回目の焼きを ci-shape.py の runner の形（daemon・PC の名前を替える・TMPDIR=/dev/shm・/usr/bin/python3・取り出しを 5 日前）で流す 1 つの呼び出しにし、名前空間の作りは ci-shape.py の関数を共に使う。K4 の env の形（*_proxy に閉じた口・SSL_CERT_FILE に空のファイル・LANG=C・umask 077）は ③-6 の版（3.117.1）で足す。K2 の指紋の見張りは PC の名前・TMPDIR・@URL の外の 127.0.0.1:番号・装置:inode の 4 つから（測りで実際に残った種類）。確かめ: 66aa863 の @HOST を TPA_SETTLE_DROP=@HOST で外して焼くと、2 回目が「違う」と止める",
+   "9 ③-6 は native-tls で作る（3.117.1）: 新しい crate は Windows 2（native-tls・schannel）・Linux 5。Linux から Windows 向けの cargo check が通るので、sysproxy.rs（windows クレートに feature Win32_System_Registry）と TLS の Windows の部分を作業用クレートで clippy --target x86_64-pc-windows-msvc に通す。ci.yml の apt の行に libssl-dev を足す。確かめ: cargo tree で足した crate が見積もりどおり・Windows の CI の組む時間の増え（rust-cache の鍵が変わる版なので +6 分に重なる）を記録する",
+   "10 ③-6 に戻り道と現場の確かめを付ける（3.117.1。B から）: 配った設定 schedule.fetch_engine（既定 window・\"python\" で前の道）を ④ まで残し、delegates_budget.json の envExtra に数える。状態のファイルと GET /api/schedule の答えに「取った係（rs／py）・https か・直かプロキシ越しか」を書き、スケジュールのタブのデータの時刻の title に出す。入口の条件に (4)「③-6 が現場の PC で 1 回通った（利用者の確認）」を足す。確かめ: schedule_parity に fetch_engine=python の場面（窓が降りる・状態に resigned）・tests/test_schedule.py・3.117.1 を配った後に利用者へ 1 回聞く（届かないときの言葉に取った係が出るので、画面の写しで分かる）",
+   "11 プロキシの読み方の事例の表を人が書く（3.117.1。tests/fixtures/sysproxy_cases.json）: 環境変数（小文字が勝つ・空の値は消す・REQUEST_METHOD・関係のない *_proxy が 1 つでもあれば Windows の設定を読まない・no_proxy の後ろ一致と *）／ProxyEnable の型（0・1・無い）／ProxyServer（1 つの値・http=…;https=…・種類の無い address・socks だけ・「=」の無い段）／ProxyOverride（; 区切り・前後の空白・<local>・* ? [ ]・ポートを外す・Windows では大文字小文字を区別しない）／30x のたびに決め直す／PAC と自動検出は読まない（ProxyEnable が 0 で AutoConfigURL があるときは、届かない言葉に「プロキシの自動設定（PAC）には対応していません」を足す）。Python は tests/test_sysproxy_cases.py（urllib の関数を直に当てる）・窓は cargo test --test sysproxy_cases。確かめ: 変異（<local> を外す・大文字小文字を区別する・環境変数より設定を先に読む）で落ちる",
+   "12 Windows の本物で確かめる（3.117.1。E から。windows-test の仕事の中だけ・終わったら戻す）: HKCU の ProxyEnable・ProxyServer・ProxyOverride を書き、窓の読み手と Windows の Python の getproxies・proxy_bypass が事例の表の Windows の節で同じ答えか。作り物の CA を LocalMachine\\Root に入れて schannel の本物の検証で作り物の https の CM3 に届くか、入れていない CA・名前の違う証明書・TLS でない口が cm3_net_cases.json の 3 つの種類に分かれるか（schannel の誤りの番号 → 種類 の表は Windows でしか確かめられない）。確かめ: windows-test の記録にその 4 場面の PASS・後ろの仕事（windows-exe）に設定が残らない",
+   "13 失敗の言葉をそろえる（3.117.1。K7 の cm3_net_cases.json）: 種類を決める材料（OpenSSL の理由・schannel の誤りの番号・io の種類）を OS ごとに表に書く。黙るプロキシは https（CONNECT）も http も同じ「時間切れ」の種類にする（urllib は言葉が割れる）。プロキシの URL の 利用者:合言葉 は Python も送らない形に同じ版で直す。確かめ: cargo test --test cm3_net_cases・python -m unittest tests.test_cm3_net_cases・schedule_parity の https とプロキシの場面が same",
+   "14 起こしたままの相手（3.117.0）: tests/fakes_serve.py（stdlib）へ World・blackhole・Api を切り出し、lotdsp の見本（FIXTURE・entity_of・html_with_offs・with_cells）は tests/lotdsp_samples.py（app を import しない）へ移して test_lotdsp_api.py・test_lotdsp_rules.py もそこから import する。Bake::live は表で流すとき fakes_serve.py を標準の Python で起こす。URL は名前つき（@URL(cm3)・@URL(hole)・@URL(lotdsp)・@URL(site)）。確かめ: 切り出しの前後で Python の答えが同じ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s3f-score/cacheB-base とポートをそろえて比べる）・ci-shape の nopy の形で呼ばれた台本が app を import しない・test_baked_tables の「台本が app を import しない」に 2 つを足す",
+   "15 確かめの流し方: check-all は版ごとに流し、--verify は 3.117.1（Cargo.toml に TLS の crate が入り exe が変わる）で必ず付ける。ほかの 3 版は起動・更新・配布の流れに触れなければ省いてよい。作った後の採点は版ごとの節（built_3117_0 〜 built_3117_3）",
+   "16 凍らせる写しは 3.117.3 に 1 回だけ（program/tests/legacy/3.117.3/。app の .py 78 本 1.59 MB と台本）。指紋（sha256）を tests/test_baked_tables.py が見る。git の印では代えない"
+  ],
+  "cut_line": [
+   "版の順は 3.117.0 → 3.117.1 → 3.117.2 → 3.117.3。どの版も、下の番号の順に作れば途中で止まってもそこまでが入る。送るのは後ろの番号から",
+   "3.117.0: ① desktop.yml を割る（これだけで PR にできる）→ ② Windows の表だけの形の測り・.gitattributes → ③ K3 (b)(c)(e)・K2・K1 の薄い形 → ④ fakes_serve.py と Bake::live・名前つきの URL → ⑤ equipgroups → ⑥ lotdsp。足りなければ lotdsp → equipgroups の順に 3.117.1 へ送る。①〜③ は必ず入れる",
+   "3.117.1: ① sysproxy.rs と事例の表（製品の道はまだ替えない）→ ② TLS・CONNECT・失敗の言葉の表 → ③ 戻り道の設定と取った係の印 → ④ 作り物の https とプロキシで Python と突き合わせてから入れ替える → ⑤ Windows の本物 → ⑥ K5 と schedule の焼き。①〜⑤ はそろえて出す（①〜③ だけの版では窓に https を取らせない）。足りなければ ⑥ を 3.117.2 へ送る",
+   "3.117.2: ① ui_scene.py（inode の直し）と pivot → ② routes → ③ dashboard → ④ ops_scene.py と ops。足りなければ ops → dashboard の順に 3.117.3 へ送る",
+   "3.117.3: ① 違う歩が 0 の表を Windows の表だけの形で比べる（落とす形に替える）→ ② 上書きの 8 表 → ③ 丸ごとの 3 本 → ④ 写し → ⑤ K6（文書・予算）。足りなければ ③ を 3.117.4 へ送り、その 3 本は Windows では Python と比べる形のまま残す",
+   "④（3.118.0）に入らない条件: 入口の 4 つ（35 本が Python 無しで流れる・Windows の CI が表だけの形で比べている・写しがある・③-6 が現場で 1 回通った）のどれかが欠ける",
+   "見込み（測りから）: 1 往復の決まった手間は check-all 26〜31 分（verify つきは 63〜67 分）・CI は Linux 約 20 分と Windows 約 45 分（割った後。並んで流れる）。4 版で作る係の区切りは 約 2.5＋3＋2.5＋1.5（G の見込み 8 に、戻り道・Windows の本物・inode の直しの分を足した）"
+  ],
+  "note": "1 位は 60.0 点で合格点 80 に届かない。決まり 2026-11-06 のとおり案出しはやり直さず、1 位の G に first_fixes を入れた形で作る。足りない 20 点の主な所: 往復が 4 回かかる（ステップ数）・Windows の ④ の後の形と現場の ③-6 が、作る前には数で見えない（減点 2 つ）・ui の 4 本の場面に inode の割れが残っている（どの案にも共通）"
+ },
+ "built_plan": {
+  "about": "作った形（版 3.117.0・ブランチ stage3f）。1 位の案 G に採点の first_fixes 16 件のうち 3.117.0 に当たる物（1・2・3・5・7 の一部・8・14・15）を入れた。4 版の割りは first_fixes 1 のとおり（3.117.0 時間の手当て・土台・Windows の測り直し・起こしたままの相手・equipgroups・lotdsp／3.117.1 ③-6・schedule／3.117.2 場面の台本・pivot・routes・dashboard・ops／3.117.3 Windows の切り替え・凍らせる写し）。採点の中身（rounds・evaluation）は書き換えていない",
+  "cut_line": "切る線の ①〜⑥ を全部入れた（① desktop.yml を割る〈最初のコミット〉→ ② Windows の表だけの形の測り・.gitattributes → ③ K1 薄く・K2・K3 (b)(e)・K4 → ④ fakes_serve.py・Bake::fakes・名前つきの URL → ⑤ equipgroups → ⑥ lotdsp）。送った物は無い（schedule の作り物 World・blackhole も fakes_schedule.py へ切り出した。schedule を焼くのは割りどおり 3.117.1）",
+  "baked": "equipgroups・lotdsp を焼いた（焼いた本は 30/35）。2 回目は別の PC の形（ci-shape の runner の形・root）で、分の境をまたいで同じ。表は 36 ファイル・30.37 MB（前 23.95 MB。equipgroups 0.46・lotdsp 5.96。上限 40 MB）。ci-shape の 3 つの形でも通る。任せる歩は 11 のまま",
+  "first_fixes": {
+   "1": "4 版の割りを books.json の phase（3.117.0・3.117.1・3.117.2）と RUST_PORT_PLAN.md の表に書いた。入口の条件の数は 30/35",
+   "2": "最初のコミットは .github/workflows/desktop.yml だけ（windows-test・windows-exe・release は両方を needs・workflow_dispatch の入力 only=windows-test）。時間は最初の CI の記録で確かめる（手元では流せない）",
+   "3": "bake.rs の測りの記録を表だけの形（Mode::Baked）でも書く（form・finished・sceneError。Drop でも書く）。windows-test に焼いた本を TPA_NO_PYTHON=1 で流す段（route_reach は流さない・落ちても続ける）。bless.py --measured が 2 つの形を別の行で出し、--json の行から --from-log で戻せる。入口の条件 (2) を「Python 無しの形で焼いた表と比べている」に書き直した",
+   "4": "3.117.3（入れていない）",
+   "5": "元は答え合わせ役の write_text の改行の変換（settings_oracle.write が indent つきの JSON を書き、場面が read_bytes の半分で切る。記録の 54／58 バイト＝改行 8 つ）。settings_oracle.write を newline=\\n にして settings を焼き直した（答えの葉は 0 変わり）。取り出しの JSON は .gitattributes で -text（場面へ写す取り出しのマスタ）",
+   "6": "3.117.2（入れていない）",
+   "7": "(b) lotdsp の direct[].seconds は表の問い合わせから落とす（strip）。(e) 窓の試験の頭でプロキシと SSL_CERT_FILE・SSL_CERT_DIR を外す（common::clean_env。oracle_gate.py は 16 本の元の指紋なので変えず、答え合わせ役を起こす 1 か所で外す）。(a)(c)(d) は 3.117.2。run7b.py の 3 つの形の代わりに、bless の 2 回目（別の PC の形）と ci-shape の 3 つの形で equipgroups・lotdsp の残る葉 0 を見た",
+   "8": "K1 は bless.py の 2 回目が ci-shape.run_shape(\"runner\", …, as_root=True) を呼ぶだけ（名前空間の作りは ci-shape の 1 つ）。利用者は root のまま（daemon にすると表の本の答えでなく variants.user に書く形になるため。root でない利用者は --user と ci-shape の runner の形が見る）。確かめ: TPA_SETTLE_DROP=@HOST で settings を焼くと 2 回目が止めた。K2 は 4 種（PC の名前・一時フォルダの下の作業フォルダ・ポート・ファイルID）。K4 の環境変数の形は主の指示でこの版に入れた（プロキシは閉じた口・TLS の根は空・LANG・nopy は umask 077）。bakedOn は入れていない",
+   "9": "3.117.1（入れていない）",
+   "10": "3.117.1（入れていない）",
+   "11": "3.117.1（入れていない）",
+   "12": "3.117.1（入れていない）",
+   "13": "3.117.1（入れていない）",
+   "14": "tests/fakes_serve.py（入口）・fakes_equipgroups.py・fakes_lotdsp.py。Bake::fakes が表だけの形で起こす。URL は @URL(cm3)・@URL(lotdsp)（@ADDR(名前) も）。lotdsp の見本は tests/lotdsp_samples.py へ移したが、entity_of は app の読み手を使うので移せず、作り物の API の答えを表 lotdsp_fake_tables.json に焼いた（採点の測りは import だけを見ていた）。切り出しの前後で lotdsp の答え合わせ役の答えはポートと秒のほか同じ。World・blackhole（schedule）は fakes_schedule.py へ（前後で違う葉は時刻・かかった ms・要求の並び＝前からの揺れだけ。schedule_parity は Python と比べる形で通る）",
+   "15": "check-all --verify を流した（desktop.yml と試験の道具だけの版だが、主の指示どおり）",
+   "16": "3.117.3（入れていない）"
+  },
+  "found_while_building": [
+   "K1（別の PC の形の 2 回目）が最初の焼きで割れを 1 つ見つけた: equipgroups の場面の 仕掛.sqlite3 が SQLite の版でバイトが違う（bless.py の 2 回の比べがバイトで比べていた）→ 2 回の比べを SQLite の版によらない形に（bless.sqlite_logical。窓の表との比べは前から decl_cmp が同じ形）",
+   "lotdsp の entity_of は app の読み手（lotdsp_progress）で作り物の JSON を作る（見本を移すだけでは app が残る）→ 答えを表に焼いた",
+   "lotdsp の表は 6 MB（見込み 3.4 MB）: 問い合わせの本文（画面の見本の 16 進）が約 25 通り。books.json の maxMB 7",
+   "答え合わせ役の場面（py/）の作り物のブラウザの包みは sys.executable の道を持つ（PC ごとに違う）→ 窓の試験が rs/ に作る"
+  ]
+ }
+}

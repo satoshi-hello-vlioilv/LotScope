@@ -10,7 +10,6 @@ LotDsp の応答の項目名は確かめられていないので、画面（HTML
     python -m unittest discover -s tests
 """
 import json
-import re
 import tempfile
 import threading
 import unittest
@@ -21,41 +20,10 @@ from app import create_app
 from app.services import lotdsp_api as api
 from app.services import lotdsp_progress as lp
 
+from tests.lotdsp_samples import ACTUAL_ROW, FIXTURE, OFF_CELL, html_with_offs, to_moment  # noqa: F401  （見本は app を import しない置き場に。版 3.117.0）
+
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = (ROOT / "tests" / "fixtures" / "lotdsp_progress_L7150C0.html").read_text(encoding="utf-8")
 MASTER = json.loads((ROOT / "data" / "equipment_master.json").read_text(encoding="utf-8"))
-ACTUAL_ROW = re.compile(r'<tr ng-repeat="meisaiInfo in staffProgressJBoxInfos[^"]*"[^>]*>.*?</tr>', re.S)
-OFF_CELL = re.compile(r'<span class="prog-jb(?:fo|bo) ng-binding">[^<]*</span>')
-
-
-def html_with_offs(offs, lot_no="L7150C0", thickness_shift=0.0):
-    """見本の HTML。実績の各行の 前オフ・後オフ を入れ（長さ・前オフ・後オフ・肉厚 の順の4つ目までが並ぶ）、
-    ロット番号と板厚を替えられる（別のロットを作る）。offs: [(前オフ, 後オフ)] を行の順に。"""
-    s = FIXTURE.replace("L7150C0", lot_no)
-    out = []
-    for i, row in enumerate(ACTUAL_ROW.findall(s)):
-        front, back = offs[i] if i < len(offs) else ("", "")
-        cells = iter([("長さ", ""), ("前オフ", front), ("後オフ", back), ("肉厚", "0")])
-        new = OFF_CELL.sub(lambda m: f'<span class="prog-jbfo ng-binding">{next(cells)[1]}</span>', row)
-        if thickness_shift:
-            new = re.sub(r'(prog-jbx ng-binding">\s*)([\d.]+)', lambda m: m.group(1) + f"{float(m.group(2)) + thickness_shift:.3f}", new)
-        out.append((row, new))
-    for old, new in out:
-        s = s.replace(old, new, 1)
-    return s
-
-
-def to_moment(display, how):
-    """画面の日時（YY/MM/DD hh:mm:ss）を、API の書き方に。iso=ふつうの ISO、epoch=1970年からの経過ミリ秒、utc=ずれつき（Z）の ISO。
-    経過ミリ秒とずれつきは、日本時間として画面と同じになる向きに作る（版 3.98.0: アプリは日本時間で読む。lotdsp_rules.TZ）。"""
-    from datetime import datetime, timezone
-    from app.services.lotdsp_rules import TZ
-    dt = datetime.strptime(("20" + display).strip(), "%Y/%m/%d %H:%M:%S") if len(display) > 8 else datetime.strptime("20" + display, "%Y/%m/%d")
-    if how == "epoch":
-        return int(dt.replace(tzinfo=TZ).timestamp() * 1000)
-    if how == "utc":
-        return dt.replace(tzinfo=TZ).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def entity_of(html, key_style="a", date_style="iso", density_elsewhere=False, density_twice=False):

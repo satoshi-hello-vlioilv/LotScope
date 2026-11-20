@@ -15,6 +15,12 @@
     nodns  … 名前を引く先に届かない名前空間（unshare -m で /etc/resolv.conf を差し替える）・TPA_NO_PYTHON=1。名前を引く場面のある本の
               試験（NODNS_TESTS）だけを流す（全部を流すと route_reach だけで 3 分かかる。名前を引かない本は nopy と同じ流しになる）
 
+環境変数の形（版 3.117.0。採点の K4）: どの形も、手元の PC にあって CI に無い（またはその逆の）環境変数を置いて流す。プロキシ
+（http_proxy・https_proxy・HTTP_PROXY・HTTPS_PROXY・ALL_PROXY は閉じた口・no_proxy は空）と TLS の信じる根の置き場（SSL_CERT_FILE は空の
+ファイル・SSL_CERT_DIR は空のフォルダ）。試験は頭でこれらを外す（desktop/tests/common.rs の clean_env）ので、置いても答えは変わらない。
+外し忘れた道（プロキシを見に行く・根を読めない）があれば、ここで落ちる。言葉の設定は runner が LANG=ja_JP.UTF-8、ほかは LANG=C・LC_ALL=C。
+nopy は umask 077（場面のファイルを表の宣言から作るとき、権限を umask に頼らせない）で流す。
+
 どの形も、PC の名前（ホスト名）を HOST_NAME に替えた名前空間（unshare -u）で流す（版 3.116.0 の PR #116 の CI の直し: 焼いた表に
 焼いた PC の名前「vm」が入り、CI の runner の名前で bundle_parity・page_parity が落ちた。手元の 3 つの形は PC の名前が同じで見つけられなかった）。
 どれも試験の実行ファイルを直に流す（--test-threads=1）。落ちた本があれば終了コード 1。root で流す（利用者を替える・名前空間を作るため）。
@@ -36,11 +42,14 @@ from pathlib import Path
 PROGRAM = Path(__file__).resolve().parents[1]
 REPO = PROGRAM.parent
 DESKTOP = REPO / "desktop"
-BOOKS = json.loads((DESKTOP / "tests" / "baked" / "books.json").read_text(encoding="utf-8"))["books"]
-PHASES = ("3.115.0", "3.116.0")
+_BOOKS_JSON = json.loads((DESKTOP / "tests" / "baked" / "books.json").read_text(encoding="utf-8"))
+BOOKS = _BOOKS_JSON["books"]
+PHASES = tuple(_BOOKS_JSON["bakedPhases"])        # 焼いてある版（books.json の 1 か所）
 SHAPES = ("runner", "nopy", "nodns")
+# 閉じた口（discard。何も聞いていない）。プロキシの環境変数に置く: 試験が頭で外し忘れた道は、ここへつなぎに行って落ちる
+CLOSED_PROXY = "http://127.0.0.1:9"
 # 名前を引く場面のある本の試験（nodns の形で流す）: 組む所の CM3・スケジュールの元のある設定の場面
-NODNS_TESTS = ("builder_parity", "page_parity", "bundle_parity", "equipgroups_write_parity", "schedule_parity")
+NODNS_TESTS = ("builder_parity", "page_parity", "bundle_parity", "equipgroups_write_parity", "schedule_parity", "lotdsp_parity")
 # 「古い取り出し」「umask 002 の取り出し」の形にする取り出しのフォルダ（答え合わせ役が場面へ写す元）
 CHECKOUT_DIRS = ("data", "config")
 OLD_DAYS = 5
@@ -120,6 +129,10 @@ def python_calls_ok(log):
             continue
         s = script_of(args)
         hit = imports_app(s) if s else None
+        if s and Path(s).name == "fakes_serve.py" and not hit:
+            # 起こしたままの相手の入口: 種類ごとの作り物（tests/fakes_<種類>.py。名前で読む）も見る
+            kinds = [a for a in args if re.fullmatch(r"[a-z][a-z0-9_]*", a)]
+            hit = next((h for a in kinds for h in [imports_app(Path(s).with_name(f"fakes_{a}.py"))] if h), None)
         if hit:
             bad.append(f"Python 無しの形で program/app を import する台本が呼ばれた: {s}（{hit}）")
     return bad
@@ -154,22 +167,30 @@ class OldCheckout:
         return False
 
 
-def run_shape(shape, bins, out, keep):
+def run_shape(shape, bins, out, keep, extra=None, as_root=False):
+    """形を 1 つ流す → (流した数, 落ちた試験の名前の並び, 流せなかった理由)。extra は足す環境変数、as_root は利用者を替えずに流す
+    （tools/bless.py が 2 回目の焼きを runner の形で流すのに使う。版 3.117.0 の採点の K1: 名前空間の作りはここの 1 つ）"""
     if shape == "runner":
         with OldCheckout():
-            return _run_shape(shape, bins, out, keep)
+            return _run_shape(shape, bins, out, keep, extra, as_root)
     if shape == "nodns":
         bins = {k: v for k, v in bins.items() if k in NODNS_TESTS}
-    return _run_shape(shape, bins, out, keep)
+    return _run_shape(shape, bins, out, keep, extra, as_root)
 
 
-def _run_shape(shape, bins, out, keep):
-    """→ (流した数, 落ちた試験の名前の並び, 流せなかった理由)"""
-    root = os.geteuid() == 0
-    if not root or not shutil.which("runuser"):
-        return 0, [], "root でない・runuser が無い"
+def cannot_run():
+    """形を流せない理由（流せるなら空）"""
+    if os.geteuid() != 0 or not shutil.which("runuser"):
+        return "root でない・runuser が無い"
     if not shutil.which("unshare"):
-        return 0, [], "unshare が無い"
+        return "unshare が無い"
+    return ""
+
+
+def _run_shape(shape, bins, out, keep, extra=None, as_root=False):
+    """→ (流した数, 落ちた試験の名前の並び, 流せなかった理由)"""
+    if cannot_run():
+        return 0, [], cannot_run()
     work = Path(tempfile.mkdtemp(prefix=f"ci-shape-{shape}-", dir="/dev/shm" if Path("/dev/shm").is_dir() else None))
     os.chmod(work, 0o755)
     tmp, home = work / "tmp", work / "home"
@@ -177,6 +198,14 @@ def _run_shape(shape, bins, out, keep):
         d.mkdir()
         os.chmod(d, 0o1777)
     env = {"PATH": os.environ.get("PATH", ""), "TMPDIR": str(tmp), "USER": "runner", "LOGNAME": "runner", "PYTHONDONTWRITEBYTECODE": "1"}
+    # 環境変数の形（K4）: プロキシは閉じた口・TLS の信じる根の置き場は空（試験が頭で外す。外し忘れた道はここで落ちる）
+    certs, cert_dir = work / "empty-cert.pem", work / "empty-certs"
+    certs.touch()
+    cert_dir.mkdir()
+    os.chmod(cert_dir, 0o755)
+    env.update({k: CLOSED_PROXY for k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")})
+    env.update(no_proxy="", SSL_CERT_FILE=str(certs), SSL_CERT_DIR=str(cert_dir))
+    env.update({"LANG": "ja_JP.UTF-8"} if shape == "runner" else {"LANG": "C", "LC_ALL": "C"})
     # PC の名前を替えた名前空間（unshare -u。この流しの中だけ）で流す
     setup, flags, user = f'echo {HOST_NAME} > /proc/sys/kernel/hostname', "-u", USER
     log = work / "python-calls.log"
@@ -204,10 +233,17 @@ def _run_shape(shape, bins, out, keep):
             dead = work / "resolv.conf"
             dead.write_text("nameserver 192.0.2.1\noptions timeout:1 attempts:1\n")
             setup, flags, user = f'{setup} && mount --bind "{dead}" /etc/resolv.conf', "-um", None
+    env.update(extra or {})
+    if as_root:
+        # 利用者を替えない（bless の 2 回目の焼き: 表の本の答えは root で焼く。root でない利用者の歩は bless.py --user）
+        user = None
+        env.update(USER="root", LOGNAME="root")
+    # nopy は umask 077 で流す（表の宣言から作る場面の権限を、流す PC の umask に頼らせない）
+    mask = "umask 077 && " if shape == "nopy" else ""
     pre = ["unshare", flags, "sh", "-c", f'{setup} && exec "$@"', "sh"]
     failed, ran = [], 0
     for name, exe in bins.items():
-        cmd = ["env", "-i"] + [f"{k}={v}" for k, v in env.items()] + [exe, "--test-threads=1"]
+        cmd = ["env", "-i"] + [f"{k}={v}" for k, v in env.items()] + ["sh", "-c", f'{mask}exec "$@"', "sh", exe, "--test-threads=1"]
         if user:
             cmd = ["runuser", "-u", user, "--"] + cmd
         t0 = time.time()

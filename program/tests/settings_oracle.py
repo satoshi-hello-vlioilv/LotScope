@@ -47,7 +47,8 @@ def doc(rows, rev=3):
 
 def write(p, data):
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 改行は変えない（Windows の write_text は \n を \r\n にする。「途中で切れた」場面のバイトの数が OS で変わった: 54 / 58 バイト。版 3.117.0）
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
 
 
 PATHS = [{"id": 1, "項目": "lot_list.refresh_seconds", "値": "30"}, {"id": 2, "項目": "lot_list.stale_hours", "値": "12"},

@@ -25,7 +25,52 @@ pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }
 
+/// 流す PC の環境変数のうち、答えを PC ごとに変える物を試験の頭で外す（版 3.117.0。採点の K3 (e)）: プロキシ（名前が _proxy で終わる物。
+/// Python の urllib.request.getproxies_environment と同じ見つけ方）と、TLS の信じる根の置き場（SSL_CERT_FILE・SSL_CERT_DIR）。
+/// 手元の PC には https_proxy・HTTPS_PROXY・no_proxy などがあり、CI の runner には無い。システムのプロキシを使う場面
+/// （schedule.use_system_proxy。③-6 で窓が取る）や、プロキシを決めずに urllib を使う答え合わせ役の答えが、流す PC で変わる。
+/// プロキシの場面は、場面が決めた値だけを入れる。試験はどれも最初に work() を呼ぶので、そこで 1 度だけ外す（答え合わせ役〈子の
+/// プロセス〉は外した後の環境変数を受け継ぐ。起こす所でも外す）。手元の確かめは tools/ci-shape.py（プロキシと根の置き場を置いた形）
+///
+/// あわせて umask を 022 に決める（Linux）。場面のファイル（答え合わせ役が書く・表の宣言から作る）と、窓が作るフォルダ・ファイルの権限は
+/// umask で変わり、権限を答える歩（配布の置き場の写した後の中身など）が流す PC の umask に頼る。時差を UTC に決めるのと同じ扱い
+/// （ci-shape の nopy の形は umask 077 で流す）
+pub fn clean_env() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        for k in pc_env_names() {
+            // SAFETY: 試験の最初（窓・答え合わせ役を起こす前）に 1 度だけ。同じ実行ファイルのほかの試験も同じ値（無い）にするだけ
+            unsafe { std::env::remove_var(&k) };
+        }
+        #[cfg(target_os = "linux")]
+        {
+            unsafe extern "C" {
+                fn umask(mask: u32) -> u32;
+            }
+            // SAFETY: 引数は権限の数だけ。プロセスの umask を決めるだけで失敗しない
+            unsafe { umask(0o022) };
+        }
+    });
+}
+
+/// 今の環境変数のうち、答えを PC ごとに変える物の名前（clean_env が外す。子のプロセスを起こす所は env_remove で外す）
+pub fn pc_env_names() -> Vec<String> {
+    std::env::vars_os()
+        .filter_map(|(k, _)| k.into_string().ok())
+        .filter(|k| k.to_ascii_lowercase().ends_with("_proxy") || k == "SSL_CERT_FILE" || k == "SSL_CERT_DIR")
+        .collect()
+}
+
+/// 答え合わせ役・場面の台本を起こす Command から、答えを PC ごとに変える環境変数を外す
+pub fn clean_command(c: &mut Command) -> &mut Command {
+    for k in pc_env_names() {
+        c.env_remove(k);
+    }
+    c
+}
+
 pub fn work(name: &str) -> PathBuf {
+    clean_env();
     let d = std::env::temp_dir().join(format!("da-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
@@ -35,7 +80,7 @@ pub fn work(name: &str) -> PathBuf {
 /// program/tests/<script> を引数つきで呼び、標準出力の JSON を返す（Python は TPA_PYTHON か python3／python）。
 pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-    let out = Command::new(&py)
+    let out = clean_command(&mut Command::new(&py))
         .arg(program().join("tests").join(script))
         .args(args)
         .env("PYTHONIOENCODING", "utf-8")
@@ -133,9 +178,21 @@ pub struct Live {
 
 impl Live {
     pub fn start(script: &str, args: &[&str]) -> (Live, serde_json::Value) {
+        Live::start_with(&[], script, args)
+    }
+
+    /// app を import しない台本（起こしたままの相手 tests/fakes_serve.py）を、標準の Python で起こしたままにする（python -I。
+    /// Python 無しの形〈TPA_NO_PYTHON=1〉でも使う: 標準の Python は独立の答えと同じく段 ④ の後も残す）
+    pub fn start_stdlib(script: &str, args: &[&str]) -> (Live, serde_json::Value) {
+        bake::stdlib_python();
+        Live::start_with(&["-I"], script, args)
+    }
+
+    fn start_with(flags: &[&str], script: &str, args: &[&str]) -> (Live, serde_json::Value) {
         use std::io::BufRead;
         let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-        let mut child = Command::new(&py)
+        let mut child = clean_command(&mut Command::new(&py))
+            .args(flags)
             .arg(program().join("tests").join(script))
             .args(args)
             .env("PYTHONIOENCODING", "utf-8")

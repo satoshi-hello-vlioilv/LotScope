@@ -1344,16 +1344,80 @@ mod tests {
     }
 
     // ---------------------------------------------------------------- 差し替えた時計と作り物のブラウザ
+    // 差し替えた時計（版 3.117.0 の作った後の直し: main の Windows の CI で one_watcher_and_the_headless_closes_after_keep_seconds が落ちた）。
+    // 前の形は、時計を進めた後に本物の時間で 300 ミリ秒待つだけで、見張りの糸が「時計を読んだ後・眠る前」にいる間に進めると、眠るときの
+    // 目当て（読んだ時刻 + 1 秒）を進めた後の時刻から数え直し、もう進まない時計を本物の 5 秒まで待った（起こし損ない）。Windows の CI のように
+    // 糸の割り当てが粗い PC で、見張りが読んで眠るまでの間に試験の糸が進めると落ちる（preempt で必ず起こせる: the_fake_clock_wakes_…）。
+    // 今の形: (1) 眠る糸が最後に読んだ時刻より時計が進んでいれば、眠らずに戻って測り直させる（本物の時計の「読んだ後に時間がたった」と同じ）。
+    // (2) 進めた後は、見張りがその時刻を読んで次の眠りに入るか、見張りが終わるまでを待つ（本物の時間の 300 ミリ秒に頼らない。上限 20 秒）
     struct FakeTime {
-        now: Mutex<f64>,
+        st: Mutex<FakeNow>,
         cv: Condvar,
+        // 見張りの糸が時計を読んでから眠るまでの遅れ（試験が糸の割り当ての粗い PC をまねる）
+        preempt: Duration,
+    }
+
+    struct FakeNow {
+        now: f64,
+        // いまの時刻を読んだ後で眠っている糸の数（時計を進めると 0 に戻す）
+        parked: usize,
+    }
+
+    thread_local! {
+        // この糸が最後に読んだ差し替えの時刻
+        static SEEN: std::cell::Cell<f64> = const { std::cell::Cell::new(f64::NAN) };
     }
 
     impl FakeTime {
-        fn advance(&self, s: f64) {
-            *self.now.lock().unwrap() += s;
+        fn new(preempt: Duration) -> Arc<FakeTime> {
+            Arc::new(FakeTime { st: Mutex::new(FakeNow { now: 1_000_000.0, parked: 0 }), cv: Condvar::new(), preempt })
+        }
+
+        fn now(&self) -> f64 {
+            let n = self.st.lock().unwrap().now;
+            SEEN.with(|c| c.set(n));
+            n
+        }
+
+        fn sleep(&self, s: f64) {
+            std::thread::sleep(self.preempt);
+            let mut g = self.st.lock().unwrap();
+            let seen = SEEN.with(|c| c.get());
+            if g.now != seen {
+                // 読んだ後に時計が進んだ: 眠らずに戻る（呼んだ糸は測り直す）
+                SEEN.with(|c| c.set(g.now));
+                return;
+            }
+            let (entry, target) = (g.now, g.now + s);
+            g.parked += 1;
             self.cv.notify_all();
-            std::thread::sleep(Duration::from_millis(300)); // 見張りが起きて片付けるのを待つ（本物の時計）
+            let (mut g, _) = self.cv.wait_timeout_while(g, Duration::from_secs(5), |n| n.now < target).unwrap();
+            if g.now == entry {
+                g.parked -= 1;
+            }
+        }
+
+        /// 時計を s 秒進め、見張りがその時刻を読んで次の眠りに入るか、見張りが終わる（watching が偽）までを待つ
+        fn advance(&self, s: f64, watching: &dyn Fn() -> bool) {
+            {
+                let mut g = self.st.lock().unwrap();
+                g.now += s;
+                g.parked = 0;
+                self.cv.notify_all();
+            }
+            let end = std::time::Instant::now() + Duration::from_secs(20);
+            loop {
+                let g = self.st.lock().unwrap();
+                if g.parked > 0 || std::time::Instant::now() > end {
+                    return;
+                }
+                drop(g);
+                if !watching() {
+                    return;
+                }
+                let g = self.st.lock().unwrap();
+                let _ = self.cv.wait_timeout_while(g, Duration::from_millis(20), |n| n.parked == 0);
+            }
         }
     }
 
@@ -1426,18 +1490,19 @@ mod tests {
     }
 
     fn fake(keep: f64, window_keep: f64) -> Fake {
-        let t = Arc::new(FakeTime { now: Mutex::new(1_000_000.0), cv: Condvar::new() });
+        fake_with(keep, window_keep, Duration::ZERO)
+    }
+
+    fn fake_with(keep: f64, window_keep: f64, preempt: Duration) -> Fake {
+        let t = FakeTime::new(preempt);
         let (tc, ts) = (t.clone(), t.clone());
-        let clock: Clock = Arc::new(move || *tc.now.lock().unwrap());
-        let sleep: Sleep = Arc::new(move |s| {
-            let g = ts.now.lock().unwrap();
-            let target = *g + s;
-            let _ = ts.cv.wait_timeout_while(g, Duration::from_secs(5), |n| *n < target);
-        });
+        let clock: Clock = Arc::new(move || tc.now());
+        let sleep: Sleep = Arc::new(move |s| ts.sleep(s));
         let login = Arc::new(AtomicBool::new(true));
         let made = Arc::new(Mutex::new(vec![]));
         let d = Direct::new(Box::new(FakeLaunch { login: login.clone(), made: made.clone() }), clock, sleep);
-        let tmp = std::env::temp_dir().join(format!("da-lotdsp-watch-{}-{}", std::process::id(), (keep * 10.0) as i64));
+        let tmp =
+            std::env::temp_dir().join(format!("da-lotdsp-watch-{}-{}-{}", std::process::id(), (keep * 10.0) as i64, preempt.as_millis()));
         let li = json!({"url": "http://x/LotDspWeb/", "direct": {"keep_seconds": keep, "window_keep_seconds": window_keep,
                         "window_profile": tmp.join("win").to_string_lossy()}});
         (d, t, login, made, Cfg::from(&li, &tmp).unwrap())
@@ -1450,10 +1515,11 @@ mod tests {
         assert_eq!(d.fetch("L7150C0", &cfg, false).unwrap_err().kind, "login");
         assert_eq!(d.fetch("L7150C0", &cfg, true).unwrap(), "<html/>");
         let win = made.lock().unwrap().last().unwrap().1.clone();
-        t.advance(600.0);
+        let watching = || d.watch.lock().unwrap().alive;
+        t.advance(600.0, &watching);
         assert!(win.load(Ordering::SeqCst), "600 秒では窓を閉じない");
         assert!(d.session.lock().unwrap().is_some());
-        t.advance(1250.0);
+        t.advance(1250.0, &watching);
         assert!(!win.load(Ordering::SeqCst), "1800 秒使わなければ閉じる");
         assert!(d.session.lock().unwrap().is_none());
         assert!(!d.watch.lock().unwrap().alive, "閉じたら見張りも終わる");
@@ -1473,7 +1539,11 @@ mod tests {
 
     #[test]
     fn one_watcher_and_the_headless_closes_after_keep_seconds() {
-        let (d, t, login, _made, cfg) = fake(300.0, 1800.0);
+        one_watcher_closes((300.0, 1800.0), Duration::ZERO);
+    }
+
+    fn one_watcher_closes((keep, window_keep): (f64, f64), preempt: Duration) {
+        let (d, t, login, _made, cfg) = fake_with(keep, window_keep, preempt);
         login.store(false, Ordering::SeqCst);
         for _ in 0..3 {
             d.fetch("L7150C0", &cfg, false).unwrap();
@@ -1481,8 +1551,26 @@ mod tests {
         }
         d.fetch("L7150C0", &cfg, false).unwrap();
         assert!(d.watch.lock().unwrap().alive, "見張りが 1 つ");
-        t.advance(301.0);
+        t.advance(301.0, &|| d.watch.lock().unwrap().alive);
         assert!(d.session.lock().unwrap().is_none(), "見えない Edge は keep_seconds で閉じる");
+    }
+
+    /// 見張りの糸が時計を読んでから眠るまでの間に試験の糸が時計を進めても、見張りは進んだ時刻で測り直して閉じる（版 3.117.0 の作った後の直し。
+    /// 前の差し替えの時計は、読んだ後・眠る前に進めると目当てを進めた後から数え直して 5 秒眠り、main の Windows の CI で落ちた。
+    /// ここでは 350 ミリ秒の遅れで、その間合いを毎回作る〈前の形ではこの 2 つが 20 回中 20 回落ちた〉）
+    #[test]
+    fn the_fake_clock_wakes_a_watcher_that_read_the_time_before_it_moved() {
+        one_watcher_closes((300.0, 1800.0), Duration::from_millis(350));
+        let (d, t, _login, made, cfg) = fake_with(300.0, 1800.0, Duration::from_millis(350));
+        assert_eq!(d.fetch("L7150C0", &cfg, false).unwrap_err().kind, "login");
+        assert_eq!(d.fetch("L7150C0", &cfg, true).unwrap(), "<html/>");
+        let win = made.lock().unwrap().last().unwrap().1.clone();
+        let watching = || d.watch.lock().unwrap().alive;
+        t.advance(600.0, &watching);
+        assert!(win.load(Ordering::SeqCst), "600 秒では窓を閉じない");
+        t.advance(1250.0, &watching);
+        assert!(!win.load(Ordering::SeqCst), "1800 秒使わなければ閉じる");
+        assert!(!d.watch.lock().unwrap().alive, "閉じたら見張りも終わる");
     }
 
     #[test]

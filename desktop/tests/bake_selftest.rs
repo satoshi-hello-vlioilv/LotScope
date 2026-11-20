@@ -400,7 +400,12 @@ fn a_scene_comes_back_from_its_declaration() {
     assert_eq!(std::fs::read(b.join("bin.sqlite3")).unwrap(), [0u8, 1, 2, 255, 0, 7], "バイトのまま");
     assert_eq!(std::fs::metadata(b.join("share/sub/old.txt")).unwrap().modified().unwrap(), old, "遠い更新時刻はそのまま");
     let lock_b = std::fs::read_to_string(b.join("share/master.lock.json")).unwrap();
-    assert!(lock_b.contains(&b.join("share").display().to_string()), "道は作った所の字: {lock_b}");
+    // 区切りの字はそろえて比べる: Windows では戻す道の根を「/」で書く（`Ctx::unsub`。版 3.117.0）ので、根は「C:/…/b」・
+    // 続きは宣言のままの「\share」になる。Windows は「/」も区切りに読むので、指す先は同じ（PR #117 の Windows の CI で、
+    // 字をそのまま比べていたこの行が落ちた）
+    let slashed = |s: &str| s.replace('\\', "/");
+    assert!(slashed(&lock_b).contains(&slashed(&b.join("share").display().to_string())), "道は作った所の字: {lock_b}");
+    assert!(!slashed(&lock_b).contains(&slashed(&a.join("share").display().to_string())), "作る前の所の字が残らない: {lock_b}");
     #[cfg(unix)]
     {
         use std::os::unix::fs::{FileTypeExt, PermissionsExt};
@@ -508,6 +513,97 @@ fn files_made_by_a_scene_script_are_declared_by_their_fingerprint() {
     }
 }
 
+/// 起こしたままの相手（作り物のサーバー）の URL は名前つきの印にそろえる（版 3.117.0）: 覚えた URL そのものは @URL(名前)、種類の付かない
+/// 番地:ポートは @ADDR(名前)。ほかのポート・桁の続くポート・別の番地はそのまま（＝窓が別の口へつなぎに行ったら表との比べで落ちる）。
+/// 場面の宣言の中の URL も印で持ち、作り直すときに今の URL へ戻す（流すたびに変わるポートを表に持たない）
+#[test]
+fn urls_of_live_fakes_are_settled_by_name_and_come_back() {
+    let base = common::work("bake-urls");
+    let mut ctx = Ctx::new(&base);
+    ctx.url_named("cm3", "http://127.0.0.1:41234");
+    ctx.url_named("site", "http://127.0.0.1:41299/");
+    let v = json!({"url": "http://127.0.0.1:41234/api/init", "Host": "127.0.0.1:41234", "ws": "ws://127.0.0.1:41234/devtools",
+                   "site": "http://127.0.0.1:41299/LotDspWeb/#/lotdsp", "other": "http://127.0.0.1:41235/x", "longer": "http://127.0.0.1:412345/x",
+                   "pre": "10.127.0.0.1:41234", "closed": "http://127.0.0.1:1", "text": "CM3（http://127.0.0.1:41234）に接続できません"});
+    let got = settle(&v, &ctx, &[]);
+    assert_eq!(
+        got,
+        json!({"url": "@URL(cm3)/api/init", "Host": "@ADDR(cm3)", "ws": "ws://@ADDR(cm3)/devtools", "site": "@URL(site)/LotDspWeb/#/lotdsp",
+               "other": "http://127.0.0.1:41235/x", "longer": "http://127.0.0.1:412345/x", "pre": "10.127.0.0.1:41234",
+               "closed": "http://127.0.0.1:1", "text": "CM3（@URL(cm3)）に接続できません"})
+    );
+    // 覚えていなければそのまま（＝流すたびに変わるポートが表に残り、bless.py --check の指紋の見張りが落とす）
+    assert_eq!(settle(&v, &Ctx::new(&base), &[]), v);
+    // 場面の宣言: 中身の URL は印で持ち、別のポートで起こした相手の URL に戻る
+    let a = base.join("a");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::write(a.join("config.json"), r#"{"schedule": {"cm3_base_url": "http://127.0.0.1:41234"}, "x": "http://127.0.0.1:41235"}"#)
+        .unwrap();
+    let mut ca = Ctx::new(&a);
+    ca.url_named("cm3", "http://127.0.0.1:41234");
+    let decl = snapshot(&a, &ca, &[]);
+    let text = decl.to_string();
+    assert!(text.contains("@URL(cm3)") && !text.contains("41234") && text.contains("41235"), "{text}");
+    let b = base.join("b");
+    let mut cb = Ctx::new(&b);
+    cb.url_named("cm3", "http://127.0.0.1:50001");
+    materialize(&decl, &b, &cb);
+    assert_eq!(
+        std::fs::read_to_string(b.join("config.json")).unwrap(),
+        r#"{"schedule": {"cm3_base_url": "http://127.0.0.1:50001"}, "x": "http://127.0.0.1:41235"}"#
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 流す PC の環境変数のうち答えを PC ごとに変える物（プロキシ・TLS の信じる根の置き場）は、試験の頭で外す（版 3.117.0。common::clean_env）。
+/// 関係のない変数（名前が _proxy で終わらない）は残す
+#[test]
+fn proxy_and_cert_variables_are_removed_before_the_tests() {
+    // 終わったら（落ちても）置く前の値へ戻す（版 3.117.0 の作った後の直し・割れ 6 (a): 前は TPA_PROXY_LIKE だけを外し、ほかの 4 つを置いたまま
+    // 終わって、同じ実行ファイルの後の試験が clean_command を通さずに起こす子に渡った）
+    struct Restore(Vec<(&'static str, Option<std::ffi::OsString>)>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            for (k, v) in &self.0 {
+                // SAFETY: 置いた時と同じ（この実行ファイルのほかの試験はこれらの変数を読まない）
+                unsafe {
+                    match v {
+                        Some(v) => std::env::set_var(k, v),
+                        None => std::env::remove_var(k),
+                    }
+                }
+            }
+        }
+    }
+    const SET: [&str; 5] = ["https_proxy", "ALL_PROXY", "npm_config_https_proxy", "SSL_CERT_FILE", "TPA_PROXY_LIKE"];
+    let saved: Vec<(&'static str, Option<std::ffi::OsString>)> = SET.iter().map(|k| (*k, std::env::var_os(k))).collect();
+    let restore = Restore(saved.clone());
+    // SAFETY: この実行ファイルのほかの試験はこれらの変数を読まない（work() が同じく外すだけ）
+    unsafe {
+        std::env::set_var("https_proxy", "http://127.0.0.1:9");
+        std::env::set_var("ALL_PROXY", "http://127.0.0.1:9");
+        std::env::set_var("npm_config_https_proxy", "http://127.0.0.1:9");
+        std::env::set_var("SSL_CERT_FILE", "/無い/ca.pem");
+        std::env::set_var("TPA_PROXY_LIKE", "残す");
+    }
+    let names = common::pc_env_names();
+    for k in ["https_proxy", "ALL_PROXY", "npm_config_https_proxy", "SSL_CERT_FILE"] {
+        assert!(names.iter().any(|n| n == k), "{k}: {names:?}");
+    }
+    assert!(!names.iter().any(|n| n == "TPA_PROXY_LIKE" || n == "PATH"), "{names:?}");
+    let mut c = std::process::Command::new(if cfg!(windows) { "cmd" } else { "env" });
+    if cfg!(windows) {
+        c.args(["/C", "set"]);
+    }
+    let out = String::from_utf8_lossy(&common::clean_command(&mut c).output().unwrap().stdout).into_owned();
+    let has = |k: &str| out.lines().any(|l| l.split('=').next() == Some(k));
+    assert!(!has("https_proxy") && !has("ALL_PROXY") && !has("SSL_CERT_FILE") && has("TPA_PROXY_LIKE"), "{out}");
+    drop(restore);
+    for (k, v) in &saved {
+        assert_eq!(&std::env::var_os(k), v, "{k}: 置く前の値へ戻していない");
+    }
+}
+
 /// 測るだけ（TPA_MEASURE。表と比べない PC〈Windows〉）: 表と違う歩を試験を落とさずに数えて記録に書く
 #[test]
 fn measuring_counts_the_steps_that_differ_without_failing() {
@@ -517,7 +613,7 @@ fn measuring_counts_the_steps_that_differ_without_failing() {
         json!({"same": {"status": 200, "json": {"a": 1}}, "differs": {"status": 200, "json": {"a": "posix の答え"}}, "gone": {"status": 200, "json": {}}}),
         json!({"same": "GET /s", "differs": "GET /d", "gone": "GET /g"}),
     );
-    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t), &base);
+    let mut bk = Bake::with("selftest", "measured", Mode::Python, vec![], Some(t.clone()), &base);
     bk.check = false; // 表と比べない PC（Windows）の形
     bk.measure = Some(out.clone());
     bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
@@ -530,6 +626,30 @@ fn measuring_counts_the_steps_that_differ_without_failing() {
     assert_eq!(keys, ["differs", "new"], "違う歩と表に無い歩だけ: {m}");
     assert!(m["differing"][0]["diff"].as_str().unwrap().contains("posix の答え"), "{m}");
     assert_eq!(m["missing"], json!(["gone"]), "表にあって答えなかった歩");
+    assert_eq!((&m["form"], &m["finished"]), (&json!("python"), &json!(true)), "流した形と、finish まで流れたか: {m}");
+    // 表だけの形（Mode::Baked。段 ④ の後の形。版 3.117.0）でも同じ記録を書く（form: table）。試験が finish に届かなくても（表の答えと
+    // 比べて途中で落ちても）、手放すとき（Drop）にそこまでの歩を書く
+    let mut bk = Bake::with("selftest", "tabled", Mode::Baked, vec![], Some(t.clone()), &base);
+    bk.check = false;
+    bk.measure = Some(out.clone());
+    bk.note("same", "GET /s", &json!({"status": 200, "json": {"a": 1}}), &Value::Null);
+    bk.note("differs", "GET /d", &json!({"status": 200, "json": {"a": "nt の答え"}}), &Value::Null);
+    drop(bk);
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("tabled.json")).expect("表だけの形の測りの記録")).unwrap();
+    assert_eq!((&m["form"], &m["finished"]), (&json!("table"), &json!(false)), "{m}");
+    let keys: Vec<&str> = m["differing"].as_array().unwrap().iter().map(|x| x["key"].as_str().unwrap()).collect();
+    assert_eq!((keys, &m["missing"]), (vec!["differs"], &json!(["gone"])), "{m}");
+    // 場面を作れなかった表（宣言が Windows で作れない など）は、理由を sceneError に書いてから落ちる
+    let mut broken = t.clone();
+    broken["scene"] = json!({"files": {"a.txt": {"blob": "無い"}}, "dirs": {}, "links": {}, "blobs": {}});
+    let mut bk = Bake::with("selftest", "noscene", Mode::Baked, vec![], Some(broken), &base.join("noscene"));
+    bk.check = false;
+    bk.measure = Some(out.clone());
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| bk.oracle("無い台本.py", &[])));
+    assert!(r.is_err(), "場面を作れなければ試験は落ちる");
+    drop(bk);
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("noscene.json")).expect("場面を作れなかった表の記録")).unwrap();
+    assert!(m["sceneError"].is_string() && m["finished"] == false && m["steps"] == 0, "{m}");
     // 比べる PC（check）では測りの記録を書かない（表と違えば今までどおり落ちる）
     let mut bk = Bake::with("selftest", "checked", Mode::Python, vec![], Some(table(json!({}), json!({}))), &base);
     bk.check = true;
