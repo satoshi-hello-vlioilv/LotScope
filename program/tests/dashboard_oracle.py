@@ -25,12 +25,16 @@ PROGRAM = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROGRAM))
 sys.path.insert(0, str(PROGRAM / "tools"))
 os.environ.update(TPA_SHELL="desktop", TPA_SHELL_SERVES="lotlist,lists")
+# 場面は窓の試験の作業フォルダの下（1 つ目の引数。版 3.117.2: 前は ui_server の /tmp/tpa-ui-*）。場面の元のファイルは台本 tests/ui_scene.py
+if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    os.environ["TPA_UI_WORK"] = sys.argv[1]
 
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.services import dashboard, equip_groups, lot_list, work_log  # noqa: E402
 import ui_server  # noqa: E402
 from app.routes.common import forget_tab_cache  # noqa: E402
 from ui_server import as_role, build  # noqa: E402
+from tests import ui_scene  # noqa: E402
 
 D = lambda c, p="": {"column": c, "part": p}  # noqa: E731
 LOTS, CNT = {"agg": "lots"}, {"agg": "count"}
@@ -53,54 +57,32 @@ def setup(app):
     c = app.test_client()
     repo = MasterRepository(app.config["MASTER_STORE"])
     settings = app.config["APP_SETTINGS"]
-    # 品質の設備の列: 書きゆれ（全角・小文字・前後の空白・空欄）と、30 を超える知らない設備（並べる図は 24 まで）
+    # 場面の台本の手直し（品質の設備の列の書きゆれと 30 を超える知らない設備〈並べる図は 24 まで〉・全角の合金・中身が SQLite でない BAD・
+    # 設備ごとの表の TLV・仕掛の設備の列の前方一致・壊れたビューの元）
+    ui_scene.dashboard(ui_server.WORK)
     qdb = sqlite3.connect(settings["lot_list"]["source"])
     qt = lot_list.pick_table(lot_list.tables(qdb))
-    ids = [r[0] for r in qdb.execute(f'SELECT rowid FROM "{qt}" ORDER BY rowid')]
+    assert qt == ui_scene.QUALITY_TABLE, "品質の表は台本の決めた表"
     lot_ids = [r[0] for r in qdb.execute(f'SELECT DISTINCT ロット番号 FROM "{qt}" ORDER BY rowid DESC LIMIT 300')]
-    vals = ["CR2 1号", "cr1", "L-1 南", "ＣＲ２", " ", None, "TLV", "l-10", " L-9 ", "　"] + [f"X-{i:02d}" for i in range(1, 33)]
-    for i, v in zip(ids[::3], vals * 6):
-        qdb.execute(f'UPDATE "{qt}" SET 設備 = ? WHERE rowid = ?', (v, i))
-    qdb.commit()
     qdb.close()
     # 品質の写しの係を設定の場所に合わせる（routes_oracle.py と同じ。中身を直してから写す）
     app.config["LOT_MIRROR"].reconfigure(remote=settings["lot_list"]["source"])
     # 作業実績: 全角の合金（別のデータを合わせる軸の見分け）・中身が SQLite でない設備・表示しない設備・並び
     folder = ui_server.WORK / "【New】実績"
-    db = sqlite3.connect(folder / "実績_CAL.sqlite3")
-    db.execute("UPDATE 実績 SET 合金 = 'Ａ５０５２' WHERE 合金 = 'A5052' AND rowid % 2 = 0")
-    db.commit()
-    db.close()
-    (folder / "実績_BAD.sqlite3").write_text("SQLite ではない中身", encoding="utf-8")
     repo.work_log_sync([{**f, "fid": ""} for f in work_log.scan(folder, "実績_*.sqlite3") if f["file"] == "実績_BAD.sqlite3"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     repo.work_log_update(keys["DL2"]["id"], {"表示": "無"})
-    # ファイルが無い設備（SL3）は名前でだけたどる（ファイルID を空に）: 消えた SL3 のファイル番号を新しい BAD が使い回すと、SL3 が BAD の写しを読む
-    # （routes_oracle.py と同じ）。SL3 は「見つからない」・BAD は「写しています」の失敗になり、写し中の答えを先に選ぶ決まりが見える
+    # ファイルが無い設備（SL3）は名前でだけたどる（ファイルID を空に）。SL3 は「見つからない」・BAD は「写しています」の失敗になり、写し中の答えを
+    # 先に選ぶ決まりが見える（SL3 のファイルは台本が keep/ へ握ったまま移すので、BAD がそのファイル番号を使い回すことはない。版 3.117.2）
     repo.work_log_update(keys["SL3"]["id"], {"ファイルID": ""})
     # 作業開始の列の無い表（TLV は「別表」を読む）: 実績本数がロット番号の列（上書きの「作業者」）の種類の数になる
-    db = sqlite3.connect(folder / "実績_TLV.sqlite3")
-    db.execute("CREATE TABLE 別表 AS SELECT ロット番号, 作業者, 重量, 合金, 調質, 作業区分 FROM 実績")
-    db.commit()
-    db.close()
     repo.work_log_update(keys["TLV"]["id"], {"表": "別表"})
     # 並び（番号の無い・読めない番号は後ろに登録の順）。版 3.104.0 の作った後の採点: i64 の端を超える 2 つの番号も Python の int と同じ順
     # （前の窓は端へ丸めて同じ番号にし、登録の順に並べた）
     for n, o in (("TLV", "9223372036854775808"), ("CAL", "9223372036854775809"), ("CR2", "x")):
         repo.work_log_update(keys[n]["id"], {"並び": o})
-    # 仕掛の設備の列: 前方一致でだけ設備に見分けられる値（「CR1 南」「L-1 2号」）と、どの設備でもない値
-    wdb = sqlite3.connect(settings["sources"]["wip"]["source"])
-    wids = [r[0] for r in wdb.execute("SELECT rowid FROM 仕掛 ORDER BY rowid")]
-    for i, v in zip(wids[::4], ["CR1 南", "L-1 2号", "ＣＲ２-東", "謎の設備", "", None, " "] * 20):
-        wdb.execute("UPDATE 仕掛 SET BOX設計_設備名 = ? WHERE rowid = ?", (v, i))
-    wdb.commit()
-    wdb.close()
-    # 壊れたビューを決めたデータ元（写しはできるが、数える中で読めない: 元の表を消したビュー）
+    # 壊れたビューを決めたデータ元（写しはできるが、数える中で読めない: 元の表を消したビュー。台本が作る）
     broken = ui_server.WORK / "共有" / "壊れたビュー.sqlite3"
-    bdb = sqlite3.connect(broken)
-    bdb.executescript("CREATE TABLE 元 (ロット番号 TEXT, 合金 TEXT); CREATE TABLE 残る (a); INSERT INTO 残る VALUES (1);"
-                      "CREATE VIEW 見る AS SELECT * FROM 元; DROP TABLE 元;")
-    bdb.close()
     r = c.post("/api/sources", json={"表示名": "壊れたビューの元", "役割": "その他", "場所": str(broken), "表": "見る"})
     assert r.status_code == 201, r.get_json()
     empty_key = r.get_json()["row"]["キー"]
@@ -519,7 +501,7 @@ def ask(c, name, panel):
 def main():
     as_role("開発者")
     big = "--bench" in sys.argv
-    app = build(quality=20000, work_rows=2000, wip=20000) if big else build(quality=600, work_rows=150, wip=400)
+    app = build(quality=20000, work_rows=2000, wip=20000, cm3=False, pc_name="PC-ORACLE") if big else build(quality=600, work_rows=150, wip=400, cm3=False, pc_name="PC-ORACLE")
     c, eq = setup(app)
     plain, python = cases(eq)
     if big:
@@ -560,7 +542,10 @@ def main():
     json.dump({"settings": settings, "cases": rows, "phases": phases,
                "python": [{"name": n, "panel": p} for n, p in python],
                # 答えの控えの確かめ（dash_parity.rs）: 品質の元ファイルと表。窓は 1 行消して写し直し、同じパネルの数が変わるかを見る
-               "quality": {"path": eq["_quality"][0], "table": eq["_quality"][1]}}, sys.stdout, ensure_ascii=False)
+               "quality": {"path": eq["_quality"][0], "table": eq["_quality"][1]},
+               # sceneMade: 場面の台本が作ったファイル・fids: そのファイルID（焼いた表は登録のマスタの中のファイルID を @FID にする）
+               "sceneMade": ui_scene.made_files(ui_server.WORK), "fids": ui_scene.fid_names(ui_server.WORK, work_log.file_id)},
+              sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

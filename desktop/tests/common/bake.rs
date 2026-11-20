@@ -507,6 +507,24 @@ fn offset_re() -> &'static regex::Regex {
     R.get_or_init(|| regex::Regex::new(r"@T\(([^|)]*)\|(-?\d+)\)").unwrap())
 }
 
+/// 答え合わせ役が窓に渡す設定の答え（/api/lotlist/settings）の変換表の版の印（conversions.rev）を決めた字にする（版 3.117.2。表の問い合わせ用）。
+/// 版の印は同梱の変換表のファイルの更新時刻（取り出した時刻）から作るので、取り出した PC ごとに違う。窓はこの印を変換表の控えの鍵にだけ使う
+/// （同じ印なら同じ表）。Python と比べる形は本物の印のまま渡し、表には決めた字を持つ
+pub fn fixed_conv_rev(v: &mut Value) {
+    match v {
+        Value::Object(o) => {
+            if let Some(Value::Object(c)) = o.get_mut("conversions") {
+                if c.get("rev").is_some_and(Value::is_string) {
+                    c.insert("rev".into(), json!("@REV"));
+                }
+            }
+            o.values_mut().for_each(fixed_conv_rev);
+        }
+        Value::Array(a) => a.iter_mut().for_each(fixed_conv_rev),
+        _ => {}
+    }
+}
+
 pub fn without_offsets(v: &Value) -> Value {
     let re = offset_re();
     map_strings(v, &|s| if s.contains("@T(") { re.replace_all(s, "@T($1)").into_owned() } else { s.to_string() })
@@ -864,12 +882,39 @@ fn user_decl(t: &str) -> String {
     re.replace_all(t, "${1}\"@USER@\"").into_owned()
 }
 
-/// 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前を @USER@ に
-fn named_users(v: &Value, key: &str) -> Value {
+/// 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前を @USER@ に。名乗りの表（{key, pc}）の鍵が OS の利用者の名前と
+/// となりの pc から作った字（bundle::terminal_key）そのものなら @USERKEY@ に（版 3.117.2: ops の答え合わせ役は名乗りを決めない設定の答え
+/// access.who を窓に渡すので、root で焼いた表の鍵「PC-ORACLE@root」が root でない利用者で流すと古いと読まれた。作り直す時に今の利用者で作り直す）
+pub fn named_users(v: &Value, key: &str) -> Value {
     match v {
         Value::String(s) if name_keys().contains(&key) && os_user() == Some(s.as_str()) => json!("@USER@"),
         Value::Array(a) => Value::Array(a.iter().map(|x| named_users(x, key)).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), named_users(x, k))).collect()),
+        Value::Object(o) => {
+            let mut out: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), named_users(x, k))).collect();
+            if let (Some(k), Some(pc), Some(u)) = (o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user()) {
+                if k == da_core::bundle::terminal_key(u, pc) {
+                    out.insert("key".into(), json!("@USERKEY@"));
+                }
+            }
+            Value::Object(out)
+        }
+        _ => v.clone(),
+    }
+}
+
+/// named_users の逆（作り直す時に今の OS の利用者へ）: "@USER@" は今の利用者の名前、名乗りの表の鍵 "@USERKEY@" は今の利用者と pc から作り直す
+pub fn unnamed_users(v: &Value) -> Value {
+    match v {
+        Value::String(s) if s == "@USER@" => json!(os_user().unwrap_or("")),
+        Value::Array(a) => Value::Array(a.iter().map(unnamed_users).collect()),
+        Value::Object(o) => {
+            let mut out: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), unnamed_users(x))).collect();
+            if o.get("key").and_then(Value::as_str) == Some("@USERKEY@") {
+                let pc = o.get("pc").and_then(Value::as_str).unwrap_or("");
+                out.insert("key".into(), json!(da_core::bundle::terminal_key(os_user().unwrap_or(""), pc)));
+            }
+            Value::Object(out)
+        }
         _ => v.clone(),
     }
 }
@@ -923,16 +968,6 @@ fn text_of_decl(t: &str, ctx: &Ctx) -> String {
         _ => t.into_owned(),
     };
     ctx.unsub(&t)
-}
-
-/// 値の字だけを替える（鍵は替えない）
-fn map_values(v: &Value, f: &dyn Fn(&str) -> String) -> Value {
-    match v {
-        Value::String(s) => Value::String(f(s)),
-        Value::Array(a) => Value::Array(a.iter().map(|x| map_values(x, f)).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), map_values(x, f))).collect()),
-        _ => v.clone(),
-    }
 }
 
 #[cfg(unix)]
@@ -1063,17 +1098,12 @@ pub fn serve_404() -> String {
     url
 }
 
-/// ファイルID（Python の work_log.file_id と同じ「装置:inode」の形。窓の same_fid で比べる）
+/// ファイルID（Python の work_log.file_id と同じ形。窓の same_fid で比べる）。窓の lists::file_id をそのまま呼ぶ（版 3.117.2 の作った後の
+/// 採点の割れ 2: 前は試験に unix の「装置:inode」の写しだけを持ち、Windows では空を返して、表だけの形で名前を変えた HOT を同じファイルID で
+/// たどる歩が落ちる形だった。Windows は窓と同じ「巻の番号:ファイル番号:作った時刻 ns」。bake_selftest の
+/// the_scene_file_id_is_the_window_file_id）
 pub fn fid_of(p: &Path) -> String {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if let Ok(m) = std::fs::metadata(p) {
-            return format!("{}:{}", m.dev(), m.ino());
-        }
-    }
-    let _ = p;
-    String::new()
+    da_core::lists::file_id(p)
 }
 
 /// @FID(場面の道) を今のファイルID に
@@ -1621,7 +1651,7 @@ impl Bake {
         let url = if self.url_key.is_some() { serve_404() } else { String::new() };
         self.ctx.url(&url);
         let o = map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url));
-        map_values(&o, &|s| if s == "@USER@" { os_user().unwrap_or("").to_string() } else { s.to_string() })
+        unnamed_users(&o)
     }
 
     /// 場面が置いた物か（作業フォルダの中の道）

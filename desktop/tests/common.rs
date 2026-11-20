@@ -366,3 +366,12 @@ pub fn seeds_files(root: &std::path::Path, run: &serde_json::Value) -> serde_jso
     }
     out
 }
+
+/// 写しの様子（一覧の source・ダッシュボードの mirrors の 1 つ）のうち、窓と Python と焼いた表で同じになるはずの所（routes・dash・ops の試験）:
+/// 元の場所・間隔・古さのしきい・写したか・古いか（stale）・届かないか（unreachable）・理由。時刻（at・checkedAt・copiedAt）と古さの時間の数
+/// （ageHours）は流すまでの秒で動くので比べない（古いかは stale の真偽で比べる）。版 3.117.2 の作った後の採点の割れ 1: 前は stale・unreachable・
+/// reason も落とし、更新が止まった HOT の「古い」を窓のしきいを読み違えても表が素通りした
+pub fn mirror_part(v: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({"remote": v["remote"], "interval_sec": v["interval_sec"], "staleHours": v["staleHours"], "mirrored": v["mirrored"],
+                       "stale": v["stale"], "unreachable": v["unreachable"], "reason": v["reason"]})
+}

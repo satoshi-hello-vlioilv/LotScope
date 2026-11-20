@@ -300,6 +300,24 @@ fn only_the_work_folder_and_named_users_are_replaced() {
 }
 
 #[test]
+fn the_terminal_key_in_the_question_is_kept_without_the_user_and_comes_back() {
+    // 版 3.117.2: 答え合わせ役の問い合わせ（表の oracle）に入る名乗りの表（{key, pc}。ops の設定の答え access.who）の鍵が OS の利用者から
+    // 作った字そのものなら @USERKEY@ で持ち、作り直す時に今の利用者で作り直す（前は root で焼いた「PC-ORACLE@root」が root でない利用者で古いと読まれた）。
+    // 場面が決めた利用者の鍵（PC-1@boss）・pc の違う鍵はそのまま
+    let Some(u) = common::bake::os_user() else { return };
+    let mine = da_core::bundle::terminal_key(u, "PC-ORACLE");
+    let v = json!({"who": {"key": mine, "login": u, "pc": "PC-ORACLE"}, "other": {"key": "PC-1@boss", "pc": "PC-1"},
+                   "elsewhere": {"key": mine, "pc": "PC-2"}});
+    let kept = common::bake::named_users(&v, "");
+    assert_eq!(kept["who"], json!({"key": "@USERKEY@", "login": "@USER@", "pc": "PC-ORACLE"}));
+    assert_eq!(kept["other"], v["other"], "場面が決めた利用者の鍵はそのまま");
+    assert_eq!(kept["elsewhere"], v["elsewhere"], "となりの pc から作った字でなければそのまま");
+    assert_eq!(common::bake::unnamed_users(&kept), v, "作り直すと今の利用者の鍵");
+    // 変異: 作り直さない（印のまま窓に渡す）と元に戻らない
+    assert_ne!(kept, v);
+}
+
+#[test]
 fn the_repository_is_the_same_wherever_it_is_checked_out() {
     // 版 3.115.0 の 2 回目の直し: リポジトリの道は @REPO。家の下にある PC（CI の /home/runner/work/…）でも @HOME/… にならない
     let base = common::work("bake-repo");
@@ -793,5 +811,28 @@ fn the_host_name_is_settled_only_in_the_pc_field() {
         json!({"name": host, "text": format!("{host} から")})
     );
     assert_eq!(settle_with(&who(host), &ctx, &[], Some("@HOST"))["who"]["pc"], json!(host), "決まりを外すとホスト名が残る");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn the_scene_file_id_is_the_window_file_id() {
+    // 版 3.117.2 の作った後の採点の割れ 2: 場面の @FID(道) を作り直す字（bake::fid_of）は窓のファイルID（lists::file_id）と同じ字で、空でなく、
+    // 名前を変えても同じ（名前の変わった HOT を同じファイルID でたどる routes の歩）。前の試験は unix の写しだけで、Windows では空だった。
+    // Windows の CI でも流れる（cargo test の bake_selftest）
+    let base = common::work("bake-fid");
+    let a = base.join("実績_HOT.sqlite3");
+    std::fs::write(&a, b"x").unwrap();
+    let fid = common::bake::fid_of(&a);
+    assert!(!fid.is_empty(), "ファイルID が空（この OS の形が無い）");
+    assert_eq!(fid, da_core::lists::file_id(&a), "窓のファイルID と同じ字");
+    let b = base.join("実績_HOT_2026.sqlite3");
+    std::fs::rename(&a, &b).unwrap();
+    assert_eq!(common::bake::fid_of(&b), fid, "名前を変えても同じファイルID");
+    assert!(da_core::lists::same_fid(&fid, &da_core::lists::file_id(&b)));
+    // 別のファイルは違う ID（握ったままの a の後に作る）
+    let c = base.join("実績_BAD.sqlite3");
+    std::fs::write(&c, b"y").unwrap();
+    assert_ne!(common::bake::fid_of(&c), fid, "別のファイルは違うファイルID");
+    assert_eq!(common::bake::fid_of(&base.join("無い.sqlite3")), "", "無いファイルは空");
     let _ = std::fs::remove_dir_all(&base);
 }

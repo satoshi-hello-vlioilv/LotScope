@@ -24,11 +24,15 @@ sys.path.insert(0, str(PROGRAM))
 sys.path.insert(0, str(PROGRAM / "tools"))
 # 窓（Rust）が段取りも受け持つ形の設定の答え（engine は rust のまま）。写しの係は ui_server が渡す本物（写す係）なので受け身にならない
 os.environ.update(TPA_SHELL="desktop", TPA_SHELL_SERVES="lotlist,lists")
+# 場面は窓の試験の作業フォルダの下（1 つ目の引数。版 3.117.2: 前は ui_server の /tmp/tpa-ui-*）。場面の元のファイルは台本 tests/ui_scene.py
+if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    os.environ["TPA_UI_WORK"] = sys.argv[1]
 
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 import ui_server  # noqa: E402
 from app.routes.common import forget_tab_cache  # noqa: E402
 from ui_server import as_role, build  # noqa: E402
+from tests import ui_scene  # noqa: E402
 
 COND = [["合金", "材質"], ["調質", "質別"]]
 
@@ -60,21 +64,17 @@ def main():
     import sqlite3
     bench = "--bench" in sys.argv
     as_role("開発者")                    # データ元を直せる権限（開発用サーバーと同じ）
-    app = build(quality=20000, work_rows=2000, wip=20000) if bench else build(quality=600, work_rows=150, wip=400)
+    app = build(quality=20000, work_rows=2000, wip=20000, cm3=False, pc_name="PC-ORACLE") if bench else build(quality=600, work_rows=150, wip=400, cm3=False, pc_name="PC-ORACLE")
     c = app.test_client()
     repo = MasterRepository(app.config["MASTER_STORE"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     folder = ui_server.WORK / "【New】実績"
-    # 空白で埋まる値（版 3.51.1 の空欄の決まり: 前後の半角・全角の空白・タブを除いて空なら空欄。一覧・スライサー・集計で同じ）
+    # 場面の台本の手直し（空白で埋まる値・カラムの札の見本・名前の変わった HOT・設備ごとの表の TLV・中身が SQLite でない BAD）
     from app.services import lot_list
     qdb = sqlite3.connect(app.config["APP_SETTINGS"]["lot_list"]["source"])
-    qt = lot_list.pick_table(lot_list.tables(qdb))
-    for i, v in zip([r[0] for r in qdb.execute(f'SELECT rowid FROM "{qt}" ORDER BY rowid LIMIT 32')], ["  ", "\u3000", "\t", " ﾃｽﾄ ", "ﾃｽﾄ", "", None, " \u3000 "] * 4):
-        qdb.execute(f'UPDATE "{qt}" SET 備考 = ? WHERE rowid = ?', (v, i))
-    # カラムの札の見本の数（先頭 300 個の空でない値がみな数なら数の列）: 100 行目の長さを字にする（30 個しか見ないと数の列に見える）
-    qdb.execute(f'UPDATE "{qt}" SET 長さ = ? WHERE rowid = (SELECT rowid FROM "{qt}" ORDER BY rowid LIMIT 1 OFFSET 100)', ("約 3m",))
-    qdb.commit()
+    assert lot_list.pick_table(lot_list.tables(qdb)) == ui_scene.QUALITY_TABLE, "品質の表は台本の決めた表"
     qdb.close()
+    ui_scene.routes(ui_server.WORK)
     # 開発用サーバーは品質の写しの係を作業フォルダの share.sqlite3 で渡す（中身は設定の場所の写しと同じ）。窓は設定の場所を写すので、
     # Python の係も設定の場所に合わせる（製品では、どちらも同じ設定から作る）
     app.config["LOT_MIRROR"].reconfigure(remote=app.config["APP_SETTINGS"]["lot_list"]["source"])
@@ -96,24 +96,14 @@ def main():
     held = r.get_json()["row"]["キー"]
     hidden = keys["DL2"]
     repo.work_log_update(hidden["id"], {"表示": "無"})
-    # 名前の変わったファイル（HOT: 登録のあとに名前を変えた。同じファイルID でたどる）・大文字小文字の違う登録名（L-1）・
-    # 設備ごとの表（TLV は「別表」を読む）
-    hdb = sqlite3.connect(folder / "実績_HOT.sqlite3")
-    hdb.execute("CREATE TABLE 仕掛 AS SELECT ロット番号, 合金 FROM 実績 LIMIT 3")
-    hdb.commit()
-    hdb.close()
-    (folder / "実績_HOT.sqlite3").rename(folder / "実績_HOT_2026.sqlite3")
+    # 名前の変わったファイル（HOT: 登録のあとに名前を変えた。同じファイルID でたどる。台本）・大文字小文字の違う登録名（L-1）・
+    # 設備ごとの表（TLV は「別表」を読む。表は台本）
     repo.work_log_update(keys["L-1"]["id"], {"ファイル名": "実績_l-1.SQLITE3"})
-    db = sqlite3.connect(folder / "実績_TLV.sqlite3")
-    db.execute("CREATE TABLE 別表 AS SELECT ロット番号, 作業者, 重量, 合金, 調質 FROM 実績 WHERE 作業者 = '作業者A'")
-    db.commit()
-    db.close()
     repo.work_log_update(keys["TLV"]["id"], {"表": "別表"})
-    # 写しを作れない設備（中身が SQLite でない）: 一覧は「写しています」の 503 と理由・再読込は見送った理由を答える（写しが無くてよい）
-    (folder / "実績_BAD.sqlite3").write_text("SQLite ではない中身", encoding="utf-8")
+    # 写しを作れない設備（中身が SQLite でない。台本が作る）: 一覧は「写しています」の 503 と理由・再読込は見送った理由を答える（写しが無くてよい）
     from app.services import work_log
-    # 名前だけで登録する（ファイルID を空に）: 登録のあとに消えた SL3 のファイル番号を、新しい BAD がたまたま使い回すと、
-    # 「探す」が BAD を名前の変わった SL3 とたどって BAD の行ができない（Linux の file_id は作った時刻を持たない）
+    # 名前だけで登録する（ファイルID を空に）。SL3 のファイルは台本が消さずに keep/ へ握ったまま移すので、BAD が SL3 のファイル番号を
+    # 使い回すことはない（版 3.117.2 の採点 first_fixes 6: 前は ext4 と tmpfs で SL3・BAD の答えが入れ替わった）
     repo.work_log_sync([{**f, "fid": ""} for f in work_log.scan(folder, "実績_*.sqlite3") if f["file"] == "実績_BAD.sqlite3"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     eq = {n: keys[n]["キー"] for n in ("CAL", "CR2", "ANF", "SL3", "HOT", "L-1", "TLV", "BAD")}
@@ -239,7 +229,14 @@ def main():
     forget_tab_cache()
     phases.append({"name": "一般ユーザー", "asks": ask_all(c, second), "settings": c.get("/api/lotlist/settings").get_json()})
     sys.stdout.reconfigure(encoding="utf-8")
-    json.dump({"phases": phases, "python": "/api/src/sch"}, sys.stdout, ensure_ascii=False)
+    # sceneMade: 場面の台本が作ったファイル・fids: そのファイルID（焼いた表は登録のマスタの中のファイルID を @FID にする）・
+    # named: 名前つきの歩（SL3 は 404・missing／BAD は 503・copying。first_fixes 6 を窓の試験が言う）
+    # HOT（更新が止まった 40 時間前）は一覧の写しの様子が stale=true（版 3.117.2 の作った後の採点の割れ 1）
+    named = {"SL3": f"GET /api/worklog?{urlencode({'equip': eq['SL3']})}", "BAD": f"GET /api/worklog?{urlencode({'equip': eq['BAD']})}",
+             "HOT": f"GET /api/worklog?{urlencode({'equip': eq['HOT'], 'page_size': '20'})}"}
+    json.dump({"phases": phases, "python": "/api/src/sch", "named": named,
+               "sceneMade": ui_scene.made_files(ui_server.WORK), "fids": ui_scene.fid_names(ui_server.WORK, work_log.file_id)},
+              sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,6 @@
 """
 import json
 import os
-import shutil
 import sys
 import tempfile
 import time
@@ -22,7 +21,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
-WORK = Path(tempfile.mkdtemp(prefix="tpa-ui-"))
+# 作業フォルダ: 答え合わせ役（tests/*_oracle.py）は窓の試験の作業フォルダの下を渡す（環境変数 TPA_UI_WORK。版 3.117.2: 前は /tmp/tpa-ui-* で、
+# 焼いた表の場面に書けなかった）。開発用サーバーは一時フォルダ
+WORK = Path(os.environ["TPA_UI_WORK"]) if os.environ.get("TPA_UI_WORK") else Path(tempfile.mkdtemp(prefix="tpa-ui-"))
+WORK.mkdir(parents=True, exist_ok=True)
 os.environ["TRANSFER_LOCAL_ROOT"] = str(WORK / "local")      # 画面の設定の控え・ログの置き場（create_app より前に決める）
 sys.path.insert(0, str(PROGRAM))
 
@@ -30,13 +32,13 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, data_join, data_sources, display_formats, equip_groups, schedule, shifts, work_log  # noqa: E402
+from app.services import access, data_join, data_sources, display_formats, equip_groups, identity, schedule, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
-from tests import lotlist_fixture, schedule_fixture  # noqa: E402
+from tests import lotlist_fixture, schedule_fixture, ui_scene  # noqa: E402
 
 
-WORK_EQUIPMENT = ("CR1", "CR2", "L-1", "L-2", "TLV", "LS3", "DL2", "CAL", "ANF", "HOT", "SL1")
+WORK_EQUIPMENT = ui_scene.WORK_EQUIPMENT
 
 
 def as_role(role):
@@ -65,43 +67,36 @@ def seed_formats(repo):
         repo.format_create(display_formats.clean_row({"name": name, "source": "work", "table": "実績", "origin": origin, "body": body, "note": note}))
 
 
-def build(quality=1500, work_rows=400, wip=1200):
-    """試験データを作業フォルダに作り、それを参照先にしたアプリを返す（撮影の ui_server と、速さを測る rust-port-bench.py が共有）。
-    quality・work_rows・wip は品質データの行・設備 1 台の作業実績の行・仕掛のロットの数（既定は撮影の形）。"""
-    share = WORK / "share.sqlite3"
-    lotlist_fixture.make(str(share), quality)
-    # 作業実績: 設備ごとの実績ファイル（実績_<設備>.sqlite3）を 12 台ぶん。1 台（SL3）は登録のあとにファイルが無くなった形
-    folder = WORK / "【New】実績"
-    folder.mkdir()
-    for eq in WORK_EQUIPMENT + ("SL3",):
-        lotlist_fixture.make_work(str(folder / f"実績_{eq}.sqlite3"), eq, n=work_rows)
-    # 焼鈍炉（ANF。版 3.47.0）: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列（14 桁）だけ・書き忘れ 2 回・いま炉の中（ガントの「区間なし」「作業中」「前から続く」を撮る）
-    lotlist_fixture.make_work_box(str(folder / "実績_ANF.sqlite3"), "ANF")
-    # 手元のみのマスタは base/data に書く。同梱のマスタを作業フォルダへ写して渡す（画面で直してもリポジトリを汚さない）
-    shutil.copytree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
+def fixed_keys():
+    """作業実績の設備のキーとデータ元のキーを、呼んだ順の番号から決める（版 3.117.2。tests/ui_scene.key_makers。乱数のキーだと、
+    答え合わせ役の問い合わせ〈equip=キー〉と焼いた表の場面が流すたびに替わる。開発用サーバーも同じ）"""
+    work_log.new_key, data_sources.new_key = ui_scene.key_makers()
+
+
+def build(quality=1500, work_rows=400, wip=1200, cm3=True, pc_name=""):
+    """試験データを作業フォルダに作り、それを参照先にしたアプリを返す（撮影の ui_server と、速さを測る rust-port-bench.py と、答え合わせ役
+    tests/routes_oracle.py・pivot_oracle.py・dashboard_oracle.py が共有）。quality・work_rows・wip は品質データの行・設備 1 台の作業実績の行・
+    仕掛のロットの数（既定は撮影の形）。元のファイルは場面の台本 tests/ui_scene.py が作る（版 3.117.2。答え合わせ役の場面と作り方を 1 か所に）。
+    cm3 … 作り物の CM3 を起こすか（答え合わせ役は起こさない: 流すたびに変わるポートを設定に持たない。CM3 の URL は閉じた口）。
+    pc_name … この端末の名前（答え合わせ役が決める: マスタの書いた人〈updated_by.pc〉に焼いた PC の名前を持たない。空ならこの PC の名前）"""
+    fixed_keys()
+    made = ui_scene.make(WORK, quality, work_rows, wip)
+    share, folder = made["share"], made["folder"]
     settings = app_env.load_settings(PROGRAM)
     settings["work_log"] = {**settings.get("work_log", {}), "folder": str(folder)}
     # 配った設定の作業実績の古さの時間を数でない字にする（版 3.106.0。ui-eval-numwarn.mjs が「設定が数でない」の札と案内を撮る・確かめる）
     if os.environ.get("TPA_UI_WORK_STALE"):
         settings["work_log"]["stale_hours"] = os.environ["TPA_UI_WORK_STALE"]
-    # フォルダ・ファイルの欄の補助（参照… の窓・よく使う場所）を撮るための共有の形: 品質データの元ファイル・前のマスタの置き場・配布の置き場
-    shared = WORK / "共有"
-    for sub in ("検査データ", "旧_2025", "台帳"):
-        (shared / sub).mkdir(parents=True)
-    shutil.copy(share, shared / "台帳" / "SIKADEF.sqlite3")
-    lotlist_fixture.make_wip(str(shared / "台帳" / "LOTNOW.sqlite3"), n=wip)       # 仕掛（データ元 wip の既定と同じ名前）
-    # スケジュール（版 3.57.0）: 仕掛に釜番の列を足し（ほかの列・値は変えない）、仕掛のロットで作った作り物の CM3 を起こす
-    schedule_fixture.add_kama(shared / "台帳" / "LOTNOW.sqlite3")
-    _cm3, cm3_url = schedule_fixture.serve(schedule_fixture.responses(shared / "台帳" / "LOTNOW.sqlite3"))
-    (shared / "Masters_旧").mkdir()
-    (shared / "Masters_旧" / "path_settings.json").write_text('{"rows": []}', encoding="utf-8")
-    (shared / "配布" / "LotScope" / "3.27.0").mkdir(parents=True)
-    (shared / "配布" / "LotScope" / "3.27.0" / "release.json").write_text("{}", encoding="utf-8")
-    settings["lot_list"] = {**settings.get("lot_list", {}), "source": str(shared / "台帳" / "SIKADEF.sqlite3")}
-    settings["update"] = {**settings.get("update", {}), "source": str(shared / "配布" / "LotScope")}
+    # スケジュール（版 3.57.0）: 仕掛のロットで作った作り物の CM3 を起こす
+    cm3_url = schedule_fixture.serve(schedule_fixture.responses(made["wip"]))[1] if cm3 else "http://127.0.0.1:1"
+    settings["lot_list"] = {**settings.get("lot_list", {}), "source": str(made["quality"])}
+    settings["update"] = {**settings.get("update", {}), "source": str(made["update"])}
     settings["schedule"] = {**settings.get("schedule", {}), "cm3_base_url": cm3_url}
+    if pc_name:
+        settings["identity"] = {**settings.get("identity", {}), "pc_name": pc_name}
+        identity.set_override(pc_name)        # MasterStore は作るときに名乗りを覚える（create_app より前に作る）
     settings["sources"] = {**settings.get("sources", {}), "wip": {**settings.get("sources", {}).get("wip", {}),
-                                                                  "source": str(shared / "台帳" / "LOTNOW.sqlite3")}}
+                                                                  "source": str(made["wip"])}}
     # マスタの置き場（版 3.110.0。読めない行の面・確かめの窓の言葉を置き場ごとに撮る）: 既定は手元のみ。TPA_UI_SHARE=shared は共有の
     # フォルダ、down は共有に届かない形（支度を共有で済ませた後に共有のフォルダの名前を替える）
     share_mode = os.environ.get("TPA_UI_SHARE", "")
@@ -129,14 +124,9 @@ def build(quality=1500, work_rows=400, wip=1200):
     repo.equip_group_create(equip_groups.clean_row({"name": "L ライン", "set": "ライン別", "equipment": [], "rules": [{"op": "prefix", "value": "L-"}],
                                                     "note": "名前が L- で始まる設備"}))
     # マスタのデータ元（版 3.53.0）: 製造条件マスタ（材質＋質別）と設備マスタ（設備名）。見出しの「マスタ」のタブに並ぶ
-    for i, (name, path) in enumerate(lotlist_fixture.make_masters(shared / "マスタ").items(), 1):
+    for i, (name, path) in enumerate(made["masters"].items(), 1):
         repo.data_source_put(f"m{i:07d}", data_sources.clean_row({"表示名": name, "場所": str(path), "役割": "マスタ", "並び": str(i)},
                                                                  key=f"m{i:07d}"), 0)
-    # 配る版の覚えの写し（窓が作業場所へ写す want.json）: 全員のマスタの置き場（ui-harness.mjs の RELEASE と同じ。この PC は手元のみ＝ずれた形）
-    (WORK / "masters").mkdir(parents=True, exist_ok=True)
-    (WORK / "masters" / "want.json").write_text(json.dumps({"schema": 1, "version": "3.12.0", "masters": {
-        "dir": "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters", "setAt": "2026-10-15T14:30:00", "setBy": "user", "setPc": "PC-01"}},
-        ensure_ascii=False), encoding="utf-8")
     # 置き場の読めない行（版 3.107.0。ui-eval-skiprows.mjs が一覧の知らせの札を撮る・確かめる）: 手で直して壊した行を、手元のマスタの
     # ファイル（base/data。行の配列）へ足す。名前が数・版が読めない・中身に NaN・id が字の行
     if os.environ.get("TPA_UI_BAD_ROWS"):
@@ -161,9 +151,8 @@ def build(quality=1500, work_rows=400, wip=1200):
             f.write_text(json.dumps(have + rows, ensure_ascii=False, indent=2), encoding="utf-8")
     if share_mode == "down":
         master_share.rename(master_share.with_name("マスタ共有_届かない"))
-    (folder / "実績_SL3.sqlite3").unlink()
-    old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
-    os.utime(folder / "実績_HOT.sqlite3", (old, old))
+    # 1 台（SL3）は登録のあとにファイルが無くなった形（場面の外 keep/ へ握ったまま移す）・1 台（HOT）は更新が止まった形（流した時の 40 時間前。ui_scene.HOT_STALE_HOURS）
+    ui_scene.finish(WORK)
     return app
 
 

@@ -26,9 +26,7 @@
 import argparse
 import json
 import os
-import random
 import shutil
-import sqlite3
 import sys
 import tempfile
 import time
@@ -36,81 +34,25 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
-WORK = Path(tempfile.mkdtemp(prefix="tpa-ops-"))
+# 作業フォルダ: 答え合わせ役（tests/ops_oracle.py）は窓の試験の作業フォルダの下を渡す（環境変数 TPA_OPS_WORK。版 3.117.2: 前は /tmp/tpa-ops-*）
+WORK = Path(os.environ["TPA_OPS_WORK"]) if os.environ.get("TPA_OPS_WORK") else Path(tempfile.mkdtemp(prefix="tpa-ops-"))
+WORK.mkdir(parents=True, exist_ok=True)
 os.environ["TRANSFER_LOCAL_ROOT"] = str(WORK / "local")
 sys.path.insert(0, str(PROGRAM))
 
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import shifts, work_log  # noqa: E402
+from app.services import identity, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
+from tests import scene_files, ui_scene  # noqa: E402
 
-NOW = datetime(2026, 10, 3, 10, 0)                       # 前日（現場歴）は 10/2。交替勤務で 10/2 7:00〜10/3 7:00
+# 設備ごとの書き方と正しい作業の並びは場面の台本 tests/ui_scene.py（版 3.117.2。答え合わせ役の場面と作り方を 1 か所に）
+NOW = ui_scene.OPS_NOW
 VIEW = (datetime(2026, 10, 2, 7, 0), datetime(2026, 10, 3, 7, 0))
-FIRST = datetime(2026, 9, 22, 7, 0)                       # 作業を並べ始める時刻
-KINDS = ("STD", "YMDHMS", "ONLY14", "AMPM", "SERIAL", "TIMECOL", "FURNACE", "NIGHT", "BLANKEND")
-S0, E0, S14, E14 = "BOX実績_作業開始_日付", "BOX実績_作業終了_日付", "BOX実績_作業開始_年月日時分秒", "BOX実績_作業終了_年月日時分秒"
-ST, ET = "BOX実績_作業開始_時刻", "BOX実績_作業終了_時刻"
-
-
-def ops_of(kind, seed=3):
-    """正しい作業の並び [(作業開始, 作業終了 か None, 分割の本数, 合金)]（作業開始の順。前の作業の終わりの後に次を始める）"""
-    r = random.Random(f"{seed}-{kind}")
-    out, t = [], FIRST
-    while t < NOW - timedelta(hours=3):
-        dur = timedelta(minutes=r.randint(20 * 60, 60 * 60) if kind == "FURNACE" else r.randint(25, 170))
-        end = None if kind == "BLANKEND" and r.random() < 0.3 else t + dur
-        out.append((t, end, r.choice([1, 1, 1, 2, 3]), r.choice(["A1100", "A5052", "A3004"])))
-        t = t + dur + timedelta(minutes=r.randint(3, 50))
-    # いま（NOW）より後に終わる作業は、いま作業中（作業終了がまだ無い）。その後ろは無い
-    return [(s, e if e is None or e < NOW else None, k, a) for s, e, k, a in out if s < NOW]
-
-
-def _jp(t):
-    return f"{t:%Y/%m/%d} {t.hour}:{t.minute:02d}:00"
-
-
-def _ampm(t):
-    return f"{t:%Y/%m/%d} {'午前' if t.hour < 12 else '午後'} {t.hour % 12}:{t.minute:02d}:00"
-
-
-def _serial(t):
-    return (t - datetime(1899, 12, 30)).total_seconds() / 86400
-
-
-def cells(kind, s, e):
-    """書き方ごとの列と値 → {列: 値}"""
-    if kind in ("STD", "FURNACE", "BLANKEND"):
-        return {S0: _jp(s), E0: _jp(e) if e else ""}
-    if kind == "YMDHMS":
-        return {S0: f"{s:%Y/%m/%d}", E0: f"{e:%Y/%m/%d}" if e else "", S14: f"{s:%Y%m%d%H%M%S}", E14: f"{e:%Y%m%d%H%M%S}" if e else ""}
-    if kind == "ONLY14":
-        return {S14: f"{s:%Y%m%d%H%M%S}", E14: f"{e:%Y%m%d%H%M%S}" if e else ""}
-    if kind == "AMPM":
-        return {S0: _ampm(s), E0: _ampm(e) if e else ""}
-    if kind == "SERIAL":
-        return {S0: _serial(s), E0: _serial(e) if e else None}
-    if kind == "TIMECOL":
-        return {S0: f"{s:%Y/%m/%d}", ST: f"{s:%H:%M:%S}", E0: f"{e:%Y/%m/%d}" if e else "", ET: f"{e:%H:%M:%S}" if e else ""}
-    if kind == "NIGHT":
-        return {S0: _jp(s), E0: f"{s:%Y/%m/%d} {e.hour}:{e.minute:02d}:00" if e else ""}
-    raise ValueError(kind)
-
-
-def write(path, kind, ops):
-    rows = []
-    n = 0
-    for s, e, k, alloy in ops:
-        for _ in range(k):
-            n += 1
-            rows.append({"ロット番号": f"L{n:05d}", **cells(kind, s, e), "合金": alloy})
-    cols = list(dict.fromkeys(c for r in rows for c in r))
-    c = sqlite3.connect(path)
-    c.execute("CREATE TABLE 実績 (" + ",".join(f"[{x}]" for x in cols) + ")")
-    c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(cols)) + ")", [[r.get(x) for x in cols] for r in rows])
-    c.commit()
-    c.close()
+KINDS = ui_scene.KINDS
+S0, E0, S14, E14, ST, ET = ui_scene.S0, ui_scene.E0, ui_scene.S14, ui_scene.E14, ui_scene.ST, ui_scene.ET
+ops_of = ui_scene.ops_of
 
 
 def busy(ops, a, b):
@@ -133,14 +75,15 @@ def busy(ops, a, b):
 
 
 def build():
+    # キーは呼んだ順の番号から（tests/ui_scene.key_makers。答え合わせ役の場面が流すたびに替わらない）
+    work_log.new_key = ui_scene.key_makers()[0]
     folder = WORK / "実績"
-    folder.mkdir()
-    truth = {}
-    for kind in KINDS:
-        truth[kind] = ops_of(kind)
-        write(folder / f"実績_{kind}.sqlite3", kind, truth[kind])
-    shutil.copytree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
-    settings = {"lot_list": {"source": ""}, "work_log": {"folder": str(folder), "pattern": "実績_*.sqlite3", "refresh_seconds": 3600}}
+    truth = ui_scene.ops_bench(WORK)
+    scene_files.copy_tree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
+    # この端末の名前は決める（答え合わせ役 tests/ops_oracle.py の場面のマスタの書いた人〈updated_by.pc〉に焼いた PC の名前を持たない）
+    settings = {"lot_list": {"source": ""}, "work_log": {"folder": str(folder), "pattern": "実績_*.sqlite3", "refresh_seconds": 3600},
+                "identity": {"pc_name": "PC-ORACLE"}}
+    identity.set_override("PC-ORACLE")       # MasterStore は作るときに名乗りを覚える（create_app より前に作る）
     app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}), "APP_SETTINGS": settings,
                       "LOT_MIRROR": DbMirror("lot_list", "", WORK / "cache"),
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"), "WORK_LISTING": work_log.Listing(ttl=0),
