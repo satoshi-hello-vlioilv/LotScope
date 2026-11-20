@@ -53,7 +53,7 @@ jobs:
       - name: 窓を作る部品（WebKitGTK）と画面の無い X
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev xvfb
       # 手元と同じ版（clippy は版が上がると決まりが増え、手元で通った物が落ちる）。上げるときは手元と一緒に上げる
       - uses: dtolnay/rust-toolchain@1.97.0
         with:

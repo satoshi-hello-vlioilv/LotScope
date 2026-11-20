@@ -7,7 +7,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import os
+import urllib.error
 import urllib.request
+from unittest import mock
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
@@ -43,6 +46,17 @@ class FakesServe(unittest.TestCase):
         self.assertEqual((status, body["status"], len(body["entity"]["meisaiList"]) >= 6), (200, "SUCCESS", True))
         self.stop(p)
 
+    def test_builder_serves_cm3_and_proxies(self):
+        """組む所の本の作り物（版 3.117.1 の作った後の直し・割れ 2）: どの道にも 404 の CM3（http・https・信頼しない https）とプロキシ"""
+        p, first = self.start("builder")
+        self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3bad", "cm3tls", "deny", "relay"])
+        self.assertTrue(first["urls"]["cm3tls"].startswith("https://") and first["urls"]["cm3bad"].startswith("https://"))
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            DIRECT.open(first["urls"]["cm3"] + "/x", timeout=5)
+        self.assertEqual(e.exception.code, 404)
+        e.exception.close()
+        self.stop(p)
+
     def test_schedule_answers_what_it_was_asked(self):
         """スケジュールの作り物: 場面ごとの答えと、受けた要求の数（ask）。仕掛の SQLite は引数で渡す"""
         from tests import lotlist_fixture, schedule_fixture
@@ -51,7 +65,10 @@ class FakesServe(unittest.TestCase):
             lotlist_fixture.make_wip(str(wip), n=40)
             schedule_fixture.add_kama(wip)
             p, first = self.start("schedule", str(wip))
-            self.assertEqual(sorted(first["urls"]), ["cm3", "hole"])
+            # 版 3.117.1: https の作り物（tls・tlsname・tlsbad・TLS でない口 plain）とプロキシ（中継 relay_py・relay_rs・黙る・断る・407）も名乗る。
+            # 作った後の直し（割れ 5・7）: 届いた後に切る cut・CONNECT の答えの見出しが 101 の many・見出しの行が長い long
+            self.assertEqual(sorted(first["urls"]), ["auth", "cm3", "cm3local", "cut", "deny", "hole", "long", "many", "plain", "relay_py",
+                                                     "relay_rs", "silent", "tls", "tlsbad", "tlsname"])
 
             def ask(line):
                 p.stdin.write(line + "\n")
@@ -66,6 +83,17 @@ class FakesServe(unittest.TestCase):
             self.assertEqual(ask("count rs sjis"), 1)
             self.assertEqual(len(ask("requests rs sjis")), 1)
             self.assertEqual(ask("count py sjis"), 0, "係（道の頭）ごとに数える")
+            # 中継のプロキシ越しの http（「POST http://… HTTP/1.1」を道にして送る）と、受けた要求の行（proxylog は読んだら空にする）
+            via = urllib.request.build_opener(urllib.request.ProxyHandler({"http": first["urls"]["relay_rs"]}))
+            req = urllib.request.Request(first["urls"]["cm3"] + "/rs/ok/init", data=json.dumps({"setsubiName": "L-1"}).encode("utf-8"))
+            # この PC の no_proxy（127.0.0.1 を直にする）を読まない
+            with mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy")}, clear=True), \
+                    via.open(req, timeout=5) as r:
+                self.assertEqual(json.loads(r.read().decode("utf-8"))["status"], "SUCCESS")
+            log = ask("proxylog relay_rs")
+            self.assertEqual([x["line"].split(" ")[0] for x in log], ["POST"])
+            self.assertTrue(log[0]["line"].split(" ")[1].startswith("http://127.0.0.1:"))
+            self.assertEqual(ask("proxylog relay_rs"), [])
             self.stop(p)
 
     def test_non_ascii_answers_survive_a_non_utf8_pipe_under_isolated_mode(self):
@@ -111,3 +139,41 @@ class FakesServe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProxyAnswers(unittest.TestCase):
+    """作り物のプロキシは、断る答え（403・407）を本文を読み切ってから送り、切らずに閉じる（版 3.117.1 の Windows の CI の直し）。
+    本文を読み残したまま閉じると OS が RST を送り、Windows では相手が受け取り済みの答えまで捨てる（Python だけ「プロキシの先で切れた」になり、
+    窓は 403 で割れた）。ここでは本文を見出しより遅れて送り、本文が届くまで答えが来ないこと（＝読み残しが無い）と、答えの後が静かな終わりであることを見る
+    （Linux は RST の後も答えを読めるので、割れそのものは Windows でしか起きない。前の形はこの「本文より先に答えない」で落ちる）"""
+
+    def ask_late(self, mode):
+        import socket
+        sys.path.insert(0, str(PROGRAM / "tests"))
+        try:
+            import fakes_schedule
+        finally:
+            sys.path.pop(0)
+        p = fakes_schedule.Proxy(mode)
+        self.addCleanup(p.sock.close)
+        body = b'{"k": "v"}' * 50
+        c = socket.create_connection(("127.0.0.1", p.port), timeout=5)
+        self.addCleanup(c.close)
+        c.sendall(b"POST http://cm3.invalid/x HTTP/1.1\r\nHost: cm3.invalid\r\nContent-Length: %d\r\n\r\n" % len(body))
+        import select
+        early, _, _ = select.select([c], [], [], 0.3)  # 見出しだけを読んで答える形なら、ここで答えが来ている（その後の本文が RST を呼ぶ）
+        self.assertEqual(early, [], "本文が届く前に答えた（本文を読み残して閉じる形）")
+        c.sendall(body)
+        got = b""
+        while True:
+            d = c.recv(65536)  # 切られていれば ConnectionResetError
+            if not d:
+                break
+            got += d
+        return got
+
+    def test_a_denying_proxy_answers_after_the_body_and_closes_quietly(self):
+        self.assertTrue(self.ask_late("deny").startswith(b"HTTP/1.1 403 Forbidden\r\n"))
+
+    def test_a_proxy_asking_for_auth_answers_after_the_body_and_closes_quietly(self):
+        self.assertTrue(self.ask_late("auth").startswith(b"HTTP/1.1 407 "))

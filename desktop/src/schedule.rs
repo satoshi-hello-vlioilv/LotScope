@@ -71,6 +71,7 @@ fn defaults() -> Map<String, Value> {
         "inspect_keywords": "点検板",
         "timeout_sec": 15,
         "use_system_proxy": false,
+        "fetch_engine": "window",
         "cache_sec": 10,
         "auto_refresh_sec": 60,
     })
@@ -195,7 +196,7 @@ impl Cfg {
     /// 取りに行く設定（状態の resigned.for。Python の受け身の係が自分の設定と比べる）
     pub fn fetch_conf(&self) -> Value {
         let mut o = Map::new();
-        for k in ["cm3_base_url", "init_path", "client_ip", "timeout_sec", "use_system_proxy"] {
+        for k in ["cm3_base_url", "init_path", "client_ip", "timeout_sec", "use_system_proxy", "fetch_engine"] {
             o.insert(k.into(), self.m.get(k).cloned().unwrap_or(Value::Null));
         }
         Value::Object(o)
@@ -213,7 +214,8 @@ impl Cfg {
         pstr(&self.m["cm3_base_url"]).unwrap_or_default()
     }
 
-    /// 窓が取りに行ける設定か（取りに行く前に分かる物。Python は https・プロキシ・数でない timeout などを自分で取る）
+    /// 窓が取りに行ける設定か（取りに行く前に分かる物）。版 3.117.1 から https とシステムのプロキシも窓が取る（段 ③-6）。
+    /// 配った設定の schedule.fetch_engine が "python" のときだけ係を降りる（戻り道。段 ④ まで残す）
     pub fn fetch_plan(&self) -> R<(String, String, Duration)> {
         let base_v = &self.m["cm3_base_url"];
         let base = if truthy(base_v) { cm3::py_str(&Tree::from_value(base_v))? } else { String::new() };
@@ -221,15 +223,25 @@ impl Cfg {
         if base.is_empty() {
             return Err(Fail::Cm3("CM3 の場所（参照先の「CM3 の URL」）が決まっていません".into()));
         }
-        if truthy(&self.m["use_system_proxy"]) {
-            return Err(Fail::Python("システムのプロキシ（環境変数・Windows の設定。窓は読まない）"));
+        if self.python_engine() {
+            return Err(Fail::Python("配った設定の schedule.fetch_engine が python（前の道: Python が CM3 を取る）"));
         }
         let iv = &self.m["init_path"];
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
         let secs = timeout_secs(&self.m["timeout_sec"]);
         let url = format!("{base}{init}");
-        crate::cm3_http::target(&url)?;
+        crate::cm3_http::target_with(&url, true)?;
         Ok((url, base, Duration::from_secs_f64(secs)))
+    }
+
+    /// 戻り道（fetch_engine が "python"。字の前後の空白と大文字小文字は見ない）
+    pub fn python_engine(&self) -> bool {
+        pstr(&self.m["fetch_engine"]).is_some_and(|s| crate::pyfmt::strip(&s).eq_ignore_ascii_case("python"))
+    }
+
+    /// 問い合わせの仕方（use_system_proxy が真ならこの PC の環境変数・Windows の設定のプロキシ）
+    pub fn net(&self) -> crate::cm3_http::Net {
+        crate::cm3_http::Net { proxy: truthy(&self.m["use_system_proxy"]).then(crate::sysproxy::System::read) }
     }
 }
 
@@ -669,7 +681,8 @@ impl Schedules {
             ("urlTermKbn".into(), Tree::Str(e.term_kbn.clone())),
         ]);
         let body = payload.dumps(", ", ": ");
-        let r = crate::cm3_http::post(url, base, body.as_bytes(), timeout)?;
+        let (r, via) = crate::cm3_http::post_cm3(url, base, body.as_bytes(), timeout, &cfg.net());
+        let r = r?;
         let text = cm3::decode_body(&r.body, r.header("Content-Type"))?;
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
         // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
@@ -680,7 +693,12 @@ impl Schedules {
             return Err(Fail::Python("JSON の読みが Python と割れる（NaN・大きな整数・深い入れ子）"));
         }
         let Some(raw) = Tree::parse(&text) else { return Err(Fail::Cm3("CM3の応答がJSONではありません".into())) };
-        cm3::normalize(&raw, &e.code, &cfg.inspect)
+        let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect)?;
+        // 取った道（版 3.117.1: 取った係・https か・直かプロキシ越しか。スケジュールのタブのデータの時刻の title に出す）
+        if let Some(v) = via {
+            data["via"] = json!({"engine": "rs", "tls": v.tls, "proxy": v.proxy});
+        }
+        Ok(data)
     }
 
     fn sig_of(rows: &[Vec<Cell>]) -> String {
@@ -959,8 +977,10 @@ impl Schedules {
             .equipments
             .iter()
             .map(|e| {
+                let st = self.shared(&e.code);
                 json!({"key": e.code, "name": e.name, "termKbn": e.term_kbn, "viewUrl": view_url(cfg, &e.code),
-                       "state": if self.shared(&e.code).path.is_some() { "ok" } else { "unknown" }})
+                       "state": if st.path.is_some() { "ok" } else { "unknown" },
+                       "via": st.data.as_ref().and_then(|d| d.get("via")).cloned().unwrap_or(Value::Null)})
             })
             .collect();
         let h = &cfg.hot;
@@ -1090,7 +1110,7 @@ pub fn summary(st: &St, joined: Option<&Value>) -> Value {
         "hit": hit, "first": times.first().map(|v| (*v).clone()).unwrap_or(json!("")), "last": times.last().map(|v| (*v).clone()).unwrap_or(json!("")),
         "nextStop": stop.map(|s| json!({"time": or_empty(&s["kanryoYotei"]), "text": or_empty(&s["stopText"])})),
         "updateTime": data.get("updateTime").cloned().unwrap_or(Value::Null), "fetchedAt": data.get("fetchedAt").cloned().unwrap_or(Value::Null),
-        "error": st.error,
+        "error": st.error, "via": data.get("via").cloned().unwrap_or(Value::Null),
     })
 }
 

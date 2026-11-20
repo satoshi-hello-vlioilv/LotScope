@@ -1135,7 +1135,8 @@ impl Lot {
                 let parts = inp.sources_parts().ok()?;
                 self.with_dash(&need, |cx| {
                     let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
-                    builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern }, &key, body)
+                    let proxy = builder::use_system_proxy(&inp.eff);
+                    builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern, proxy }, &key, body)
                 })
             }
             B::JoinPreview => {
@@ -4616,15 +4617,26 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 3);
-        // 窓が取れない設定（https）: 答えず（Python が取る）、状態に係を降りたと書く
-        std::fs::write(&cfg, conf("https://cm3.example")).unwrap();
+        // 版 3.117.1: https も窓が取る（届かない口なら窓が 502 で答える。Python に任せない）
+        std::fs::write(&cfg, conf("https://127.0.0.1:1")).unwrap();
         lot.invalidate();
-        assert!(lot.handle_body_with("GET", "/api/src/sch", "equip=L-1", b"", &down).is_none(), "https は Python");
+        let (st, v) = lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &down).expect("https は窓が答える");
+        assert!(st == 200 && v.to_string().contains("CM3"), "{st} {v}");
+        // 戻り道（配った設定の schedule.fetch_engine が python）: 答えず（Python が取る）、状態に係を降りたと書く
+        let url = format!("http://127.0.0.1:{port}");
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "schedule": {"cm3_base_url": url, "equipments": "L-1", "timeout_sec": 2, "fetch_engine": "python"}})
+                .to_string(),
+        )
+        .unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body_with("GET", "/api/src/sch", "equip=L-1", b"", &down).is_none(), "戻り道は Python");
         assert!(lot.handle_body_with("GET", "/api/src/sch/source", "equip=L-1", b"", &down).is_none(), "降りた設備のデータの時刻も Python");
         let s2 = state(&state_file);
         assert_eq!(
-            (s2["resigned"]["once"].clone(), s2["resigned"]["for"]["cm3_base_url"].clone()),
-            (json!(false), json!("https://cm3.example"))
+            (s2["resigned"]["once"].clone(), s2["resigned"]["for"]["fetch_engine"].clone(), s2["resigned"]["for"]["cm3_base_url"].clone()),
+            (json!(false), json!("python"), json!(url))
         );
         assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 3, "降りたら取りに行かない");
         let _ = std::fs::remove_dir_all(&work);

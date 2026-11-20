@@ -179,8 +179,10 @@ def schedule_card_route():
 def schedule_meta():
     """設備のタブ（設備・HOT）と、画面が使う設定。"""
     c = cfg()
+    sts = {e["code"]: schedules().peek(e["code"]) for e in c["equipments"]}
     eqs = [{"key": e["code"], "name": e["name"], "termKbn": e["term_kbn"], "viewUrl": schedule.view_url(c, e["code"]),
-            "state": "ok" if schedules().peek(e["code"]).get("path") else "unknown"} for e in c["equipments"]]
+            "state": "ok" if sts[e["code"]].get("path") else "unknown", "via": (sts[e["code"]].get("data") or {}).get("via")}
+           for e in c["equipments"]]
     hot = c["hot"]
     return jsonify(equipments=eqs, hot={"key": schedule.HOT_KEY, "title": hot["title"], "equipments": hot["equipments"], "prevValue": hot["prev_value"]},
                    autoRefreshSec=c["auto_refresh_sec"], inspectKeywords=c["inspect_keywords"], cm3=str(c["cm3_base_url"]))

@@ -3,7 +3,8 @@
  "bakedPhases": [
   "3.115.0",
   "3.116.0",
-  "3.117.0"
+  "3.117.0",
+  "3.117.1"
  ],
  "books": {
   "name_key": {
@@ -53,9 +54,12 @@
    "sources": [
     "tests/builder_oracle.py",
     "tests/oracle_gate.py",
-    "tests/schedule_fixture.py"
+    "tests/schedule_fixture.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_builder.py",
+    "tests/fakes_schedule.py"
    ],
-   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）",
+   "why": "独立の答え builder-truth.py・事例の表 builder_cases.json が第 2 の線。作り物の CM3 は試験の道具として残す（app を import しない）。版 3.117.1 の作った後の直し（割れ 2）から、作り物の CM3 とプロキシ（http・https・信頼しない https・中継・断る・認証）は台本 tests/fakes_serve.py（種類 builder。中身は tests/fakes_builder.py）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする。URL は名前つきの @URL(cm3)・@URL(cm3tls) など。場面の環境変数（プロキシ）は場面の proxyEnv",
    "sceneTimesWhy": "場面がわざと置いた時刻（確かめる用のファイル: 時計より先の future.sqlite3・40 時間前の old.sqlite3。今からのずれで持つ）"
   },
   "settings_write": {
@@ -271,9 +275,15 @@
     "schedule_parity"
    ],
    "sources": [
-    "tests/schedule_oracle.py"
+    "tests/schedule_oracle.py",
+    "tests/equipgroups_oracle.py",
+    "tests/oracle_gate.py",
+    "tests/fakes_serve.py",
+    "tests/fakes_schedule.py",
+    "tests/schedule_fixture.py",
+    "tests/lotlist_fixture.py"
    ],
-   "why": "3.117.1 で焼く（③-6〈CM3 の https・プロキシ〉の schedule.rs の直しと同じ版。③-6 の後に 1 回だけ焼く）。試験が途中で作り物の CM3 に尋ねる（requests・count）ので、Python 無しの形の起こしたままの台本に同じ口が要る。焼く前に直す物: 場面「名前が引けない」の言葉（PC の DNS で変わる。その言葉だけを 1 つの印に）・CM3 への要求の並び（糸の順。設備ごとに比べる）・「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」・Host の見出しと viewUrl のポート・changedAt と fetchedAt"
+   "why": "作り物の CM3（http・https・プロキシ）を起こしたままにする本（版 3.117.1 で焼いた。③-6〈CM3 の https・システムのプロキシを窓が取る〉と同じ版）。作り物は app を import しない台本 tests/fakes_serve.py（種類 schedule。中身は tests/fakes_schedule.py: 場面ごとの CM3・作り物の CA の証明書の https 3 つ・TLS でない口・中継／黙る／断る／407 のプロキシ）が起こし、Python 無しの形では窓の試験がその台本を起こしたままにする（作り物の仕掛は台本が lotlist_fixture で作る）。試験が途中で作り物に尋ねる口（requests・count・proxylog）も台本が答える。作り物の URL は名前つきの印 @URL(cm3)・@URL(tls)・@URL(relay_rs) など。焼く前に直した物（K5）: 名前が引けない言葉は OS・DNS の字を使わない決めた言葉（cm3_net_cases.json）・CM3 への要求は設備ごとの並びで比べる・CM3 の場面の名前を場面ごとに 1 つ（前は timeout の 19 場面が同じ名前で要求が積もった）。受け身の Python を相手にする 2 つのプロセスと降りて戻る・codecs は凍らせた Python を相手にする試験（Python 無しの形では流さない）。詰めた形"
   },
   "conversions": {
    "phase": "3.116.0",

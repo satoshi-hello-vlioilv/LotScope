@@ -10,11 +10,11 @@ routes/sources.py の sources_columns・sources_check・sources_join_preview・s
 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
 データのファイル（品質・仕掛・マスタ・作業実績 14 台〈ZZ3 だけの列・CAL の 速度 が全部空・ファイルの無い設備〉・確かめる用）は場面に共通の data に置く。
 独立の答え（tools/builder-truth.py。app を import しない）も場面のファイルから出し（"truth"）、窓の答えとも比べる。
-最初の 1 行（JSON）を書いた後は起きたままで、作り物の CM3（どの道にも 404 を答える HTTP）を起こしておき、標準入力の 1 行ごとに
+最初の 1 行（JSON）を書いた後は起きたままで、作り物の CM3 とプロキシ（tests/fakes_builder.py。どの道にも 404 を答える http・https と、
+中継・断る・認証を求めるプロキシ。版 3.117.1 の作った後の直し・割れ 2）を起こしておき、標準入力の 1 行ごとに
 {"cmd": "join", "root": 場面のフォルダ, "n": 回数} を受けると、そのフォルダ（窓と同じ作業場所）で Python の「試す」を n 回して答えを 1 行で返す
 （窓と Python が同じ try- の名前を同時に組んでも壊れないかを見る）。標準入力が閉じたら終わる。
 """
-import http.server
 import importlib.util
 import json
 import logging
@@ -22,7 +22,6 @@ import os
 import shutil
 import sqlite3
 import sys
-import threading
 import time
 from contextlib import closing
 from pathlib import Path
@@ -35,6 +34,7 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import builder, identity  # noqa: E402
+from tests import fakes_serve  # noqa: E402
 import oracle_gate  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("builder_truth", PROGRAM / "tools" / "builder-truth.py")
@@ -122,7 +122,7 @@ def masters_of(d):
             "equipment_groups": [{"id": 1, "名称": "CR ライン", "まとめ方": "ライン別", "設備": "CR1, CR2", "表示順": "1"}]}
 
 
-def place(root, d, folder, perm_rows):
+def place(root, d, folder, perm_rows, schedule=None):
     share = root / "share"
     for x in (share, root / "base" / "data", root / "local"):
         x.mkdir(parents=True, exist_ok=True)
@@ -141,7 +141,7 @@ def place(root, d, folder, perm_rows):
            # 名前を引く係の様子で変わる（引く先が「無い」と答える PC は [Errno -2] Name or service not known、引く先に届かない PC は
            # [Errno -3] Temporary failure in name resolution）ので、手元で焼いた表が CI で食い違った。閉じた口の答えはどの PC でも
            # 「接続を断られた」。引けない名前の言葉そのものは schedule_parity の「名前が引けない」が Python と窓を突き合わせる
-           "schedule": {"cm3_base_url": "http://127.0.0.1:1"}}
+           "schedule": {"cm3_base_url": "http://127.0.0.1:1", **(schedule or {})}}
     (root / "config.json").write_text(j(cfg), encoding="utf-8")
 
 
@@ -322,14 +322,15 @@ def run(root, steps):
     return out
 
 
-class _Cm3(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(404)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-    def log_message(self, *a):
-        pass
+def cm3_steps(urls, proxy):
+    """CM3 の確かめ（版 3.117.1 の作った後の直し・割れ 2: スケジュールを取る道と同じ取り手。https・プロキシ・言葉）。
+    proxy: 場面の配った設定の schedule.use_system_proxy が真（環境変数のプロキシは場面ごと）"""
+    chk = lambda v: S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": v})  # noqa: E731
+    conn = lambda v: S("POST", "/api/sources/sch/conn/check", {"field": "url", "value": v})  # noqa: E731
+    if not proxy:
+        return [chk(urls["cm3tls"]), conn(urls["cm3tls"]), chk(urls["cm3bad"]), chk(urls["cm3tls"].replace("https:", "HTTPS:")),
+                chk("nlmfangyweb1a:9085"), chk("http:///x")]
+    return [chk(urls["cm3"]), chk(urls["cm3tls"]), conn(urls["cm3tls"])]
 
 
 def main():
@@ -337,21 +338,44 @@ def main():
     base = Path(sys.argv[1])
     if base.exists():
         shutil.rmtree(base)
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Cm3)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    cm3 = f"http://127.0.0.1:{srv.server_address[1]}"
+    fake = fakes_serve.start("builder")
+    urls = fake["urls"]
+    cm3 = urls["cm3"]
+    # https の作り物の CA を信頼する（窓の試験も同じ SSL_CERT_FILE を置く）。この PC のプロキシは読まない（場面ごとに置く）
+    os.environ["SSL_CERT_FILE"] = str(Path(__file__).resolve().parent / "fixtures" / "tls" / "ca.pem")
+    for k in list(os.environ):
+        if k.lower().endswith("_proxy"):
+            del os.environ[k]
     d = base / "data"
     folder = make_data(d)
     files = [folder / f"実績_{eq}.sqlite3" for eq in EQUIPS]
-    scenes = [("開発者の PC", perm(), steps_of(d, cm3) + closed_of(), delegates_of()),
-              ("一般ユーザー（データ元を書けない）", perm("一般ユーザー", "部分的編集可"), gate_steps(d), [])]
+    P = {"use_system_proxy": True}
+    relayhp = urls["relay"].split("://", 1)[1]
+    # 場面: (名前, 権限, 歩, 任せる歩, 配った設定の schedule に足す物, 場面の環境変数〈プロキシ〉)
+    scenes = [("開発者の PC", perm(), steps_of(d, cm3) + closed_of() + cm3_steps(urls, False), delegates_of(), {}, {}),
+              ("一般ユーザー（データ元を書けない）", perm("一般ユーザー", "部分的編集可"), gate_steps(d), [], {}, {}),
+              ("CM3 の確かめをプロキシ越しで（中継）", perm(), cm3_steps(urls, True), [], P,
+               {"http_proxy": urls["relay"], "https_proxy": f"http://{relayhp}"}),
+              ("CM3 の確かめをプロキシ越しで（CONNECT を断る・認証）", perm(), cm3_steps(urls, True)[:2], [], P,
+               {"https_proxy": urls["deny"], "http_proxy": urls["auth"]}),
+              ("CM3 の確かめをプロキシ越しで（届かない・socks・認証）", perm(),
+               [S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": v}) for v in (urls["cm3tls"], cm3)], [], P,
+               {"https_proxy": "http://127.0.0.1:1", "http_proxy": "socks4://127.0.0.1:1"}),
+              ("CM3 の確かめ（use_system_proxy が偽ならプロキシを読まない）", perm(), cm3_steps(urls, True)[:1], [], {},
+               {"http_proxy": urls["deny"]})]
     out = []
-    for i, (name, prm, steps, dele) in enumerate(scenes):
+    for i, (name, prm, steps, dele, sched, env) in enumerate(scenes):
         steps, dele = oracle_gate.split(steps, dele)       # 版 3.104.0: 本文の門が断る歩は窓が答える
         py, rs = base / f"s{i}" / "py", base / f"s{i}" / "rs"
         for r in (py, rs):
-            place(r, d, folder, prm)
-        out.append({"name": name, "py": str(py), "rs": str(rs), "steps": run(py, steps), "delegates": dele,
+            place(r, d, folder, prm, sched)
+        os.environ.update(env)
+        try:
+            got = run(py, steps)
+        finally:
+            for k in env:
+                os.environ.pop(k, None)
+        out.append({"name": name, "py": str(py), "rs": str(rs), "steps": got, "delegates": dele, "proxyEnv": env,
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
     # 窓と Python が同じ作業場所で同時に「試す」を組む場面（窓の Lot も Python も shared/local を使う）
     shared = base / "shared"
@@ -365,7 +389,7 @@ def main():
           "workJoin": truth.join_try(files, d / "仕掛.sqlite3", [("ロット番号", "ロット番号")]),
           "workJoinCal": truth.join_try(files, d / "仕掛.sqlite3", [("CALだけ", "ロット番号")]),
           "m1Samples": truth.samples([d / "製造条件.sqlite3"])["samples"]}
-    print(j({"scenarios": out, "decisions": builder.decisions(), "truth": tr, "cm3": cm3,
+    print(j({"scenarios": out, "decisions": builder.decisions(), "truth": tr, "urls": urls,
              "shared": {"root": str(shared), "body": j({"key": "work", "joins": jw}),
                         "env": {"base": str(shared / "base"), "program": str(PROGRAM), "local": str(shared / "local"),
                                 "config": str(shared / "config.json")}}}), flush=True)
@@ -381,7 +405,7 @@ def main():
                 os.environ.pop("TPA_SHELL", None)
                 os.environ.pop("TPA_SHELL_SERVES", None)
             print(j([{"status": x["status"], "json": x["json"]} for x in got]), flush=True)
-    srv.shutdown()
+    fake["close"]()
 
 
 if __name__ == "__main__":

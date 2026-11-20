@@ -73,8 +73,11 @@ fn builder_reads_match_python_and_the_truth() {
     let mut bk = common::bake::Bake::open("builder", &base);
     // 同時に組む場面（shared）は Python を相手にする競い合いなので、宣言に持たない（Python で流すときだけ）
     bk.exclude.push("shared");
-    bk.url_key = Some("cm3");
+    // 作り物の CM3 とプロキシ（http・https・中継・断る・認証。版 3.117.1 の作った後の直し・割れ 2）は app を import しない台本
+    // （program/tests/fakes_serve.py builder）。Python 無しの形では窓の試験がその台本を起こしたままにする。URL は名前つきの @URL(名前)
+    bk.fakes = Some(("fakes_serve.py", vec!["builder".to_string()]));
     let (mut live, o) = bk.live("builder_oracle.py", &[base.to_str().unwrap()]);
+    common::trust_test_ca();
     let mut bad = vec![];
     // 決め（主のセッションの決め 1〜7）が Python と窓で同じ値
     if o["decisions"] != da_core::builder::decisions() {
@@ -87,6 +90,8 @@ fn builder_reads_match_python_and_the_truth() {
         // SAFETY: この試験の糸だけが環境を変える
         unsafe { std::env::set_var("TRANSFER_APP_CONFIG", sc["env"]["config"].as_str().unwrap()) };
         let lot = lot_of(&sc["env"]);
+        // 場面の環境変数（プロキシ。配った設定の schedule.use_system_proxy が真の場面だけが読む）
+        let _env = common::ProxyEnv::set(&sc["proxyEnv"]);
         let esc = |k: &str| {
             let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
             t[1..t.len() - 1].to_string()
@@ -187,7 +192,8 @@ fn builder_reads_match_python_and_the_truth() {
     }
     // 窓と Python が同じ作業場所で同時に「試す」を組む（同じ try-work-<キー> の答えのファイル）。Python を相手にする競い合いなので、
     // 段 ④ の配布の間だけ凍らせた最後の Python を相手に残す（焼いた表で流すときは見ない）
-    if let Some(live) = live.as_mut() {
+    // （Python 無しの形でも作り物の台本を起こしたままにするので、live があるかでなく Python と比べる形かで決める）
+    if let (true, Some(live)) = (bk.python(), live.as_mut()) {
         let sh = &o["shared"];
         unsafe { std::env::set_var("TRANSFER_APP_CONFIG", sh["env"]["config"].as_str().unwrap()) };
         let lot = lot_of(&sh["env"]);

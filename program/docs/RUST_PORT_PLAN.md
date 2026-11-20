@@ -2762,6 +2762,99 @@ advance は見張りが進んだ時刻を読んで眠るか終わるまでを待
   3.117.3: Windows の切り替え・凍らせる写し。
 - Windows の測りの 2 つの形の数と、仕事を割った後の時間は、この版の最初の Windows の CI の記録から読む（`bless.py --from-log`）。
 
+### 段 ④ の入口まで（小さい版 4 つ）の 2 つ目: ③-6（CM3 の https・システムのプロキシ）と schedule を焼く — 版 3.117.1
+
+採点は `tools/ui-proposals/2026-11-stage3f.json`（first_fixes 9〜13。作った形は built_plan の built_3117_1）。利用者の決め（2026-11-17）: CM3 は https と
+プロキシを使う・プロキシに認証は無い・社内 LAN か VPN からだけ使う。
+
+#### 作った物
+
+- **TLS**（first_fixes 9）: `native-tls`（Linux は OpenSSL〈libssl-dev。ci.yml の apt に足した〉・Windows は schannel と Windows の証明書ストア）。
+  足した crate は Linux で 7（native-tls・openssl・openssl-sys・openssl-macros・openssl-probe・foreign-types 0.3・foreign-types-shared。見込みの 5 より 2 多い:
+  foreign-types の 2 つ）・Windows で 2（native-tls・schannel）。Cargo.lock に増えた名前は 10（macOS の security-framework の 2 つは組まれない）。
+  `src/cm3_http.rs` に https（CONNECT の中継を含む）。LotDsp の 3 本（post_plain・get_once）は前のまま（http の直・前の言葉）。
+  Windows だけの所（レジストリの読み）は Linux から全体を Windows 向けに組めないので、作業用クレート（sysproxy.rs と cm3_net.rs を #[path] で取り込み、
+  native-tls を当てる）で `cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` を通した（Iterator::last の指摘 1 つを直した）。
+- **プロキシ**（first_fixes 11）: `src/sysproxy.rs`・`services/sysproxy.py`。読み方は urllib のまま（環境変数 → Windows の ProxyEnable・ProxyServer・
+  ProxyOverride。use_system_proxy が真のときだけ読む・30x のたびに決め直す）。urllib と違えたのは 4 つ（人の決め。事例の表の decisions）:
+  利用者:合言葉 を送らない・https:// のプロキシも http のプロキシ・socks と読めない URL と番号は取りに行く前に断る・PAC の一言。
+  事例の表 `tests/fixtures/sysproxy_cases.json`（env 13・registry 15・bypass 22・choose 22・pac 6）は Python が urllib の関数に直に当てる
+  （Linux では urllib/request.py の Windows の節を ast で組み、作り物の winreg で呼ぶ）。窓の変異 3 つ（<local> を外す 2 件・大文字小文字を区別 1 件・
+  設定を環境変数より先 2 件）で落ちた。表を書く時の誤り 1 つ（「_proxy」だけの名前は種類が空の名前で読む）は urllib に合わせて直した。
+- **届かない言葉**（first_fixes 13）: `src/cm3_net.rs`・`services/cm3_net.py`・事例の表 `tests/fixtures/cm3_net_cases.json`。種類は 時間切れ（どこでも 1 つ。
+  黙るプロキシは http も CONNECT も）・OS の誤り（OS の字のまま）・名前を引けない（OS・DNS の字を使わない）・TLS 3 つ＋そのほか・プロキシが中継を断る・
+  407（CONNECT も HTTP も）・プロキシに届かない。届かない形には「（社内 LAN か VPN につながっているか確かめてください）」。材料は Python の例外・
+  窓の OpenSSL の字（このPC の 3.0.13 で見た字も表に）・schannel の番号（Windows の CI で本物と比べる）。Python も同じ版で直した（利用者:合言葉 を送らない・
+  ProxyHandler の ValueError の 500 が無くなる）。
+- **戻り道と様子**（first_fixes 10）: 配った設定 `schedule.fetch_engine`（既定 "window"、"python" で窓は係を降り受け身の Python が取る。resigned.for に入る）。
+  整えた答えに `via`（engine rs／py・tls・proxy）を書き、状態のファイル・一覧の summary・GET /api/schedule の設備に載せ、スケジュールのタブの上の段の
+  「完了予定…取得」の title に「取った係: 窓（Rust）・https・プロキシ 名前:番号 越し」と出す（画面の見た目は変えない）。
+- **Windows だけの 2 歩を閉じた**: 更新時刻として読む秒を 1970-01-01〜3000-12-31 UTC に決めた（窓の `cm3::TS_RANGE`・Python の `cm3_schedule.TS_MIN・TS_MAX`）。
+  範囲の外はどの OS でも「更新時刻なし」（前は Windows の gmtime_s が受けるかを決められず、Windows では窓が任せた）。
+- **K5（焼く前の直し 3 つ）**: (1) 名前が引けないは決めた言葉にした（PC の DNS で変わる字が答えに出ない。印でそろえる決まりは足していない）。
+  (2) CM3 への要求は設備ごとの並びで比べる（設備をまたぐ順だけ並べ替える）。(3)「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」の元は、
+  timeout の 19 場面が同じ CM3 の場面の名前「timeout」で、CM3 が受けた要求が場面をまたいで積もっていたこと（Python と窓の取る数は同じ）。
+  2 回目からの場面の名前は「名前~番号」（作り物は ~ の前で答えを選ぶ）。
+- **作り物**: `tests/fixtures/tls`（作り物の CA と 127.0.0.1 の証明書・名前の違う証明書・信頼しない CA の証明書。100 年。openssl で作った）・
+  `tests/fakes_schedule.py`（TLS の Cm3Server 3 つ・TLS でない口・中継／黙る／断る／407 のプロキシ・proxylog）。試験は SSL_CERT_FILE で作り物の CA を信頼させる。
+- **schedule_parity の場面**: https 6・プロキシ 20（use_system_proxy が偽の場面を含む。前の文の 21 は書き違い。作った後の採点の割れ 7 (a) で `scenes()` を数え直した）・戻り道 1 を足した（Python と同じ答え）。
+
+#### 焼いた本（31/35）
+
+`python program/tools/bless.py schedule`: 3 回（2 回目は別の PC の形・3 回目は root でない利用者）が同じ。`ci-shape.py --shape nopy,nodns --book schedule` も通る。
+2 つのプロセスと降りて戻る・codecs は受け身の Python を相手にする試験（`bake::frozen_python`。Python 無しの形では流さない）。
+焼くときに止まって直した物: localhost の作り物の URL（@URL(cm3local)）・答え合わせ役の上の段の port（drop）・socks の場面のポート 1080（PC の指紋の見張り。閉じた口 :1 に）。
+schedule_fixture.py を変えたので builder・equipgroups も焼き直した（builder は届かない言葉の一言で葉が変わった）。
+
+#### 任せる歩・測った数・残る物
+
+- 任せる歩は 11 → 8（`delegate-count.py 作業フォルダ --check`: 比べる口 7・戻したキーに / がある道 1。段 ③-6 は 3 → 0・Windows だけは 2 → 0）。
+  戻り道（fetch_engine が python）の 2 歩は envExtra（`delegates_budget.json` の envWhy）。報告の「計」は envExtra を含めて 10。
+- 焼いた本は 31/35。表は 37 ファイル・計 31.21 MB（schedule 0.83 MB・370 歩・葉 190,480・印のある葉 421〈@URL 357・@DAY 64〉）。
+- **手元で確かめられない物**（Windows の CI の最初の記録で読む）: schannel が作り物の CA の IP（127.0.0.1）の証明書を受けるか・名前の違う証明書と TLS でない口の
+  schannel の誤りの番号が表の種類に入るか（schedule_parity を Windows の Python と比べる段と、表だけの形の測り）・HKCU のプロキシの読みが Windows の Python と
+  同じか（「TLS とプロキシを Windows の本物で」）・組む時間の増え。
+- **入口の条件 (4)**: ③-6 が現場の PC で 1 回通った（利用者の確認）。スケジュールのタブの「完了予定…取得」の title に「取った係: 窓（Rust）・https・…」が出れば通った。
+  戻すときは配った設定の schedule に `"fetch_engine": "python"`。
+- 残る物: 3.117.2（場面の台本と pivot・routes・dashboard・ops）・3.117.3（Windows の切り替え・凍らせる写し）。
+
+#### 作った後の採点の割れの直し（`tools/ui-proposals/2026-11-stage3g-built.json` の built_fixed）
+
+作った後の採点は 38.4 点・割れ 7（決まり 2026-11-06: 採点し直さず、割れを全部直して突き合わせの試験に足す）。
+
+1. **【高】Windows の os.environ**（割れ 1）: 事例の表 `sysproxy_cases.json` の env・bypass・choose・pac の事例は、同じ環境変数とレジストリの値に
+   posix と nt の 2 つの答えを持つ（前は印 nt と 1 つの答えで、印の無い事例を Windows の Python で流すと os.environ が名前を大文字にして別の答えになり、
+   desktop.yml の Windows の本物の段が必ず落ちた）。Python の試験は urllib.request の見る os.environ を事例の dict に差し替える（nt は名前を大文字に・
+   後ろの値が勝つ）。`WindowsEnviron` は本物の os.environ を Windows の形（os._Environ の大文字の形）にまねて、表の試験が同じに通るかを Linux で見る。
+   窓の Windows の読み手にも割れが 1 つあった: 大文字にして同じ名前になる 2 つ（HTTP_PROXY と空の http_proxy）を両方残していた。Windows の
+   os.environ と同じ dict の形（前の場所のまま後ろの値が勝つ）にした（`sysproxy::names`）。事例は 145（どの OS でも両方を流す）。
+2. **【中〜高】確かめるの https とプロキシ**（割れ 2）: 参照先・データ元の「確かめる」（schedule.cm3_base_url）は、スケジュールを取る道と同じ取り手で
+   GET を 1 回（窓の `cm3_http::reach`・Python の `cm3_schedule.reach`。https・配った設定の schedule.use_system_proxy が真ならシステムのプロキシ・
+   届かない言葉は cm3_net の種類ごと・30x はたどらない・本文は読まない・プロキシの答え 407・502・503・504 は届いていない）。http・https でない URL は
+   「CM3 の URL は http:// か https:// で始めてください。」、窓が読めない形（空白・番号が大きい・答えの行が壊れた）は前の「CM3 に届きません（社外・…）。」。
+   builder の本に作り物（`tests/fakes_builder.py`: 404 の http・作り物の CA の https・信頼しない CA の https・中継／CONNECT を断る／407 のプロキシ）と
+   場面 5（https の直・信頼しない CA・プロキシ越しの http と https・CONNECT を断る・407・届かないプロキシ・socks・use_system_proxy が偽なら読まない）を足し、
+   焼き直した（Python と窓が同じ・3 回の焼きが同じ・ci-shape の nopy・nodns・runner）。
+3. **【低〜中】「/」で始まるプロキシの値**（割れ 3）: `sysproxy::parse_proxy` を urllib の `_parse_proxy` のとおりに（種類が無くても値が「/」で始まれば
+   URL として読む: 「//名前:番号」は authority・「/x」は読めない）。事例の表の choose に 3 つ（//名前:番号・/x・//利用者@名前:番号/道）。
+4. **【低】信頼できない発行元の番号**（割れ 4）: 事例の表に verify の節（検証の番号 2・18・19・20・21・27・29・30・79 は信頼できない発行元、62・63・64 は
+   名前が違う、10 はそのほか。OpenSSL 3 の字と 1.1 の字）。Python の VERIFY_UNTRUSTED・VERIFY_NAME はこの節と同じ集まり、窓の `OPENSSL_VERIFY`
+   （15 の字）はこの節の字と同じ種類（どちらも試験が見る）。字はこの PC の libcrypto の X509_verify_cert_error_string で確かめた。
+5. **【低】プロキシに届いた後の切断**（割れ 5）: プロキシの言葉はその問い合わせ（30x の行き先ごと）のプロキシで決める。プロキシへの TCP がつながる前の
+   OS の誤り・名前を引けないだけが「プロキシ（…）に届きません」、つながった後の OS の誤りと TLS の握手の途中で相手が閉じた形（CONNECT の 200 の後）は
+   新しい種類 proxy_cut「プロキシ（…）には届きましたが、その先で接続が切れました」。直の問い合わせ（no_proxy で迂回した 30x の行き先も）の誤りはプロキシと
+   言わない。Python は cm3_schedule の接続のクラスが TCP のつながりを覚え（`_Hop`）、窓は `cm3_http::open`・`once` の段で決める。schedule の場面 3
+   （CONNECT の 200 の後に切れる・http の要求に答えずに閉じる・プロキシ越しの 30x の行き先が直で断られる）。
+6. **【低】Python の PAC の一言の読み手**（割れ 6）: Windows の CI の段の ignored の試験 `the_real_registry_reads_like_windows_python` の台本が
+   app の `sysproxy.pac_note()`（winreg を本当に読む）も出し、窓の `pac_note` と比べる（1 の形では空・pac の形では一言）。段の throw の言葉を比べる物に合わせた。
+7. **【低】小さな残り**（割れ 7）: (a) 上の場面の数を 20 に。(b) 場面を足した: https → http の 302（平文に落ちる。urllib と同じくたどる）・https の chunked・
+   https の HTTP/1.0 の閉じるまで・CONNECT の答えの見出しが 101・見出しの行が 65,537 バイト。CONNECT の答えが読めない形は新しい種類 proxy_bad
+   「プロキシ（…）の答えを読めません」（前は窓が係を降り、Python は HTTPException の 500）。(c) Python も 30x のたびに `sysproxy.choose` で選ぶ
+   （`_ChooseProxy`。clean() をやめた）ので、30x の行き先の種類のプロキシが socks・読めない値なら、30x の後も取りに行く前に断る（場面 2）。
+
+schedule の場面は全 88（足した 10: プロキシ 7・https 3。プロキシの環境を持つか use_system_proxy の場面は 27）。schedule・builder を焼き直した
+（equipgroups・lotdsp は答えが変わらず、焼き直していない）。任せる歩は変わらない（計 10＝口 7・道 1・戻り道 2〈envExtra〉）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
