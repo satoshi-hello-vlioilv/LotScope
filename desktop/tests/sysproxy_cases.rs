@@ -101,3 +101,47 @@ fn reads_this_pc() {
     assert_eq!(sys.nt, cfg!(windows));
     let _ = sys.proxies();
 }
+
+/// Windows の CI の段「TLS とプロキシを Windows の本物で（③-6）」だけ（HKCU の Internet Settings を書いてから流す。TPA_SYSPROXY_REAL=1 か pac）:
+/// 窓のレジストリの読み（System::read）が、同じ機械の Windows の Python の urllib.request.getproxies・proxy_bypass と同じ答えか。
+/// 落ちたときは期待（Python）と来た物（窓）を出す（手元の Linux では流せない）
+#[test]
+#[ignore = "Windows の CI の段が HKCU に書いてから流す"]
+fn the_real_registry_reads_like_windows_python() {
+    let mode = std::env::var("TPA_SYSPROXY_REAL").unwrap_or_default();
+    assert!(cfg!(windows) && !mode.is_empty(), "Windows の CI の段（TPA_SYSPROXY_REAL）だけで流す");
+    let hosts = ["nlmfangyweb1a:9085", "cm3.corp.example", "Cm3.CORP.Example:443", "10.1.2.3:80", "x.other.example", "corp.example"];
+    let script = format!(
+        "import json, urllib.request as u\nhosts = {hosts:?}\nprint(json.dumps({{'proxies': [[k, v] for k, v in u.getproxies().items()], 'bypass': {{h: bool(u.proxy_bypass(h)) for h in hosts}}}}))"
+    );
+    let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| "python".into());
+    let out = std::process::Command::new(&py).arg("-c").arg(&script).output().expect("Windows の Python を起こせません");
+    assert!(out.status.success(), "Windows の Python: {}", String::from_utf8_lossy(&out.stderr));
+    let want: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let sys = System::read();
+    println!("窓が読んだレジストリ: {:?}", sys.reg);
+    let got_proxies = pairs(&sys.proxies());
+    println!("getproxies 期待（Windows の Python） {} / 来た（窓） {got_proxies}", want["proxies"]);
+    let mut bad = vec![];
+    if got_proxies != want["proxies"] {
+        bad.push(format!("getproxies: 期待 {} / 来た {got_proxies}", want["proxies"]));
+    }
+    for h in hosts {
+        let g = sys.bypass(h);
+        println!("proxy_bypass({h}) 期待 {} / 来た {g}", want["bypass"][h]);
+        if json!(g) != want["bypass"][h] {
+            bad.push(format!("proxy_bypass({h}): 期待 {} / 来た {g}", want["bypass"][h]));
+        }
+    }
+    if mode == "pac" {
+        // PAC の一言の決め（Python の sysproxy.pac_of と同じ。環境変数のプロキシが無く、ProxyEnable 0・AutoConfigURL あり）
+        let note = da_core::sysproxy::pac_note(&sys);
+        println!("PAC の一言 来た「{note}」");
+        if note != da_core::sysproxy::PAC_NOTE {
+            bad.push(format!("PAC の一言: 期待「{}」/ 来た「{note}」", da_core::sysproxy::PAC_NOTE));
+        }
+    } else if !want["proxies"].as_array().is_some_and(|a| !a.is_empty()) {
+        bad.push("段が書いたプロキシの設定を Python が読んでいない（段の書き方を確かめる）".into());
+    }
+    assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
+}

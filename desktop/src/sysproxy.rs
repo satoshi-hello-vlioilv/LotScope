@@ -338,7 +338,7 @@ fn unreadable(url_type: &str) -> String {
 /// 1 回の問い合わせのプロキシ（Python の sysproxy.choose。urllib の ProxyHandler.proxy_open と同じ選び方に、利用者の決めを足した物）。
 /// Err は使えないプロキシの言葉。url_type は 'http'・'https'、host は URL の名前:番号（百分率符号を戻した字）
 pub fn choose(url_type: &str, host: &str, proxies: &[(String, String)], bypass: &dyn Fn(&str) -> bool) -> Result<Choice, String> {
-    let Some(value) = proxies.iter().filter(|(k, _)| k.to_lowercase() == url_type).map(|x| x.1.clone()).last() else {
+    let Some(value) = proxies.iter().filter(|(k, _)| k.to_lowercase() == url_type).map(|x| x.1.clone()).next_back() else {
         return Ok(Choice::Direct);
     };
     let Some((scheme, hostport)) = parse_proxy(&value) else { return Err(unreadable(url_type)) };

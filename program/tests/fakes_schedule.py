@@ -112,6 +112,8 @@ class World:
     def __call__(self, scene, req, k):  # noqa: C901 (場面の振り分け)
         eq, runner = req["equip"], req["path"].split("/")[1]
         base = f"/{runner}/{scene}"
+        # 同じ答えの場面を分けた名前（版 3.117.1 の K5: 「timeout~38」は timeout の答え。CM3 が受けた要求は場面の名前ごとに数える）
+        scene = scene.split("~", 1)[0]
         if scene in ("ok", "concurrent", "timeout", "tls", "ptls", "phttp", "pcred", "pbypass", "pnone", "pkind", "phttps", "engine", "pnone2"):
             return fx.json_reply(self.full.get(eq) or {"status": "SUCCESS", "entity": {}})
         if scene == "change":                         # 問い合わせごとに中身が変わる（新しい世代）
@@ -356,6 +358,12 @@ class PlainQuick:
 def start(wip):
     """作り物の CM3 と、接続を受けない口と、https・プロキシの作り物を起こす。wip は仕掛の SQLite（釜番つき。届く場面の予定の元）。
     → {"urls": {名前: URL}, "close", "ask", "srv": 作り物の CM3, "hole_port": 接続を受けない口の番号}"""
+    if not os.path.exists(wip):
+        # Python 無しの形（窓の試験が台本を起こす）: 答え合わせ役と同じ作り物の仕掛（lotlist_fixture.make_wip の 400 行・釜番つき。乱数の種は固定）
+        import lotlist_fixture  # （標準の部品だけ）
+        os.makedirs(os.path.dirname(os.path.abspath(wip)), exist_ok=True)
+        lotlist_fixture.make_wip(str(wip), n=400)
+        fx.add_kama(wip)
     world = World(wip)
     srv = fx.Cm3Server(world)
     world.port = srv.port
@@ -389,6 +397,6 @@ def start(wip):
         bh.close()
         held.close()
     hole_port = bh.getsockname()[1]
-    urls = {"cm3": srv.url, "hole": f"http://127.0.0.1:{hole_port}", "tls": tls.url, "tlsname": tlsname.url, "tlsbad": tlsbad.url,
+    urls = {"cm3": srv.url, "cm3local": f"http://localhost:{srv.port}", "hole": f"http://127.0.0.1:{hole_port}", "tls": tls.url, "tlsname": tlsname.url, "tlsbad": tlsbad.url,
             "plain": f"https://127.0.0.1:{plain.port}", **{k: p.url for k, p in proxies.items()}}
     return {"urls": urls, "close": close, "ask": ask, "srv": srv, "hole_port": hole_port}

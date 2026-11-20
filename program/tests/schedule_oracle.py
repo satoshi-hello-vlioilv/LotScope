@@ -159,7 +159,7 @@ def scenes(urls):
          {"HTTP_PROXY": "{silent}", "http_proxy": ""}),
         ("no_proxy で直", {**base, **P, "cm3_base_url": u("pbypass")}, ONE[:1], None,
          {"http_proxy": "{silent}", "no_proxy": "example.com, .0.0.1"}),
-        ("30x のたびにプロキシを決め直す", {**base, **P, "cm3_base_url": f"http://localhost:{world_port}/{{runner}}/rbyp"}, ONE[:1], None,
+        ("30x のたびにプロキシを決め直す", {**base, **P, "cm3_base_url": f"{urls['cm3local']}/{{runner}}/rbyp"}, ONE[:1], None,
          {"http_proxy": "{relay}", "no_proxy": "localhost"}),
         ("use_system_proxy が偽ならプロキシを読まない", {**base, "cm3_base_url": u("pnone2")}, ONE[:1], None, {"http_proxy": "{silent}"}),
         ("黙るプロキシ（http）", {**base, **P, "timeout_sec": 1, "cm3_base_url": u("psil")}, ONE[:1], None, {"http_proxy": "{silent}"}),
@@ -167,7 +167,7 @@ def scenes(urls):
          {"https_proxy": "{silent}"}),
         ("CONNECT を断るプロキシ", {**base, **P, "cm3_base_url": t("pdeny")}, ONE[:1], None, {"https_proxy": "{deny}"}),
         ("http を断るプロキシ（403）", {**base, **P, "cm3_base_url": u("pdeny2")}, ONE[:1], None, {"http_proxy": "{deny}"}),
-        ("socks のプロキシ", {**base, **P, "cm3_base_url": u("pkind")}, ONE[:1], None, {"http_proxy": "socks4://127.0.0.1:1080"}),
+        ("socks のプロキシ", {**base, **P, "cm3_base_url": u("pkind")}, ONE[:1], None, {"http_proxy": "socks4://127.0.0.1:1"}),
         ("読めないプロキシの URL", {**base, **P, "cm3_base_url": u("pbad")}, ONE[:1], None, {"http_proxy": "http:/x"}),
         ("番号の読めないプロキシ", {**base, **P, "cm3_base_url": u("pbad2")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:x9"}),
         ("断られるプロキシ", {**base, **P, "timeout_sec": 10, "cm3_base_url": u("pref")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:1"}),
@@ -268,9 +268,18 @@ def serve(base):
         if k.lower().endswith("_proxy"):
             del os.environ[k]
     out = []
+    used = set()
     for i, sc_def in enumerate(scenes(urls)):
         name, sched, steps, src_rows = sc_def[:4]
         env = sc_def[4] if len(sc_def) > 4 else {}
+        # CM3 の場面の名前は場面ごとに 1 つ（版 3.117.1 の K5: 前は timeout の 19 場面が同じ名前で、CM3 が受けた要求が場面をまたいで積もり、
+        # 「数でない timeout を HOT から始めると Python が L-1 を 1 本多く取りに行く」ように見えた。2 回目からは「名前~番号」〈答えは同じ〉）
+        url = str(sched.get("cm3_base_url"))
+        if "{runner}" in url:
+            head, _, last = url.rpartition("/")
+            if last in used:
+                sched = {**sched, "cm3_base_url": f"{head}/{last}~{i}"}
+            used.add(last)
         py, rs = base / f"s{i}" / "py", base / f"s{i}" / "rs"
         for r, runner in ((py, "py"), (rs, "rs")):
             sc = {k: (v.replace("{runner}", runner) if isinstance(v, str) else v) for k, v in sched.items()}
