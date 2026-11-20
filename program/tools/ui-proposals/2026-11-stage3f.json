@@ -1110,20 +1110,20 @@
   },
   "built_3117_3": {
    "about": "版 3.117.3（段 ④ の入口まで の 4 つ目）: first_fixes 4（Windows の表の持ち方）と 16（凍らせる写し）。計画書 program/docs/RUST_PORT_PLAN.md の「4 つ目」の節",
-   "measured_from": "3.117.1 の Windows の CI（main 4c933e7）の表だけの形: 表 37・歩 6831・違う歩 313・答えない歩 227・場面を作れなかった表 1（release_place）",
+   "measured_from": "3.117.2 の Windows の CI（PR #119）の表だけの形: 表 41・歩 7925・違う歩 227・答えない歩 227・場面を作れなかった表 1（release_place）。3.117.1（main 4c933e7）は違う歩 313（worklog_write のファイルID 86 歩は 3.117.2 で消えた）",
    "split": {
-    "a_test_or_scene_side": 153,
+    "a_test_or_scene_side": 67,
     "b_os_rules": 76,
     "c_not_on_windows": 311,
-    "a_detail": "@ROOT の書き方 35・rs/py の書き方 12・ファイルID 86（3.117.2 の直しで消える見込み）・記号リンク 15・フォルダの時刻 2・file:// の場面 3",
+    "a_detail": "@ROOT の書き方 35・rs/py の書き方 12・記号リンク 15・フォルダの時刻 2・file:// の場面 3",
     "b_detail": "OS の誤りの字 34・Windows の道の決まり 17・信じるブラウザの名前 19・getlogin 2・最後の桁 3・道の区切り 1",
     "c_detail": "OSError の表 84（skip）・見張りの場面 1（skip）・release_place の場面 226（作れない物を unmade にして流す）"
    },
    "decided": [
     "first_fixes 4 の『丸ごとの <本>.nt.json と上書き variants.nt の 2 つの形』は 1 つの形にした: desktop/tests/baked/nt/<表>.json（answers・posix の指紋・skip・unmade）。④ の後も場面と問い合わせは posix の宣言のまま使い、違うのは答えだけ。posix の表は 1 バイトも変えない（Python が詰めた表を書き直さない）",
     "OS の誤りの字は nt の answers にそのまま持ち、そろえる決まり（@OSERR）は足していない",
-    "books.json の windows の札（table・measure）。3.117.1 の測りで違う歩・答えない歩 0 の 16 本を table（Windows の表だけの形で落とす）",
-    "Windows の答えは仕事の記録の詰めた行（measure-z）で出し bless.py --take-nt で取り込む。3.117.1 の記録には答えそのものが無いので CI は 2 回",
+    "books.json の windows の札（table・measure）。3.117.2 の測りで違う歩・答えない歩 0 の 20 本を table（Windows の表だけの形で落とす）",
+    "Windows の答えは仕事の記録の詰めた行（measure-z）で出し bless.py --take-nt で取り込む。3.117.1・3.117.2 の記録には答えそのものが無いので CI は 2 回",
     "凍らせる写しは program/tests/legacy/3.117.3（125 ファイル・2.75 MB。static を除く）。ruff の範囲の外（program/ruff.toml）・compileall は確かめる"
    ],
    "checks": [
@@ -1133,7 +1133,7 @@
     "Windows だけの所（記号リンク・フォルダの時刻）は作業用クレートで cargo clippy --target x86_64-pc-windows-msvc"
    ],
    "not_checked_here": [
-    "札が table の 16 本が Windows の表だけの形で通るか（この版の 1 回目の CI）",
+    "札が table の 20 本が Windows の表だけの形で通るか（この版の 1 回目の CI）",
     "記号リンク・フォルダの時刻・ファイルID の Windows の本物の答え",
     "release_place の場面を作れない物を除いて作れるか",
     "詰めた行が仕事の記録の末尾に入るか"

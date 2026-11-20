@@ -274,7 +274,7 @@
   },
   "routes": {
    "phase": "3.117.2",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "routes_parity"
    ],
@@ -292,7 +292,7 @@
   },
   "pivot": {
    "phase": "3.117.2",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "pivot_parity"
    ],
@@ -361,7 +361,7 @@
   },
   "ops": {
    "phase": "3.117.2",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "ops_parity"
    ],
@@ -376,7 +376,7 @@
   },
   "dashboard": {
    "phase": "3.117.2",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "dash_parity"
    ],
