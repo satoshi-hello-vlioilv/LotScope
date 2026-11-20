@@ -238,6 +238,35 @@ def tls_files(name):
     return os.path.join(TLS, f"{name}.pem"), os.path.join(TLS, f"{name}.key")
 
 
+def _body(c, headers, rest):
+    """見出しの後の本文を Content-Length の分だけ読み切る（版 3.117.1 の Windows の CI の直し）。
+    本文を読み残したまま閉じると OS が RST を送り、Windows では相手が受け取り済みの答え（403・407）まで捨てて「切れた」になる
+    （Linux は答えを読める）。作り物の答えが OS で変わらないよう、答える前に読み切る"""
+    want = 0
+    for h in headers:
+        if len(h) == 2 and h[0].lower() == "content-length" and h[1].strip().isdigit():
+            want = int(h[1].strip())
+    c.settimeout(10)
+    while len(rest) < want:
+        got = c.recv(65536)
+        if not got:
+            break
+        rest += got
+    return rest
+
+
+def _answer(c, payload):
+    """答えを送り、送る側だけを閉じて相手が閉じるのを待つ（読み残しの RST で答えが消えないように。待つのは 5 秒まで）"""
+    c.sendall(payload)
+    try:
+        c.shutdown(socket.SHUT_WR)
+        c.settimeout(5)
+        while c.recv(65536):
+            pass
+    except OSError:
+        pass
+
+
 def _pipe(a, b):
     try:
         while True:
@@ -295,13 +324,15 @@ class Proxy:
             hs = [x.split(": ", 1) for x in lines[1:]]
             with self.lock:
                 self.log.append({"line": lines[0], "headers": hs})
+            if self.mode != "relay" and not lines[0].startswith("CONNECT "):
+                rest = _body(c, hs, rest)
             if self.mode == "silent":
                 c.settimeout(30)
                 while c.recv(65536):
                     pass
                 return
             if self.mode == "deny":
-                c.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                _answer(c, b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
                 return
             if self.mode == "cut":
                 if lines[0].startswith("CONNECT "):
@@ -314,7 +345,7 @@ class Proxy:
                 c.sendall(b"HTTP/1.1 200 Connection established\r\nX-Long: " + b"a" * 65537 + b"\r\n\r\n")
                 return
             if self.mode == "auth":
-                c.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"corp\"\r\nContent-Length: 0\r\n\r\n")
+                _answer(c, b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"corp\"\r\nContent-Length: 0\r\n\r\n")
                 return
             method, target, ver = lines[0].split(" ", 2)
             if method == "CONNECT":
