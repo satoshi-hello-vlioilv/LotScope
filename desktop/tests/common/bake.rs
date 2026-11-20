@@ -882,12 +882,39 @@ fn user_decl(t: &str) -> String {
     re.replace_all(t, "${1}\"@USER@\"").into_owned()
 }
 
-/// 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前を @USER@ に
-fn named_users(v: &Value, key: &str) -> Value {
+/// 答え合わせ役の答えの、利用者の名前を書く欄の OS の利用者の名前を @USER@ に。名乗りの表（{key, pc}）の鍵が OS の利用者の名前と
+/// となりの pc から作った字（bundle::terminal_key）そのものなら @USERKEY@ に（版 3.117.2: ops の答え合わせ役は名乗りを決めない設定の答え
+/// access.who を窓に渡すので、root で焼いた表の鍵「PC-ORACLE@root」が root でない利用者で流すと古いと読まれた。作り直す時に今の利用者で作り直す）
+pub fn named_users(v: &Value, key: &str) -> Value {
     match v {
         Value::String(s) if name_keys().contains(&key) && os_user() == Some(s.as_str()) => json!("@USER@"),
         Value::Array(a) => Value::Array(a.iter().map(|x| named_users(x, key)).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), named_users(x, k))).collect()),
+        Value::Object(o) => {
+            let mut out: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), named_users(x, k))).collect();
+            if let (Some(k), Some(pc), Some(u)) = (o.get("key").and_then(Value::as_str), o.get("pc").and_then(Value::as_str), os_user()) {
+                if k == da_core::bundle::terminal_key(u, pc) {
+                    out.insert("key".into(), json!("@USERKEY@"));
+                }
+            }
+            Value::Object(out)
+        }
+        _ => v.clone(),
+    }
+}
+
+/// named_users の逆（作り直す時に今の OS の利用者へ）: "@USER@" は今の利用者の名前、名乗りの表の鍵 "@USERKEY@" は今の利用者と pc から作り直す
+pub fn unnamed_users(v: &Value) -> Value {
+    match v {
+        Value::String(s) if s == "@USER@" => json!(os_user().unwrap_or("")),
+        Value::Array(a) => Value::Array(a.iter().map(unnamed_users).collect()),
+        Value::Object(o) => {
+            let mut out: Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), unnamed_users(x))).collect();
+            if o.get("key").and_then(Value::as_str) == Some("@USERKEY@") {
+                let pc = o.get("pc").and_then(Value::as_str).unwrap_or("");
+                out.insert("key".into(), json!(da_core::bundle::terminal_key(os_user().unwrap_or(""), pc)));
+            }
+            Value::Object(out)
+        }
         _ => v.clone(),
     }
 }
@@ -941,16 +968,6 @@ fn text_of_decl(t: &str, ctx: &Ctx) -> String {
         _ => t.into_owned(),
     };
     ctx.unsub(&t)
-}
-
-/// 値の字だけを替える（鍵は替えない）
-fn map_values(v: &Value, f: &dyn Fn(&str) -> String) -> Value {
-    match v {
-        Value::String(s) => Value::String(f(s)),
-        Value::Array(a) => Value::Array(a.iter().map(|x| map_values(x, f)).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.clone(), map_values(x, f))).collect()),
-        _ => v.clone(),
-    }
 }
 
 #[cfg(unix)]
@@ -1639,7 +1656,7 @@ impl Bake {
         let url = if self.url_key.is_some() { serve_404() } else { String::new() };
         self.ctx.url(&url);
         let o = map_strings(&t["oracle"], &|s| fid_unsub(&text_of_decl(s, &ctx), &base).replace("@URL", &url));
-        map_values(&o, &|s| if s == "@USER@" { os_user().unwrap_or("").to_string() } else { s.to_string() })
+        unnamed_users(&o)
     }
 
     /// 場面が置いた物か（作業フォルダの中の道）

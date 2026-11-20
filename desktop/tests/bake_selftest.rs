@@ -300,6 +300,24 @@ fn only_the_work_folder_and_named_users_are_replaced() {
 }
 
 #[test]
+fn the_terminal_key_in_the_question_is_kept_without_the_user_and_comes_back() {
+    // 版 3.117.2: 答え合わせ役の問い合わせ（表の oracle）に入る名乗りの表（{key, pc}。ops の設定の答え access.who）の鍵が OS の利用者から
+    // 作った字そのものなら @USERKEY@ で持ち、作り直す時に今の利用者で作り直す（前は root で焼いた「PC-ORACLE@root」が root でない利用者で古いと読まれた）。
+    // 場面が決めた利用者の鍵（PC-1@boss）・pc の違う鍵はそのまま
+    let Some(u) = common::bake::os_user() else { return };
+    let mine = da_core::bundle::terminal_key(u, "PC-ORACLE");
+    let v = json!({"who": {"key": mine, "login": u, "pc": "PC-ORACLE"}, "other": {"key": "PC-1@boss", "pc": "PC-1"},
+                   "elsewhere": {"key": mine, "pc": "PC-2"}});
+    let kept = common::bake::named_users(&v, "");
+    assert_eq!(kept["who"], json!({"key": "@USERKEY@", "login": "@USER@", "pc": "PC-ORACLE"}));
+    assert_eq!(kept["other"], v["other"], "場面が決めた利用者の鍵はそのまま");
+    assert_eq!(kept["elsewhere"], v["elsewhere"], "となりの pc から作った字でなければそのまま");
+    assert_eq!(common::bake::unnamed_users(&kept), v, "作り直すと今の利用者の鍵");
+    // 変異: 作り直さない（印のまま窓に渡す）と元に戻らない
+    assert_ne!(kept, v);
+}
+
+#[test]
 fn the_repository_is_the_same_wherever_it_is_checked_out() {
     // 版 3.115.0 の 2 回目の直し: リポジトリの道は @REPO。家の下にある PC（CI の /home/runner/work/…）でも @HOME/… にならない
     let base = common::work("bake-repo");

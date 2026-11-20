@@ -43,7 +43,7 @@ sys.path.insert(0, str(PROGRAM))
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import shifts, work_log  # noqa: E402
+from app.services import identity, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from tests import scene_files, ui_scene  # noqa: E402
 
@@ -83,6 +83,7 @@ def build():
     # この端末の名前は決める（答え合わせ役 tests/ops_oracle.py の場面のマスタの書いた人〈updated_by.pc〉に焼いた PC の名前を持たない）
     settings = {"lot_list": {"source": ""}, "work_log": {"folder": str(folder), "pattern": "実績_*.sqlite3", "refresh_seconds": 3600},
                 "identity": {"pc_name": "PC-ORACLE"}}
+    identity.set_override("PC-ORACLE")       # MasterStore は作るときに名乗りを覚える（create_app より前に作る）
     app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}), "APP_SETTINGS": settings,
                       "LOT_MIRROR": DbMirror("lot_list", "", WORK / "cache"),
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"), "WORK_LISTING": work_log.Listing(ttl=0),

@@ -32,7 +32,7 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, data_join, data_sources, display_formats, equip_groups, schedule, shifts, work_log  # noqa: E402
+from app.services import access, data_join, data_sources, display_formats, equip_groups, identity, schedule, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
 from tests import lotlist_fixture, schedule_fixture, ui_scene  # noqa: E402
@@ -94,6 +94,7 @@ def build(quality=1500, work_rows=400, wip=1200, cm3=True, pc_name=""):
     settings["schedule"] = {**settings.get("schedule", {}), "cm3_base_url": cm3_url}
     if pc_name:
         settings["identity"] = {**settings.get("identity", {}), "pc_name": pc_name}
+        identity.set_override(pc_name)        # MasterStore は作るときに名乗りを覚える（create_app より前に作る）
     settings["sources"] = {**settings.get("sources", {}), "wip": {**settings.get("sources", {}).get("wip", {}),
                                                                   "source": str(made["wip"])}}
     # マスタの置き場（版 3.110.0。読めない行の面・確かめの窓の言葉を置き場ごとに撮る）: 既定は手元のみ。TPA_UI_SHARE=shared は共有の

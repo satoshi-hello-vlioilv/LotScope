@@ -35,10 +35,10 @@ BUDGET = PROGRAM / "tests" / "fixtures" / "delegates_budget.json"
 # equipgroups）は標準入力を閉じると最初の答えを書いて終わる。share_reader は前の版の読み手そのもの（場面の答えを持たない）
 ORACLES = {
     "access": ["--keep", "{w}"], "access_write": ["{w}"], "builder": ["{w}"], "calc": ["{w}"], "cards": ["{w}"], "conversions": ["{w}"],
-    "dashboard": [], "dashboards": ["{w}"], "equip_rows": ["{w}"], "equipgroups": ["{w}"], "formats": ["{w}"], "fs": ["{w}"],
+    "dashboard": ["{w}"], "dashboards": ["{w}"], "equip_rows": ["{w}"], "equipgroups": ["{w}"], "formats": ["{w}"], "fs": ["{w}"],
     "lists": ["{w}"], "lotdsp": ["serve", "{w}"], "lotlist": ["{w}"], "masters": ["{w}"], "mirror": ["scenario", "{w}"],
-    "name_key": [], "ops": [], "pivot": [], "place": ["{w}"], "presence": ["{w}"], "presets": ["{w}"], "release_place": ["{w}"],
-    "routes": [], "schedule": ["serve", "{w}"], "seed_reads": ["{w}"], "seeds": ["{w}"], "sets": ["{w}"], "settings": ["{w}"],
+    "name_key": [], "ops": ["{w}"], "pivot": ["{w}"], "place": ["{w}"], "presence": ["{w}"], "presets": ["{w}"], "release_place": ["{w}"],
+    "routes": ["{w}"], "schedule": ["serve", "{w}"], "seed_reads": ["{w}"], "seeds": ["{w}"], "sets": ["{w}"], "settings": ["{w}"],
     "settings_write": ["{w}"], "shifts": ["{w}"], "share_reader": None, "sources_write": ["{w}"], "ui_defaults": ["{w}"],
     "worklog_write": ["{w}"],
 }
