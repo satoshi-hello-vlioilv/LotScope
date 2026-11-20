@@ -135,5 +135,50 @@
    ],
    "seen": "切る線の ①〜⑥ は全部入っていて、言ったとおりに動く。(1) Windows の仕事は 2 つに割れ、前の段は 1 つも抜けず、release は両方を待つ。見込みは windows-test 50〜55 分・windows-exe 約 39 分で、上限 90 分に余りができる。(2) 新しい equipgroups・lotdsp の表は、窓の答えの 1 字の変異を Python と比べる形でも Python 無しの形でも落とす。作り物を app から切り離しても Python の答えは変わっていない（lotdsp は 30.5 MB の答えがfake の道と urls の鍵のほか同じ）。見本の表の古さは試験と --check が止める。(3) 起こしたままの相手は app を import せずに起き、試験の後に残らず、並べても取り合わない。名前つきの URL は起こした URL そのものだけに当たる。(4) 別の PC の形の 2 回目は、PC の名前・取り出しの更新時刻・SQLite の版の違いを焼くときに止める。そろえる決まりは 1 字も広がっていない。(5) Windows の測りは、手元でまねると 2 つの形とも 36 表の記録を落とさずに出し、記録から戻せる。段 ④ の入口の条件は計画書で書き直してある。(6) 流すたびに変わる葉は無い（lotdsp は焼き直しても同じバイト）。CI と同じ道・利用者でも通る。前の 2 版のような「CI で初めて落ちる」形は、手元で流せる範囲では見つからなかった。足りないのは次の所。割れ 1: PC の名前の見張りが、ありふれた名前の PC（localhost・desktop・root・PC-1 など）で誤って落ち、そこでは焼けない。割れ 2: 2 回目の焼きが root のままなので、利用者に頼る葉は「同じです」で通り、焼いた後の ci-shape 頼み。割れ 3: 測りのまとめが記録の無い表を言わない（上限で切れても「違う歩 0」）。割れ 4: check-all が 34 分に延び、CLAUDE.md と yml の時間・成果物の名前が古い。割れ 5: -I の下では符号の環境変数が効かず、作り物が日本語を書くと Windows で黙って終わる（3.117.1 の落とし穴）。割れ 6: 小さな後片付け 4 つ。ほかに、まだ確かめられていない物: Windows の本物（仕事の時間・2 つの形の数・改行の直しの効き目）は最初の CI でしか出ない。窓の通し（verify）は 0533d8a でまだ通っていない（コンテナの再起動で切れた。作った係が流し直す）。表は 30.37 MB（上限 40。残り 5 本で 36〜37 MB の見込み）で、lotdsp の 5.96 MB は本文を 16 進で持つ分が大きい"
   }
- }
+ },
+ "built_fixed": [
+  {
+   "crack": 1,
+   "fixed": "bless.pc_marks の「この PC の名前」は、窓が名乗りに書く所だけを見る（表の「pc」の欄・名乗りの鍵「端末@利用者」の頭・書いた人の言葉「PC 名前 が」。PC_FIELDS）。当たっても、その名前が場面の言葉（表の問い合わせ oracle と場面 scene の字に字のまま出る、か、本の元〈答え合わせ役など books.json の sources〉に \"名前\" の字で書いてある）なら、答え合わせ役が場面に決めた名前なので飛ばす（bless.spoken）。check() は表の本を渡す。前は表の字の全部から探し、localhost で fs・root と desktop で 36 表すべてに当たった",
+   "tests": "tests/test_baked_tables.py の test_tables_keep_no_marks_of_the_baking_pc（pc_marks(表の字, host=localhost・desktop・root・PC-1) が今の 36 表で空。前の決めの見本〈pc・key・「PC 名前 が」〉は当たったまま）。手元で 24 の名前〈localhost・desktop・root・PC-1・PC-ORACLE・PC-2・home・main・box・win・user・default・base・work・app・pc・data・local・PC・share・vm・runnervm…〉× 36 表で当たり 0 を見た"
+  },
+  {
+   "crack": 2,
+   "fixed": "(a) bless() は 2 回の焼きが同じだった後に 3 回目（bless.user_pass）: 焼いた表を ci-shape の runner の形（root でない利用者 daemon・TPA_BLESS なし＝表と比べるだけ。TPA_SETTLE_DROP は渡す）で流し、落ちたら元の表に戻して止める。(b) bless.pc_marks に「名前を書く欄（settle.json の nameKeys: login・holder_login・ログインID）に、焼いた利用者の名前（bake.rs の os_user と同じ順の getpass.getuser）が @USER でなく字のまま」の見張り（場面が決めた名前は飛ばす。1 と同じ決め）",
+   "tests": "test_tables_keep_no_marks_of_the_baking_pc（\"login\":\"<利用者>\" を equipgroups の表に 1 つ書き込むと check() が落ちる・{\"login\": \"root\"} は当たり、@USER・ほかの欄・rootx は当たらない・NAME_KEYS は settle.json と同じ）。変異: TPA_SETTLE_DROP=login python program/tools/bless.py equipgroups が 3 回目で止まり表を戻す（下の checks_after_fix）"
+  },
+  {
+   "crack": 3,
+   "fixed": "bless.py --measured は焼いた表の一覧（tables()）と比べ、形ごとの計に「記録の無い表 n（名前）」を出す（bless.expected_tables。--skip-test 試験,… を読み、流さなかった試験だけが焼く本の表は除く: route_reach を除いても settings の表は bundle_parity・page_parity が焼くので数える）。記録が 1 つも無いフォルダも、記録の無い表の数を言う。from_log は (戻した数, 読めなかった行の数) を返し、--from-log は読めなかった行の数も言う（切れた JSON・file の無い記録）",
+   "tests": "test_the_measure_summary_names_the_tables_without_a_record（36 表の記録から lotdsp.json を消すと「記録の無い表 1（lotdsp）」・lotdsp の試験を --skip-test にすると 0・全部消すと 36）・test_the_windows_measure_summary_reads_the_records（from_log が (3, 0)、切れた行と file の無い行を足すと (3, 2)）"
+  },
+  {
+   "crack": 4,
+   "fixed": "CLAUDE.md の check-all の時間を「約 35 分（--verify つきは約 70 分）」に（120 分はそのまま）・3.116.0 の行の成果物の名前を desktop-windows-measure に。desktop.yml の頭と windows-test の注、RUST_PORT_PLAN.md の仕事の表の見込みを「約 55 分（cargo test 約 44 分＋表だけの形の測り 約 10 分）」に。この版の最後の check-all の段ごとの秒は checks_after_fix と RUST_PORT_PLAN.md の 3.117.0 の「作った後の採点と直し」に書いた",
+   "tests": "文書（試験なし）。check-all の summary.txt の段ごとの秒で確かめた"
+  },
+  {
+   "crack": 5,
+   "fixed": "tests/fakes_serve.py の main は頭で標準入出力を UTF-8 に決める（utf8_pipes: reconfigure。-I は PYTHONIOENCODING を読まない）。答える口の誤りは飲まずに {\"error\": \"型: 訳\"} の 1 行で答える（suppress は BrokenPipeError・KeyboardInterrupt だけ）。-I で起こすほかの台本も確かめた: 場面の台本のうち標準出力に書くのは tests/lotlist_fixture.py だけで、同じく UTF-8 に決めた（tests/lists_scene.py は書かない）。fakes_serve.py・lotlist_fixture.py は equipgroups・lotdsp・lists・lotlist の元なので 4 本を焼き直した",
+   "tests": "tests/test_fakes_serve.py の test_non_ascii_answers_survive_a_non_utf8_pipe_under_isolated_mode（入口を一時フォルダに写し、隣の作り物 fakes_zz が日本語の URL と答えと誤りを返す。python -I・PYTHONIOENCODING=ascii・標準入出力を ascii にした上で、名乗り・答え・{\"error\": \"ValueError: 設備が無い\"} を UTF-8 の 1 行で読める。前の fakes_serve.py では落ちることを見た）"
+  },
+  {
+   "crack": 6,
+   "fixed": "(a) bake_selftest の proxy_and_cert_variables_are_removed_before_the_tests は置く前の値を覚え、終わったら（落ちても。Drop）戻す。(b) test_baked_tables は app を import する作り物の見本を一時フォルダ（写した入口 fakes_serve.py の隣）に書く（取り出しの中に書かない）。(c) tools/lotdsp-fake-tables.py の EBOM は \"\\ufeff\" と書く（生の U+FEFF を消した。焼いた見本の表は同じ）。(d) 焼いた版の並びは books.json の bakedPhases の 1 か所（bless.py・ci-shape.py・test_baked_tables が読む）。あわせて bless.py --no-python の数え違い: 窓の試験（bake::frozen_python）は凍らせた試験の名前と改行を 1 回の write_all で書き（前の writeln! は 2 回の write で、糸の間で名前がつながった）、bless.py は行ごとに数える（同じ名前は 1 本）",
+   "tests": "bake_selftest の proxy_and_cert_variables_are_removed_before_the_tests（終わった後に 5 つの変数が置く前の値と同じ）・test_scene_scripts_and_truths_do_not_import_the_app（取り出しの中に fakes_zz_selftest.py が無い）・test_books_cover_every_oracle（bless.PHASES・ci_shape.PHASES が books.json の bakedPhases と同じ・焼いた版ごとに本がある）・tests/test_lotdsp_fake_tables.py（見本の表が古くない）"
+  }
+ ],
+ "windows_fix": {
+  "what": "main（473e0df）の desktop の仕事が Windows の lib の試験 lotdsp_direct::tests::one_watcher_and_the_headless_closes_after_keep_seconds（「見えない Edge は keep_seconds で閉じる」。202 passed; 1 failed）で落ち、3.116.0 が Releases に出ていない。PR の head では通っていた",
+  "root": "試験の差し替えた時計（FakeTime）の起こし損ない。見張りの糸は「時計を読む（left = end - now）→ 眠る（sleep(min(left, 1))）」の 2 歩で、差し替えの sleep は眠るときに目当てを『その時の now + s』で数え直す。試験の糸が時計を進める（advance）のが、見張りが読んだ後・眠る前に当たると、目当ては進めた後の時刻 + 1 秒になり、もう進まない時計を本物の 5 秒まで待つ。試験は進めた後に本物の 300 ミリ秒しか待たないので、閉じる前に確かめて落ちる（外の try_lock に負けた道の sleep(1.0) と、測った後の end = now + 30 も同じ形）。Linux は糸の割り当てが細かく、見張りが眠りに入ってから試験の糸が進めるのでほぼ当たらない。Windows の CI の糸の割り当ての粗さ（既定 15.6 ミリ秒の刻み）で当たった。隣の the_window_after_the_headless_stays_for_window_keep_seconds も同じ作り（keep_zero_closes_the_headless_but_not_the_window は時計を進めない）",
+  "repro": "手元の Linux で CPU を混ませて（yes を 8 本・32 本、試験の実行ファイルを 4 並び）前のコードを 200 回＋200 回流しても落ちなかった。差し替えの sleep の頭に 350 ミリ秒の遅れ（読んだ後・眠る前に糸が止まる形）を入れると、one_watcher_and_the_headless_closes_after_keep_seconds と the_window_after_the_headless_stays_for_window_keep_seconds が 20 回中 20 回、Windows と同じ言葉で落ちた",
+  "fixed": "差し替えの時計を直した（製品のコードは変えていない）: (1) 糸ごとに最後に読んだ時刻を覚え（thread_local の SEEN）、眠るときにそれより時計が進んでいれば眠らずに戻って測り直させる（本物の時計の「読んだ後に時間がたった」と同じ）。(2) advance は進めた後に本物の時間で待つのをやめ、見張りが進んだ時刻を読んで次の眠りに入る（parked）か、見張りが終わる（watch.alive が偽）までを待つ（上限 20 秒）。(3) 遅れ（preempt）を時計に持たせ、読んだ後・眠る前の間合いを毎回作る試験を足した",
+  "tests": "lotdsp_direct::tests::the_fake_clock_wakes_a_watcher_that_read_the_time_before_it_moved（350 ミリ秒の遅れで、見えない Edge が keep_seconds で閉じる・窓は 600 秒で閉じず 1850 秒で閉じて見張りも終わる）。直した後、CPU を混ませて（yes 32 本・4 並び）lotdsp_direct::tests:: を 200 回流して 0 回落ちた"
+ },
+ "checks_after_fix": [
+  "割れを直した後の check-all --verify（記録 b3117b/check2 の summary.txt）の段ごとの終了コードと秒・Ran／OK／test result は主への報告に書く",
+  "焼き直し: python program/tools/bless.py equipgroups lotdsp lists lotlist（2 回の焼きが同じ・3 回目〈root でない利用者 daemon・表と比べるだけ〉も同じ）・python program/tools/bless.py --check は「古くありません（30 本・36 ファイル）」",
+  "変異: TPA_SETTLE_DROP=login python program/tools/bless.py equipgroups → 名前を書く欄の見張りが「焼いた利用者の名前（root）」で止めて表を戻す。見張りを外しても 3 回目が「updated_by.login: \"root\" / \"runner\"」で止めて表を戻す（git status は空）",
+  "Windows の時計の割れ: 前の差し替えの時計に 350 ミリ秒の遅れを入れると 2 本が 20/20 落ちる。直した後、CPU を混ませて（yes 32 本・4 並び）lotdsp_direct::tests:: を 200 回流して 0 回"
+ ]
 }

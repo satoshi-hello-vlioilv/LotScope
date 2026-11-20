@@ -2733,6 +2733,28 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 - 任せる歩は 11 のまま（`python program/tools/delegate-count.py 作業フォルダ --check`: 予算と同じ）。
 
 
+#### 作った後の採点（56.2 点・割れ 6）と直し
+
+採点は `tools/ui-proposals/2026-11-stage3f-built.json`（決まり 2026-11-06。採点し直さない。直した事と足した試験は built_fixed・windows_fix・checks_after_fix）。
+
+1. **PC の名前の見張りの誤り**: `bless.pc_marks` は名乗りの欄（pc・鍵の頭・「PC 名前 が」）だけを見て、場面が決めた名前（問い合わせ・場面の字・本の元の `"名前"`）は飛ばす。
+   localhost・desktop・root・PC-1 など 24 の名前 × 36 表で当たり 0（前は root・desktop で 36 表すべて）。
+2. **利用者に頼る葉**: `bless.py` は 2 回の焼きが同じだった後に 3 回目（`user_pass`: ci-shape の runner の形・root でない利用者 daemon・表と比べるだけ）を流し、落ちたら表を戻す。
+   `--check` は名前を書く欄（settle.json の nameKeys）の焼いた利用者の名前も見る。`TPA_SETTLE_DROP=login python program/tools/bless.py equipgroups` は見張りで止まり、
+   見張りを外しても 3 回目が「updated_by.login: "root" / "runner"」で止める（どちらも表を戻す）。
+3. **測りのまとめ**: `--measured` は焼いた表の一覧と比べて「記録の無い表 n（名前）」を出す（`--skip-test` の試験だけが焼く表は除く）。`--from-log` は読めなかった行の数も言う。
+4. **時間の文書**: CLAUDE.md（check-all 約 35 分・--verify つき約 70 分）・desktop.yml と上の仕事の表（windows-test 約 55 分）・3.116.0 の行の成果物の名前。
+5. **-I と符号**: `fakes_serve.py` と `lotlist_fixture.py` は標準入出力を UTF-8 に決める（-I は PYTHONIOENCODING を読まない）。答える口の誤りは `{"error": …}` の 1 行。
+   元が変わった equipgroups・lotdsp・lists・lotlist を焼き直した（3 回の焼きが同じ）。
+6. **後片付け**: bake_selftest の環境変数を戻す・作り物の見本は一時フォルダ・EBOM は `"\ufeff"`・焼いた版の並びは books.json の `bakedPhases` の 1 か所・
+   凍らせた試験の名前は 1 回の write で書き、`--no-python` は行で数える。
+
+**main の Windows の割れ**（`lotdsp_direct::tests::one_watcher_and_the_headless_closes_after_keep_seconds`。3.116.0 が Releases に出ていない）: 試験の差し替えた時計の起こし損ない。
+見張りが時計を読んだ後・眠る前に試験の糸が時計を進めると、差し替えの sleep が目当てを進めた後から数え直し、もう進まない時計を本物の 5 秒まで待つ（試験は本物の 300 ミリ秒しか待たない）。
+Linux では CPU を混ませても 400 回で 0 回だが、読んだ後・眠る前に 350 ミリ秒の遅れを入れると 20 回中 20 回落ちる。差し替えの時計は、糸が最後に読んだ時刻より進んでいれば眠らずに戻り、
+advance は見張りが進んだ時刻を読んで眠るか終わるまでを待つ（製品のコードは変えていない）。遅れつきの試験 `the_fake_clock_wakes_a_watcher_that_read_the_time_before_it_moved` を足し、
+混ませて 200 回で 0 回。
+
 #### この版の後に残る物
 
 - 任せる歩は 11 のまま（比べる口 7・③-6 の 3・戻したキーに / がある道 1。Windows だけ 2）。③-6（3.117.1）で 11 → 8・Windows だけ 2 → 0。
