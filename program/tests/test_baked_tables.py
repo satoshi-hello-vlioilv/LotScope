@@ -91,7 +91,9 @@ class BakedTables(unittest.TestCase):
         ci = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(ci)
         # 版 3.117.0: 起こしたままの相手の台本（作り物の CM3 など）と、その作り物も
-        for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py", "tests/fakes_serve.py", "tests/schedule_fixture.py", "tests/lotdsp_cdp_fake.py"] \
+        # 版 3.117.2: 開発用サーバーと稼働の評価関数の場面の台本（tests/ui_scene.py）と、それが使う写しの部品
+        for rel in ["tests/lists_scene.py", "tests/lotlist_fixture.py", "tests/fakes_serve.py", "tests/schedule_fixture.py", "tests/lotdsp_cdp_fake.py",
+                    "tests/ui_scene.py", "tests/scene_files.py"] \
                 + [f"tests/{p.name}" for p in (PROGRAM / "tests").glob("fakes_*.py")] \
                 + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
             self.assertIsNone(ci.imports_app(PROGRAM / rel), rel)
@@ -124,7 +126,9 @@ class BakedTables(unittest.TestCase):
         import time
         from tests import scene_files
         direct = re.compile(r"shutil\.(copytree|copy2|copy|copyfile)\(\s*\(?\s*(PROGRAM|ROOT|BASE)\b")
-        for p in sorted((PROGRAM / "tests").glob("*_oracle.py")):
+        # 版 3.117.2: 答え合わせ役の場面を作る道具（開発用サーバー・稼働の評価関数）と場面の台本も
+        for p in sorted((PROGRAM / "tests").glob("*_oracle.py")) + [PROGRAM / "tools" / "ui_server.py", PROGRAM / "tools" / "ops-bench.py",
+                                                                    PROGRAM / "tests" / "ui_scene.py"]:
             self.assertIsNone(direct.search(p.read_text(encoding="utf-8")), f"{p.name}: 取り出しから直に写している（scene_files を通す）")
         tmp = Path(tempfile.mkdtemp())
         try:

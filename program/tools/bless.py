@@ -51,7 +51,7 @@ PHASES = tuple(_BOOKS_JSON["bakedPhases"])
 MAX_MB = 1.5
 MAX_TOTAL_MB = 40.0
 # そろえた印（desktop/tests/common/bake.rs の settle が答えに置く字）。本ごとに数えて、そろえすぎを数で見せる（first_fixes 12）
-STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@BUILD", "@HOST", "@DAY", "@ABOVE", "@PID", "@UI", "@FID(")
+STAMPS = ("@T(", "@URL", "@MS", "@WORK", "@REPO", "@HOME", "@USER", "@HELD:", "@VERSION", "@BUILD", "@HOST", "@DAY", "@ABOVE", "@PID", "@FID(")
 STAMP_SHARE = 0.2      # 印のある葉が答えの葉のこの割合を超える本は知らせる（守りが薄い表）
 # 場面のファイルの更新時刻「今からのずれ」がこれより大きい物は知らせる（ms。版 3.116.0 の作った後の直し）: 答え合わせ役が作ったファイルは
 # 焼いた時の今（ずれは数秒）。大きいずれは、取り出しのファイルの時刻をそのまま写した（＝取り出してからの日数に頼る表）か、場面が

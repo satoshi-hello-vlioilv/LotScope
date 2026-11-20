@@ -22,12 +22,16 @@ PROGRAM = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROGRAM))
 sys.path.insert(0, str(PROGRAM / "tools"))
 os.environ.update(TPA_SHELL="desktop", TPA_SHELL_SERVES="lotlist,lists")
+# 場面は窓の試験の作業フォルダの下（1 つ目の引数。版 3.117.2: 前は ui_server の /tmp/tpa-ui-*）。場面の元のファイルは台本 tests/ui_scene.py
+if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    os.environ["TPA_UI_WORK"] = sys.argv[1]
 
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.services import data_sources, lot_list, num_expr, pivot, shifts, work_log  # noqa: E402
 from app.services.work_summary import num as work_log_num  # noqa: E402
 import ui_server  # noqa: E402
 from ui_server import as_role, build  # noqa: E402
+from tests import ui_scene  # noqa: E402
 
 NOW = datetime(2026, 10, 2, 8, 30, 0)
 CANDS = {"lot": lot_list.TABLE_CANDIDATES, "work": work_log.TABLE_CANDIDATES, "src": data_sources.TABLE_CANDIDATES}
@@ -88,7 +92,7 @@ def num_cases():
 
 def main():
     as_role("開発者")
-    app = build(quality=600, work_rows=150, wip=400)
+    app = build(quality=600, work_rows=150, wip=400, cm3=False, pc_name="PC-ORACLE")
     repo = MasterRepository(app.config["MASTER_STORE"])
     pats = repo.shift_patterns()
     folder = ui_server.WORK / "【New】実績"
@@ -103,57 +107,27 @@ def main():
                            "work": {"segments": pat["segments"] if pat else [], "basis": "work", "start": ""}})
     names = [r["設備名"] for r in rows]
     lot_src = app.config["APP_SETTINGS"]["lot_list"]["source"]
-    # 空白で埋まる値（版 3.51.1 の空欄の決まり）・前方一致で見分ける設備の列の値
+    # 場面の台本の手直し（空白で埋まる値・前方一致で見分ける設備の列の値・外れ値・区間の境・ひげの端の近く・集計の境の表・日付と時刻が別の列の作業実績）
+    ui_scene.pivot(ui_server.WORK)
     db = sqlite3.connect(lot_src)
     t = lot_list.pick_table(lot_list.tables(db))
-    ids = [r[0] for r in db.execute(f'SELECT rowid FROM "{t}" ORDER BY rowid LIMIT 40')]
-    for i, v in zip(ids, ["  ", "　", "\t", " ﾃｽﾄ ", "ﾃｽﾄ", "", None, "  　 ", "\n", "\r\n"] * 4):
-        db.execute(f'UPDATE "{t}" SET 備考 = ? WHERE rowid = ?', (v, i))
-    for i, v in zip(ids, ["CR2 1号", "cr1", "L-1 南", "ＣＲ２", "謎の設備 A", " ", None, "TLV", "L-10 1号", "l-10", " L-9 ", "L-9", "\u3000", "謎の設備\u3000B", "CL-1"] * 3):
-        db.execute(f'UPDATE "{t}" SET 設備 = ? WHERE rowid = ?', (v, i))
-    # 外れ値（箱ひげのひげの端・外れ値の見せる数 30 の上限）: 40 行の重量を飛び離れた大きな値に
-    far = [r[0] for r in db.execute(f'SELECT rowid FROM "{t}" ORDER BY rowid DESC LIMIT 40')]
-    for k, i in enumerate(far):
-        db.execute(f'UPDATE "{t}" SET 重量 = ? WHERE rowid = ?', (90000 + k * 1700.5, i))
-    # 下の側の外れ値（ひげの下の端が最小値でないこと）
-    for k, i in enumerate(r[0] for r in db.execute(f'SELECT rowid FROM "{t}" ORDER BY rowid LIMIT 8 OFFSET 200')):
-        db.execute(f'UPDATE "{t}" SET 重量 = ? WHERE rowid = ?', (-50000 - k * 333.25, i))
+    assert t == ui_scene.QUALITY_TABLE, "品質の表は台本の決めた表"
     few = [r[0] for r in db.execute(f'SELECT 検査番号 FROM "{t}" ORDER BY rowid LIMIT 6')]
-    # 値の少ない区間の自動の幅（段数の下限 5 が効く広がり 130）・区間の境ちょうどの小数（0.3 ÷ 0.1）・10 桁で丸める数の鍵
-    for i, (w, g, th) in zip(ids[:6], [(1000, 0.3, "1.2345678"), (1030, 0.6, "1.2345678"), (1050, 0.7, "2.0000000001"), (1080, 0.3, " 3 "),
-                                       (1100, 0.9, "1e-7"), (1130, 0.6, "1.2345678")]):
-        db.execute(f'UPDATE "{t}" SET 板幅 = ?, 比重 = ?, 板厚 = ? WHERE rowid = ?', (w, g, th, i))
-    # ひげの端の近く（四分位の範囲の 1.5〜1.6 倍の間）の値: 段なしの箱ひげで、1.5 倍の外・1.6 倍の内に入る
-    for _ in range(3):
-        d = pivot.describe([f for f in (work_log_num(r[0]) for r in db.execute(f'SELECT 重量 FROM "{t}"')) if f is not None])
-        near = d["q3"] + 1.55 * (d["q3"] - d["q1"])
-        db.execute(f'UPDATE "{t}" SET 重量 = ? WHERE rowid IN (SELECT rowid FROM "{t}" ORDER BY rowid LIMIT 3 OFFSET 100)', (near,))
-    d = pivot.describe([f for f in (work_log_num(r[0]) for r in db.execute(f'SELECT 重量 FROM "{t}"')) if f is not None])
+    # 台本の四分位（標準の部品だけ）と数の読み方が app（pivot.describe・work_summary.num）と同じ
+    vals = [r[0] for r in db.execute(f'SELECT 重量 FROM "{t}"')]
+    assert [ui_scene.number(v) for v in vals] == [work_log_num(v) for v in vals], "台本の数の読み方が app と違う"
+    nums = [f for f in (work_log_num(v) for v in vals) if f is not None]
+    d = pivot.describe(nums)
+    assert ui_scene.quantiles(nums) == (d["q1"], d["q3"]), "台本の四分位が pivot.describe と違う"
     iqr = d["q3"] - d["q1"]
     assert any(d["q3"] + 1.5 * iqr < f[0] <= d["q3"] + 1.6 * iqr for f in db.execute(f'SELECT 重量 FROM "{t}"')), "ひげの端の近くの値を作れません"
-    db.commit()
     db.close()
     lot = {"path": lot_src, "preferred": "", "cand": "lot", "name": "品質データ"}
-    # 作った表（2,400 行）: 種類が 1,000 を超える列（カラムの札の「1000+」の境）・値の無いまとまり（前との差）・同じ値（順位）
+    # 作った表（2,400 行。台本）: 種類が 1,000 を超える列（カラムの札の「1000+」の境）・値の無いまとまり（前との差）・同じ値（順位）
     big_path = ui_server.WORK / "集計の境.sqlite3"
-    bdb = sqlite3.connect(big_path)
-    bdb.execute("CREATE TABLE 境 (区分 TEXT, 値 REAL, 鍵 TEXT, 小 INTEGER, 千 TEXT)")
-    bdb.executemany("INSERT INTO 境 VALUES (?, ?, ?, ?, ?)",
-                    [("ABCDE"[i % 5], None if i % 5 == 2 else (i % 7) * 1.5, f"K{i:05d}", i % 3, f"T{i % 1000}") for i in range(2400)])
-    bdb.commit()
-    bdb.close()
     big = {"path": str(big_path), "preferred": "", "cand": "src", "name": "境"}
-    # 作業開始の日付と時刻が別の列の作業実績（2 直だけの勤務体系: 23 時〜7 時は直の外・時刻の無い行・作業開始の無い行）
+    # 作業開始の日付と時刻が別の列の作業実績（2 直だけの勤務体系: 23 時〜7 時は直の外・時刻の無い行・作業開始の無い行。台本）
     tw_path = ui_server.WORK / "実績_時刻別.sqlite3"
-    tdb = sqlite3.connect(tw_path)
-    tdb.execute("CREATE TABLE 実績 (ロット番号 TEXT, BOX実績_作業開始_日付 TEXT, BOX実績_作業開始_時刻 TEXT, 重量 REAL)")
-    rows_tw = []
-    for k, (d, t) in enumerate([(d, t) for d in ("2025/12/31", "2026/09/29", "2026/09/30", "2026/10/01")
-                                for t in ("06:30", "07:00", "14:59", "15:00", "22:59", "23:30", "", None)] + [(None, "08:00"), ("", "09:00")]):
-        rows_tw.append((f"T{k:03d}" if k % 4 else "T000", d, t, 100 + k))
-    tdb.executemany("INSERT INTO 実績 VALUES (?, ?, ?, ?)", rows_tw)
-    tdb.commit()
-    tdb.close()
     two = [{"name": "1直", "start": "07:00", "end": "15:00", "dayOffset": 0, "crosses": False},
            {"name": "2直", "start": "15:00", "end": "23:00", "dayOffset": 0, "crosses": False}]
     three = (shifts.pattern_for(pats, "CAL") or {}).get("segments") or []
@@ -368,7 +342,10 @@ def main():
         except Exception as e:
             fields.append({"part": spec, "calc": cc, "fail": str(e)})
     sys.stdout.reconfigure(encoding="utf-8")
-    json.dump({"cases": cases, "fields": fields, "num_expr": num_cases(), "now": NOW.strftime("%Y-%m-%d %H:%M:%S")}, sys.stdout, ensure_ascii=False)
+    # sceneMade: 場面の台本が作ったファイル・fids: そのファイルID（焼いた表は登録のマスタの中のファイルID を @FID にする）
+    json.dump({"cases": cases, "fields": fields, "num_expr": num_cases(), "now": NOW.strftime("%Y-%m-%d %H:%M:%S"),
+               "sceneMade": ui_scene.made_files(ui_server.WORK), "fids": ui_scene.fid_names(ui_server.WORK, work_log.file_id)},
+              sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

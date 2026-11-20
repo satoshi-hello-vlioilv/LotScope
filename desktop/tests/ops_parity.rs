@@ -5,6 +5,8 @@
 //! （足した設備〈値の書き方・勤務体系の形・上限の両側〉・いまを替える〈答えの控えを残したまま。組ごとに設定を持つ〉・勤務体系が無い）。
 //! 段の始めと、設定を持つ組の前で一覧の設定を尋ね直す（Lot::invalidate。答えの控えは消さない）。
 //! 写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したかを比べ、かかった時間は比べない。
+//! 版 3.117.2 から窓の答えを焼いた表（tests/baked/ops.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
+//! （program/tests/ui_scene.py の ops。前は tools/ops-bench.py が /tmp/tpa-ops-* に作った）が作り、表は指紋だけを持つ。
 
 mod common;
 
@@ -35,22 +37,47 @@ fn strip(v: &mut Value) {
     }
 }
 
-fn check(lot: &Lot, settings: &Value, c: &Value, label: &str, bad: &mut Vec<String>) -> bool {
+/// 表の問い合わせに持つ形（Python の答え status・body を除く。変換表の版の印は決めた字）
+fn question(v: &Value) -> Value {
+    let mut o = v.clone();
+    let drop = |cs: &mut Value| {
+        for c in cs.as_array_mut().unwrap() {
+            let c = c.as_object_mut().unwrap();
+            c.remove("status");
+            c.remove("body");
+        }
+    };
+    drop(&mut o["cases"]);
+    for ph in o["phases"].as_array_mut().unwrap() {
+        drop(&mut ph["cases"]);
+    }
+    common::bake::fixed_conv_rev(&mut o);
+    o
+}
+
+/// 1 つの組を窓に尋ね、比べる相手（Python か焼いた表）と比べる → 比べる相手の答え（窓が答えなければ None）
+fn check(bk: &mut common::bake::Bake, lot: &Lot, settings: &Value, c: &Value, label: &str, bad: &mut Vec<String>) -> Option<Value> {
     let ask = || Ok(settings.clone());
     let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
     let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask) else {
         bad.push(format!("{label}: 窓が答えません（Python に回した）"));
-        return false;
+        return None;
     };
-    let mut want = c["body"].clone();
-    strip(&mut want);
     strip(&mut got);
-    if status as u64 != c["status"].as_u64().unwrap() {
-        bad.push(format!("{label}: 状態 {status} / Python {}（窓 {} / Python {}）", c["status"], got["error"], want["error"]));
-    } else if let Some(d) = common::diff(&want, &got, "") {
+    let got = json!({"status": status, "body": got});
+    let want = bk.want(label, || {
+        let mut b = c["body"].clone();
+        strip(&mut b);
+        json!({"status": c["status"], "body": b})
+    });
+    bk.note(label, "POST /api/dashboard/query", &got, &want);
+    let (w, g) = (bk.s(&want), bk.s(&got));
+    if g["status"] != w["status"] {
+        bad.push(format!("{label}: 状態 {} / Python {}（窓 {} / Python {}）", g["status"], w["status"], g["body"]["error"], w["body"]["error"]));
+    } else if let Some(d) = common::diff(&w, &g, "") {
         bad.push(format!("{label}: {d}"));
     }
-    true
+    Some(want)
 }
 
 /// 答えの控え: 同じ組でも、作業実績の写しが新しくなれば数え直す（控えの鍵に写しのファイルの印）。足した設備 TXT の元から 1 行消して写し直す
@@ -84,22 +111,28 @@ fn recount_after_refresh(lot: &Lot, o: &Value, bad: &mut Vec<String>) {
 #[test]
 fn operation_answers_like_python() {
     let work = common::work("ops");
-    let o = common::python_json("ops_oracle.py", &[]);
+    let mut bk = common::bake::Bake::open("ops", &work);
+    bk.pack = true;
+    bk.script = Some(("ui_scene.py", vec![work.to_string_lossy().into_owned(), "ops".into()]));
+    bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
+    bk.fid_key = Some("fids");
+    let o = bk.oracle_with("ops_oracle.py", &[work.to_str().unwrap()], question);
     let settings = o["settings"].clone();
     let lot = Lot::new(work.join("db_cache"));
     let mut bad = vec![];
     let (mut total, mut gantt, mut abc, mut fails, mut phased) = (0, 0, 0, 0, 0);
-    for c in o["cases"].as_array().unwrap() {
+    for (i, c) in o["cases"].as_array().unwrap().iter().enumerate() {
         total += 1;
-        let name = c["name"].as_str().unwrap();
-        gantt += (c["body"]["kind"] == "gantt") as usize;
-        abc += (c["body"]["kind"] == "abc") as usize;
-        fails += (c["status"] != 200) as usize;
-        check(&lot, &settings, c, name, &mut bad);
+        let label = format!("#{i} {}", c["name"].as_str().unwrap());
+        if let Some(w) = check(&mut bk, &lot, &settings, c, &label, &mut bad) {
+            gantt += (w["body"]["kind"] == "gantt") as usize;
+            abc += (w["body"]["kind"] == "abc") as usize;
+            fails += (w["status"] != 200) as usize;
+        }
     }
     for ph in o["phases"].as_array().unwrap() {
         lot.invalidate();
-        for c in ph["cases"].as_array().unwrap() {
+        for (i, c) in ph["cases"].as_array().unwrap().iter().enumerate() {
             total += 1;
             phased += 1;
             let settings = match c.get("settings") {
@@ -109,18 +142,16 @@ fn operation_answers_like_python() {
                 }
                 None => &ph["settings"],
             };
-            check(&lot, settings, c, &format!("{} / {}", ph["name"].as_str().unwrap(), c["name"].as_str().unwrap()), &mut bad);
+            let label = format!("{} #{i} {}", ph["name"].as_str().unwrap(), c["name"].as_str().unwrap());
+            check(&mut bk, &lot, settings, c, &label, &mut bad);
         }
     }
     recount_after_refresh(&lot, &o, &mut bad);
     let _ = std::fs::remove_dir_all(&work);
-    // Python の係が作った作業の場所（tools/ops-bench.py の tpa-ops-*。workFolder はその中の「実績」）も片付ける
-    if let Some(top) = o["workFolder"].as_str().and_then(|f| std::path::Path::new(f).parent()) {
-        let _ = std::fs::remove_dir_all(top);
-    }
     assert!(
         total >= 150 && gantt >= 15 && abc >= 20 && fails >= 6 && phased >= 100,
         "組が足りません: {total} 通り・ガント {gantt}・ABC {abc}・失敗 {fails}・段の中 {phased}"
     );
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} / {total} 通りが食い違いました:\n{}", bad.len(), bad.join("\n"));
 }

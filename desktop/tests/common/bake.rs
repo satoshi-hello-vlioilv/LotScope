@@ -507,6 +507,24 @@ fn offset_re() -> &'static regex::Regex {
     R.get_or_init(|| regex::Regex::new(r"@T\(([^|)]*)\|(-?\d+)\)").unwrap())
 }
 
+/// 答え合わせ役が窓に渡す設定の答え（/api/lotlist/settings）の変換表の版の印（conversions.rev）を決めた字にする（版 3.117.2。表の問い合わせ用）。
+/// 版の印は同梱の変換表のファイルの更新時刻（取り出した時刻）から作るので、取り出した PC ごとに違う。窓はこの印を変換表の控えの鍵にだけ使う
+/// （同じ印なら同じ表）。Python と比べる形は本物の印のまま渡し、表には決めた字を持つ
+pub fn fixed_conv_rev(v: &mut Value) {
+    match v {
+        Value::Object(o) => {
+            if let Some(Value::Object(c)) = o.get_mut("conversions") {
+                if c.get("rev").is_some_and(Value::is_string) {
+                    c.insert("rev".into(), json!("@REV"));
+                }
+            }
+            o.values_mut().for_each(fixed_conv_rev);
+        }
+        Value::Array(a) => a.iter_mut().for_each(fixed_conv_rev),
+        _ => {}
+    }
+}
+
 pub fn without_offsets(v: &Value) -> Value {
     let re = offset_re();
     map_strings(v, &|s| if s.contains("@T(") { re.replace_all(s, "@T($1)").into_owned() } else { s.to_string() })

@@ -5,6 +5,8 @@
 //! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。スケジュールは窓の束の設定が無いこの試験では Python へ回す（None。
 //! 窓が答える形は tests/schedule_parity.rs）。
 //! 写しは窓が自分の置き場へ写す。写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したかを比べ、かかった時間（timing）は比べない。
+//! 版 3.117.2 から窓の答えを焼いた表（tests/baked/dashboard.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
+//! （program/tests/ui_scene.py）が作り、表は指紋だけを持つ。
 
 mod common;
 
@@ -44,10 +46,57 @@ fn sent(c: &Value) -> Vec<u8> {
     }
 }
 
+/// 表の問い合わせに持つ形（Python の答え status・body を除く。変換表の版の印は決めた字）
+fn question(v: &Value) -> Value {
+    let mut o = v.clone();
+    let drop = |cs: &mut Value| {
+        for c in cs.as_array_mut().unwrap() {
+            let c = c.as_object_mut().unwrap();
+            c.remove("status");
+            c.remove("body");
+        }
+    };
+    drop(&mut o["cases"]);
+    for ph in o["phases"].as_array_mut().unwrap() {
+        drop(&mut ph["cases"]);
+    }
+    common::bake::fixed_conv_rev(&mut o);
+    o
+}
+
+/// 1 つの組を窓に尋ね、比べる相手（Python か焼いた表）と比べる → 比べる相手の答え（数える所に使う）。窓が答えなければ None
+fn one(bk: &mut common::bake::Bake, lot: &Lot, c: &Value, key: &str, ask: &dyn Fn() -> Result<Value, String>, bad: &mut Vec<String>) -> Option<Value> {
+    let body = sent(c);
+    let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, ask) else {
+        bad.push(format!("{key}: 窓が答えません（Python に回した）"));
+        return None;
+    };
+    strip(&mut got);
+    let got = json!({"status": status, "body": got});
+    let want = bk.want(key, || {
+        let mut b = c["body"].clone();
+        strip(&mut b);
+        json!({"status": c["status"], "body": b})
+    });
+    bk.note(key, "POST /api/dashboard/query", &got, &want);
+    let (w, g) = (bk.s(&want), bk.s(&got));
+    if g["status"] != w["status"] {
+        bad.push(format!("{key}: 状態 {} / Python {}（窓 {} / Python {}）", g["status"], w["status"], g["body"]["error"], w["body"]["error"]));
+    } else if let Some(d) = common::diff(&w, &g, "") {
+        bad.push(format!("{key}: {d}"));
+    }
+    Some(want)
+}
+
 #[test]
 fn dashboard_answers_like_python() {
     let work = common::work("dash");
-    let o = common::python_json("dashboard_oracle.py", &[]);
+    let mut bk = common::bake::Bake::open("dashboard", &work);
+    bk.pack = true;
+    bk.script = Some(("ui_scene.py", vec![work.to_string_lossy().into_owned(), "dashboard".into()]));
+    bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
+    bk.fid_key = Some("fids");
+    let o = bk.oracle_with("dashboard_oracle.py", &[work.to_str().unwrap()], question);
     let settings = o["settings"].clone();
     assert_eq!(settings["engine"], "rust");
     assert!(settings["lists"]["dash"]["now"].is_string(), "試験の「いま」が設定の答えに無い");
@@ -55,55 +104,33 @@ fn dashboard_answers_like_python() {
     let ask = || Ok(settings.clone());
     let mut bad = vec![];
     let (mut total, mut cells, mut fails, mut facets, mut boards, mut links) = (0, 0, 0, 0, 0, 0);
-    for c in o["cases"].as_array().unwrap() {
+    for (i, c) in o["cases"].as_array().unwrap().iter().enumerate() {
         total += 1;
-        let name = c["name"].as_str().unwrap();
-        let body = sent(c);
-        let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask) else {
-            bad.push(format!("{name}: 窓が答えません（Python に回した）"));
-            continue;
-        };
-        let mut want = c["body"].clone();
-        cells += want.get("cells").is_some() as usize;
-        fails += (c["status"] != 200) as usize;
-        facets += want.get("facets").and_then(Value::as_array).is_some_and(|f| !f.is_empty()) as usize;
-        boards += want.get("groups").is_some() as usize;
-        links += want.get("link").is_some() as usize;
-        strip(&mut want);
-        strip(&mut got);
-        if status as u64 != c["status"].as_u64().unwrap() {
-            bad.push(format!("{name}: 状態 {status} / Python {}（窓 {} / Python {}）", c["status"], got["error"], want["error"]));
-        } else if let Some(d) = common::diff(&want, &got, "") {
-            bad.push(format!("{name}: {d}"));
-        }
+        let key = format!("#{i} {}", c["name"].as_str().unwrap());
+        let Some(want) = one(&mut bk, &lot, c, &key, &ask, &mut bad) else { continue };
+        let w = &want["body"];
+        cells += w.get("cells").is_some() as usize;
+        fails += (want["status"] != 200) as usize;
+        facets += w.get("facets").and_then(Value::as_array).is_some_and(|f| !f.is_empty()) as usize;
+        boards += w.get("groups").is_some() as usize;
+        links += w.get("link").is_some() as usize;
     }
     // 設定を替えて問い直す段: 「いま」を変える（前の「いま」で同じ組を先に問い、答えの控えに入れてから）・出さないタブ
     let mut phases = 0;
     for ph in o["phases"].as_array().unwrap() {
         let phs = ph["settings"].clone();
         let ask_ph = || Ok(phs.clone());
-        for c in ph["cases"].as_array().unwrap() {
+        for (i, c) in ph["cases"].as_array().unwrap().iter().enumerate() {
             total += 1;
-            let name = format!("{} / {}", ph["name"].as_str().unwrap(), c["name"].as_str().unwrap());
-            let body = sent(c);
+            let key = format!("{} #{i} {}", ph["name"].as_str().unwrap(), c["name"].as_str().unwrap());
             if ph["warm"] == true {
                 lot.invalidate();
-                let _ = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask);
+                let _ = lot.handle_body_with("POST", "/api/dashboard/query", "", &sent(c), &ask);
             }
             lot.invalidate();
-            let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask_ph) else {
-                bad.push(format!("{name}: 窓が答えません"));
-                continue;
-            };
-            let mut want = c["body"].clone();
-            strip(&mut want);
-            strip(&mut got);
-            if status as u64 != c["status"].as_u64().unwrap() {
-                bad.push(format!("{name}: 状態 {status} / Python {}", c["status"]));
-            } else if let Some(d) = common::diff(&want, &got, "") {
-                bad.push(format!("{name}: {d}"));
+            if let Some(want) = one(&mut bk, &lot, c, &key, &ask_ph, &mut bad) {
+                fails += (want["status"] == 403) as usize;
             }
-            fails += (c["status"] == 403) as usize;
         }
         phases += 1;
     }
@@ -162,5 +189,6 @@ fn dashboard_answers_like_python() {
     let after = count(&lot);
     assert_eq!(after, before.map(|n| n - 1), "写しが新しくなったら数え直す（控えのまま {before:?} を返さない）");
     let _ = std::fs::remove_dir_all(&work);
+    bk.finish(&bad);
     assert!(bad.is_empty(), "{} / {total} 通りが食い違いました:\n{}", bad.len(), bad.join("\n"));
 }
