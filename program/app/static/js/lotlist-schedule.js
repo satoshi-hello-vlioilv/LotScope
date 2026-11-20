@@ -102,6 +102,11 @@
      左に主の数（最初に見る物は 1 つ）・区切り・押して絞る丸い札（色は一覧の行の色と同じ・釜番の札と同じ型）・右に時刻。設備も HOT も同じ形 */
   const chip = (key, label, n, cls = "", on = false, tip = "", extra = "") =>
     `<button type="button" class="sd-kchip${cls}${on ? " is-on" : ""}" data-sd-pick="${esc(key)}" aria-pressed="${on}"${tip ? ` title="${esc(tip)}"` : ""}>${label}${n != null ? ` <b>${esc(n)}</b>` : ""}${extra}</button>`;
+  // 取った道（版 3.117.1。段 ③-6: 取った係〈窓・Python〉・https か・直かプロキシ越しか。データの時刻の title に出す。現場で 1 回通ったかを
+  // 画面の写しで分かるように）
+  const viaText = (v) => (v && v.engine
+    ? `取った係: ${v.engine === "rs" ? "窓（Rust）" : "Python（戻り道）"}・${v.tls ? "https" : "http"}・${v.proxy ? `プロキシ ${v.proxy} 越し` : "直"}`
+    : "");
   const lead = (n, unit, tip) => `<span class="sd-lead" title="${esc(tip)}"><b>${esc(n)}</b><span>${esc(unit)}</span></span>`;
   function paint(S, extra) {
     const box = $("#llSched"); if (!box) return;
@@ -119,7 +124,8 @@
       + (extra.joined ? chip("miss", "仕掛に無い", miss, " k-miss", sel.kind === "miss", "仕掛（データ元「仕掛」）に同じロットが無い製造の行だけを出します") : "");
     box.innerHTML = `<div class="sd-row">${lead(m.count, `件 製造・ロット ${m.lots}`, "設備停止・点検を除いた製造の行の数（2 パス目も 1 件と数える）と、ロットの数")}`
       + `<span class="sd-klab">区分</span>${chips}`
-      + `<span class="sd-meta"${m.error ? ` title="${esc(`いまは CM3 に届きません（${m.error}）。前に取れた予定を出しています`)}"` : ""}>完了予定 <b>${esc(m.first || "-")} ～ ${esc(m.last || "-")}</b>`
+      + `<span class="sd-meta"${(() => { const t = [m.error ? `いまは CM3 に届きません（${m.error}）。前に取れた予定を出しています` : "", viaText(m.via)].filter(Boolean).join("\n");
+        return t ? ` title="${esc(t)}"` : ""; })()}>完了予定 <b>${esc(m.first || "-")} ～ ${esc(m.last || "-")}</b>`
       + `　CM3 の更新 <b>${esc((m.updateTime || "-").slice(5, 16))}</b>・取得 <b>${esc((m.fetchedAt || "-").slice(11, 16))}</b>${m.error ? ' <em class="sd-err">届きません</em>' : ""}</span></div>`;
   }
 
@@ -158,7 +164,8 @@
     const rule = `${eqs.join("・")} の予定から、前工程（実績_設備ｺｰｽ の最後）が ${h.prevValue || "HOT"} で、次の設備（残仕掛設備ｺｰｽ の最初）がその設備のロットの 1 パス目を、完了予定の順に`;
     const tlOn = TPA.local.get(TL_KEY, true) !== false;
     box.innerHTML = `<div class="sd-row">${lead(all.length, `本 対象（前工程 ${h.prevValue || "HOT"}）`, "HOT コイル作業順に並んだロットの数")}`
-      + `<span class="sd-klab">設備</span>${chips}<span class="sd-meta">完了予定 <b>${esc(range(all))}</b></span></div>`
+      + `<span class="sd-klab">設備</span>${chips}<span class="sd-meta"${(() => { const t = eqs.map((eq) => { const v = viaText(((extra.perEquipment || {})[eq] || {}).via); return v ? `${eq}: ${v}` : ""; }).filter(Boolean).join("\n");
+        return t ? ` title="${esc(t)}"` : ""; })()}>完了予定 <b>${esc(range(all))}</b></span></div>`
       + `<p class="sd-rule">抜き出し方: ${esc(rule)}</p>`
       // 除いたロット・読めない列の知らせは、抜き出し方の文と分けて 1 行に（狭い窓でも切らない。状態が見えないままにしない）
       + (notes.length ? `<p class="sd-notes" role="status">${esc(notes.join("／"))}</p>` : "")

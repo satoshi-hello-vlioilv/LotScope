@@ -16,6 +16,8 @@ pub enum Kind {
     TlsNot,
     TlsOther,
     ProxyRefused,
+    ProxyAuth,
+    ProxyUnreachable,
     Text,
 }
 
@@ -30,6 +32,8 @@ impl Kind {
             Kind::TlsNot => "tls_not",
             Kind::TlsOther => "tls_other",
             Kind::ProxyRefused => "proxy_refused",
+            Kind::ProxyAuth => "proxy_auth",
+            Kind::ProxyUnreachable => "proxy_unreachable",
             Kind::Text => "text",
         }
     }
@@ -44,6 +48,8 @@ impl Kind {
             Kind::TlsNot,
             Kind::TlsOther,
             Kind::ProxyRefused,
+            Kind::ProxyAuth,
+            Kind::ProxyUnreachable,
             Kind::Text,
         ]
         .into_iter()
@@ -52,7 +58,7 @@ impl Kind {
 
     /// 届かない形か（後ろに PAC の一言を足す）
     fn reach(self) -> bool {
-        !matches!(self, Kind::Text | Kind::TlsNot)
+        !matches!(self, Kind::Text | Kind::TlsNot | Kind::ProxyAuth)
     }
 }
 
@@ -67,6 +73,8 @@ pub fn message(kind: Kind, detail: &str, note: &str) -> String {
         Kind::TlsNot => "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）".to_string(),
         Kind::TlsOther => format!("CM3に接続できません: 暗号の通信（TLS）を始められません{HINT}"),
         Kind::ProxyRefused => format!("CM3に接続できません: プロキシが中継を断りました（{detail}）{HINT}"),
+        Kind::ProxyAuth => "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string(),
+        Kind::ProxyUnreachable => format!("CM3に接続できません: プロキシ（{detail}）に届きません{HINT}"),
         Kind::Text => format!("CM3に接続できません: {detail}"),
     };
     if kind.reach() {

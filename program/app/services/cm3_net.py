@@ -9,6 +9,8 @@ tests/test_cm3_net_cases.py、窓は cargo test --test cm3_net_cases）。決め
   - 名前が引けないは OS の字を使わない（前は PC の DNS で「Name or service not known」「Temporary failure in name resolution」に割れた）
   - TLS は 信頼できない発行元・名前が違う・TLS でない口 の 3 つと、そのほか（OpenSSL・schannel の字は出さない）
   - 届かない言葉の後ろに「社内 LAN か VPN につながっているか」を促す一言（利用者の決め 2026-11-17: CM3 は社内 LAN か VPN からだけ使う）
+  - プロキシ越しにつなげない（断られた・名前を引けない）は「プロキシ（名前:番号）に届きません」、407（CONNECT の答えも HTTP の答えも）は
+    「認証を求めています（対応していません）」（利用者の決め: プロキシに認証は無い）
 """
 from __future__ import annotations
 
@@ -25,10 +27,12 @@ MESSAGES = {
     "tls_not": "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）",
     "tls_other": "CM3に接続できません: 暗号の通信（TLS）を始められません{hint}",
     "proxy_refused": "CM3に接続できません: プロキシが中継を断りました（{status}）{hint}",
+    "proxy_auth": "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）",
+    "proxy_unreachable": "CM3に接続できません: プロキシ（{proxy}）に届きません{hint}",
     "text": "CM3に接続できません: {text}",
 }
 # 足す一言（PAC）を付ける種類（届かない形。設定の誤り text・https でない口 tls_not には付けない）
-REACH = {"timeout", "os", "dns", "tls_untrusted", "tls_name", "tls_other", "proxy_refused"}
+REACH = {"timeout", "os", "dns", "tls_untrusted", "tls_name", "tls_other", "proxy_refused", "proxy_unreachable"}
 
 # OpenSSL の検証の番号（X509_V_ERR_*）→ 種類
 VERIFY_UNTRUSTED = {2, 18, 19, 20, 21, 27, 29, 30, 79}
@@ -57,16 +61,21 @@ def kind_of(reason):
         return "dns", ""
     text = str(reason)
     if isinstance(reason, OSError) and text.startswith(TUNNEL):
-        return "proxy_refused", text[len(TUNNEL):]
+        status = text[len(TUNNEL):]
+        return ("proxy_auth", "") if status.split(" ", 1)[0] == "407" else ("proxy_refused", status)
     return "os", text
 
 
 def message(kind, detail="", note=""):
     """種類 → 言葉。note は届かない形の後ろに足す一言（PAC）"""
     tpl = MESSAGES[kind]
-    text = tpl.format(hint=HINT, os=detail, status=detail, text=detail)
+    text = tpl.format(hint=HINT, os=detail, status=detail, text=detail, proxy=detail)
     return text + (note if kind in REACH else "")
 
 
-def message_of(reason, note=""):
-    return message(*kind_of(reason), note=note)
+def message_of(reason, note="", proxy=None):
+    """proxy: 最初の問い合わせのプロキシ（名前:番号。直は None）。プロキシ越しにつなげない・名前を引けない形は「プロキシに届きません」"""
+    kind, detail = kind_of(reason)
+    if proxy and kind in ("os", "dns"):
+        kind, detail = "proxy_unreachable", proxy
+    return message(kind, detail, note=note)

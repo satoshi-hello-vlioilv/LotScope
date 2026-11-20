@@ -5,6 +5,7 @@
     "名前が引けないは OS・DNS の字を使わない（PC で「Name or service not known」「Temporary failure in name resolution」「getaddrinfo failed」に割れた。焼いた表が PC に頼らない）",
     "TLS は 信頼できない発行元（tls_untrusted）・名前が違う（tls_name）・TLS でない口（tls_not）の 3 つと、そのほか（tls_other）。OpenSSL・schannel の字は出さない（版と OS で変わる）",
     "届かない言葉の後ろに「（社内 LAN か VPN につながっているか確かめてください）」（利用者の決め 2026-11-17: CM3 は社内 LAN か VPN からだけ使う）。設定の誤り（text）と https でない口（tls_not）には付けない",
+    "プロキシ越しの問い合わせでつなげない・名前を引けない（os・dns）は、最初の問い合わせのプロキシの名前:番号で「プロキシ（…）に届きません」（proxy_unreachable。Python は message_of の proxy、窓は post_cm3 の via）。407 は CONNECT の答えも HTTP の答えも「認証を求めています（対応していません）」（proxy_auth。利用者の決め: 認証は無い）",
     "そのほかの OS の誤り（断られた・切られた）は OS の字のまま（Python の OSError の str。窓は Linux は [Errno n] 理由、Windows は [WinError n] 文。前の版から同じ）"
   ],
   "hint": "（社内 LAN か VPN につながっているか確かめてください）",
@@ -18,6 +19,8 @@
     {"kind": "tls_not", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）"},
     {"kind": "tls_other", "detail": "", "note": "", "want": "CM3に接続できません: 暗号の通信（TLS）を始められません（社内 LAN か VPN につながっているか確かめてください）"},
     {"kind": "proxy_refused", "detail": "403 Forbidden", "note": "", "want": "CM3に接続できません: プロキシが中継を断りました（403 Forbidden）（社内 LAN か VPN につながっているか確かめてください）"},
+    {"kind": "proxy_auth", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）"},
+    {"kind": "proxy_unreachable", "detail": "proxy.corp:8080", "note": "", "want": "CM3に接続できません: プロキシ（proxy.corp:8080）に届きません（社内 LAN か VPN につながっているか確かめてください）"},
     {"kind": "text", "detail": "unknown url type: nlmfangyweb1a", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: unknown url type: nlmfangyweb1a"},
     {"kind": "timeout", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3の応答がタイムアウトしました（社内 LAN か VPN につながっているか確かめてください）（プロキシの自動設定〈PAC〉には対応していません）"},
     {"kind": "dns", "detail": "", "note": "（プロキシの自動設定〈PAC〉には対応していません）", "want": "CM3に接続できません: サーバーの名前を引けません（社内 LAN か VPN につながっているか確かめてください）（プロキシの自動設定〈PAC〉には対応していません）"}
@@ -32,6 +35,7 @@
     {"name": "断られた", "exc": "ConnectionRefusedError", "args": [111, "Connection refused"], "kind": "os", "detail": "[Errno 111] Connection refused"},
     {"name": "答えずに閉じた", "exc": "http.client.RemoteDisconnected", "args": ["Remote end closed connection without response"], "kind": "os", "detail": "Remote end closed connection without response"},
     {"name": "プロキシが CONNECT を断った", "exc": "OSError", "args": ["Tunnel connection failed: 403 Forbidden"], "kind": "proxy_refused", "detail": "403 Forbidden"},
+    {"name": "プロキシが CONNECT に認証を求めた（407）", "exc": "OSError", "args": ["Tunnel connection failed: 407 Proxy Authentication Required"], "kind": "proxy_auth"},
     {"name": "信頼できない発行元（20 unable to get local issuer certificate）", "exc": "ssl.SSLCertVerificationError", "verify_code": 20, "kind": "tls_untrusted"},
     {"name": "自分で署名した証明書（18）", "exc": "ssl.SSLCertVerificationError", "verify_code": 18, "kind": "tls_untrusted"},
     {"name": "自分で署名した CA が鎖にある（19）", "exc": "ssl.SSLCertVerificationError", "verify_code": 19, "kind": "tls_untrusted"},

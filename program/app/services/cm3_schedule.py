@@ -97,12 +97,12 @@ def fetch_raw(cfg, setsubi, term_kbn):
         "Origin": base, "Referer": base + "/Cm3SchWeb/"})
     # プロキシは既定で通さない（社内の CM3 へ直接つなぐ）。use_system_proxy のときは環境変数・Windows の設定のプロキシ（版 3.117.1: 読み方は
     # services/sysproxy.py。利用者:合言葉 は送らない・使えない種類は取りに行く前に断る。窓の src/sysproxy.rs と同じ決め）
-    note = ""
+    note, proxy = "", None
     if cfg.get("use_system_proxy"):
         proxies = sysproxy.getproxies()
         kind, host = sysproxy.url_type_host(req.full_url)
         try:
-            sysproxy.choose(kind, host, proxies)
+            proxy = sysproxy.choose(kind, host, proxies)
         except sysproxy.ProxyProblem as e:
             raise Cm3Error(str(e)) from None
         opener = urllib.request.build_opener(urllib.request.ProxyHandler(sysproxy.clean(proxies)))
@@ -114,11 +114,13 @@ def fetch_raw(cfg, setsubi, term_kbn):
         with opener.open(req, timeout=timeout_of(cfg)) as res:
             text = _decode_body(res.read(), res.headers.get("Content-Type"))
     except urllib.error.HTTPError as e:
+        if e.code == 407:       # プロキシの認証（利用者の決め: 認証は無い。対応していない）
+            raise Cm3Error(cm3_net.message("proxy_auth")) from None
         raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None
     except urllib.error.URLError as e:
-        raise Cm3Error(cm3_net.message_of(e.reason, note)) from None
+        raise Cm3Error(cm3_net.message_of(e.reason, note, proxy)) from None
     except OSError as e:
-        raise Cm3Error(cm3_net.message_of(e, note)) from None
+        raise Cm3Error(cm3_net.message_of(e, note, proxy)) from None
     try:
         return json.loads(text, parse_constant=_no_constant)
     except ValueError:

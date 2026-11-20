@@ -512,7 +512,8 @@ fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
         c.headers()?;
         if code != 200 {
             let d = format!("{code} {reason}");
-            return Err(net(Kind::ProxyRefused, d.clone(), connect_err(format!("Tunnel connection failed: {d}"))));
+            let kind = if code == 407 { Kind::ProxyAuth } else { Kind::ProxyRefused };
+            return Err(net(kind, d.clone(), connect_err(format!("Tunnel connection failed: {d}"))));
         }
         tcp
     } else {
@@ -703,11 +704,18 @@ pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) 
     let mut via = None;
     let note = n.proxy.as_ref().map(crate::sysproxy::pac_note).unwrap_or("");
     let r = follow(url, body, timeout, &|t, b| headers_for(t, b, base), true, n, &mut via);
+    let proxy = via.as_ref().and_then(|v| v.proxy.clone());
     let r = match r {
         Ok(r) if (200..300).contains(&r.status) => Ok(r),
+        // プロキシの認証（利用者の決め: 認証は無い。対応していない）
+        Ok(r) if r.status == 407 => Err(Fail::Cm3(crate::cm3_net::message(Kind::ProxyAuth, "", ""))),
         Ok(r) => Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))),
         // 設定の誤り（unknown url type・no host given）と Python に任せる形は前のまま
         Err(X::F(f)) => Err(f),
+        // プロキシ越しにつなげない・名前を引けない（最初の問い合わせのプロキシ。Python の cm3_net.message_of と同じ）
+        Err(X::N { kind: Kind::Os | Kind::Dns, .. }) if proxy.is_some() => {
+            Err(Fail::Cm3(crate::cm3_net::message(Kind::ProxyUnreachable, proxy.as_deref().unwrap_or(""), note)))
+        }
         Err(X::N { kind, detail, .. }) => Err(Fail::Cm3(crate::cm3_net::message(kind, &detail, note))),
     };
     (r, via)

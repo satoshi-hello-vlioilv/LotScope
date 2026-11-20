@@ -171,6 +171,10 @@ def scenes(urls):
         ("読めないプロキシの URL", {**base, **P, "cm3_base_url": u("pbad")}, ONE[:1], None, {"http_proxy": "http:/x"}),
         ("番号の読めないプロキシ", {**base, **P, "cm3_base_url": u("pbad2")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:x9"}),
         ("断られるプロキシ", {**base, **P, "timeout_sec": 10, "cm3_base_url": u("pref")}, ONE[:1], None, {"http_proxy": "http://127.0.0.1:1"}),
+        ("断られるプロキシ（https）", {**base, **P, "timeout_sec": 10, "cm3_base_url": t("pref2")}, ONE[:1], None, {"https_proxy": "http://127.0.0.1:1"}),
+        ("名前の引けないプロキシ", {**base, **P, "cm3_base_url": u("pdns")}, ONE[:1], None, {"http_proxy": "http://nonexistent.invalid:3128"}),
+        ("認証を求めるプロキシ（http の 407）", {**base, **P, "cm3_base_url": u("pauth")}, ONE[:1], None, {"http_proxy": "{auth}"}),
+        ("認証を求めるプロキシ（CONNECT の 407）", {**base, **P, "cm3_base_url": t("pauth2")}, ONE[:1], None, {"https_proxy": "{auth}"}),
         # 戻り道（版 3.117.1。配った設定の schedule.fetch_engine が "python"）: 窓は答えず、状態に「係を降りた」を書く（受け身の Python が取る）。
         # 段 ④ まで残す（任せる歩の予算の envExtra に数える）
         ("戻り道（fetch_engine が python）", {**base, "fetch_engine": "python", "cm3_base_url": u("engine")},
@@ -191,7 +195,8 @@ def scenes(urls):
 def proxy_env(env, urls, runner):
     """場面の環境変数の作り物の URL（走る係ごとの中継・黙る・断るプロキシ）"""
     relay = urls[f"relay_{runner}"]
-    rep = {"{relay}": relay, "{relayhp}": relay.split("://", 1)[1], "{silent}": urls["silent"], "{deny}": urls["deny"]}
+    rep = {"{relay}": relay, "{relayhp}": relay.split("://", 1)[1], "{silent}": urls["silent"], "{deny}": urls["deny"],
+           "{auth}": urls["auth"]}
     out = {}
     for k, v in env.items():
         for a, b in rep.items():

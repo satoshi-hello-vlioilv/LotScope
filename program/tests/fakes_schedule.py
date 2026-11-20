@@ -241,7 +241,7 @@ def _pipe(a, b):
 
 
 class Proxy:
-    """作り物のプロキシ（版 3.117.1）。mode: relay（中継。「POST http://名前:番号/道 HTTP/1.1」は道だけにして行き先へ送り、CONNECT は
+    """作り物のプロキシ（版 3.117.1）。mode: auth（407 で認証を求める）・relay（中継。「POST http://名前:番号/道 HTTP/1.1」は道だけにして行き先へ送り、CONNECT は
     「200 Connection established」の後に流れをそのまま中継）・silent（受けて黙る）・deny（403 Forbidden で断る）。
     log に受けた要求の行と見出しを残す（窓と Python で比べる: 利用者:合言葉 を送らない・URL の全体・CONNECT の行）"""
 
@@ -285,6 +285,9 @@ class Proxy:
                 return
             if self.mode == "deny":
                 c.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                return
+            if self.mode == "auth":
+                c.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"corp\"\r\nContent-Length: 0\r\n\r\n")
                 return
             method, target, ver = lines[0].split(" ", 2)
             if method == "CONNECT":
@@ -361,7 +364,8 @@ def start(wip):
     tlsname = fx.Cm3Server(world, tls=tls_files("wrongname"), share=srv)
     tlsbad = fx.Cm3Server(world, tls=tls_files("untrusted"), share=srv)
     plain = PlainQuick()
-    proxies = {"relay_py": Proxy("relay"), "relay_rs": Proxy("relay"), "silent": Proxy("silent"), "deny": Proxy("deny")}
+    proxies = {"relay_py": Proxy("relay"), "relay_rs": Proxy("relay"), "silent": Proxy("silent"), "deny": Proxy("deny"),
+               "auth": Proxy("auth")}
     bh, held = blackhole()
 
     def ask(line):
