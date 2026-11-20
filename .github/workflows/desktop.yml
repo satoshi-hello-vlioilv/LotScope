@@ -65,8 +65,9 @@ jobs:
           $ca = Join-Path $env:GITHUB_WORKSPACE "program\tests\fixtures\tls\ca.pem"
           certutil -f -addstore Root $ca
           if ($LASTEXITCODE -ne 0) { throw "作り物の CA を Root に入れられませんでした（certutil の終了コード $LASTEXITCODE）" }
-          $c = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=LotScope Test CA" }
-          if (-not $c) { throw "Root に CN=LotScope Test CA が見えません" }
+          $tp = (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ca).Thumbprint
+          $c = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Thumbprint -eq $tp }
+          if (-not $c) { throw "Root に作り物の CA（$tp）が見えません" }
           Write-Host "入れた CA: $($c.Thumbprint) $($c.Subject)"
       - name: test（Rust・Windows）
         working-directory: desktop
@@ -132,9 +133,10 @@ jobs:
       - name: 作り物の CA とプロキシの設定を片付ける
         if: always()
         run: |
-          $c = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=LotScope Test CA" }
+          $tp = (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 (Join-Path $env:GITHUB_WORKSPACE "program\tests\fixtures\tls\ca.pem")).Thumbprint
+          $c = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Thumbprint -eq $tp }
           foreach ($x in $c) { certutil -delstore Root $x.Thumbprint | Out-Null; Write-Host "外した CA: $($x.Thumbprint)" }
-          $left = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=LotScope Test CA" }
+          $left = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Thumbprint -eq $tp }
           if ($left) { throw "作り物の CA が残っています" }
           $saved = "$env:RUNNER_TEMP\proxy-saved.json"
           if (Test-Path $saved) {
