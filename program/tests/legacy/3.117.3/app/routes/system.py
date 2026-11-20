@@ -1,0 +1,152 @@
+# -*- coding: utf-8 -*-
+"""画面・版・画面の設定・心拍（利用状況）。"""
+from ..repositories.master_store import MasterError
+from ..web import current_app, jsonify, render_template
+
+from .. import effective_settings
+from ..brand import BRAND
+from ..models import DEFAULT_UNWIND
+from ..services import access, conversions, lotdsp_api, lotdsp_direct, presence, ui_defaults, ui_state
+from ..version import APP_VERSION, CHANGELOG
+from .common import api_map, api_settings, bp, error, master_repo, me, req_body, req_body_value, roles_from
+
+
+def ui_profile():
+    """一覧の表示の設定の範囲と初期設定（画面に埋める。入れたばかりの PC は開くときに初期設定を当てる）。"""
+    try:
+        d = ui_defaults.load(current_app.config["MASTER_STORE"])
+    except Exception:            # 初期設定を読めなくても画面は開く（既定の見せ方で）
+        d = {"keys": {}, "updated_at": "", "updated_by": {}, "revision": 0}
+    return {"keys": list(ui_defaults.PROFILE_KEYS), "defaults": d["keys"], "updatedAt": d["updated_at"], "updatedBy": d["updated_by"]}
+
+
+def conversion_tables():
+    """変換表（版 3.42.0。画面に埋める。式の conv が一覧の最初の描画から使える）。読めなくても画面は開く"""
+    try:
+        repo = master_repo()
+        return {"items": [conversions.view(r) for r in conversions.ordered(repo.conversions())], "revision": repo.store.revision(conversions.NAME)}
+    except Exception:
+        return {"items": [], "revision": None}
+
+
+@bp.get("/")
+def index():
+    # 画面の設定の控え（services/ui_state.py）を画面に埋めておく。画面の部品が設定を読む前に戻せる（読み直しが要らない）
+    resp = current_app.make_response(render_template("index.html", app_version=APP_VERSION, build=current_app.config.get("BUILD", ""),
+                                                     ui_state=ui_state.load(), ui_profile=ui_profile(),
+                                                     conversions=conversion_tables()))
+    resp.headers["Cache-Control"] = "no-store"      # 画面はいつもサーバーから（古い画面を使い回さない）
+    return resp
+
+
+@bp.get("/api/ui-state")
+def ui_state_get():
+    return jsonify(ui_state.load())
+
+
+@bp.post("/api/ui-state")
+def ui_state_put():
+    """画面の設定の控えに、変わった名前を重ねる（閉じる瞬間は sendBeacon で来るので、種類を問わず JSON として読む）。"""
+    body = req_body()
+    try:
+        return jsonify(ui_state.merge(body.get("changed"), body.get("removed") or []))
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+
+@bp.get("/api/build")
+def build():
+    return jsonify(version=APP_VERSION)
+
+
+@bp.get("/api/changelog")
+def changelog():
+    return jsonify(version=APP_VERSION, entries=CHANGELOG)
+
+
+@bp.get("/api/health")
+def health():
+    return jsonify(status="ok")
+
+
+def _config_num(kind, v, default):
+    """int()・float() で読めなければ既定（窓の bundle::config_num と同じ）"""
+    try:
+        return kind(v)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+@bp.get("/api/config")
+def config():
+    s = effective_settings(current_app)          # 参照先マスタで変えた値（LotDsp の URL など）を重ねる
+    from ..services.path_settings import stage
+    stage(s, "lotdsp_import")                    # 段が表でなければ理由つきの 503（版 3.112.0 の作った後の採点の割れ 3）
+    # 心拍・表示の初期設定の段が表でない・数が読めない形は既定（版 3.113.0。前は 500 で、窓は事例の表 appsettings_cases.json の決めで
+    # 答えていた。/api/config は起動の確かめの合図なので落とさない。窓の bundle::Builder::config・config_num と同じ）
+    beat = s.get("presence") if isinstance(s.get("presence"), dict) else {}
+    ui = s.get("ui_defaults") if isinstance(s.get("ui_defaults"), dict) else {}
+    return jsonify(
+        lotdsp_url=(s.get("lotdsp_import") or {}).get("url", ""),
+        lotdsp_direct=lotdsp_direct.settings_of(s.get("lotdsp_import"))["enabled"],
+        lotdsp_login_window=all(lotdsp_direct.settings_of(s.get("lotdsp_import"))[k] for k in ("enabled", "login_window")),
+        lotdsp_api=lotdsp_api.status(api_map(), api_settings()),
+        default_unwind=DEFAULT_UNWIND,
+        defaults=ui,
+        max_rows=_config_num(int, ui.get("max_rows", 25), 25),
+        heartbeat_interval_seconds=_config_num(float, beat.get("heartbeat_interval_seconds", 3), 3.0),
+        app={"name": BRAND["name"], "subtitle": BRAND["subtitle"]},
+    )
+
+
+# ---------------- 心拍（利用状況） ----------------
+@bp.post("/api/heartbeat")
+def heartbeat():
+    """画面が数秒ごとに送る。利用状況を書き（20 秒ごと・裏で）、古い版か・切断されているかを返す（見出しの札）。
+    画面は答えが来るかで「接続 ●」も決める。終了は窓（デスクトップ版の Rust）が答える（/api/shutdown は Python に来ない）。"""
+    return jsonify(_presence_beat())
+
+
+def _presence_beat():
+    from .. import shell_serves
+    try:
+        m = me()
+        # 最新版の数え直しは裏の糸で走る（current_app は問い合わせの中でだけ使える）。権限の行はここで読み終えたものを渡す
+        # 窓（デスクトップ版の Rust）が利用状況を受け持つとき（shell_serves に presence。版 3.71.0）は書かない（書き手は窓の 1 つ。
+        # 同じ PC で 2 つの係が書くと使い始めの回数が増え、使用の履歴が割れる）。窓が心拍に答えるので、ここへ来るのは窓が me を決められない時だけ
+        if "presence" not in shell_serves():
+            presence.touch_async(m["login"], m["pc"], m["flags"]["role"], roles_from(m["rows"]))
+        return {"version": presence.version_notice(m["flags"]["role"]), "revoked": m["revoked"]}
+    except Exception:
+        return {"version": None, "revoked": None}
+
+
+@bp.get("/api/ui-defaults")
+def ui_defaults_get():
+    """一覧の表示の初期設定（新しく入れた PC が開いたときに当てる）と、この PC が置けるか。"""
+    out = ui_profile()
+    out["canPublish"] = me()["flags"]["role"] == access.ROLE_DEVELOPER
+    return jsonify(out)
+
+
+@bp.put("/api/ui-defaults")
+def ui_defaults_put():
+    """今の表示を初期設定に押し上げる（開発者だけ。全員の PC の「入れたときの初期設定」に効く）。keys が空なら初期設定を外す。"""
+    m = me()
+    if m["flags"]["role"] != access.ROLE_DEVELOPER:
+        return error(f"初期設定を置けるのは開発者だけです（この PC は {m['flags']['role']}）。", 403, "forbidden")
+    # 切断中の PC は置けない（版 3.78.0。初期設定は門番〈_GUARDED〉の外なので、ここで見る。門番はマスタ編集の段も見るので使わない）
+    if m["revoked"]:
+        return error("この PC は一時的に切断されています。初期設定を置けません。", 403, "revoked")
+    # 本文と keys は表だけ（版 3.78.0。前は読めない本文・表でない本文・keys の無い本文を {} と読み、全員の初期設定を消した。
+    # 外すときは画面が {keys: {}} を送る）
+    body = req_body_value()
+    if not isinstance(body, dict):
+        return error("本文の形が違います（{keys: {名前: 字}}）。", 400)
+    try:
+        n = ui_defaults.replace(current_app.config["MASTER_STORE"], body.get("keys"))
+    except ValueError as e:
+        return error(str(e), 400)
+    except MasterError as e:     # 保存中の錠・共有に届かない（版 3.78.0。前は受け止めず 500 の頁。ほかのマスタと同じ形で理由を返す）
+        return jsonify(e.payload()), e.status
+    return jsonify(count=n, **ui_profile())

@@ -1,0 +1,160 @@
+# -*- coding: utf-8 -*-
+"""アプリを作る（受け口は app/web.py。版 3.8.0 で Flask から置き換えた）。"""
+import os
+from pathlib import Path
+
+import app_build
+import app_env
+
+from .web import App
+
+
+def effective_settings(app):
+    """配った設定（config/appsettings.json）に、参照先マスタで変えた値を重ねた設定。読むたびに作る（共有の変更を拾う）。"""
+    from .repositories.master_repository import MasterRepository
+    from .services import path_settings
+    base = app.config["APP_SETTINGS"]
+    try:
+        rows = MasterRepository(app.config["MASTER_STORE"]).path_settings()
+    except Exception:
+        rows = []           # 読めなくても配った設定で動く
+    return path_settings.effective(base, rows)[0]
+
+
+def lot_list_params(settings):
+    """ロット一覧の元の設定 → (元ファイル, 写し直す間隔 秒, 古いとみなす時間)。起動時とロット一覧の問い合わせで同じ読み方をする。
+    数の設定は services/num_setting で読む（版 3.106.0: 数でない「abc」は既定に替える。前は DbMirror の float()・int() で起動できなかった）"""
+    from .services import num_setting
+    from .services.path_settings import stage
+    ll = stage(settings, "lot_list")
+    refresh, _ = num_setting.read(ll.get("refresh_seconds", 60), 60)
+    stale, _ = num_setting.read(ll.get("stale_hours", 36), 36)
+    return (ll.get("source", ""), refresh, stale)
+
+
+def lot_engine(settings):
+    """デスクトップ版で品質異常（写しと問い合わせ）を受け持つ係。"rust"（既定）か "python"（設定 desktop.lotlist_engine）。"""
+    return (settings.get("desktop") or {}).get("lotlist_engine", "rust")
+
+
+def shell_serves():
+    """窓（デスクトップ版の Rust）が受け持つと名乗ったこと（環境変数 TPA_SHELL_SERVES・desktop/src/sidecar.rs の SERVES）。
+    名乗っていないことはこのプロセスが受け持つ（受け持ちを移す途中の窓と組んでも欠けない）。"""
+    if os.environ.get("TPA_SHELL") != "desktop":
+        return frozenset()
+    return frozenset(s.strip() for s in os.environ.get("TPA_SHELL_SERVES", "").split(",") if s.strip())
+
+
+def mirror_is_external(settings):
+    """品質データの写しを、このプロセスの外（デスクトップ版の Rust）が作るか。窓が品質異常（lotlist）を受け持つと名乗り、
+    設定も rust のときだけ。そのときこのプロセスは写さず、同じ台帳を読むだけにする（同じ PC で写しの係を2つ動かさない）。"""
+    return "lotlist" in shell_serves() and lot_engine(settings) == "rust"
+
+
+def lists_are_external(settings):
+    """作業実績・データ元の一覧とその写しを、このプロセスの外（デスクトップ版の Rust）が受け持つか（版 3.60.0）。
+    窓が lists を受け持つと名乗り、設定の係も rust のときだけ。そのとき作業実績・データ元の写しの係は受け身（写さず台帳を読み、
+    写しが要るときは窓へ知らせる: shell_notice）"""
+    return "lists" in shell_serves() and lot_engine(settings) == "rust"
+
+
+def schedule_is_external(settings):
+    """スケジュール（CM3 から取る・世代を置く・状態を書く）の係が、このプロセスの外（デスクトップ版の Rust）か（版 3.96.0）。
+    窓が schedule を名乗り、設定の係も rust のときだけ。そのときスケジュールの係は受け身（窓の状態と世代を読み、取りに行く要るときは
+    窓へ知らせる: shell_notice("schedule", …)。窓が係を降りた設定の間だけ自分で取る）"""
+    return "schedule" in shell_serves() and lot_engine(settings) == "rust"
+
+
+_SHELL_NOTICE = []
+
+
+def set_shell_notice(fn):
+    """窓（Rust）へ知らせる手段を置く（sidecar.py が枠の書き手を渡す。試験は記録する係を渡す）。None で外す"""
+    _SHELL_NOTICE[:] = [fn] if fn else []
+
+
+def shell_notice(event, **data):
+    """窓へ知らせる（答えではない枠 {"id": 0, "event": …}）。窓が無い（ブラウザ・試験）ときは何もしない"""
+    for fn in list(_SHELL_NOTICE):
+        try:
+            fn({"id": 0, "event": event, **data})
+        except Exception:      # 知らせられなくても問い合わせは止めない（写しは窓の背景の周回が続ける）
+            pass
+
+
+def work_mirrors(app, kind):
+    """作業実績（kind="work"）・データ元（"src"）の写しの係（アプリに 1 つずつ）。窓が受け持つときは受け身"""
+    from .services import work_log
+    name = "WORK_MIRRORS" if kind == "work" else "SRC_MIRRORS"
+    ms = app.config.get(name)
+    if ms is None:
+        passive = lists_are_external(app.config["APP_SETTINGS"])
+        ms = app.config[name] = work_log.Mirrors(app_env.local_root() / "db_cache" / ("work_log" if kind == "work" else "sources"),
+                                                 passive=passive, prefix="work_log" if kind == "work" else "src",
+                                                 notify=(lambda **kw: shell_notice("mirror", **kw)) if passive else None)
+    return ms
+
+
+def make_lot_mirror(params, passive=False):
+    """ロット一覧の元（品質データ SQLite）を手元（この PC の作業場所の db_cache）へ写す係。passive は読むだけ（写さない）。"""
+    from .services.db_mirror import DbMirror
+    source, refresh_seconds, stale_hours = params
+    return DbMirror("lot_list", source, app_env.local_root() / "db_cache",
+                    interval_sec=refresh_seconds, stale_hours=stale_hours, passive=passive)
+
+
+def create_app(test_config=None):
+    app = App(__name__)
+    base = Path(__file__).resolve().parents[1]
+    app.config["APP_SETTINGS"] = app_env.load_settings(base)
+    app.config["BASE_DIR"] = base
+    if test_config:
+        app.config.update(test_config)
+    # この PC の名乗り（設定の「この端末の名前」があればそれ。services/identity.py）
+    from .services import identity, presence
+    identity.set_override((app.config["APP_SETTINGS"].get("identity") or {}).get("pc_name", ""))
+    if "MASTER_STORE" not in app.config:
+        from .repositories.master_store import MasterStore
+        app.config["MASTER_STORE"] = MasterStore(base, settings=app.config["APP_SETTINGS"].get("master_share"))
+    # 利用状況の置き場: マスタの共有フォルダの下（無ければこの PC の中だけ）。WaveLog の presence とは分ける
+    _st = app.config["MASTER_STORE"]
+    # 式の conv が引く変換表（版 3.42.0）: マスタ「変換表」。一覧の並べ替え・ダッシュボードの集計で、画面と同じ表を使う
+    from .repositories.master_repository import MasterRepository
+    from .services import conversions, formula
+    # 読み直すかは中身の目印で決める（版 3.59.0。版の番号は手元のみの PC では増えず、直した表が開き直すまで効かなかった）
+    formula.use_tables(conversions.TableSource(lambda: MasterRepository(_st).conversions(), lambda: _st.stamp(conversions.NAME)).get)
+    presence.configure(_st.share_dir / presence.SUBDIR if _st.share_dir else _st.cache_dir.parent / "presence")
+    # 置き場を変えた・ほかの PC が変えた置き場へ移ったら、利用状況の置き場も新しい置き場の下へ
+    _st.on_moved = lambda d: presence.configure(Path(d) / presence.SUBDIR)
+    # 起動したときの参照先（ロット一覧）。参照先マスタがこれから変わったら、ロット一覧の問い合わせで切り替える
+    try:
+        app.config["LOT_APPLIED"] = lot_list_params(effective_settings(app))
+    except Exception:    # lot_list の段が表でない（StageBroken）（版 3.112.0: 起きて、束は lot_list の節だけを組まない。appsettings_cases.json）
+        app.config["LOT_APPLIED"] = ("", 60, 36)
+    if "LOT_MIRROR" not in app.config:
+        # ロット一覧の元（品質データ SQLite）を手元へ写す係。写し始めるのは起動したとき（boot.start）か、
+        # 一覧を初めて開いたとき（テストでアプリを作るたびに共有へ触らないように）。
+        app.config["LOT_MIRROR"] = make_lot_mirror(app.config["LOT_APPLIED"], passive=mirror_is_external(app.config["APP_SETTINGS"]))
+
+    # 起動したときのプログラムの指紋（app_build.py）。画面に埋め、JS・CSS の URL にも付ける（app.js が比べて、版の混ざりを言う）
+    app.config["BUILD"] = app_build.fingerprint(base)
+
+    @app.url_defaults
+    def _static_build(endpoint, values):
+        if endpoint == "static" and "v" not in values:
+            values["v"] = app.config["BUILD"]
+
+    # アプリの名前（app/brand.json）。どの画面の型でも {{ brand.name }}・{{ brand.subtitle }} で使う
+    from .brand import BRAND
+
+    @app.context_processor
+    def _brand():
+        return {"brand": BRAND}
+
+    from .routes import bp
+    app.register_blueprint(bp)
+    # 本文の門は、どの前の係（門番など）よりも先（版 3.104.0。窓も同じ順）
+    from .routes.common import body_gate
+    app.before.insert(0, body_gate)
+
+    return app

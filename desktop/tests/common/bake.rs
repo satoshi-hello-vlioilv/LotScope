@@ -1444,6 +1444,11 @@ pub struct Bake {
 /// 流さなかった試験は target/tmp/frozen-skipped.txt に 1 行ずつ書く（版 3.115.0 の作った後の直し: 前は中身を流さずに ok と出るだけだった。
 /// tools/bless.py --no-python が流す前に消し、流した後に「流さなかった試験 n 本」を test result の数と別に出す）
 pub fn frozen_python(why: &str) -> bool {
+    // 凍らせた写し（TPA_FROZEN_PY=1。program/tests/legacy/<版>。版 3.117.3）を相手にするなら、Python 無しの形でも流す
+    if env_on("TPA_NO_PYTHON") && super::frozen_py() {
+        eprintln!("凍らせた Python の写し（program/tests/legacy/{}）を相手に流します: {why}", super::FROZEN_VERSION);
+        return true;
+    }
     if env_on("TPA_NO_PYTHON") {
         eprintln!("凍らせた Python を相手にする試験なので流しません（TPA_NO_PYTHON）: {why}");
         use std::io::Write;

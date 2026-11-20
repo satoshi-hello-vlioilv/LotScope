@@ -1,0 +1,962 @@
+# -*- coding: utf-8 -*-
+"""マスタの置き場（手元／共有）と、書き込みの競合管理。**置き場の答えはここ1箇所。**
+
+WaveLog のマスタ共有（WaveLog §9.263・§9.384）と同じ考え方を JSON のマスタへ当てる。
+
+    読む   … 手元の写し（%LOCALAPPDATA%/LotScope/master_cache）。
+             共有は「数秒に1回、変わったかを見る」だけで、読むたびには開かない。
+             共有に届かなくても、前に取った写しで読み続ける（fail-open）。
+    書く   … 錠を取る → 共有から取り直す → 行の版を確かめて当てる → 版番号を上げる
+             → 共有を丸ごと置き換える（書きかけを拾わせないよう一時ファイル＋置換）→ 錠を返す。
+             取り直してから当てるので、ほかの PC が書いた変更を踏み潰さない。
+
+競合の種類（どれも理由を付けて返し、黙って上書きしない）
+    MasterLocked    … ほかの PC が保存中（誰が・あと何秒）。錠は短い（既定20秒）ので待てば通る。
+    RowConflict     … 開いてから保存するまでに、同じ行がほかの PC で変わった／消えた。
+    DuplicateKey    … 同じ名前の行がもうある（設備名など、名前で引くマスタ）。
+    ShareUnavailable… 共有に届かない。読みは写しで続くが、書きは断る（写しだけ書くと PC ごとにずれる）。
+
+共有しない設定（`master_share.dir` が空）のときは、アプリの `data/` の JSON を読み書きする
+（これまでどおり）。行の版の確認はこのときも効く（同じ PC の2つの画面の競合を防ぐ）。錠も `data/` に同じ決まりで取る（版 3.64.0）。
+
+錠の持ち主は PC 名・ログイン ID・アプリの印（instance_id）と係（py＝この Python・rs＝窓）で見分ける（版 3.64.0。
+Rust へ移す途中、同じ PC で 2 つの係が並んで書いても互いの錠を取り違えない）。
+"""
+from __future__ import annotations
+
+import contextlib
+import copy
+import json
+import logging
+import os
+import threading
+import time
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import app_env
+
+from ..fsio import open_shared_read, retrying, write_json_atomic
+
+log = logging.getLogger("transfer-app")
+
+LOCK_FILENAME = "master.lock.json"
+MOVED_FILENAME = "_MOVED.json"        # 置き場を変えたとき、前の置き場に置く引っ越し先の印（{to, at, by}）。ほかの PC がたどる
+OVERRIDE_FILENAME = "master_share.json"   # この PC が使う置き場（設定ファイルの master_share.dir より先。作業場所に置く）
+MOVED_HOPS = 5                        # 引っ越し先を何回までたどるか（印が輪になっていても止まる）
+# 配る版の覚えの写し（窓の desktop/src/updater.rs が、配布の置き場の distribute.json を作業場所へ写す。presence.WANT_FILE と同じ）。
+# その masters（版 3.34.0）が、全員が使うマスタの置き場。引っ越し先の印より先に従う（MasterStore.follow_moved）
+PIN_FILENAME = "want.json"
+MASTER_MARKERS = ("equipment_master.json", "roll_master.json", "path_settings.json")   # マスタの置き場か（どれかがあれば）
+HISTORY_KEEP = 10                     # この PC が覚えておく、前の置き場の数
+LOCK_TRIES = 5                  # 錠を取る試み（外された直後・切れた錠をどけた直後に取り直す回数）
+LOCK_MOVE_BUDGET_SEC = 0.5      # 錠をどける（名前を変える）のを、Windows でほかが開いている間に待つ長さ
+# このプロセスのどこかの糸が、いま持っている錠の印（取れたら入れ、外したら出す）。同じ係の錠でも、ここにある錠は「自分が落ちて
+# 残した錠」ではなく生きた錠なので、引き継がずに待つ（版 3.94.0 の CI。起動の直後に並んだ道が最初の版を置くとき、互いの生きた錠を
+# どけ合い、保存が途中で断られ〈MASTER_WRITE_ABORT〉、空の錠が残った。窓の master_store.rs の LIVE と同じ）
+_LIVE_TOKENS = set()
+_LIVE_GUARD = threading.Lock()
+LOCK_TTL_DEFAULT = 20.0
+# 共有フォルダがあればいつも共有するマスタ（設定 master_store.masters に書かなくても。全員で 1 つでないと決まりが PC ごとにずれる物）
+SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "ui_defaults", "work_log_files", "display_formats",
+                           "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
+                           "equipment_groups", "conversions", "conversion_defaults", "tab_access"})
+REFRESH_DEFAULT = 5.0
+INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
+# 錠を持つ係（版 3.64.0）。同じ PC・同じ作業場所で Python と窓（Rust）が並んでマスタを書くとき、instance_id が同じなので、
+# 係を分けないと相手の生きた錠を「自分が残した錠」と見てどけてしまう（順 5 の採点で再現: 保存が黙って消える順がある）。
+# 錠の holder_instance は「instance_id:係」。係の無い錠（版 3.63.0 まで）は Python の物（それまで書く係は Python だけ）
+ROLE = "py"
+SCHEMA = 1
+DEFAULTS_DIR = Path(__file__).resolve().parents[1] / "master_defaults"   # マスタの最初の中身（コードと一緒に配る。置き場がどこでも同じ）
+
+
+def next_id(rows):
+    """新しい行の id（いまの最大 + 1）。隔てた行（版 3.107.0。services/row_check）の id も int() が読めれば数える（字の "4"・小数の 1e19）。
+    読めない id（"abc"・並び）は数えない（前は ValueError の英語の 400 で足せなかった）"""
+    from ..services.row_check import as_int
+    return max((n for r in rows if isinstance(r, dict) and (n := as_int(r.get("id") or 0)) is not None), default=0) + 1
+
+
+# ------------------------------------------------------------------ 例外（画面へ理由を返す）
+class MasterError(Exception):
+    kind = "error"
+    status = 400
+
+    def payload(self):
+        return {"error": str(self), "kind": self.kind}
+
+
+class MasterLocked(MasterError):
+    kind, status = "locked", 409
+
+    def __init__(self, holder_pc, holder_login, remaining, same_pc=False):
+        self.holder_pc, self.holder_login, self.remaining = holder_pc, holder_login, int(remaining)
+        # 同じ PC・同じログインの錠は、この PC のもう 1 つの係（アプリの中身と窓。版 3.64.0）の物
+        who = "この PC のもう 1 つの係（アプリの中身・窓）" if same_pc else "／".join(x for x in (holder_pc, holder_login) if x) or "ほかの PC"
+        super().__init__(f"{who} がマスタを保存中です（あと約{self.remaining}秒）。少し待つと保存できます。")
+
+    def payload(self):
+        return {**super().payload(), "holder_pc": self.holder_pc,
+                "holder_login": self.holder_login, "remaining": self.remaining}
+
+
+class RowConflict(MasterError):
+    kind, status = "conflict", 409
+
+    def __init__(self, current):
+        self.current = current
+        if current is None:
+            msg = "この行は、ほかの PC で削除されました。"
+        else:
+            by = current.get("updated_by") or {}
+            who = "／".join(x for x in (by.get("pc"), by.get("login")) if x) or "ほかの PC"
+            when = str(current.get("updated_at", "")).replace("T", " ")[:16]
+            msg = f"この行は、開いたあとに {who} が変更しました（{when}）。"
+        super().__init__(msg)
+
+    def payload(self):
+        return {**super().payload(), "current": self.current}
+
+
+class DuplicateKey(MasterError):
+    kind, status = "duplicate", 409
+
+
+class NotFound(MasterError):
+    kind, status = "not_found", 404
+
+
+class ShareUnavailable(MasterError):
+    kind, status = "unavailable", 503
+
+
+class MasterUnreadable(MasterError, ValueError):
+    """マスタのファイルが読めない（途中で切れた・壊れた JSON・形が違う・表でない行。版 3.102.0）。どのファイルかを言う
+    （前は JSON の英語の誤りか HTML の 500 で、どのファイルを直せばよいかを言わなかった）。直すのは人なので、ファイルは消さない。
+    窓の desktop/src/master_store.rs の unreadable と同じ言葉"""
+    kind, status = "master_unreadable", 503
+
+
+def unreadable_text(where, path, raw, err):
+    """読めないファイルの理由の言葉（窓と同じ）。where は「共有の」「この PC の写しの」「手元の」。途中で切れた形（JSON の終わりで止まった）は
+    大きさを、ほかは読めなくなった行を言う"""
+    name = Path(path).name
+    if isinstance(err, json.JSONDecodeError):
+        text = err.doc
+        eof = err.msg.startswith("Unterminated string") or err.pos >= len(text.rstrip())
+        why = f"途中で切れています（{len(raw)} バイト）" if eof else f"JSON として読めません（{err.lineno} 行目）"
+    elif isinstance(err, UnicodeDecodeError) and err.reason == "unexpected end of data":
+        why = f"途中で切れています（{len(raw)} バイト）"     # 字の途中で切れた（書きかけ）
+    elif isinstance(err, UnicodeDecodeError):
+        why = "UTF-8 の字として読めません"
+    else:
+        why = "マスタの形（rows の並び）が読めません"
+    return f"{where} {name} が読めません（{why}）"
+
+
+# ------------------------------------------------------------------ 端末の名乗り
+def identity():
+    """この PC とログインの名前。**名乗れないときは空**（空どうしを「同じ人」とは見なさない）。
+    取り方は services/identity.py の1箇所（WaveLog と同じ順・設定の「この端末の名前」）。"""
+    from ..services import identity as ident
+    me = ident.current()
+    return {"pc": me["pc"], "login": me["login"]}
+
+
+def _now():
+    return datetime.now()
+
+
+def _shell_follows():
+    """引っ越しの印をたどるのは窓か（窓が bundle を受け持つと名乗ったとき。版 3.84.0。app/__init__.py の shell_serves）"""
+    from .. import shell_serves
+    return "bundle" in shell_serves()
+
+
+def _iso(dt):
+    return dt.isoformat(timespec="seconds")
+
+
+def _norm(path):
+    """置き場の見分け（大文字・小文字と区切りの向きをそろえる。Windows の共有の名前は大文字・小文字を区別しない）。"""
+    return str(path).replace("/", "\\").rstrip("\\").lower()
+
+
+def _read_json(path):
+    """読む。Windows では、読んでいるあいだもほかの PC が os.replace で置き換えられる開き方で開く
+    （普通の open() だと、だれかが読んでいる瞬間の保存が「使用中」で断られる）。"""
+    with open_shared_read(path) as f:
+        return json.loads(f.read().decode("utf-8-sig"))
+
+
+def _read_master(path, where):
+    """マスタのファイルを読む → doc。読めなければ MasterUnreadable（どのファイルか・途中で切れたか。版 3.102.0）。
+    版 3.107.0: 版の番号（revision）が int() で読めない・対の無い代用字がある（写しに書けない）ファイルも読めないファイルと同じに扱う
+    （共有なら写しで続け、書く道は断る。前は英語の 400・PUT は「見つかりません」・DELETE は書かずに {ok: true}）"""
+    with open_shared_read(path) as f:
+        raw = f.read()
+    try:
+        text = raw.decode("utf-8-sig")
+        data = json.loads(text)
+    except (ValueError, UnicodeDecodeError) as e:      # UnicodeDecodeError も ValueError の仲間
+        raise MasterUnreadable(unreadable_text(where, path, raw, e)) from None
+    if not (isinstance(data, list) or (isinstance(data, dict) and isinstance(data.get("rows"), list))):
+        raise MasterUnreadable(unreadable_text(where, path, raw, None))
+    from ..services import row_check
+    # 版の番号は i64 に入る整数（窓の parse_master と同じ。2^63 以上は窓が数として持てないので、同じく読めないファイル。割れ 9a）
+    rev = row_check.as_int(data["revision"]) if isinstance(data, dict) and "revision" in data else 0
+    if rev is None or not -2 ** 63 <= rev < 2 ** 63:
+        raise MasterUnreadable(f"{where} {Path(path).name} が読めません（版の番号 revision が読めません: {row_check.short(data['revision'])}）")
+    # 対の無い代用字はファイルごとでなく行ごとに隔てる（版 3.107.0 の割れ 9b。row_check.problem。書き戻すときは \\udXXX の字で書く: fsio）
+    return _as_doc(data)
+
+
+def _instance_id(root):
+    """この PC のアプリの印（手元の置き場の instance_id。無ければ作る）。PC 名とログイン ID が同じ別の PC
+    （端末の名前を同じに付けた・複製した仮想 PC）を、錠の持ち主として取り違えないために使う。作れなければ、その回だけの印。"""
+    path = Path(root) / INSTANCE_FILENAME
+    try:
+        got = path.read_text(encoding="utf-8").strip()
+        if got:
+            return got
+    except OSError:
+        pass
+    mine = uuid.uuid4().hex
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        MasterStore._create_exclusive(path, mine.encode("utf-8"))   # 同時に起きた 2 つが別の印を書かない（先に作った方の印を使う）
+    except FileExistsError:
+        with contextlib.suppress(OSError):
+            return path.read_text(encoding="utf-8").strip() or mine
+    except OSError:
+        pass
+    return mine
+
+
+MIRROR_RETRY_SEC = 0.5    # 写しの置き換えをやり直す長さ（窓と Python が同じ写しを置き換え合う。Windows で相手が開いている間の断り。版 3.101.0）
+
+
+def _write_json_atomic(path, data, retry=0.0):
+    """マスタ・錠はディスクへ書き切ってから置き換える（停電・切断でも書きかけを残さない）。retry 秒まで置き換えの断りをやり直す"""
+    write_json_atomic(path, data, durable=True, retry_budget=retry)
+
+
+def _doc(rows, revision=0, updated_at="", updated_by=None):
+    return {"schema": SCHEMA, "revision": int(revision), "updated_at": updated_at,
+            "updated_by": updated_by or {}, "rows": rows}
+
+
+def _as_doc(raw):
+    """共有・写しは {schema, revision, rows…}。アプリ同梱の data/ は行の配列（昔の形）。どちらも読む。"""
+    if isinstance(raw, list):
+        return _doc(raw)
+    if isinstance(raw, dict) and isinstance(raw.get("rows"), list):
+        return _doc(raw["rows"], raw.get("revision", 0), raw.get("updated_at", ""), raw.get("updated_by"))
+    raise ValueError("マスタの形が読めません")
+
+
+def _stat_sig(path):
+    """変わったかの目印（更新時刻・大きさ）。届かなければ None。"""
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+# ------------------------------------------------------------------ 置き場
+class MasterStore:
+    """マスタの読み書きの窓口。アプリに1つ（`app.config["MASTER_STORE"]`）。"""
+
+    def __init__(self, base_dir, local_root=None, settings=None, who=None, role=ROLE):
+        self.base = Path(base_dir)
+        cfg = dict(settings or {})
+        raw_dir = str(cfg.get("dir") or "").strip()
+        self.share_dir = Path(os.path.expandvars(raw_dir)) if raw_dir else None
+        # 参照先マスタは、共有フォルダがあればいつも共有（読みに行く場所は全員で同じ。1台で直せば全員に効く）
+        # アクセス権限も同じ（権限は全員で1つ。PC ごとに違うと、権限を持たない PC で書き換えられる）
+        # app_seeds: 起動で一度だけ当てた初期値の記録（services/master_seeds.py）。全員で1つ
+        # ui_defaults: 新しく入れた PC の一覧の表示の初期設定（services/ui_defaults.py）。開発者が置く。全員で1つ
+        # work_log_files: 作業実績の設備（どのファイルを・表示するか）。読みに行く場所と同じく全員で1つ
+        # display_formats: 共有の書式（一覧の表示ルールに名前を付けて置く）。ほかの PC が呼び出すので全員で1つ
+        # shift_patterns: 勤務体系（直の時間帯）。作業実績を日＋直で数える決まりなので全員で1つ
+        # pivot_presets: 集計表・グラフの組み方のプリセット（共通デフォルト・共通・ID ごと）。ほかの PC・ほかの設備で呼び出すので全員で1つ
+        # pivot_quick: すぐに見るの選び（ログイン ID ごと）。ほかの PC でも同じ並びを出すので全員で1つ
+        # data_sources: データ元（どこの何を読むか）。読みに行く場所と同じく全員で1つ（版 3.36.0 で入れ忘れていたのを 3.37.0 で足した）
+        # equipment_groups: 設備グループ（ダッシュボードで設備を合算する組。版 3.39.0）。ほかの PC でも同じ合算にするので全員で1つ
+        # conversions: 変換表（コードの読み替え・判定表。版 3.42.0）。式の conv がどの PC でも同じ答えになるよう全員で1つ
+        # conversion_defaults: 変換表の標準（版 3.43.0。取り込んだ中身を標準にした物。空なら同梱のプリセット）。全員で1つ
+        # dashboard_settings: 版 3.36.0 のダッシュボードの集計対象の条件（全員で1つ。版 3.38.0 から読むだけ）・dashboards: ダッシュボードの組み（共通・ID ごと。ほかの PC でも同じ物を出す）
+        self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | SHARED_ALWAYS
+        self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
+        self.refresh_sec = float(cfg.get("refresh_seconds", REFRESH_DEFAULT))
+        root = Path(local_root) if local_root else app_env.local_root()
+        self.cache_dir = root / "master_cache"
+        # この PC が覚えた置き場（画面で変えた・引っ越し先をたどった）があれば、設定ファイルの値より先に使う
+        self.override_path = root / OVERRIDE_FILENAME
+        self.pin_path = root / PIN_FILENAME
+        self.configured_dir = self.share_dir
+        try:
+            ov = str(_read_json(self.override_path).get("dir") or "").strip()
+            if ov:
+                self.share_dir = Path(ov)
+        except (OSError, ValueError, AttributeError):
+            pass
+        self.on_moved = None          # 置き場が変わったときに呼ぶ（利用状況の置き場を合わせる。app が入れる）
+        self._moved_checked = 0.0
+        self.who = who or identity()
+        self.instance = _instance_id(root)
+        self.role = role
+        self.holder = f"{self.instance}:{role}"   # 錠に書く持ち主の印（この PC のアプリ＋係）
+        self._where = threading.local()           # 錠をどこに取るか（手元だけのマスタを書く間は data/。糸ごと）
+        self._lock_seen = {}    # ほかの PC の錠の印 -> この PC で最初に見た時刻（monotonic）。錠の期限は自分の時計の経過で測る
+        self._write_lock = threading.RLock()   # この PC の中で書き込みを1本にまとめる
+        self._state_lock = threading.Lock()
+        self._checked = {}      # name -> 最後に共有を見た時刻（monotonic）
+        self._share_sig = {}    # name -> 最後に取り込んだ共有の (mtime, size)
+        self._mem = {}          # name -> (写しの sig, doc)
+        self._errors = {}       # name -> 最後に共有から取り直せなかった理由（取り直せた名前だけ消す。版 3.102.0。前は 1 つの字で、
+        #                         ほかのマスタを取り直せると消え、読めないマスタを言わなくなった）
+        self._last_sync = ""
+        self._problems = {}     # name -> (共有の sig, 読めない理由)（share_problem の覚え）
+
+    # ---------------------------------------------------------- 置き場の答え
+    def is_shared(self, name):
+        return self.share_dir is not None and name in self.shared_names
+
+    def _bundled(self, name):
+        return self.base / "data" / f"{name}.json"
+
+    def defaults(self, name):
+        """マスタの最初の中身（プログラムに同梱し、書き換えない。版 3.42.0。例: 変換表のプリセット app/master_defaults/conversions.json）"""
+        return DEFAULTS_DIR / f"{name}.json"
+
+    def _initial(self, name):
+        """共有・写しが無いときに読む物: 同梱の data/（手元だけの PC はここへ書く）→ 無ければ最初の中身"""
+        path = self._bundled(name)
+        return path if path.exists() else self.defaults(name)
+
+    def _share_file(self, name):
+        return self.share_dir / f"{name}.json"
+
+    def _mirror(self, name):
+        return self.cache_dir / f"{name}.json"
+
+    def _lock_file(self):
+        """錠のファイル。共有するマスタは共有フォルダ、手元だけのマスタ（共有しない設定・共有しない名前）は data/（版 3.64.0。
+        手元でも錠を取らないと、同じ PC で 2 つの係〈Python と窓〉が同じマスタを書いたとき後の保存が黙って消える）"""
+        fixed = getattr(self._where, "dir", None)
+        if fixed is not None:
+            return fixed / LOCK_FILENAME          # exclusive() の間は、取った置き場の錠（途中で置き場を切り替えても同じ錠を外す）
+        local = getattr(self._where, "local", False)
+        return (self.base / "data" if local else self.share_dir) / LOCK_FILENAME
+
+    @contextlib.contextmanager
+    def _lock_here(self, local):
+        """この糸の錠の置き場を、手元（data/）か共有に切り替える"""
+        before = getattr(self._where, "local", False)
+        self._where.local = local
+        try:
+            yield
+        finally:
+            self._where.local = before
+
+    def share_reachable(self):
+        return self.share_dir is not None and self.share_dir.is_dir()
+
+    def share_problem(self, name):
+        """共有のファイルが読めない理由（版 3.107.0。読みは写しで続けるので、一覧の帯で知らせる）。共有しない・まだ無い・読めるなら None。
+        窓の access::Place::share_problem と同じ（同じファイルを同じ決まりで読む）"""
+        if not self.is_shared(name):
+            return None
+        src = self._share_file(name)
+        sig = _stat_sig(src)
+        if sig is None:
+            return None
+        hit = self._problems.get(name)
+        if hit and hit[0] == sig:
+            return hit[1]
+        try:
+            _read_master(src, "共有の")
+            why = None
+        except MasterUnreadable as e:
+            why = str(e)
+        except OSError:
+            return None
+        self._problems[name] = (sig, why)
+        return why
+
+    # ---------------------------------------------------------- 読む
+    def read(self, name):
+        """行の配列（写しの中身の複製）。共有へ届かなくても投げない。"""
+        return copy.deepcopy(self._read_doc(name)["rows"])
+
+    def revision(self, name):
+        return self._read_doc(name)["revision"]
+
+    def stamp(self, name):
+        """中身が変わったかの目印（版の番号と、読むファイルの更新時刻・大きさ）。版の番号は、手元のみの PC では書いても増えない
+        （同梱の data/ へ昔の形〈行の配列〉で書くため）。変わったかで読み直す所（式の変換表・デスクトップ版の Rust へ渡す表の版）はこれを使う（版 3.59.0）"""
+        path = self._doc_path(name)
+        doc = self._cached(path) if path.exists() else _doc([])
+        return f"{doc['revision']}:{_stat_sig(path)}"
+
+    def _doc_path(self, name):
+        """いまの中身を読むファイル（共有の写し → 同梱の data/ → 最初の中身）"""
+        if self.share_dir is None and name in self.shared_names:
+            try:   # 手元のみの PC も、配る版の覚えに全員が使う置き場があれば移る（新しく入れた PC が設定ファイルを直さずにそろう）
+                self.follow_moved()
+            except Exception as e:
+                log.warning("MASTER_FOLLOW_PIN failed: %s", e)
+        if self.is_shared(name):
+            self._maybe_refresh(name)
+            mirror = self._mirror(name)
+            if mirror.exists():
+                return mirror
+            # 共有にも写しにも無い（初回で共有に届かない）。同梱のデータで読むだけは続ける。
+        return self._initial(name)
+
+    def _read_doc(self, name):
+        path = self._doc_path(name)
+        return self._cached(path) if path.exists() else _doc([])
+
+    def _peek_doc(self, name):
+        """共有を見ずに読む（写し → 同梱の data/ → 最初の中身）"""
+        path = self._mirror(name) if self.is_shared(name) and self._mirror(name).exists() else self._initial(name)
+        return self._cached(path) if path.exists() else _doc([])
+
+    def _where_of(self, path):
+        """読むファイルの置き場の言葉（理由の言葉に使う。窓と同じ）"""
+        p = Path(path)
+        if p.parent == self.cache_dir:
+            return "この PC の写しの"
+        if self.share_dir is not None and p.parent == self.share_dir:
+            return "共有の"
+        if p.parent == DEFAULTS_DIR:
+            return "同梱の最初の中身の"
+        return "手元の"
+
+    def _cached(self, path):
+        sig = _stat_sig(path)
+        key = str(path)
+        hit = self._mem.get(key)
+        if hit and hit[0] == sig and sig is not None:
+            return hit[1]
+        doc = _read_master(path, self._where_of(path))
+        self._mem[key] = (sig, doc)
+        return doc
+
+    # ---------------------------------------------------------- 置き場を変える（services/master_place.py）
+    def retarget(self, new_dir, persist=True, chosen=False):
+        """置き場を new_dir に切り替える（写しは次に読むときに新しい置き場から取り直す）。persist ならこの PC に覚える。
+        chosen: この PC で人が選んだ（画面で置き場を変えた）。その時刻より古い配る版の覚えには従わない（follow_moved）"""
+        with self._write_lock:
+            if persist:     # 覚えを先に書く（書けなければ OSError で、この PC の置き場は替えない。版 3.101.0: 前は替えてから書き、書けないと
+                # このプロセスだけ新しい置き場を使い、ほかの PC と窓は前の置き場のままになった）
+                hist = [{"dir": str(self.share_dir or ""), "until": _iso(_now()), "by": dict(self.who)}] + self.history()
+                chosen_at = _iso(_now()) if chosen else self._chosen_at()
+                _write_json_atomic(self.override_path, {"dir": str(new_dir), "at": _iso(_now()), "by": dict(self.who),
+                                                        "history": hist[:HISTORY_KEEP], **({"chosenAt": chosen_at} if chosen_at else {})})
+            with self._state_lock:
+                self.share_dir = Path(new_dir)
+                self._checked.clear()
+                self._share_sig.clear()
+                self._mem.clear()
+                self._errors.clear()
+        log.info("MASTER_RETARGET dir=%s", new_dir)
+        if self.on_moved:
+            self.on_moved(Path(new_dir))
+
+    def _chosen_at(self):
+        """この PC で人が最後に置き場を選んだ時刻（無ければ ""）"""
+        try:
+            return str(_read_json(self.override_path).get("chosenAt") or "")
+        except (OSError, ValueError, AttributeError):
+            return ""
+
+    def pinned(self):
+        """配る版の覚えにある、全員が使うマスタの置き場 → {dir, setAt, setBy, setPc}。無ければ None。"""
+        try:
+            m = _read_json(self.pin_path).get("masters")
+        except (OSError, ValueError, AttributeError):
+            return None
+        return m if isinstance(m, dict) and str(m.get("dir") or "").strip() else None
+
+    def _pin_target(self):
+        """配る版の覚えの置き場へ移るべきなら、その場所（届いて、マスタがある置き場）。従わないなら None。
+        この PC で人が選んだ時刻の方が新しければ従わない（置き場を変えた直後、画面が配る版の覚えも書き換えるまでのあいだ、
+        古い覚えに引き戻されない）。"""
+        pin = self.pinned()
+        if not pin:
+            return None
+        chosen = self._chosen_at()
+        if chosen and str(pin.get("setAt") or "") <= chosen:
+            return None
+        d = Path(str(pin["dir"]).strip())
+        try:
+            return d if d.is_dir() and any((d / m).is_file() for m in MASTER_MARKERS) else None
+        except OSError:
+            return None
+
+    def history(self):
+        """この PC が前に使っていた置き場（新しい順）→ [{dir（空なら手元のみ）, until, by}]。前の置き場のマスタは消していない。"""
+        try:
+            h = _read_json(self.override_path).get("history")
+        except (OSError, ValueError, AttributeError):
+            return []
+        return [x for x in h if isinstance(x, dict)] if isinstance(h, list) else []
+
+    def moved_to(self, folder=None):
+        """その置き場に引っ越し先の印があれば → {to, at, by}。無ければ None。"""
+        folder = Path(folder) if folder else self.share_dir
+        if not folder:
+            return None
+        try:
+            d = _read_json(folder / MOVED_FILENAME)
+            return d if isinstance(d, dict) and str(d.get("to") or "").strip() else None
+        except (OSError, ValueError):
+            return None
+
+    def follow_moved(self, force=False):
+        """いまの置き場に引っ越し先の印があり、引っ越し先に届けば、そちらへ移る（ほかの PC が置き場を変えたとき）。
+        数秒に 1 回だけ見る。移ったら True。
+        印は、前にたどった印より新しい物だけをたどる（置き場を変えるたびに時刻が進むので、正しい道は時刻が増え続ける）。
+        前に使った置き場へ戻したとき、その置き場に残っていた古い印（版 3.33 までは消さなかった）をたどると輪になり、
+        5 回で止まった所＝輪の途中の古い置き場へ移り続けた（版 3.34.0 で直した）。"""
+        now = time.monotonic()
+        if not force and now - self._moved_checked < self.refresh_sec:
+            return False
+        self._moved_checked = now
+        if _shell_follows():
+            # 窓（desktop/src/bundle.rs）が引っ越しの係（版 3.84.0）。2 つの係が同じ印をたどると、この PC の覚えの履歴に同じ置き場が
+            # 2 回載る。Python は印をたどらず、窓が書いたこの PC の覚えを読み直して、置き場を合わせるだけ
+            return self._reload_override()
+        # 配る版の覚えに全員が使う置き場があれば、それに従う（印をたどるより確か。版 3.34.0）
+        pin = self._pin_target()
+        if pin is not None:
+            if self.share_dir is not None and _norm(pin) == _norm(self.share_dir):
+                return False
+            log.info("MASTER_FOLLOW_PIN from=%s to=%s", self.share_dir, pin)
+            self.retarget(pin)
+            return True
+        if not self.share_dir:
+            return False
+        cur, hops, last_at, seen = self.share_dir, 0, None, {_norm(self.share_dir)}
+        while hops < MOVED_HOPS:
+            m = self.moved_to(cur)
+            if not m:
+                break
+            at = str(m.get("at") or "")
+            if last_at is not None and at <= last_at:
+                break                    # 前の印より古い（使われなくなった）印。ここが今の置き場
+            nxt = Path(str(m["to"]).strip())
+            if not nxt.is_dir() or _norm(nxt) == _norm(cur):
+                break
+            cur, hops, last_at = nxt, hops + 1, at
+            if _norm(cur) in seen:
+                break
+            seen.add(_norm(cur))
+        if hops == 0 or _norm(cur) == _norm(self.share_dir):
+            return False
+        log.info("MASTER_FOLLOW_MOVED from=%s to=%s", self.share_dir, cur)
+        self.retarget(cur)
+        return True
+
+    def _reload_override(self):
+        """この PC の覚え（master_share.json）の置き場が今の置き場と違えば、そちらへ合わせる（覚えは書かない）。合わせたら True"""
+        try:
+            ov = str(_read_json(self.override_path).get("dir") or "").strip()
+        except (OSError, ValueError, AttributeError):
+            return False
+        if not ov or (self.share_dir is not None and _norm(ov) == _norm(self.share_dir)):
+            return False
+        log.info("MASTER_FOLLOW_SHELL from=%s to=%s", self.share_dir, ov)
+        self.retarget(Path(ov), persist=False)
+        return True
+
+    def _maybe_refresh(self, name, force=False):
+        """共有が変わっていれば写しを取り直す。**数秒に1回だけ**共有を見る。失敗しても投げない。"""
+        try:
+            self.follow_moved()
+        except Exception as e:  # 印を読めなくても、いまの置き場で続ける
+            log.warning("MASTER_FOLLOW_MOVED failed: %s", e)
+        now = time.monotonic()
+        with self._state_lock:
+            last = self._checked.get(name)
+            if not force and last is not None and now - last < self.refresh_sec:
+                return False
+            self._checked[name] = now
+        try:
+            return self._pull(name, force=force)
+        except Exception as e:  # 読みは写しで続ける
+            self._errors[name] = str(e)
+            log.warning("共有マスタを取り込めませんでした（写しで続けます）: %s", e)
+            return False
+
+    @property
+    def _last_error(self):
+        """状態（status の error）に出す理由: 取り直せていないマスタの理由（名前の順・同じ言葉は 1 つ）"""
+        msgs = list(dict.fromkeys(self._errors[n] for n in sorted(self._errors)))
+        return f"共有マスタを取り込めませんでした（写しで続けます）: {' ／ '.join(msgs)}" if msgs else ""
+
+    def _pull(self, name, force=False, have_lock=False):
+        src = self._share_file(name)
+        sig = _stat_sig(src)
+        if sig is None:
+            if not self.share_reachable():
+                raise ShareUnavailable(f"共有フォルダに届きません: {self.share_dir}")
+            try:
+                self._seed(name, have_lock)      # 共有にまだ無い（初めて共有にする）
+            except MasterLocked:
+                # 版 3.105.0: 種まきで錠に当たった（同じ時に読んだほかの係〈窓・別の PC〉が種をまいている・保存している）は理由に入れない。
+                # 写しで答え、次に読むときにまた置く（窓の Store::pull と同じ。前は当たった名前の理由が _errors に入り、その回の状態の帯に
+                # 「共有マスタを取り込めませんでした（写しで続けます）: …保存中です」と出た）
+                return False
+            sig = _stat_sig(src)
+            if sig is None:
+                return False
+        if not force and self._share_sig.get(name) == sig and self._mirror(name).exists():
+            return False
+        doc = _read_master(src, "共有の")
+        _write_json_atomic(self._mirror(name), doc, retry=MIRROR_RETRY_SEC)   # 書けなければ投げる（_maybe_refresh が理由を覚えて status の error に出す）
+        self._share_sig[name] = sig
+        self._errors.pop(name, None)
+        self._last_sync = _iso(_now())
+        return True
+
+    def _seed(self, name, have_lock=False):
+        """共有にマスタが無いとき、手元の写し（無ければ同梱の data/）を最初の版として置く。錠を取って行う
+        （書き込みの途中なら、もう持っている錠のまま）。"""
+        have_lock = have_lock or getattr(self._where, "held", False)   # exclusive() の中は、もう錠を持っている
+        # この PC の書き込みと 1 本にまとめる（保存中のほかの糸の錠に当たって断らず、終わるのを待って置く。版 3.94.0）
+        with contextlib.nullcontext() if have_lock else self._write_lock:
+            token = None if have_lock else self._acquire_lock()
+            try:
+                src = self._share_file(name)
+                if _stat_sig(src) is not None:
+                    return
+                seed = self._mirror(name) if self._mirror(name).exists() else self._initial(name)
+                doc = _read_master(seed, self._where_of(seed)) if seed.exists() else _doc([])
+                doc.update(revision=max(1, doc["revision"]), updated_at=_iso(_now()), updated_by=dict(self.who))
+                _write_json_atomic(src, doc)
+                log.info("MASTER_SEED name=%s from=%s rows=%d", name, seed, len(doc["rows"]))
+            finally:
+                self._release_lock(token)
+
+    # ---------------------------------------------------------- 錠（共有フォルダの master.lock.json）
+    def _read_lock(self):
+        p = self._lock_file()
+        try:
+            return _read_json(p)
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError):
+            # 書きかけ・壊れた錠。中身の代わりに目印（更新時刻・大きさ）を印にし、期限はほかの錠と同じく見てからの経過で測る
+            sig = _stat_sig(p)
+            return None if sig is None else {"token": f"broken:{sig[0]}:{sig[1]}", "expires_at": ""}
+
+    def _remaining(self, lock):
+        """錠の残り秒。**相手の PC の時計を信じない**: 錠に書かれた期限（相手の時計）と、この PC で最初に見てからの経過
+        （自分の monotonic）の、長く待つ方を使う（期限の方は長さ lock_ttl までに抑える）。時計が進んだ PC が、
+        保存中の錠を「切れた」と見てどける（後の保存が黙って消える）ことが無い。"""
+        token = lock.get("token") or ""
+        now = time.monotonic()
+        with self._state_lock:
+            for k in [k for k, t in self._lock_seen.items() if now - t > 10 * self.lock_ttl]:
+                del self._lock_seen[k]               # 昔に見た錠の印は捨てる（覚える数を増やさない）
+            first = self._lock_seen.setdefault(token, now)
+        # 書かれた期限が錠の長さより先なら、その期限は信じない（相手の時計が進んでいる。前は錠の長さを返し続け、
+        # 時計の進んだ PC が落ちて残した錠が、時計のずれの分だけ取れなかった）。見てからの経過で測る
+        by_clock = self._by_clock(lock)
+        return max(by_clock if by_clock <= self.lock_ttl else 0.0, self.lock_ttl - (now - first))
+
+    @staticmethod
+    def _by_clock(lock):
+        """錠に書かれた期限までの秒（相手の時計とこの PC の時計が合っていれば正しい）"""
+        try:
+            return (datetime.fromisoformat(lock["expires_at"]) - _now()).total_seconds()
+        except (KeyError, TypeError, ValueError):
+            return 0.0
+
+    def _wait(self, lock):
+        """画面に出す「あと何秒」（整数）。切れたかの判定は _remaining（長く待つ方）で、ここは見積もり:
+        書かれた期限がそれより短く筋が通っていれば、その秒（時計がずれていれば、その秒のあとにもう一度待たされる）。"""
+        left = self._remaining(lock)
+        by_clock = self._by_clock(lock)
+        return max(1, int(by_clock if 0 < by_clock <= left else left) + 1)
+
+    def _locked(self, lock, remaining):
+        """錠を持つ相手を名乗って断る（同じ PC・同じログインの錠は、この PC のもう 1 つの係の物と言う）"""
+        lock = lock or {}
+        pc, login = lock.get("holder_pc", ""), lock.get("holder_login", "")
+        inst = str(lock.get("holder_instance", ""))
+        # この PC の同じ作業場所の、もう 1 つの係の錠のときだけ（名乗りが同じ別の PC・前の版の錠・自分の錠とは言い分ける）
+        same = (bool(pc) and pc == self.who.get("pc", "") and login == self.who.get("login", "")
+                and inst.startswith(f"{self.instance}:") and inst != self.holder)
+        return MasterLocked(pc, login, remaining, same_pc=same)
+
+    def _is_mine(self, lock):
+        """持ち主が自分（この PC のこのアプリ）か。**名乗れない PC は自分と言わない**（WaveLog §9.384）。
+        名乗り（PC 名・ログイン ID）に加えて、この PC のアプリの印（instance_id）も合うときだけ。名乗りが同じ別の PC の錠を、
+        自分が落ちて残した錠と取り違えて引き継がない。"""
+        pc, login = self.who.get("pc", ""), self.who.get("login", "")
+        if not pc or not login or not lock:
+            return False
+        token = lock.get("token")
+        if isinstance(token, str):
+            with _LIVE_GUARD:
+                if token in _LIVE_TOKENS:
+                    return False                   # このプロセスのほかの糸がいま持っている生きた錠（どけると、その保存が途中で断られる）
+        mine = (self.holder, self.instance) if self.role == "py" else (self.holder,)   # 係の無い錠は Python の物（版 3.63.0 まで）
+        return lock.get("holder_pc") == pc and lock.get("holder_login") == login and lock.get("holder_instance") in mine
+
+    def _acquire_lock(self):
+        """錠を取る → 錠の印（token）。ほかの PC（同じ PC のもう 1 つの係）が持っていれば MasterLocked。錠の置き場は _lock_file
+        （共有するマスタは共有フォルダ、手元だけのマスタは data/）。
+
+        錠は「無ければ作る」（O_EXCL。作れた1台だけが持つ）でしか置かない。上書きで置くと、2台が同時に
+        「自分が持っている」と思い込む順番がある（2026-10-02 に3つの順番を試験で再現した。tests/test_master_share.py の LockRaces）:
+          - 作ろうとして断られた → 読むと錠がもう無い → 上書きで置く（その間に相手が作り直していた）
+          - 切れた錠を2台が同時に見つけ、両方が上書きで引き継ぐ
+        切れた錠・自分の残した錠は、名前を変えてどけてから（_take_away）、もう一度「無ければ作る」で取る。"""
+        local = getattr(self._where, "local", False) or getattr(self._where, "dir", None) == self.base / "data"
+        if local:
+            self._lock_file().parent.mkdir(parents=True, exist_ok=True)
+        elif getattr(self._where, "dir", None) is None and not self.share_reachable():
+            raise ShareUnavailable(f"共有フォルダに届かないため保存できません（読みは手元の写しで続けています）: {self.share_dir}")
+        p = self._lock_file()
+        token = uuid.uuid4().hex
+        now = _now()
+        payload = {"token": token, "holder_pc": self.who.get("pc", ""), "holder_login": self.who.get("login", ""), "holder_instance": self.holder,
+                   "acquired_at": _iso(now), "expires_at": _iso(now + timedelta(seconds=self.lock_ttl))}
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        for _ in range(LOCK_TRIES):
+            try:
+                self._create_exclusive(p, body)
+                break
+            except FileExistsError:
+                cur = self._read_lock()
+                if cur is None:
+                    continue                      # 外された直後。もう一度「無ければ作る」で取る（上書きしない）
+                if self._remaining(cur) > 0 and not self._is_mine(cur):
+                    raise self._locked(cur, self._wait(cur)) from None
+                self._take_away(cur.get("token"))  # 切れた錠・自分の残した錠をどけてから取り直す
+            except OSError as e:
+                where = "手元のマスタの置き場（data）" if local else "共有フォルダ"
+                raise ShareUnavailable(f"{where}に錠を置けません: {e}") from e
+        else:
+            cur = self._read_lock() or {}
+            raise self._locked(cur, 2)
+        check = self._read_lock()
+        if not check or check.get("token") != token:
+            raise self._locked(check, 2)
+        with _LIVE_GUARD:
+            _LIVE_TOKENS.add(token)
+        return token
+
+    @staticmethod
+    def _create_exclusive(path, body):
+        """無ければ作って書く（あれば FileExistsError）。作れた1台だけが持つ。
+        作れても書き切れない（共有の空きが尽きた ENOSPC・切断など）ときは、作った空・書きかけのファイルを残さずに投げる（版 3.99.0）。
+        前は 0 バイトの錠が残り、ほかの PC・次に開いた窓が、見てから錠の長さのあいだ「ほかの PC がマスタを保存中です」で断られた"""
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        try:
+            view = memoryview(body)
+            while view:
+                view = view[os.write(fd, view):]      # 短く書けたら残りを書き足す
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            MasterStore._drop_unwritten(path, body)
+            raise
+        os.close(fd)
+
+    @staticmethod
+    def _drop_unwritten(path, body):
+        """書き切れなかった自分のファイルを消す。名前を変えてどけてから中身を見る（その間にほかが置いた物を消さない）:
+        どけた物が自分の書きかけ（body の頭・空）なら消し、ほかの中身なら「無ければ作る」で元へ戻す"""
+        path = Path(path)
+        aside = path.with_name(f".{path.name}.{uuid.uuid4().hex}.gone")
+        try:
+            os.replace(path, aside)
+        except OSError:
+            return
+        try:
+            raw = aside.read_bytes()
+        except OSError:
+            raw = b""
+        if not body.startswith(raw):
+            with contextlib.suppress(OSError):
+                MasterStore._create_exclusive(path, raw)
+        with contextlib.suppress(OSError):
+            aside.unlink()
+
+    def _take_away(self, expected_token):
+        """錠を名前を変えてどける（名前の変更は1台しか成功しない）。どけた錠が思っていた錠（expected_token）でなければ、
+        ほかの PC が取り直した新しい錠なので「無ければ作る」で元へ戻す。→ "ok"（どけた）・"other"（ほかの錠だった）・
+        "gone"（もう無い）・"error"（どけられない。Windows でほかが開いている間など）"""
+        p = self._lock_file()
+        aside = p.with_name(f".{p.name}.{uuid.uuid4().hex}.gone")
+        try:
+            retrying(lambda: os.replace(p, aside), LOCK_MOVE_BUDGET_SEC)
+        except FileNotFoundError:
+            return "gone"
+        except OSError:
+            return "error"
+        try:
+            raw = aside.read_bytes()
+            try:
+                got = json.loads(raw.decode("utf-8")).get("token")
+            except (ValueError, AttributeError):
+                got = None                          # 書きかけ・壊れた錠
+            if got == expected_token or (got is None and str(expected_token).startswith("broken:")):
+                return "ok"                         # 思っていた錠（壊れた錠をどけるときは、どけた物も壊れた錠なら同じ物）
+            if got is not None:
+                with contextlib.suppress(FileExistsError):
+                    self._create_exclusive(p, raw)  # 取り違えた。元の持ち主へ戻す（その間に別の PC が取っていればそのまま）
+            # 中身の読めない錠（ほかが「無ければ作る」で作り、まだ書いていない）は戻さない: 作った方はどけられた方へ書き、確かめで断るので、
+            # 戻した錠はだれの物でもなく、名乗りの無い「ほかの PC が保存中」として錠の長さのあいだ皆を止める（版 3.94.0 の CI）
+            return "other"
+        finally:
+            with contextlib.suppress(OSError):
+                aside.unlink()
+
+    def _release_lock(self, token):
+        """自分の錠だけを外す（読んでから消す間に、ほかの PC が置いた錠を消さない）。"""
+        if not token:
+            return
+        if self._take_away(token) == "error":
+            log.warning("マスタの錠を消せませんでした（%s秒で切れます）", self.lock_ttl)
+        with _LIVE_GUARD:
+            _LIVE_TOKENS.discard(token)             # 消せずに残った錠は、落ちて残した錠と同じく引き継げる
+
+    def lock_status(self):
+        if self.share_dir is None:
+            return None
+        cur = self._read_lock()
+        if not cur or self._remaining(cur) <= 0:
+            return {"locked": False}
+        return {"locked": True, "holder_pc": cur.get("holder_pc", ""), "holder_login": cur.get("holder_login", ""),
+                "remaining": self._wait(cur), "mine": self._is_mine(cur)}
+
+    # ---------------------------------------------------------- 書く（1回の書き込み＝1サイクル）
+    def write(self, name, mutate):
+        """`mutate(rows, stamp)` が行の配列を直し、画面へ返す値を返す。競合は例外で返る。"""
+        with self._write_lock:
+            stamp = {"updated_at": _iso(_now()), "updated_by": dict(self.who)}
+            if not self.is_shared(name):
+                return self._write_local(name, mutate, stamp)
+            token = self._acquire_lock()
+            try:
+                self._pull(name, force=True, have_lock=True)   # **当てる前に共有から取り直す**
+                pulled = _stat_sig(self._share_file(name))
+                doc = copy.deepcopy(self._cached(self._mirror(name)))
+                result = mutate(doc["rows"], stamp)
+                doc.update(schema=SCHEMA, revision=doc["revision"] + 1, **stamp)
+                self._still_mine(name, token, pulled)           # **置き換える直前に、錠も共有もそのままかを確かめる**
+                _write_json_atomic(self._share_file(name), doc)
+                _write_json_atomic(self._mirror(name), doc)
+                self._share_sig[name] = _stat_sig(self._share_file(name))
+                self._last_sync = stamp["updated_at"]
+                log.info("MASTER_WRITE name=%s revision=%s by=%s", name, doc["revision"], self.who)
+                return result
+            finally:
+                self._release_lock(token)
+
+    def _write_local(self, name, mutate, stamp):
+        """手元だけのマスタ（data/）を書く。共有と同じく、錠を取る → 読み直して当てる → 置き換える直前に錠とファイルを確かめる（版 3.64.0）"""
+        path = self._bundled(name)
+        with self._lock_here(True):
+            token = self._acquire_lock()
+            try:
+                first = self._initial(name)   # **錠を取ってから**決めて読む（初めての保存が重なっても、先の保存の上で当てる）
+                pulled = _stat_sig(path)
+                doc = _read_master(first, self._where_of(first)) if first.exists() else _doc([])
+                result = mutate(doc["rows"], stamp)
+                cur = self._read_lock() or {}
+                if cur.get("token") != token or _stat_sig(path) != pulled:
+                    log.warning("MASTER_WRITE_ABORT name=%s（手元。保存の途中で錠かファイルが変わった）", name)
+                    raise self._locked(cur, 2)
+                # 同梱の data/ は昔からの形（行の配列）のまま保つ
+                _write_json_atomic(path, doc["rows"])
+                return result
+            finally:
+                self._release_lock(token)
+
+    @contextlib.contextmanager
+    def exclusive(self):
+        """マスタを丸ごと扱う間（置き場の引っ越しで写す・切り替える・印を置く）、この PC の書き込みを止め、いまの置き場の錠を持つ
+        （共有に届けば共有、無ければ data/）。錠は取った置き場で外す（版 3.64.0。前は写す途中の保存が前の置き場に入り、引っ越し先に入らなかった）"""
+        with self._write_lock:
+            shared = self.share_reachable()
+            where = self.share_dir if shared else self.base / "data"
+            before = getattr(self._where, "dir", None), getattr(self._where, "held", False)
+            self._where.dir = where
+            try:
+                token = self._acquire_lock()
+                self._where.held = True
+                try:
+                    yield
+                finally:
+                    self._where.held = before[1]
+                    self._release_lock(token)
+            finally:
+                self._where.dir = before[0]
+
+    def _still_mine(self, name, token, pulled):
+        """置き換える直前の確かめ。保存が錠の長さを超えて長引き、その間にほかの PC が錠を取って保存していたら、
+        取り直した時の中身で上書きすると相手の保存が黙って消える。錠が自分の物でない・共有が取り直した時から変わったなら、
+        書かずに MasterLocked（画面は待って送り直し、送り直しは新しい中身の上で当てる）。"""
+        cur = self._read_lock() or {}
+        if cur.get("token") != token or _stat_sig(self._share_file(name)) != pulled:
+            log.warning("MASTER_WRITE_ABORT name=%s（保存の途中で錠か共有が変わった）holder=%s", name, cur.get("holder_pc", ""))
+            raise self._locked(cur, 2)
+
+    # ---------------------------------------------------------- 状態（画面・起動画面へ）
+    def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
+                                "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
+                                "equipment_groups", "conversions", "conversion_defaults", "tab_access"), peek=False):
+        """peek: 共有を見ずに、いま持っている写し（無ければ同梱の data/）だけで答える（共有が答えないとき。版 3.100.0。
+        services/master_place.status が区切った秒で打ち切った後に使う。reachable・lock は呼んだ側が決める）"""
+        shared = self.share_dir is not None
+        out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
+               "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),
+               "who": dict(self.who), "masters": {}}
+        if shared and not peek:
+            for n in names:
+                if self.is_shared(n):
+                    self._maybe_refresh(n)
+            out["reachable"] = self.share_reachable()
+            out["lock"] = self.lock_status() if out["reachable"] else None
+        if shared:
+            out["last_sync"] = self._last_sync
+            out["error"] = self._last_error
+        for n in names:
+            # source（版 3.102.0）: shared は共有から取り直した写し・cache は共有が読めず前の写しで答えている（理由は error）・
+            # bundled-fallback は写しが無く同梱の物・local は手元だけ
+            src = ("cache" if self.is_shared(n) and self._mirror(n).exists() and n in self._errors
+                   else "shared" if self.is_shared(n) and self._mirror(n).exists()
+                   else "bundled-fallback" if self.is_shared(n) else "local")
+            try:
+                doc = self._peek_doc(n) if peek else self._read_doc(n)
+            except MasterUnreadable as e:   # 読めないマスタは理由を添えて並べる（前は状態全体が HTML の 500）
+                out["masters"][n] = {"revision": None, "rows": None, "updated_at": "", "updated_by": {}, "source": src, "error": str(e)}
+                continue
+            out["masters"][n] = {"revision": doc["revision"], "rows": len(doc["rows"]),
+                                 "updated_at": doc.get("updated_at", ""), "updated_by": doc.get("updated_by") or {},
+                                 "source": src}
+            # 表でない行（読むときは飛ばす行）の番号（1 から。版 3.102.0 の作った後の採点の割れ 1: マスタの画面が知らせる）
+            bad = [i + 1 for i, r in enumerate(doc["rows"]) if not isinstance(r, dict)]
+            if bad:
+                out["masters"][n]["badRows"] = bad
+            # 隔てた行（版 3.107.0。表でない行も・理由つき。マスタの画面の帯が言う。services/row_check）
+            from ..services.row_check import STATUS
+            from .master_repository import SPECS, _normalize, isolated_memo, skipped_of
+            # 一覧と同じく形をそろえてから見る（旧い列名の読み替え。写しの中身は替えない）。答えはファイルの目印で覚える（割れ 5）
+            rows = [_normalize(dict(r), SPECS[n]) if isinstance(r, dict) else r for r in doc["rows"]] if n in SPECS else doc["rows"]
+            skipped = skipped_of(isolated_memo(self, n, rows), n, rows) if n in STATUS else []
+            if skipped:
+                out["masters"][n]["skipped"] = skipped
+        return out

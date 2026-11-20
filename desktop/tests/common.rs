@@ -25,6 +25,25 @@ pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }
 
+/// 凍らせた Python の写しの版（program/tests/legacy/<版>。tools/freeze-legacy.py が 1 回だけ作った。版 3.117.3）
+pub const FROZEN_VERSION: &str = "3.117.3";
+
+/// 凍らせた Python の写しを相手にするか（TPA_FROZEN_PY=1。段 ④ で program/app を消した後、凍らせた最後の Python を相手にする試験
+/// 〈bake::frozen_python〉と keep の本が、この写しの app と答え合わせ役を流す）
+pub fn frozen_py() -> bool {
+    std::env::var("TPA_FROZEN_PY").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+/// 答え合わせ役（app を import する Python の台本）を流す置き場: いつもは program、TPA_FROZEN_PY=1 なら凍らせた写し
+/// program/tests/legacy/<版>（中は program と同じ形: app/・tests/・config/・data/）
+pub fn py_program() -> PathBuf {
+    if frozen_py() {
+        program().join("tests").join("legacy").join(FROZEN_VERSION)
+    } else {
+        program()
+    }
+}
+
 /// 場面のフォルダの道の書き方の候補（版 3.117.3）: 書いたままの字・長い名前（canonicalize。Windows の一時フォルダは 8.3 の短い名前
 /// RUNNER~1 で来る）と、それぞれの「/」と「\」の書き方。長い字から（短い字が長い字の頭に当たらないように）。
 /// 表の宣言から作った場面（Windows の表だけの形）は道を「/」で書き、窓は「\」や長い名前で答えるので、1 つの書き方で置き換えると当たらない
@@ -173,11 +192,11 @@ pub fn work(name: &str) -> PathBuf {
 pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
     let out = clean_command(&mut Command::new(&py))
-        .arg(program().join("tests").join(script))
+        .arg(py_program().join("tests").join(script))
         .args(args)
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONDONTWRITEBYTECODE", "1")
-        .current_dir(program())
+        .current_dir(py_program())
         .output()
         .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
     assert!(out.status.success(), "{script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
@@ -283,13 +302,15 @@ impl Live {
     fn start_with(flags: &[&str], script: &str, args: &[&str]) -> (Live, serde_json::Value) {
         use std::io::BufRead;
         let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
+        // app を import する台本は凍らせた写しを相手にできる（py_program）。標準の部品だけの台本（-I）は program のまま（④ の後も残る）
+        let root = if flags.contains(&"-I") { program() } else { py_program() };
         let mut child = clean_command(&mut Command::new(&py))
             .args(flags)
-            .arg(program().join("tests").join(script))
+            .arg(root.join("tests").join(script))
             .args(args)
             .env("PYTHONIOENCODING", "utf-8")
             .env("PYTHONDONTWRITEBYTECODE", "1")
-            .current_dir(program())
+            .current_dir(&root)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn()

@@ -10,3 +10,4 @@ program/app/master_defaults/*.json -text
 program/tests/fixtures/*.json -text
 desktop/tests/baked/*.json -text
 desktop/tests/baked/nt/*.json -text
+program/tests/legacy/** -text

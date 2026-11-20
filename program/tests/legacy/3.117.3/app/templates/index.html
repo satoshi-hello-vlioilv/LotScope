@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- この画面を作ったアプリのプログラムの指紋（app_build.py）。app.js が自分の URL の指紋と比べ、違えば「版が混ざった」と言う -->
+<meta name="tpa-build" content="{{ build }}">
+<!-- アプリの名前（app/brand.json）。画面の JS が案内の文で使う（名前をじかに書かない） -->
+<meta name="tpa-app" content="{{ brand.name }}" data-exe="{{ brand.exe }}" data-subtitle="{{ brand.subtitle }}">
+<title>{{ brand.name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/value-filter.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pathpick.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-columns.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/formula-builder.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-card.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-slicer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-marks.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-schedule.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-pivot.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+<header>
+  <!-- 1 段目＝アプリ名（英名）と版の札、2 段目＝副題（和名。小さく）。名前は app/brand.json の 1 か所（2026-10-subtitle の 3 回目で決めた S3c）。
+       狭い窓（1440px 以下）は副題を畳み、版の札を名前の上へ（見出し帯を 1 段に収める） -->
+  <div class="brand">
+    <div class="brand-r1">
+      <h1>{{ brand.name }}</h1>
+      <div class="eyebrow">
+        <!-- 版（押すと更新履歴）。新しい版を取り込み済みなら「更新あり」、ほかの人がもっと新しい版を使っていれば「新しい版あり」（止めはしない） -->
+        <button type="button" id="verBadge" class="ver-badge" title="更新履歴を開く">VER{{ app_version }}</button>
+        <button type="button" id="verNew" class="ver-new hidden">新しい版あり</button>
+      </div>
+    </div>
+    <div class="brand-sub">{{ brand.subtitle }}</div>
+  </div>
+  <!-- 画面の切り替え（最初は品質異常）。計算画面からも検索欄で直接ロット問い合わせできる -->
+  <nav class="screen-tabs" role="tablist" aria-label="画面">
+    <!-- ダッシュボード（版 3.36.0。3.37.0 からグリッドのパネル・最初の画面） -->
+    <button id="tabDash" class="screen-tab" role="tab" aria-selected="false" aria-controls="dashScreen" data-screen="dash"
+            title="仕掛・実績・品質データを、パネルのグラフや表で一度に見る（最初の画面。Alt+0）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg><span class="tab-name">ダッシュボード</span></button>
+    <button id="tabList" class="screen-tab" role="tab" aria-selected="false" aria-controls="lotListScreen" data-screen="list"
+            title="品質データの異常ロットを絞り込み、ロット番号を押して計算へ（Alt+1）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg><span class="tab-name">品質</span></button>
+    <button id="tabCalc" class="screen-tab" role="tab" aria-selected="false" aria-controls="calcScreen" data-screen="calc"
+            title="転写・ピッチ計算。検索欄でロット番号を直接問い合わせることもできます（Alt+2）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6"/></svg><span class="tab-name">転写・ピッチ計算</span><small id="tabCalcLot"></small></button>
+    <!-- 作業実績（設備ごとの実績 SQLite）。品質異常と同じ画面・同じ部品で、設備を札で替える -->
+    <button id="tabWork" class="screen-tab" role="tab" aria-selected="false" aria-controls="lotListScreen" data-screen="work"
+            title="設備ごとの作業実績を、品質と同じ絞り込み・表示列で見ます（Alt+3）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5 6h6M5 8.5h6M5 11h3.5"/></svg><span class="tab-name">実績</span></button>
+  </nav>
+  <div class="header-right">
+    <!-- 状態（データ元・接続・待機中）は 1 つの札にまとめ、押せる操作（右）と形で分ける -->
+    <div class="hstat" role="group" aria-label="状態">
+      <span id="modeBadge" class="pill">データ元: 確認中</span>
+      <span id="conn" class="pill conn-ok" tabindex="-1" title="バックエンドとの接続状態">接続 ●</span>
+      <!-- 中身（Python）が止まった・起こしている印（版 3.111.0。知らせの段を畳んだときだけ出す。押すと段が戻る） -->
+      <button type="button" id="pyPill" class="pill py-pill" hidden>中身 停止</button>
+      <span id="status" class="pill">待機中</span>
+    </div>
+    <i class="hsep" aria-hidden="true"></i>
+    <!-- だれが・どの権限で使っているか（押すとログインID・PC名・マスタ編集） -->
+    <button type="button" id="meChip" class="pill me-chip" aria-haspopup="dialog" title="ログインID・PC名・権限">確認中</button>
+    <button id="masterBtn" class="btn-ghost on-dark" title="設備マスタ・ロールマスタの追加/修正/削除">マスタ管理</button>
+    <!-- アプリのこと（ショートカット・更新履歴）。ショートカットが欠けていれば点で知らせる（断った人・消した人もここから作れる） -->
+    <button type="button" id="appBtn" class="btn-ghost on-dark app-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="appMenu" title="ショートカット・更新履歴">アプリ<i id="appDot" class="app-dot" hidden></i> ▾</button>
+    <button id="quitBtn" class="quit" title="アプリを終了してタブを閉じます">終了</button>
+  </div>
+</header>
+
+<!-- 中身（Python）が止まったときの知らせの段（版 3.111.0。切断の帯と同じ置き場。出ている間は画面を 38px 縮める: app.js の paintPython） -->
+<div id="pyBar" class="py-bar" role="status" hidden></div>
+<!-- 切断されているとき（管理する人が一時的に止めた。冷却のあいだマスタは読むだけ） -->
+<div id="revokedBar" class="revoked-bar hidden" role="alert"></div>
+<!-- 自分の権限（見出しの札を押すと出る） -->
+<div id="mePop" class="me-pop hidden" role="dialog" aria-label="ログインと権限"></div>
+<div id="appMenu" class="app-menu hidden" role="menu" aria-label="アプリ"></div>
+<!-- この PC に入れる（BOX・共有から開いたとき。デスクトップ版の desktop/src/install.rs） -->
+<div id="shortcutModal" class="master-form-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="scTitle">
+  <div class="master-form-card sc-card">
+    <div class="master-form-head"><h3 id="scTitle">ショートカットを作りますか</h3><button id="scClose" class="icon-btn" aria-label="閉じる">×</button></div>
+    <div class="sc-body" id="scBody"></div>
+    <div class="sc-acts">
+      <button type="button" id="scNever" class="btn-ghost sc-never">今後たずねない</button>
+      <button type="button" id="scLater" class="btn-ghost">今回は作らない</button>
+      <button type="button" id="scGo" class="btn-primary">作る</button>
+    </div>
+  </div>
+</div>
+<!-- 更新履歴 -->
+<div id="changelogModal" class="master-form-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="clTitle">
+  <div class="master-form-card cl-card">
+    <div class="master-form-head"><h3 id="clTitle">更新履歴</h3><button id="clClose" class="icon-btn" aria-label="閉じる">×</button></div>
+    <div class="cl-sub" id="clSub"></div>
+    <div class="cl-update hidden" id="clUpdate" aria-live="polite"></div>
+    <div class="cl-body" id="clBody"></div>
+  </div>
+</div>
+
+<!-- ============ ダッシュボード（最初の画面。版 3.37.0 からグリッドのパネル。dashboard.js・dashboard-panels.js・dashboard-editor.js） ============ -->
+<div id="dashScreen" class="db-screen hidden" role="tabpanel" aria-labelledby="tabDash">
+  <div class="db-tools" id="dashBar"></div>
+  <div class="ds-wrap ds-strip" id="dashSlicer" hidden></div>
+  <div class="db-stage"><div class="db-grid" id="dashGrid"></div><aside id="dbEditor" class="db-editor-pane" aria-label="パネルを組む" hidden></aside></div>
+</div>
+
+<!-- ============ 品質異常（品質データの手元の写し・WaveLog と同じ絞り込み） ============ -->
+<div id="lotListScreen" class="ll-screen hidden" role="tabpanel" aria-labelledby="tabList">
+  <div class="ll-panel">
+    <!-- 元データが古い（毎日更新されるはずの元ファイルの更新が止まっている）ときの警告 -->
+    <div id="llStale" class="ll-stale" role="alert" hidden></div>
+    <!-- 推奨アップデート（配る版に推奨の札が付き、この PC がまだその版でないとき。「あとで」で畳むと見出しの札だけ残る・版 3.35.0） -->
+    <div id="recBand" class="rec-band" role="status" hidden></div>
+    <!-- 作業実績のときだけ: どの設備を見るか（札の並び。いま見ている設備は塗る） -->
+    <nav id="llEquipBar" class="ll-equipbar" aria-label="設備" hidden></nav>
+    <!-- スケジュールのときだけ: 設備の数の札／HOT コイル作業順の札・作業の流れの図・釜番の札（lotlist-schedule.js。版 3.57.0） -->
+    <section id="llSched" class="sd-strip" aria-label="スケジュールの数" hidden></section>
+    <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
+    <div class="ll-status">
+      <span id="llCount" class="ll-count">全 0件</span>
+      <!-- 一覧｜集計表・グラフ（ピボット集計。lotlist-pivot.js。7 案＋2 回目で選んだ: ui-proposals/2026-10-pivot* の M3） -->
+      <span id="llViewSwitch" class="pv-switch" role="tablist" aria-label="一覧と集計"></span>
+      <!-- 作業実績のときだけ: 作業でまとめる（まとめない｜日ごと｜日＋直ごと）と、右の表で押した日・直の札（lotlist-work.js） -->
+      <span id="llWorkSwitch" class="wk-switch" hidden></span>
+      <!-- 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかを、件数と同じ行に -->
+      <label class="ll-tablepick">表<select id="llTable" class="ll-table" aria-label="表" title="品質データの表" hidden></select></label>
+      <button id="llFresh" type="button" class="ll-fresh">元データ 確認中</button>
+      <span class="ll-lothint">ロット番号を押すと、計算へ移って取り込みます</span>
+      <!-- 効いている物のタブ（まとめ・並べ替え・選んだ値・色付け。数と名前。狭いときは名前から省略）。押すと、その種類の札を下の面で開く
+           （7 案＋2 回目で選んだ: ui-proposals/2026-10-toolbar* の M2。件数の行は効いている物が増えても 1 段。lotlist-active.js） -->
+      <span id="llActiveTabs" class="ll-active" role="toolbar" aria-label="効いている物" hidden></span>
+      <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
+      <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
+      <!-- 右の組（拡大・続きを読んでいる印）。件数の行が折り返しても、2 つは離れず右に寄る -->
+      <div class="ll-statusright">
+      <!-- 一覧だけを拡大（品質異常・作業実績で別に、この PC に覚える。開き直しても同じ拡大）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
+      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを拡大・縮小します（品質異常・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><b id="llZoomBtnValue">100%</b><i aria-hidden="true">▾</i></button>
+      <!-- 頁の送りは無い（版 3.56.0）: 送れば続きを読み足す。読み足している間だけ出す -->
+      <span id="llMore" class="ll-more" role="status" hidden><i class="wait-spin" aria-hidden="true"></i>続きを読んでいます</span>
+      </div>
+    </div>
+    <!-- 効いている物の面（タブで押した種類の札だけを出す。札の作りと操作は今までどおり各部品: まとめ＝lotlist.js・並べ替え＝lotlist.js・
+         選んだ値＝lotlist-slicer.js・色付け＝lotlist-marks.js）。一覧に重ねて開き、押し下げない -->
+    <div id="llActivePop" class="ll-activepop" role="dialog" aria-label="効いている物" hidden>
+      <span id="llGroupBar" class="ll-groupbar" hidden></span>
+      <!-- 見出しで決めた並べ替え（「並べ替え ① 重量 ▼ × ② 板厚 ▲ ×」）。まとめの段の後ろに続く順（lotlist.js の paintSortBar） -->
+      <span id="llSortBar" class="ll-groupbar ll-sortbar" hidden role="group" aria-label="並べ替え"></span>
+      <!-- スライサーで選んでいる値（「設備: CR1・L-1 ×」）。スライサーを閉じても何で絞っているかが分かる -->
+      <span id="llSlicerSum" class="sx-sum" hidden></span>
+      <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
+      <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
+    </div>
+    <!-- 拡大の面（つまみ・−・＋・刻み・100%に戻す） -->
+    <div id="llZoomPop" class="ll-zoompop" role="dialog" aria-label="一覧の拡大" hidden>
+      <span id="llZoom" class="ll-zoom" title="一覧だけを拡大・縮小します（品質異常・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
+        <button id="llZoomMinus" type="button" class="ll-zpm" aria-label="小さく">−</button>
+        <span class="ll-ztrack"><input id="llZoomRange" type="range" min="60" max="200" step="10" value="100" aria-label="一覧の大きさ"><span id="llZoomTicks" class="ll-zticks" aria-hidden="true"></span></span>
+        <button id="llZoomPlus" type="button" class="ll-zpm" aria-label="大きく">＋</button>
+        <output id="llZoomValue" for="llZoomRange">100%</output>
+        <!-- 刻み（つまみ・−・＋ が動く幅）。押すと選ぶ。この PC に覚える -->
+        <button id="llZoomStep" type="button" class="ll-zstep" aria-haspopup="menu" aria-expanded="false" title="つまみ・−・＋ が動く幅を選びます">10%刻み ▾</button>
+        <span id="llZoomSteps" class="ll-zsteps" role="menu" hidden></span>
+        <button id="llZoomReset" type="button" hidden title="100% に戻します">100%に戻す</button>
+      </span>
+    </div>
+    <!-- 表とスライサー（置き場は左・右・上。data-place） -->
+    <div class="ll-bodyrow" id="llBodyRow" data-place="left">
+    <aside id="llSlicer" class="sx-pane" hidden aria-label="スライサー"></aside>
+    <div class="ll-grid-wrap">
+      <table class="ll-grid" id="llGrid"><colgroup id="llCols"></colgroup><thead id="llHead"></thead><tbody id="llBody"></tbody></table>
+      <style id="llTintStyle"></style>
+      <div id="llNote" class="ll-note" hidden></div>
+    </div>
+    <!-- 集計表・グラフ（一覧の場所に替えて出す。スライサーはそのまま効く） -->
+    <section id="llPivot" class="pv" hidden aria-label="集計表・グラフ"></section>
+    <!-- 作業実績で作業でまとめているとき: 日・直ごとのロット数（押すと一覧をその日・直に絞る） -->
+    <aside id="llWork" class="wk-pane" hidden aria-label="日・直ごとのロット数"></aside>
+    </div>
+    <!-- 登録した条件とプリセット -->
+    <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件・プリセット・保存した見方">
+      <div class="ll-pm-card">
+        <div class="ll-pm-head"><b>登録した条件・プリセット・保存した見方</b><small>表: <span id="llPresetTable">-</span>。どれも「プリセット」から切り替えられます。同じ「プリセット名」を付けた条件がひとまとまりになります。</small>
+          <button id="llPresetModalClose" type="button" class="fb-close" title="閉じる（Esc）">✕ 閉じる</button></div>
+        <div class="ll-pm-body">
+          <h4 class="ll-pm-sec">保存した見方<small>条件・並べ替え・まとめ・スライサー・検索を名前を付けて保存した物。当てると、その形にまるごと入れ替わります</small></h4>
+          <table class="ll-pm-table ll-pm-views">
+            <thead><tr><th>名前</th><th>入っている物</th><th></th><th></th><th></th></tr></thead>
+            <tbody id="llViewRows"></tbody>
+          </table>
+          <h4 class="ll-pm-sec">登録した条件とプリセット</h4>
+          <table class="ll-pm-table">
+            <thead><tr><th>条件</th><th>プリセット名（組み合わせ）</th><th>いつも適用</th><th></th><th></th></tr></thead>
+            <tbody id="llPresetRows"></tbody>
+          </table>
+          <datalist id="llPresetGroups"></datalist>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 転写・ピッチ計算 ============ -->
+<!-- 見出しの「マスタ」のタブで、マスタがまだ無いときの案内（版 3.53.0。マスタがあれば品質異常と同じ画面 #lotListScreen） -->
+<div id="mstEmpty" class="mst-screen hidden" role="tabpanel" aria-labelledby="tabMst"></div>
+<div class="layout hidden" id="calcScreen" role="tabpanel" aria-labelledby="tabCalc">
+  <!-- ============ 左: 設定 + 基本情報 ============ -->
+  <aside class="side" id="leftPanel">
+    <div class="card card-search">
+      <div class="searchrow">
+        <input id="query" aria-label="ロット番号" placeholder="ロット番号（例: L7150C0）" autocomplete="off" spellcheck="false">
+        <button id="searchBtn" title="LotDsp（ロット問い合わせ）の進度情報を読み、工程を取り込みます">検索</button>
+      </div>
+      <div id="importNote" class="note import-note hidden" aria-live="polite"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">基本情報</div>
+      <div class="kv-grid stack">
+        <!-- 2 列。意味のまとまりで行をそろえる: 番号 ／ 材料 ／ 寸法・比重 ／ 用途。どれも取り込んだ値で、ここでは直さない -->
+        <div class="kv"><span>ロットNo.</span><b id="v_lot_no">-</b></div>
+        <div class="kv"><span>検査No.</span><b id="v_inspection_no">-</b></div>
+        <div class="kv"><span>鋳造No.</span><b id="v_casting_no">-</b></div>
+        <div class="kv"><span>オーダーNo.</span><b id="v_order_no">-</b></div>
+        <div class="kv"><span>製造材質</span><b id="v_material">-</b></div>
+        <div class="kv"><span>製造調質</span><b id="v_temper">-</b></div>
+        <div class="kv"><span>製造板厚</span><b id="v_product_thickness">-</b><i>mm</i></div>
+        <div class="kv"><span>製造板幅</span><b id="v_product_width">-</b><i>mm</i></div>
+        <div class="kv"><span>製造板丈</span><b id="v_product_length">-</b><i>mm</i></div>
+        <div class="kv"><span>比重</span><b id="v_density">-</b><i></i></div>
+        <div class="kv"><span>用途コード</span><b id="v_use_code">-</b></div>
+        <div class="kv"><span>用途名称</span><b id="v_use_name">-</b></div>
+      </div>
+    </div>
+
+    <div class="card card-grow">
+      <div class="card-h accent">解析条件<span class="card-h-sub" id="condSub">入力で即時再計算</span></div>
+      <!-- 入力欄は表のタブ（転写／ピッチ）に合わせて出し分ける（data-for。値は保つ・paintViewInputs）。
+           共通: 発見設備・発見板厚・誤差（転写の一致判定とピッチの候補ロールの幅の両方）。
+           内径は表で工程ごとに、比重は取り込んだ値（基本情報）を使う -->
+      <div class="kv edit"><span>発見設備No.</span><select id="foundEquipment" class="in"></select><i></i></div>
+      <div class="kv"><span>発見板厚</span><b id="v_found_thickness">-</b><i>mm</i></div>
+      <div class="kv edit" data-for="pitch"><span>発見ピッチ</span><input id="pitch" class="in" type="number" step="0.001" value="610"><i>mm</i></div>
+      <div class="kv edit" data-for="transfer"><span>汚れ位置A</span><input id="soilA" class="in" type="number" step="0.001" placeholder="未入力"><i>m</i></div>
+      <div class="kv edit" data-for="transfer"><span>汚れ位置B</span><input id="soilB" class="in" type="number" step="0.001" placeholder="未入力"><i>m</i></div>
+      <div class="kv edit"><span>誤差</span><input id="tolerance" class="in" type="number" step="0.1" value="5"><i>%</i></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">結果サマリ</div>
+      <div class="kpi">
+        <div class="kpi-item" data-for="transfer"><span>実転写距離</span><b id="k_actual">-</b><i>m</i></div>
+        <div class="kpi-item" data-for="transfer"><span>一致工程数</span><b id="k_match">-</b><i>工程</i></div>
+        <div class="kpi-item" data-for="pitch"><span>候補ロール数</span><b id="k_cand">-</b><i>本</i></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ 右: ワークシート ============ -->
+  <main class="sheet">
+    <div class="toolbar">
+      <div class="views" id="viewTabs"></div>
+      <div class="spacer"></div>
+      <span class="legend-inline">
+        <i class="sw sw-edit"></i>入力可
+        <i class="sw sw-calc"></i>自動計算
+        <i class="sw sw-found"></i>発見設備
+      </span>
+      <div class="col-menu">
+        <button id="colBtn" class="btn-ghost">列表示 ▾</button>
+        <div id="colPanel" class="col-panel hidden"></div>
+      </div>
+      <button id="exportCsv" class="btn-ghost">CSV出力</button>
+    </div>
+    <div class="table-wrap">
+      <table class="ws" id="ws">
+        <thead id="wsHead"></thead>
+        <tbody id="wsBody"></tbody>
+      </table>
+    </div>
+    <!-- 計算の考え方（3D）: 表の下の余白に畳み込む。畳むと表が 25 行ぶん広がる -->
+    <section id="explain" class="explain" aria-label="計算の考え方">
+      <div class="explain-h">
+        <button id="explainToggle" type="button" class="explain-toggle" aria-expanded="true" aria-controls="explainBody">
+          <span class="chev">▾</span><span id="explainTitle">計算の考え方</span><small id="explainSub">汚れをコイルと展開した板でたどる（3D）</small>
+        </button>
+        <!-- 視点（カメラで見る工程）。計算は変えない -->
+        <div id="explainSteps" class="explain-steps" aria-label="視点"></div>
+        <button id="explainTextToggle" type="button" class="x-text-toggle" aria-expanded="false" aria-controls="explainText">説明を開く ▸</button>
+      </div>
+      <!-- 左: メニュー（転写＝仮の発生設備・ピッチ＝工程と候補ロール）／中: 3D／右: 説明（既定は畳む） -->
+      <div id="explainBody" class="explain-body text-closed">
+        <nav id="explainMenu" class="explain-menu" aria-label="メニュー"></nav>
+        <div id="explainStage" class="explain-stage"></div>
+        <div id="explainText" class="explain-text"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="error" class="error hidden"></div>
+
+<!-- ============ マスタ管理 ============ -->
+<div id="masterOverlay" class="master-overlay hidden" role="dialog" aria-modal="true" aria-label="マスタ管理">
+  <div class="master-panel">
+    <div class="master-head">
+      <div class="master-title">
+        <h2 title="設備マスタ・ロールマスタの追加・修正・削除と、参照先（読みに行く場所）の変更。変更はすぐ保存され、解析画面と品質異常に効きます。">マスタ管理</h2>
+        <!-- 置き場（手元のみ／共有／共有に届かない）と版。共有のときは数秒ごとにほかの PC の変更を取り込む -->
+        <div id="masterPlace" class="master-place" aria-live="polite"></div>
+      </div>
+      <button id="masterCloseBtn" class="icon-btn" aria-label="閉じる" title="閉じる">×</button>
+    </div>
+    <!-- 左: 区分（データ・つなぎ先・管理）ごとのナビ。どこに何があるかがいつも同じ所に見える -->
+    <div class="master-tabs" id="masterTabs" role="tablist" aria-orientation="vertical"></div>
+    <div class="master-toolbar">
+      <input id="masterSearch" type="search" placeholder="検索" aria-label="マスタの中を検索">
+      <span id="masterCount" class="master-count"></span>
+      <span id="masterRO" class="master-ro hidden">閲覧のみ</span>
+      <div class="spacer"></div>
+      <button id="masterAddBtn" class="btn-primary">＋ 新規追加</button>
+    </div>
+    <div class="master-table-wrap">
+      <table class="master-table" id="masterTable">
+        <thead id="masterHead"></thead>
+        <tbody id="masterBody"></tbody>
+      </table>
+      <div class="master-empty hidden" id="masterEmpty">該当するデータがありません。検索条件を変更するか、「新規追加」から登録してください。</div>
+    </div>
+    <!-- 右: 選んだ行の詳細。押した行をそのまま直す（別の小窓を開かない）。＋ 新規追加もここに空の欄を出す -->
+    <aside class="master-detail" id="masterDetail" aria-label="選んだ行の詳細">
+      <div class="master-form-head"><h3 id="masterFormTitle">追加</h3></div>
+      <!-- 保存の途中経過・競合（ほかの PC が先に変えた／消した）と、選べる次の手 -->
+      <div id="masterFormNotice" class="master-notice hidden" aria-live="polite"></div>
+      <div class="master-form-body" id="masterFormBody"></div>
+      <p class="master-detail-empty hidden" id="masterDetailEmpty">左の一覧で行を押すと、ここで中身を見て直せます。新しく足すときは「＋ 新規追加」。</p>
+      <div class="master-form-foot" id="masterFormFoot">
+        <button id="masterFormDelBtn" class="btn-ghost danger-ghost" title="この行を削除します（確かめてから消します）">削除</button>
+        <span id="masterFormError" class="form-error hidden"></span>
+        <div class="spacer"></div>
+        <button id="masterFormCancelBtn" class="btn-ghost" title="直した所を、保存してある内容に戻します">元に戻す</button>
+        <button id="masterFormSaveBtn" class="btn-primary">保存</button>
+      </div>
+    </aside>
+    <!-- 参照先（読みに行く場所）: 項目ごとのカード。表ではなく「いまの値・既定・確かめる・保存」を並べる -->
+    <div class="master-settings hidden" id="masterSettings" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- 削除確認 -->
+<div id="masterDeleteOverlay" class="master-form-overlay hidden">
+  <div class="master-form-card small">
+    <div class="master-form-head"><h3>削除の確認</h3></div>
+    <div class="master-form-body"><p id="masterDeleteMsg"></p></div>
+    <div class="master-form-foot">
+      <div class="spacer"></div>
+      <button id="masterDeleteCancelBtn" class="btn-ghost">キャンセル</button>
+      <button id="masterDeleteConfirmBtn" class="btn-danger">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- LotDsp に問い合わせ中（読んでいるあいだはほかを触れない。段階・経過・つまずいたときの案内・中止。app.js fetchModal） -->
+<div id="fetchModal" class="fetch-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="fetchTitle" aria-describedby="fetchSteps">
+  <div class="fetch-card">
+    <div class="fetch-head">
+      <h3 id="fetchTitle">LotDsp に問い合わせ中</h3>
+      <b id="fetchLot" class="fetch-lot"></b>
+    </div>
+    <div class="fetch-route" id="fetchRoute"></div>
+    <ol class="fetch-steps" id="fetchSteps" aria-live="polite"></ol>
+    <div class="fetch-hint hidden" id="fetchHint" role="status"></div>
+    <div class="fetch-foot">
+      <span class="fetch-time" id="fetchTime" aria-label="経過">0 秒</span>
+      <button type="button" id="fetchCancel" class="btn-ghost">中止 <kbd>Esc</kbd></button>
+    </div>
+  </div>
+</div>
+
+<!-- LotDsp 進度情報の取込（このアプリで読めないとき: 貼り付け・保存した HTML。理由は #lotdspDialogWhy） -->
+<div id="lotdspDialog" class="master-form-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="lotdspDialogTitle">
+  <div class="master-form-card">
+    <div class="master-form-head">
+      <h3 id="lotdspDialogTitle">LotDsp 進度情報から取込</h3>
+      <button id="lotdspDialogClose" class="icon-btn" aria-label="閉じる">×</button>
+    </div>
+    <div class="lotdsp-dialog-body">
+      <p id="lotdspDialogWhy">LotDsp の画面の写しから取り込みます。</p>
+      <ol>
+        <li><button id="lotdspOpenBtn" class="btn-ghost">LotDsp を開く</button> ロット番号 <b id="lotdspDialogLot">-</b> を検索し、「進度情報」タブを出します。</li>
+        <li>進度情報の画面で <kbd>Ctrl</kbd>+<kbd>A</kbd> → <kbd>Ctrl</kbd>+<kbd>C</kbd></li>
+        <li>下の枠を押して <kbd>Ctrl</kbd>+<kbd>V</kbd>（「名前を付けて保存」した HTML も選べます）</li>
+      </ol>
+      <textarea id="lotdspPaste" class="paste-target" rows="3" placeholder="ここを押して Ctrl+V" aria-label="進度情報の貼り付け先"></textarea>
+      <div class="lotdsp-dialog-foot">
+        <label class="btn-ghost file-pick">保存した HTML を選ぶ<input id="lotdspFile" type="file" accept=".html,.htm,text/html" hidden></label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">window.EXPLAIN3D_URL = "{{ url_for('static', filename='js/explain3d.js') }}";</script>
+<!-- 画面の設定の控え（WebView の作業場所が消えても戻す。以前のブラウザ版で使い込んだ設定も引き継ぐ。shared.js が最初に戻す） -->
+<script nonce="{{ csp_nonce }}">window.TPA_UI_STATE = {{ ui_state|tojson }};</script>
+<script nonce="{{ csp_nonce }}">window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
+<script nonce="{{ csp_nonce }}">window.TPA_CONVERSIONS = {{ conversions|tojson }};</script>
+<script src="{{ url_for('static', filename='js/shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/unsaved.js') }}"></script>
+<script src="{{ url_for('static', filename='js/value-filter.js') }}"></script>
+<script src="{{ url_for('static', filename='js/list-formula.js') }}"></script>
+<script src="{{ url_for('static', filename='js/conversions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/formula-builder.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-rules.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-columns.js') }}"></script>
+<script src="{{ url_for('static', filename='js/card-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-card.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-slicer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-marks.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-profile.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-formats.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-work.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-schedule.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotdsp-url.js') }}"></script>
+<script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/num-format.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-pivot-charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pivot-dnd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pivot-calc.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-pivot.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-active.js') }}"></script>
+<script src="{{ url_for('static', filename='js/virtual-rows.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-style.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-panels.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-filter.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-slicer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hardcopy.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pathpick.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-join.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-sources.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-tabaccess.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-conv.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master.js') }}"></script>
+</body>
+</html>

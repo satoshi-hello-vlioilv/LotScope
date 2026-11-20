@@ -1,0 +1,267 @@
+# -*- coding: utf-8 -*-
+"""参照先マスタ（アプリが読みに行く場所・その扱い）。
+
+置き場は設備マスタ・ロールマスタと同じ MasterStore のマスタ `path_settings`（共有フォルダがあれば共有）。
+1 台で直すと全員の PC に効き、書き込みの錠・行の版（ほかの PC と同時に直したとき）もほかのマスタと同じ。
+
+  行: {id, 項目, 値, rev, updated_at, updated_by}   項目は下の ITEMS のキー（例 "lot_list.source"）
+  値が空・行が無い項目は、配った設定ファイル（config/appsettings.json）の値を使う（＝既定）。
+
+マスタの共有フォルダの場所（master_share.dir）だけはここに置かない。マスタそのものの置き場なので、
+ここで変えるとこのマスタ自体が別の場所を見てしまう（設定ファイルで変える）。
+"""
+import copy
+import math
+import time
+
+from ..brand import BRAND
+from ..fsio import unquote_path
+
+NAME = "path_settings"
+
+ITEMS = [
+    {"key": "lot_list.source", "label": "品質異常の元ファイル（品質データ）", "kind": "sqlite", "page": "sources",
+     "hint": "共有の .sqlite3 ファイル。WaveLog の品質データと同じファイルを指します（例: \\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\SIKADEF.sqlite3）。"
+             "保存するとすぐ、このファイルを手元へ写し直して一覧に使います。"},
+    {"key": "lot_list.table", "label": "品質異常の表", "kind": "text", "page": "sources",
+     "hint": "元ファイルの中の表の名前。空なら 仕掛 → 品質情報 → 品質 → 保留 の順に探します。"},
+    {"key": "lot_list.refresh_seconds", "label": "品質の元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
+     "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
+    {"key": "lot_list.stale_hours", "label": "品質の元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60, "page": "sources",
+     "hint": "元ファイルの最後の更新からこの時間を過ぎたら、一覧の上で警告します。0 にすると警告しません。土日に更新しない運用なら 72 など。"},
+    {"key": "work_log.folder", "label": "実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder", "page": "sources",
+     "hint": "設備ごとの実績ファイル（例: 実績_CR1.sqlite3）が並ぶフォルダ（例: \\\\Nlmsrvngy03\\Read\\【New】実績）。"
+             "保存すると、このフォルダを探して設備を見つけ、下の設備の表に並べます（表示する・しないはそこで決めます）。"},
+    {"key": "work_log.pattern", "label": "実績のファイル名の決まり", "kind": "pattern", "page": "sources",
+     "hint": "* の所が設備名になります（既定: 実績_*.sqlite3）。* はちょうど 1 つ書きます。"},
+    {"key": "work_log.refresh_seconds", "label": "実績の元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
+     "hint": "この間隔で設備ごとの元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
+    {"key": "work_log.stale_hours", "label": "実績の元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60, "page": "sources",
+     "hint": "設備ごとの元ファイルの最後の更新からこの時間を過ぎたら、設備の札と表で「古い」と知らせます。0 にすると知らせません。"},
+    {"key": "lotdsp_import.url", "label": "ロット問い合わせ（LotDsp）の URL", "kind": "url",
+     "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは"
+             " LotDsp の窓が開きます（ログインはその窓で利用者が行う）。貼り付けで取り込むときの「LotDsp を開く」もここを開きます。"},
+    {"key": "schedule.cm3_base_url", "page": "sources", "label": "スケジュール（CM3）の URL", "kind": "url",
+     "hint": "設備ごとの作業予定を読みに行く CM3 スケジューリングシステムの場所（例: http://nlmfangyweb1a:9085）。"
+             "「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。"},
+    {"key": "schedule.client_ip", "page": "sources", "label": "CM3 に名乗る端末の IP", "kind": "text",
+     "hint": "CM3 への問い合わせに入れる端末の IP（CM3 の画面を開いたときにブラウザが送る値と同じ）。"},
+    {"key": "schedule.equipments", "page": "sources", "label": "スケジュールの設備", "kind": "text",
+     "hint": "「スケジュール」のタブに並べる設備（「、」か「,」で区切る。例: L-1, L-2, L-3）。"
+             "端末区分が既定（4）と違う設備は「L-9:2」のように : の後ろに書きます。HOT コイル作業順はこの設備から作ります。"},
+    {"key": "schedule.inspect_keywords", "page": "sources", "label": "スケジュールの点検の行の言葉", "kind": "text",
+     "hint": "ロットNo か用途名にこの言葉を含み、板厚・幅のある行を「点検」とします（「、」で区切って複数。既定: 点検板）。"
+             "点検の行は製造件数・ロット数・仕掛との突合せから除きます。"},
+    {"key": "schedule.auto_refresh_sec", "label": "スケジュールを取り直す間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
+     "hint": "「スケジュール」の画面を開いている間、この間隔で CM3 から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。"},
+    {"key": "update.source", "label": "更新の置き場（新しい版を置くフォルダ）", "kind": "release",
+     "check_url": "/__desktop/update/probe",
+     "hint": f"版ごとのフォルダ（例 …\\90_Releases\\{BRAND['name']}\\3.2.0）に release.json と配る ZIP を置く、その上のフォルダ。"
+             "下のフォルダをたどって、このアプリの版（release.json の目印）を探すので、アプリやフォルダの名前が変わっても構いません。"
+             "BOX の権限で人ごとに見え方が違っても（上の階層が見えない人がいても）、この PC で見える場所を探し直します。"
+             "「;」で区切って候補を複数書けます（%USERPROFILE% なども使えます）。空なら更新を確かめません。"},
+    {"key": "lotdsp_import.direct.browser", "label": "LotDsp を裏で読むブラウザ（空なら Edge を自動で探す）", "kind": "exe",
+     "hint": "このアプリだけで LotDsp を読むとき、画面に出さずに動かすブラウザの実行ファイル。ふつうは空のままで、"
+             "Edge（C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe）を自動で使います。"},
+]
+# page: その項目を直す頁（マスタ管理のタブ）。ある項目は「参照先」に並べない（同じ値を直す所を 1 つにする）。
+#       "sources" … データ元の「接続の設定」（版 3.58.0。品質・実績・スケジュールの場所と間隔。data_sources.CONN_BIND が結ぶ）
+#       値の置き場・確かめ方・版はほかの項目と同じ（PUT /api/settings/<key>）
+BY_KEY = {i["key"]: i for i in ITEMS}
+
+
+def _get(d, dotted):
+    cur = d
+    for part in dotted.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def default_of(settings, key):
+    """配った設定（config/appsettings.json）でのその項目の値。"""
+    return _get(settings, key)
+
+
+class StageBroken(Exception):
+    """配った設定の段が表でない（版 3.112.0 の作った後の採点の割れ 3）。道は 503 kind settings の JSON で答える（web.App.handle が payload を読む。
+    前は AttributeError で Flask の HTML の 500 だった）。理由の言葉は窓の束（desktop/src/bundle.rs の build_inner）と同じ形"""
+    status = 503
+    SECTION = {"lot_list": "lot_list", "work_log": "work", "sources": "sources", "schedule": "schedule"}
+
+    def __init__(self, stage, value):
+        kind = "字" if isinstance(value, str) else "並び" if isinstance(value, list) else "数" if isinstance(value, (int, float)) else type(value).__name__
+        self.stage = stage
+        super().__init__(f"配った設定の「{stage}」が表でない（{kind}）ので組めません。「{stage}」を {{ … }} の形に直してください")
+
+    def payload(self):
+        return {"error": f"設定を組めません: {self}。ファイルを直すと、この画面も読めるようになります。", "kind": "settings",
+                "broken": [self.SECTION.get(self.stage, self.stage)]}
+
+
+def stage(settings, key):
+    """配った設定の段（無い・空は空の表。表でなければ StageBroken）"""
+    v = (settings or {}).get(key) or {}
+    if not isinstance(v, dict):
+        raise StageBroken(key, v)
+    return v
+
+
+def _set(d, dotted, value):
+    """値を重ねる。途中の段が表でない（字・null・並び・数）なら重ねずに飛ばす（版 3.112.0。前は TypeError・AttributeError で
+    create_app ごと落ち、Python が起きなかった。窓の desktop/src/bundle.rs の effective も同じに飛ばし、理由を束の settingsBroken に言う。
+    決めは事例の表 tests/fixtures/appsettings_cases.json）"""
+    parts = dotted.split(".")
+    cur = d
+    for part in parts[:-1]:
+        cur = cur.setdefault(part, {})
+        if not isinstance(cur, dict):
+            return False
+    if not isinstance(cur, dict):
+        return False
+    cur[parts[-1]] = value
+    return True
+
+
+def parse(item, raw):
+    """画面から来た字を、その項目の値へ（空は None＝既定へ戻す）。合わなければ ValueError（理由つき）。"""
+    s = "" if raw is None else str(raw).strip()
+    if s == "":
+        return None
+    kind = item["kind"]
+    if kind in ("int", "number"):
+        try:
+            n = float(s)
+        except ValueError:
+            raise ValueError(f"「{item['label']}」は数で入れてください。") from None
+        if not math.isfinite(n):     # nan・inf は範囲の比べ方をすり抜け、設定の答えの JSON に NaN が入って窓が読めない（版 3.83.0）
+            raise ValueError(f"「{item['label']}」は数で入れてください。")
+        if kind == "int":
+            if n != int(n):
+                raise ValueError(f"「{item['label']}」は整数で入れてください。")
+            n = int(n)
+        lo, hi = item.get("min"), item.get("max")
+        if (lo is not None and n < lo) or (hi is not None and n > hi):
+            raise ValueError(f"「{item['label']}」は {lo}〜{hi} で入れてください。")
+        return n
+    if kind == "url" and not (s.startswith("http://") or s.startswith("https://")):
+        raise ValueError(f"「{item['label']}」は http:// か https:// で始まる URL を入れてください。")
+    if kind in ("sqlite", "exe", "folder"):
+        s = unquote_path(s)
+    if kind == "exe" and s:          # Edge・Chrome の決まった形だけ（版 3.52.1。共有のマスタで好きな exe を起こさせない。読むときも同じ: effective）
+        from .lotdsp_direct import trusted_browser
+        why = trusted_browser(s)
+        if why:
+            raise ValueError(f"「{item['label']}」: {why}")
+    if kind == "pattern":
+        from .work_log import split_pattern
+        split_pattern(s)            # * がちょうど 1 つ（違えば理由つきの ValueError）
+    if kind == "release":           # 候補を「;」で区切れる（それぞれの " を外す。探すのはデスクトップ版: desktop/src/release.rs）
+        s = ";".join(x for x in (unquote_path(p.strip()) for p in s.replace("\n", ";").split(";")) if x)
+    return s
+
+
+def effective(settings, rows):
+    """配った設定に、マスタで変えた値を重ねた設定（複製）と、項目ごとの答え。"""
+    eff = copy.deepcopy(settings)
+    by_key = {str(r.get("項目") or ""): r for r in rows or []}
+    items = []
+    for it in ITEMS:
+        default = _get(settings, it["key"])
+        row = by_key.get(it["key"])
+        value = None
+        if row is not None:
+            try:
+                value = parse(it, row.get("値"))
+            except ValueError:
+                value = None       # 壊れた値は使わない（既定で動く）
+        if value is not None:
+            _set(eff, it["key"], value)
+        items.append({**it, "default": default, "value": value, "effective": value if value is not None else default,
+                      "source": "master" if value is not None else "default",
+                      "id": row.get("id") if row else None, "rev": row.get("rev") if row else None,
+                      "updated_at": row.get("updated_at") if row else None, "updated_by": row.get("updated_by") if row else None})
+    return eff, items
+
+
+BLANK = "値を入れてください。"
+
+
+def check_entry(item, value, settings=None, *, empty_exe_finds=False, **kw):
+    """「確かめる」の入口（参照先の POST /api/settings/check と、データ元の接続の設定の conn/check。版 3.100.0）。
+    value は parse して既定を重ねた後の値。値も既定も空なら、種類によらず「値を入れてください。」（前は参照先の URL が空で既定も空のとき
+    「届きません（社外・VPN…）」と言った）。empty_exe_finds: 参照先の exe（ブラウザ）は空で Edge を探す（conn/check は空を断る）"""
+    if (value is None or value == "") and not (empty_exe_finds and item["kind"] == "exe"):
+        return {"ok": False, "message": BLANK}
+    return check(item, value, settings, **kw)
+
+
+def check(item, value, settings=None, *, table=None, role="品質", pattern=None):
+    """「確かめる」: その値で本当に読めるか（保存の前に）。settings はいま効いている設定（ほかの項目と組んで確かめるとき）。
+    table・role（.sqlite3 の場所。版 3.99.0）… 一覧が読む表（欄の表）と役割（品質だけロット番号の列が要る・古さの警告は services/builder.py の STALE_ROLES）。
+    table が None なら、品質データの場所は効いている lot_list.table。pattern（作業実績のフォルダ。版 3.99.0）… カードで打ち替えたファイル名の決まり。
+    -> {ok, message, detail}"""
+    kind = item["kind"]
+    if kind == "sqlite":
+        from .builder import check_sqlite
+        if table is None:
+            table = str(_get(settings or {}, "lot_list.table") or "") if item["key"] == "lot_list.source" else ""
+        return check_sqlite(value, table, role)
+    if kind == "folder":
+        return _check_folder(item, value, settings, pattern)
+    if kind == "url":
+        return _check_url(item, value, settings)
+    fn = _CHECKS.get(kind)
+    return fn(item, value) if fn else {"ok": True, "message": "値の形は正しいです。"}
+
+
+def _check_url(item, value, settings=None):
+    from .lotdsp_direct import reachable
+    if item["key"] == "lotdsp_import.url":
+        from .lotdsp_rules import site_base
+        ok = reachable(site_base(value), 4)          # # から後ろを捨てた場所へ（版 3.98.0。見えない Edge と同じ決まり）
+        return {"ok": ok, "message": "LotDsp に届きました（ログインが要るかは「検索」で分かります）。" if ok
+                else "LotDsp に届きません（社外・VPN 未接続・場所の間違い）。"}
+    if item["key"] == "schedule.cm3_base_url":         # スケジュール（CM3。版 3.99.0 の決め 6: 届くかまで見る。前は LotDsp の言葉だった）
+        from .builder import CM3_REACH, cm3_reach
+        return cm3_reach(value, settings) if CM3_REACH else {"ok": True, "message": "URL の形は正しいです（つながるかは「スケジュール」のタブで確かめてください）。"}
+    return {"ok": True, "message": "URL の形は正しいです。"}
+
+
+def _check_exe(item, value):
+    from .lotdsp_direct import find_browser, trusted_browser
+    why = trusted_browser(value) if value else ""
+    if why:
+        return {"ok": False, "message": why}
+    found = find_browser(str(value or ""))
+    if found:
+        return {"ok": True, "message": f"使えます: {found}" + ("" if value else "（自動で見つけた場所）")}
+    return {"ok": False, "message": "そのファイルがありません。" if value else
+            "Edge が見つかりません。msedge.exe の場所を入れてください。"}
+
+
+def _check_folder(item, value, settings=None, pattern=None):
+    """作業実績のフォルダ: 届くか・決まりに合うファイル（設備）がいくつあるか。ファイル名の決まりは、カードで打ち替えた物（pattern。版 3.99.0）か、
+    いま効いている物"""
+    from .work_log import FolderError, params, scan
+    pattern = pattern or params(settings)["pattern"]
+    t0 = time.perf_counter()
+    try:
+        found = scan(value, pattern)
+    except (FolderError, ValueError) as e:
+        return {"ok": False, "message": str(e)}
+    names = "・".join(f["equipment"] for f in found[:8]) + (f" ほか {len(found) - 8}" if len(found) > 8 else "")
+    if not found:
+        return {"ok": False, "message": f"フォルダには届きましたが、{pattern} に合うファイルがありません。場所かファイル名の決まりを確かめてください。"}
+    return {"ok": True, "message": f"届きました。設備 {len(found)} 台（{names}）・{(time.perf_counter() - t0) * 1000:.0f} ms",
+            "detail": {"files": [f["file"] for f in found]}}
+
+
+def _check_pattern(item, value):
+    from .work_log import split_pattern
+    head, tail = split_pattern(value)
+    return {"ok": True, "message": f"「{head}設備名{tail}」の形のファイルを探します。"}
+
+
+_CHECKS = {"url": _check_url, "exe": _check_exe, "folder": _check_folder, "pattern": _check_pattern}
