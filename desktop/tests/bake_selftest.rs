@@ -848,7 +848,8 @@ fn the_windows_overlay_is_compared_in_the_windows_form() {
         json!({"same": "GET /s", "os": "GET /o", "posix_only": "GET /p"}),
     );
     let win = json!({"status": 200, "json": {"error": "WinError 2 The system cannot find the file specified"}});
-    let nt = json!({"book": "selftest", "file": "selftest", "answers": {"os": win}, "posix": {"os": "0"}, "skip": ["posix_only"], "unmade": []});
+    let nt =
+        json!({"book": "selftest", "file": "selftest", "answers": {"os": win}, "posix": {"os": "0"}, "skip": ["posix_only"], "unmade": []});
     // 流し方: Windows の形（表だけの形・札が table）。answers は歩ごとの窓の答え、nt は重ねる表
     let run = |answers: &[(&str, Value)], nt: &Value| {
         let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);

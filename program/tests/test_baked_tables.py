@@ -14,6 +14,10 @@ bless = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bless)
 
 
+# 凍らせた Python の写し（program/tests/legacy/3.117.3。版 3.117.3。tools/freeze-legacy.py が 1 回だけ作った）の MANIFEST.json の sha256。
+# 写しのファイルの sha256 は MANIFEST.json が持ち、MANIFEST.json そのものの指紋をここに書く（写しと MANIFEST.json を一緒に書き換えても落ちる）
+LEGACY_MANIFEST_SHA = "6fef09de40f5de3ea02163cff084955d485a5859d023327998bc8c2d09a42aad"
+
 # 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
 BOOKS_3117 = {"3.117.0": ["equipgroups", "lotdsp"], "3.117.1": ["schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
 
@@ -283,6 +287,34 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_the_frozen_python_copy_is_unchanged(self):
+        """凍らせた Python の写し（版 3.117.3。段 ④ の入口の条件 3）: 中身が MANIFEST.json と同じ・MANIFEST.json の指紋が試験に書いた物と同じ・
+        凍らせた試験が呼ぶ答え合わせ役がそろう・単体の試験の discover に入らない（写しの置き場は package でない）。変異: 1 字変えると言う"""
+        import hashlib
+        spec = importlib.util.spec_from_file_location("freeze_legacy", PROGRAM / "tools" / "freeze-legacy.py")
+        fl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fl)
+        self.assertEqual(fl.check(), [])
+        self.assertEqual(hashlib.sha256((fl.DEST / fl.MANIFEST).read_bytes()).hexdigest(), LEGACY_MANIFEST_SHA,
+                         "MANIFEST.json が書き換わった（凍らせた写しは 1 回だけ作る）")
+        for name in fl.FROZEN_SCRIPTS:
+            self.assertTrue((fl.DEST / "tests" / f"{name}.py").is_file(), name)
+        self.assertFalse((fl.DEST.parent / "__init__.py").exists() or (fl.DEST / "__init__.py").exists(), "写しの置き場は package にしない")
+        self.assertFalse(any(p.name.startswith("test_") for p in fl.DEST.rglob("*.py")), "写しに単体の試験を入れない")
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            shutil.copytree(fl.DEST, tmp / "copy")
+            p = tmp / "copy" / "app" / "version.py"
+            p.write_bytes(p.read_bytes() + b"# x\n")
+            (tmp / "copy" / "tests" / "seeds_oracle.py").unlink()
+            (tmp / "copy" / "増えた.py").write_text("", encoding="utf-8")
+            bad = fl.check(tmp / "copy")
+            self.assertTrue(any("写しが変わった: app/version.py" in x for x in bad), bad)
+            self.assertTrue(any("写しから消えた: tests/seeds_oracle.py" in x for x in bad), bad)
+            self.assertTrue(any("写しに増えた: 増えた.py" in x for x in bad), bad)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_the_windows_overlay_is_checked_against_the_posix_answers(self):
         """Windows の上書きの表（tests/baked/nt/<表>.json。版 3.117.3）: 上書きした posix の答えの指紋が今の posix の答えと同じか。
         変異: posix の答えを 1 字変えると古いと言う・posix と同じ上書き・表に無い流さない歩・流さない歩の上書きも言う"""
@@ -308,6 +340,8 @@ class BakedTables(unittest.TestCase):
             self.assertTrue(any("表に無い" in x for x in bad(n={**nt, "skip": ["b", "無い"]})))
             self.assertTrue(any("流さない歩に上書き" in x for x in bad(n={**nt, "skip": ["a"]})))
             self.assertTrue(any("unmade がありません" in x for x in bad(n={k: v for k, v in nt.items() if k != "unmade"})))
+            runner = {**nt, "answers": {"a": {"status": 200, "json": {"e": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\da-fs-2636\\x"}}}}
+            self.assertTrue(any("Windows の runner の字" in x for x in bad(n=runner)), "流すたびに変わる runner の道")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

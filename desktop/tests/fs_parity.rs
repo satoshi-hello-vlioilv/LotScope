@@ -81,7 +81,16 @@ fn folder_browse_matches_python() {
         }
         let me = || Gate::default().me(&c);
         let paths = || Some(app_paths.clone());
-        let body = st["body"].as_str().unwrap_or("").replace("@ROOT", &esc[1..esc.len() - 1]);
+        let body = st["body"].as_str().unwrap_or("");
+        // Windows の表だけの形（版 3.117.3）: 宣言の「file://@ROOT」は posix の根（/ で始まる）の書き方。Windows の根（C:/…）では
+        // 「file://C:/…」がサーバー名 C: になる（Windows の Python と比べる形も同じ答えで、場面の作り方の割れ）ので、Windows の file の URL の
+        // 書き方（file:///C:/…・file://localhost/C:/…）にする
+        let body = if cfg!(windows) {
+            common::re(r"(?i)(file://(?:localhost)?)@ROOT").replace_all(body, "${1}/@ROOT").into_owned()
+        } else {
+            body.to_string()
+        };
+        let body = body.replace("@ROOT", &esc[1..esc.len() - 1]);
         // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
         let r = match common::gate(st["method"].as_str().unwrap(), st["path"].as_str().unwrap(), body.as_bytes()) {
             Err(a) => Some(a),

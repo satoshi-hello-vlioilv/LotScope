@@ -49,7 +49,8 @@ FORBIDDEN = {
     "TPA_VBS_DRYRUN": "Start.vbs の確かめ",
     "vbs_launcher": "Start.vbs の記録",
 }
-# 更新履歴は昔の版の注記を含む（app/changelog.json は version.py の更新履歴を焼いた物。版 3.88.0）
+# 更新履歴は昔の版の注記を含む（app/changelog.json は version.py の更新履歴を焼いた物。版 3.88.0）。凍らせた Python の写し
+# （tests/legacy/<版>。版 3.117.3）は書き換えない写しなので調べない
 SKIP = {PROGRAM / "app" / "version.py", PROGRAM / "app" / "changelog.json", Path(__file__).resolve()}
 
 
@@ -62,7 +63,7 @@ def scanned():
         for pat in pats:
             for p in root.rglob(pat):
                 if p.is_file() and p not in SKIP and "docs" not in p.relative_to(root).parts \
-                        and "__pycache__" not in p.parts and "fixtures" not in p.parts:
+                        and "__pycache__" not in p.parts and "fixtures" not in p.parts and "legacy" not in p.relative_to(root).parts:
                     yield p, p.read_text(encoding="utf-8", errors="replace")
 
 

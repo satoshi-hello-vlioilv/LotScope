@@ -1221,7 +1221,8 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
             let link = base.join(rel);
             let at = link.parent().map(|d| d.join(&target)).unwrap_or_else(|| PathBuf::from(&target));
             let is_dir = std::path::Path::new(&target).is_absolute() && std::path::Path::new(&target).is_dir() || at.is_dir();
-            let r = if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
+            let r =
+                if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
             if r.is_err() {
                 unmade.push(format!("link {rel}"));
             }
@@ -1771,8 +1772,10 @@ impl Bake {
             // Windows で作れない場面の物は nt の表の unmade と同じ並び（増えても減っても落とす。版 3.117.3）
             let want: Vec<String> = self.nt_list("unmade");
             if self.unmade != want {
-                let (more, less): (Vec<&String>, Vec<&String>) =
-                    (self.unmade.iter().filter(|x| !want.contains(x)).collect(), want.iter().filter(|x| !self.unmade.contains(x)).collect());
+                let (more, less): (Vec<&String>, Vec<&String>) = (
+                    self.unmade.iter().filter(|x| !want.contains(x)).collect(),
+                    want.iter().filter(|x| !self.unmade.contains(x)).collect(),
+                );
                 self.bad.push(format!(
                     "Windows で作れない場面の物が nt の表と違う（tests/baked/nt/{}.json の unmade。増えた {more:?}・減った {less:?}）",
                     self.file
@@ -1808,7 +1811,11 @@ impl Bake {
 
     /// nt の表の並び（skip・unmade）
     fn nt_list(&self, k: &str) -> Vec<String> {
-        self.nt.as_ref().and_then(|n| n[k].as_array()).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
+        self.nt
+            .as_ref()
+            .and_then(|n| n[k].as_array())
+            .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+            .unwrap_or_default()
     }
 
     /// 表の歩の名前（本の答えと、Windows なら nt の答えの歩）
@@ -1920,16 +1927,16 @@ impl Bake {
     pub fn finish(mut self, test_bad: &[String]) {
         self.write_measure(true);
         if self.os == "nt" && matches!(self.mode, Mode::Bless | Mode::BlessScope) {
-            panic!("{}: Windows では焼きません（posix の表は Linux で焼き、Windows の答えは tools/bless.py --take-nt で nt の表に取り込む）", self.file);
+            panic!(
+                "{}: Windows では焼きません（posix の表は Linux で焼き、Windows の答えは tools/bless.py --take-nt で nt の表に取り込む）",
+                self.file
+            );
         }
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
                 let skip = if self.os == "nt" { self.nt_list("skip") } else { vec![] };
-                let mut missing: Vec<String> = self
-                    .table_keys()
-                    .into_iter()
-                    .filter(|k| !self.answers.contains_key(k) && !skip.contains(k))
-                    .collect();
+                let mut missing: Vec<String> =
+                    self.table_keys().into_iter().filter(|k| !self.answers.contains_key(k) && !skip.contains(k)).collect();
                 missing.truncate(5);
                 for k in missing {
                     self.bad.push(format!("表にあるのに窓が答えなかった歩（表が古い）: {k}"));

@@ -13,6 +13,8 @@
                                             （--base は git の版〈例 origin/main〉。前の表から増えた分も出す。PR の説明に貼る）
     python tools/bless.py --user 本 …     … root でない利用者（nobody）で試験の実行ファイルを流し、root と違う歩を variants.user に焼く（fs・place・release_place）
     python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
+    python tools/bless.py --no-python --frozen 本 … … そのうえ、凍らせた Python を相手にする試験を凍らせた写し（program/tests/legacy/<版>。
+                                            tools/freeze-legacy.py）を相手に流す（TPA_FROZEN_PY=1。段 ④ で program/app を消した後の形。版 3.117.3）
     python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
                                             tests/test_baked_tables.py からも流れる）。焼いた PC の指紋（名乗りの欄の PC の名前・名前を書く欄の利用者の名前・
                                             一時フォルダ・ポート・ファイルID）も見る。違えば終了コード 1
@@ -625,6 +627,7 @@ def _bless_user(books):
 
 
 NT = BAKED / "nt"
+WIN_MARKS = re.compile(r"(?i)[a-z]:\\\\(?:users|windows\\\\temp)\\\\|RUNNER~1|runneradmin|[a-z]:\\\\a\\\\_temp|\\\\AppData\\\\Local\\\\Temp")
 JSON_Z = "measure-z| "     # 測りの記録を zlib で詰めて base64 にし、行に割った形（版 3.117.3。仕事の記録の末尾に入る大きさにする）
 Z_CHUNK = 2000
 WINDOWS = ("table", "measure")
@@ -660,6 +663,12 @@ def check_nt(baked=None):
         if name not in tabs:
             bad.append(f"nt/{name}: posix の表 {name}.json が無い")
             continue
+        # Windows の runner の指紋（利用者のフォルダ・8.3 の短い名前・一時フォルダの下の作業フォルダ）が残っていれば、流すたびに変わる答え
+        for why, sample in pc_marks(text, book=book):
+            bad.append(f"nt/{name}: 測った PC の指紋が残っている: {why} …{sample}…")
+        for mt in WIN_MARKS.finditer(text):
+            bad.append(f"nt/{name}: Windows の runner の字が残っている（流すたびに・PC ごとに変わる。場面かそろえる決まりで直して取り直す）: …{text[max(0, mt.start() - 40):mt.end() + 40]}…")
+            break
         try:
             n = json.loads(text)
         except ValueError as e:
@@ -984,7 +993,9 @@ def main():
         # その名前を test result の数と別に出す（desktop/tests/common/bake.rs の frozen_python が target/tmp/frozen-skipped.txt に書く）
         skipped = Path(os.environ.get("CARGO_TARGET_DIR", DESKTOP / "target")) / "tmp" / "frozen-skipped.txt"
         skipped.unlink(missing_ok=True)
-        rc = cargo([t for t in tests_of(books) if t not in skip], {"TPA_NO_PYTHON": "1"})
+        # --frozen（版 3.117.3）: 凍らせた Python を相手にする試験も、凍らせた写し program/tests/legacy/<版> を相手に流す（TPA_FROZEN_PY=1）
+        env = {"TPA_NO_PYTHON": "1", **({"TPA_FROZEN_PY": "1"} if "--frozen" in args else {})}
+        rc = cargo([t for t in tests_of(books) if t not in skip], env)
         # 1 行に 1 つ（窓の試験が 1 回の write で書く）。同じ名前は 1 本に数える
         names = list(dict.fromkeys(x.strip() for x in skipped.read_text(encoding="utf-8").splitlines() if x.strip())) if skipped.exists() else []
         print(f"流さなかった試験（凍らせた Python を相手にする） {len(names)} 本: " + " ".join(names))
