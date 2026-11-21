@@ -287,6 +287,20 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_the_measure_books_are_told(self):
+        """札が measure の本（Windows の表だけの形でまだ比べていない本）は --check の知らせに数と名前が出る（版 3.117.3 の作った後の直し・割れ 3。
+        段 ④ の入口の条件 2 は 0 になるまで満たしていない）"""
+        left = bless.measure_books()
+        want = sorted(b for b, v in bless.BOOKS.items() if v["phase"] in bless.PHASES and v.get("windows") != "table")
+        self.assertEqual(left, want)
+        told = [x for x in bless.notices() if x.startswith("札が measure の本")]
+        if left:
+            self.assertEqual(len(told), 1)
+            self.assertIn(f"札が measure の本 {len(left)}", told[0])
+            self.assertTrue(all(b in told[0] for b in left))
+        else:
+            self.assertEqual(told, [])
+
     def test_the_frozen_python_copy_is_unchanged(self):
         """凍らせた Python の写し（版 3.117.3。段 ④ の入口の条件 3）: 中身が MANIFEST.json と同じ・MANIFEST.json の指紋が試験に書いた物と同じ・
         凍らせた試験が呼ぶ答え合わせ役がそろう・単体の試験の discover に入らない（写しの置き場は package でない）。変異: 1 字変えると言う"""
@@ -392,6 +406,28 @@ class BakedTables(unittest.TestCase):
             self.assertEqual((sorted(taken), refused, flipped), (["x", "x.part"], [], ["x"]))
             self.assertEqual(json.loads(books.read_text(encoding="utf-8"))["books"]["x"]["windows"], "table")
             self.assertEqual(json.loads((baked / "nt" / "x.json").read_text(encoding="utf-8"))["answers"], {"a": win}, "前の上書きは残す")
+            # 書く前に確かめる（版 3.117.3 の作った後の直し・割れ 3）: runner の道・ポート・ファイルID が残る記録は断り、何も書かない
+            nt_before = (baked / "nt" / "x.json").read_bytes()
+            books_before = books.read_bytes()
+            for leak in ("C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\da-x-1\\y", "http://127.0.0.1:51234/x", "2049:1234567"):
+                one = tmp / "one"
+                one.mkdir(exist_ok=True)
+                (one / "x.json").write_text(json.dumps(rec("x", ntSha=bless.file_sha(baked / "nt" / "x.json"), differing=[
+                    {"key": "a", "route": "GET /a", "diff": "…", "got": {"status": 200, "json": {"e": leak, "ファイルID": leak}}}]), ensure_ascii=False), encoding="utf-8")
+                taken, refused, flipped = bless.take_nt([one], baked=baked, books_json=books)
+                self.assertTrue(any("x: 記録に測った PC の指紋が残る" in r for r in refused), (leak, refused))
+                self.assertEqual(((baked / "nt" / "x.json").read_bytes(), books.read_bytes()), (nt_before, books_before), leak)
+            # 書いた後の確かめ（check_nt）が落ちたら、前の中身に戻して札も替えない（表に無い歩を流さない歩に書いた記録）
+            books.write_text(json.dumps({"books": {"x": {"phase": bless.PHASES[0], "windows": "measure", "tests": ["x_parity"]}}}), encoding="utf-8")
+            books_before = books.read_bytes()
+            for nm in ("x", "x.part"):
+                ntf = baked / "nt" / f"{nm}.json"
+                (meas / f"{nm}.json").write_text(json.dumps(rec(nm, ntSha=bless.file_sha(ntf), missing=["b", "無い歩"]), ensure_ascii=False), encoding="utf-8")
+            taken, refused, flipped = bless.take_nt([meas], baked=baked, books_json=books)
+            self.assertEqual((taken, flipped), ([], []))
+            self.assertTrue(any("何も変えていません" in r and "無い歩" in r for r in refused), refused)
+            self.assertEqual(((baked / "nt" / "x.json").read_bytes(), books.read_bytes()), (nt_before, books_before))
+            self.assertEqual(bless.measure_books(books), ["x"], "札が measure の本の名前")
             # 終わりまで流れなかった記録・got の無い前の記録は取り込まない
             for bad, why in ((rec("x", finished=False), "終わりまで流れなかった"), (rec("x", differing=[{"key": "a", "diff": "…"}]), "got が無い")):
                 (meas / "x.json").write_text(json.dumps({**bad, "ntSha": bless.file_sha(baked / "nt" / "x.json")}, ensure_ascii=False), encoding="utf-8")

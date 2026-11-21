@@ -348,9 +348,18 @@ def check(baked=None):
     return bad
 
 
+def measure_books(books_json=None):
+    """札が measure の本（Windows の表だけの形でまだ比べていない本。版 3.117.3 の作った後の直し・割れ 3）"""
+    data = json.loads(Path(books_json).read_text(encoding="utf-8"))["books"] if books_json else BOOKS
+    return sorted(b for b, v in data.items() if v["phase"] in PHASES and v.get("windows") != "table")
+
+
 def notices(baked=None):
-    """知らせ（落とさない）: 印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）"""
+    """知らせ（落とさない）: 印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）・札が measure の本"""
     out = []
+    left = measure_books()
+    if left:
+        out.append(f"札が measure の本 {len(left)}（Windows の表だけの形でまだ比べていない。段 ④ の入口の条件 2 は 0 になるまで満たしていない）: " + " ".join(left))
     for name, book in tables(baked).items():
         t = unpack_table(json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")))
         far = [rel for rel, e in t.get("scene", {}).get("files", {}).items()
@@ -676,10 +685,12 @@ def check_nt(baked=None):
         except ValueError as e:
             bad.append(f"nt/{name}: 読めません（{e}）")
             continue
-        for k, kind in (("answers", dict), ("posix", dict), ("skip", list), ("unmade", list)):
-            if not isinstance(n.get(k), kind):
-                bad.append(f"nt/{name}: {k} がありません")
-        if bad and bad[-1].startswith(f"nt/{name}:"):
+        # 形の欠け（欄が無い・型が違う）だけで残りの確かめを止める（版 3.117.3 の作った後の直し・割れ 4 (c): 前は直前の知らせが何であれ
+        # この表の知らせなら止め、runner の字の知らせの後の確かめを飛ばした）
+        shape = [f"nt/{name}: {k} がありません" for k, kind in (("answers", dict), ("posix", dict), ("skip", list), ("unmade", list))
+                 if not isinstance(n.get(k), kind)]
+        bad += shape
+        if shape:
             continue
         if n.get("book") != book or n.get("file") != name:
             bad.append(f"nt/{name}: 本の名前が {n.get('book')}・{n.get('file')}")
@@ -870,7 +881,7 @@ def take_nt(sources, baked=None, books_json=None):
                     recs.append(None)
         else:
             recs += records_of_log(p)
-    taken, refused = [], []
+    staged, refused = {}, []
     for m in recs:
         if m is None:
             refused.append("読めない記録（行が欠けた・壊れた）")
@@ -904,30 +915,57 @@ def take_nt(sources, baked=None, books_json=None):
             answers.pop(k, None)
         answers = dict(sorted(answers.items()))
         unmade = sorted(m.get("unmade", []))
+        text = None
         if answers or skip or unmade:
-            ntp.parent.mkdir(parents=True, exist_ok=True)
             n = {"about": f"Windows の上書きの表（版 3.117.3）。本 {name} の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt"
                           "（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋"
-                          "（今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+                          "（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
                  "book": m["book"], "file": name, "answers": answers,
                  "posix": {k: (nt_print(posix[k]) if k in posix else None) for k in answers},
                  "skip": skip, "unmade": unmade}
-            ntp.write_text(json.dumps(n, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
-        elif ntp.exists():
-            ntp.unlink()
-        taken.append(name)
+            text = json.dumps(n, ensure_ascii=False, indent=1) + "\n"
+            # 書く前に確かめる（版 3.117.3 の作った後の直し・割れ 3）: 測った PC の指紋（ポート・ファイルID・作業フォルダ）と Windows の runner の字
+            # （利用者のフォルダ・RUNNER~1・一時フォルダ）が残る記録は取り込まない（流すたびに・PC ごとに変わる答え）
+            marks = [f"{why} …{sample}…" for why, sample in pc_marks(text, book=m["book"])]
+            marks += [f"Windows の runner の字 …{text[max(0, x.start() - 40):x.end() + 40]}…" for x in list(WIN_MARKS.finditer(text))[:1]]
+            if marks:
+                refused.append(f"{name}: 記録に測った PC の指紋が残る（場面かそろえる決まりで直して取り直す）: " + " / ".join(marks[:3]))
+                continue
+        staged[name] = text
         print(f"{name}: 上書き {len(answers)} 歩・流さない歩 {len(skip)}・作れない場面の物 {len(unmade)}")
+    taken = sorted(staged)
     # 本の表のどれもが取り込めた本は札を table に（次の Windows の CI から表と比べて落とす）
     flipped = []
     bj = Path(books_json) if books_json else BAKED / "books.json"
     data = json.loads(bj.read_text(encoding="utf-8"))
     for book, b in data["books"].items():
         names = [n for n, bk in tables(baked).items() if bk == book]
-        if names and all(n in taken for n in names) and b.get("windows") != "table" and b["phase"] in PHASES:
+        if names and all(n in staged for n in names) and b.get("windows") != "table" and b["phase"] in PHASES:
             b["windows"] = "table"
             flipped.append(book)
+    if not staged:
+        return taken, refused, flipped
+    # 書くのは全部を確かめた後に 1 回だけ。書いた後の nt の表の確かめ（check_nt）が落ちたら、前の中身へ戻して何も変えない
+    before = {name: ((base / "nt" / f"{name}.json").read_bytes() if (base / "nt" / f"{name}.json").exists() else None) for name in staged}
+    books_before = bj.read_bytes()
+
+    def put(p, b):
+        if b is None:
+            p.unlink(missing_ok=True)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(b)
+    for name, text in staged.items():
+        put(base / "nt" / f"{name}.json", text.encode("utf-8") if text is not None else None)
     if flipped:
         bj.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    bad = check_nt(baked)[0]
+    if bad:
+        for name, b in before.items():
+            put(base / "nt" / f"{name}.json", b)
+        bj.write_bytes(books_before)
+        refused += [f"取り込んだ後の nt の表の確かめが落ちたので、何も変えていません: {x}" for x in bad]
+        return [], refused, []
     return taken, refused, flipped
 
 
@@ -958,6 +996,8 @@ def main():
         for r in refused:
             print("  取り込めない:", r)
         print(f"nt の表を {len(taken)} 表取り込みました・取り込めない {len(refused)}・札を table にした本 {len(flipped)}: " + " ".join(flipped))
+        left = measure_books()
+        print(f"札が measure の本（まだ Windows の表だけの形で比べていない）{len(left)}: " + " ".join(left))
         bad = check()
         for line in bad:
             print("  ", line)

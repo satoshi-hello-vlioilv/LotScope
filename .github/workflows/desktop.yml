@@ -82,7 +82,8 @@ jobs:
       #   「measure-z| 」の行で記録に出し、python program/tools/bless.py --take-nt 記録 で nt の表に取り込むと札が table になる
       # route_reach は長い（Windows で約 19 分）ので流さない（答えは数だけで、歩を表に持たない）。組み直しは無い（上の段と同じ debug）
       - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で表と比べる（札が table の本。落ちたら落ちる）
-        if: always()
+        # 手で取り消したときは流さない（版 3.117.3 の作った後の直し・割れ 4 (d)。上の cargo test が落ちても流す）
+        if: ${{ !cancelled() }}
         timeout-minutes: 20
         run: python program/tools/bless.py --no-python --all --windows table --skip-test route_reach
       - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（札が measure の本。測るだけ・落ちても続ける）
@@ -190,7 +191,7 @@ jobs:
       # 表だけの形の測りの記録そのもの（版 3.117.3）を、仕事の記録の終わりに詰めた行（「measure-z| 」。zlib・base64 を 2,000 字ずつ）で出す。
       # 成果物を取れない所でも、記録の末尾（行と字の上限がある）からこの段だけを取れば取り込める:
       # python program/tools/bless.py --take-nt 記録（nt の表を書き、本の表のどれもが取り込めた本の札を table にする）。
-      # 3.117.1 の測りの違う歩 313・答えない歩 227 の答えは詰めて約 70 KB（約 40 行。3.117.2 は違う歩 227 でそれより小さい）
+      # 3.117.2 の測りの量（表だけの形 17 表の違う歩・答えない歩）で 63 行・約 6.6 万字（生 469 KB）。PR #119 の記録は 2,401 行
       - name: 表だけの形の測りの記録を詰めた行で出す（--take-nt で取り込む）
         if: always()
         continue-on-error: true
