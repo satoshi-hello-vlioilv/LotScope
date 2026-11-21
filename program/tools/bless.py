@@ -28,6 +28,8 @@
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
     python tools/bless.py --no-python --all --windows table|measure … … Windows の表だけの形で、books.json の windows の札が table の本だけ・
                                             measure の本だけを流す（版 3.117.3。desktop.yml は table の本を落とす段・measure の本を測るだけの段に分ける）
+    python tools/bless.py --no-python --all --windows table --as-windows … … Linux の上で Windows の形（TPA_BAKE_OS=nt）で札が table の本を流す
+                                            （nt の表の読み方・札・作れない物の数え方を Windows の CI の前に通す。版 3.117.3。check-all の段 nt-shape）
     python tools/bless.py --take-nt 記録か測りのフォルダ … … Windows の表だけの形の測りの記録（仕事の記録の「measure-z| 」の行か、成果物の
                                             フォルダ）から、Windows の上書きの表 desktop/tests/baked/nt/<表>.json（posix と違う歩の Windows の答え・上書きした
                                             posix の答えの指紋・Windows では流さない歩・Windows で作れない場面の物）を書く（版 3.117.3）。記録は今の表
@@ -995,6 +997,10 @@ def main():
         skipped.unlink(missing_ok=True)
         # --frozen（版 3.117.3）: 凍らせた Python を相手にする試験も、凍らせた写し program/tests/legacy/<版> を相手に流す（TPA_FROZEN_PY=1）
         env = {"TPA_NO_PYTHON": "1", **({"TPA_FROZEN_PY": "1"} if "--frozen" in args else {})}
+        # --as-windows（版 3.117.3 の作った後の直し・割れ 2）: Linux の上で Windows の形（TPA_BAKE_OS=nt。nt の表の読み方・札・作れない物の数え方は
+        # 本番と同じ）。答えは Linux の窓の答えなので、--windows table（札が table の本）と一緒に流す（check-all の段 nt-shape）
+        if "--as-windows" in args:
+            env["TPA_BAKE_OS"] = "nt"
         rc = cargo([t for t in tests_of(books) if t not in skip], env)
         # 1 行に 1 つ（窓の試験が 1 回の write で書く）。同じ名前は 1 本に数える
         names = list(dict.fromkeys(x.strip() for x in skipped.read_text(encoding="utf-8").splitlines() if x.strip())) if skipped.exists() else []
