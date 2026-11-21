@@ -408,6 +408,9 @@ def tests_of(books):
 
 
 def cargo(tests, env, filt=None):
+    if not tests:
+        # --test が 1 つも無い cargo test は全部の試験を流す（呼ぶ側の誤り。黙って全部を流さない）
+        raise ValueError("流す試験が 0 です（cargo test を絞り無しで流さない）")
     cmd = ["cargo", "test", "--locked", "--no-fail-fast"] + [x for t in tests for x in ("--test", t)]
     cmd += ["--", "--nocapture"] + ([filt] if filt else [])
     r = subprocess.run(cmd, cwd=DESKTOP, env={**os.environ, **env}, capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -1038,6 +1041,12 @@ def main():
     unknown = [b for b in books if b not in BOOKS or not baked(b)]
     if unknown:
         sys.exit(f"焼く本ではありません: {unknown}")
+    tests = [t for t in tests_of(books) if t not in skip]
+    if not tests:
+        # 流す本（か試験）が 0 なら流さない（版 3.117.3 の 3 回目の Windows の CI の直し: 札 measure の本が 0 のとき、絞り無しの cargo test
+        # 〈全部の試験〉を流して段の上限 20 分で切られた。cargo の --test が 1 つも無いと全部を流す）
+        print(f"流す本がありません（{'札が ' + windows + ' の本 0' if windows else '本 0'}）。cargo は流しません")
+        return
     if "--user" in args:
         bless_user(books)
     elif "--no-python" in args:

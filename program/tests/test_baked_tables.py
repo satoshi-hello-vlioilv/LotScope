@@ -287,6 +287,35 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_no_books_means_no_cargo(self):
+        """流す本が 0（札が measure の本が 0 など）なら cargo を流さない（版 3.117.3 の 3 回目の Windows の CI: 絞り無しの cargo test を流して
+        20 分で切られた）。cargo に試験 0 を渡すと断る"""
+        import contextlib
+        import io
+        calls = []
+        import copy
+        old_cargo, old_books = bless.cargo, copy.deepcopy(bless.BOOKS)
+        try:
+            bless.cargo = lambda tests, env, filt=None: calls.append(tests) or 0
+            for b in bless.BOOKS.values():
+                b["windows"] = "table"
+            out = io.StringIO()
+            old_argv = sys.argv
+            sys.argv = ["bless.py", "--no-python", "--all", "--windows", "measure", "--skip-test", "route_reach"]
+            try:
+                with contextlib.redirect_stdout(out):
+                    bless.main()
+            finally:
+                sys.argv = old_argv
+            self.assertEqual(calls, [], "札 measure の本 0 で cargo を流した")
+            self.assertIn("流す本がありません", out.getvalue())
+        finally:
+            bless.cargo = old_cargo
+            bless.BOOKS.clear()
+            bless.BOOKS.update(old_books)
+        with self.assertRaises(ValueError):
+            old_cargo([], {})
+
     def test_the_measure_books_are_told(self):
         """札が measure の本（Windows の表だけの形でまだ比べていない本）は --check の知らせに数と名前が出る（版 3.117.3 の作った後の直し・割れ 3。
         段 ④ の入口の条件 2 は 0 になるまで満たしていない）"""
