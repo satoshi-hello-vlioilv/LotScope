@@ -126,7 +126,10 @@ pub fn favicon(method: &str, path: &str) -> Option<Answer> {
     let headers = vec![
         ("Content-Type".to_string(), "text/html; charset=utf-8".to_string()),
         ("Content-Length".to_string(), body.len().to_string()),
-        ("Content-Security-Policy".to_string(), "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'".to_string()),
+        (
+            "Content-Security-Policy".to_string(),
+            "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'".to_string(),
+        ),
     ];
     Some((headers, if method == "HEAD" { vec![] } else { body }))
 }
