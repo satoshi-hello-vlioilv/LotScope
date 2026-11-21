@@ -25,6 +25,93 @@ pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
 }
 
+/// 凍らせた Python の写しの版（program/tests/legacy/<版>。tools/freeze-legacy.py が 1 回だけ作った。版 3.117.3）
+pub const FROZEN_VERSION: &str = "3.117.3";
+
+/// 凍らせた Python の写しを相手にするか（TPA_FROZEN_PY=1。段 ④ で program/app を消した後、凍らせた最後の Python を相手にする試験
+/// 〈bake::frozen_python〉と keep の本が、この写しの app と答え合わせ役を流す）
+pub fn frozen_py() -> bool {
+    std::env::var("TPA_FROZEN_PY").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+/// 答え合わせ役（app を import する Python の台本）を流す置き場: いつもは program、TPA_FROZEN_PY=1 なら凍らせた写し
+/// program/tests/legacy/<版>（中は program と同じ形: app/・tests/・config/・data/）
+pub fn py_program() -> PathBuf {
+    if frozen_py() {
+        program().join("tests").join("legacy").join(FROZEN_VERSION)
+    } else {
+        program()
+    }
+}
+
+/// 場面のフォルダの道の書き方の候補（版 3.117.3）: 書いたままの字・長い名前（canonicalize。Windows の一時フォルダは 8.3 の短い名前
+/// RUNNER~1 で来る）と、それぞれの「/」と「\」の書き方。長い字から（短い字が長い字の頭に当たらないように）。
+/// 表の宣言から作った場面（Windows の表だけの形）は道を「/」で書き、窓は「\」や長い名前で答えるので、1 つの書き方で置き換えると当たらない
+/// （3.117.1 の Windows の測りの「届かない共有」の py／rs 12 歩・place の @ROOT 40 歩）。Linux では書いたままの字 1 つ
+pub fn path_forms(p: &str) -> Vec<String> {
+    if !cfg!(windows) {
+        return vec![p.to_string()];
+    }
+    let mut out: Vec<String> = bake::spellings(std::path::Path::new(p));
+    if !out.iter().any(|s| s == p) {
+        out.push(p.to_string());
+    }
+    {
+        let more: Vec<String> = out.iter().flat_map(|s| [s.replace('\\', "/"), s.replace('/', "\\")]).collect();
+        out.extend(more);
+    }
+    out.retain(|s| !s.is_empty());
+    out.sort_by_key(|s| std::cmp::Reverse(s.len()));
+    out.dedup();
+    out
+}
+
+/// 2 つの道の字が同じ置き場を指すか（版 3.117.3 の 3 回目の Windows の CI の直し: 試験の中の確かめが道を字のまま比べ、表の宣言から作った道
+/// 〈「/」・RUNNER~1〉と窓が書いた道〈「\」・長い名前〉が同じ置き場でも違うと言った）。どちらかの書き方の候補（path_forms）が重なれば同じ。
+/// Linux では字のまま比べる（path_forms は書いたままの字 1 つ）
+pub fn same_path(a: &str, b: &str) -> bool {
+    let fa = path_forms(a.trim_end_matches(['/', '\\']));
+    path_forms(b.trim_end_matches(['/', '\\'])).iter().any(|x| fa.contains(x))
+}
+
+/// JSON の字（本文）の中の場面のフォルダ from を to に（どの書き方も。JSON の字として逃がした形どうしで置き換える）
+pub fn swap_path_json(text: &str, from: &str, to: &str) -> String {
+    let esc = |s: &str| {
+        let t = serde_json::to_string(s).unwrap();
+        t[1..t.len() - 1].to_string()
+    };
+    let to = esc(to);
+    path_forms(from).iter().fold(text.to_string(), |t, f| t.replace(&esc(f), &to))
+}
+
+/// 字の中の場面のフォルダ root を印 mark に（どの書き方も）。Windows では印の後ろの道の区切りも「/」に（焼く係のそろえる決まりが
+/// @WORK の後ろでするのと同じ。窓は Windows の道を「\」で答える）。Linux では前と同じ置き換え
+pub fn mark_path(s: &str, root: &str, mark: &str) -> String {
+    let mut t = s.to_string();
+    for f in path_forms(root) {
+        if !t.contains(&f) {
+            continue;
+        }
+        if !cfg!(windows) {
+            t = t.replace(&f, mark);
+            continue;
+        }
+        let mut out = String::with_capacity(t.len());
+        let mut rest = t.as_str();
+        while let Some(i) = rest.find(&f) {
+            out.push_str(&rest[..i]);
+            out.push_str(mark);
+            rest = &rest[i + f.len()..];
+            let end = rest.find(['"', '\'', ' ', '\n', '）', ')', ',', '」', '?', '#', ';']).unwrap_or(rest.len());
+            out.push_str(&rest[..end].replace('\\', "/"));
+            rest = &rest[end..];
+        }
+        out.push_str(rest);
+        t = out;
+    }
+    t
+}
+
 /// 流す PC の環境変数のうち、答えを PC ごとに変える物を試験の頭で外す（版 3.117.0。採点の K3 (e)）: プロキシ（名前が _proxy で終わる物。
 /// Python の urllib.request.getproxies_environment と同じ見つけ方）と、TLS の信じる根の置き場（SSL_CERT_FILE・SSL_CERT_DIR）。
 /// 手元の PC には https_proxy・HTTPS_PROXY・no_proxy などがあり、CI の runner には無い。システムのプロキシを使う場面
@@ -113,11 +200,11 @@ pub fn work(name: &str) -> PathBuf {
 pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
     let out = clean_command(&mut Command::new(&py))
-        .arg(program().join("tests").join(script))
+        .arg(py_program().join("tests").join(script))
         .args(args)
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONDONTWRITEBYTECODE", "1")
-        .current_dir(program())
+        .current_dir(py_program())
         .output()
         .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
     assert!(out.status.success(), "{script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
@@ -223,13 +310,15 @@ impl Live {
     fn start_with(flags: &[&str], script: &str, args: &[&str]) -> (Live, serde_json::Value) {
         use std::io::BufRead;
         let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
+        // app を import する台本は凍らせた写しを相手にできる（py_program）。標準の部品だけの台本（-I）は program のまま（④ の後も残る）
+        let root = if flags.contains(&"-I") { program() } else { py_program() };
         let mut child = clean_command(&mut Command::new(&py))
             .args(flags)
-            .arg(program().join("tests").join(script))
+            .arg(root.join("tests").join(script))
             .args(args)
             .env("PYTHONIOENCODING", "utf-8")
             .env("PYTHONDONTWRITEBYTECODE", "1")
-            .current_dir(program())
+            .current_dir(&root)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn()
@@ -373,5 +462,19 @@ pub fn seeds_files(root: &std::path::Path, run: &serde_json::Value) -> serde_jso
 /// reason も落とし、更新が止まった HOT の「古い」を窓のしきいを読み違えても表が素通りした
 pub fn mirror_part(v: &serde_json::Value) -> serde_json::Value {
     serde_json::json!({"remote": v["remote"], "interval_sec": v["interval_sec"], "staleHours": v["staleHours"], "mirrored": v["mirrored"],
-                       "stale": v["stale"], "unreachable": v["unreachable"], "reason": v["reason"]})
+                       "stale": v["stale"], "unreachable": v["unreachable"], "reason": mirror_reason(&v["reason"])})
+}
+
+/// 写しの様子の reason のうち「この問い合わせで写し直したか」だけで変わる言葉（版 3.117.3 の 1 回目の Windows の CI の直し）。
+/// 写しが元と同じ所に着いたことは同じで、写し直したか（「写しを更新しました」）・確かめて同じだったか（「元ファイルは変わっていません」）は、
+/// Python と窓のどちらが先に確かめたか・更新時刻の刻み（NTFS）で入れ替わる（PR #120 の Windows で ops_parity の「勤務体系が無い」3 歩が
+/// 「元ファイルは変わっていません / 写しを更新しました」で落ちた。Linux の ext4 と PR #119 の Windows では揃っていた）。この 2 つだけを
+/// 「@写しは元と同じ」にし、届かない・見送った・写せない理由はそのまま比べる（stale・unreachable も）
+pub const MIRROR_SAME: [&str; 2] = ["写しを更新しました", "元ファイルは変わっていません"];
+
+pub fn mirror_reason(r: &serde_json::Value) -> serde_json::Value {
+    match r.as_str() {
+        Some(s) if MIRROR_SAME.contains(&s) => serde_json::json!("@写しは元と同じ"),
+        _ => r.clone(),
+    }
 }

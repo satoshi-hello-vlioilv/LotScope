@@ -23,7 +23,8 @@ use std::path::Path;
 fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
-            let s = s.replace(root, "@ROOT");
+            // 場面のフォルダはどの書き方も（Windows の表だけの形: 宣言の「/」の道と窓の「\」・長い名前。common::mark_path）
+            let s = common::mark_path(s, root, "@ROOT");
             let s = common::re(r"\.copying-\d+-\d+").replace_all(&s, ".copying-<pid>-<t>").into_owned();
             let s = common::re(r"権限を読めないので、置き場を変えられません（.*）。")
                 .replace_all(&s, "権限を読めないので、置き場を変えられません（<理由>）。")
@@ -210,8 +211,10 @@ fn joined_paths_match_python() {
         }
         bk.note(&key, "join", &g, &w);
     }
-    // OSError の str（Linux の errno と文。Windows では表が空）
-    for (k, c) in oracle["oserrors"].as_array().unwrap().iter().enumerate() {
+    // OSError の str（Linux の errno と文。Windows では表が空）。Windows の表だけの形（版 3.117.3）は表の宣言（posix の errno と文）を
+    // 読むが、Windows の OS の文は errno の番号でも別の文になるので流さない（Windows の Python と比べる形と同じく 0 歩。nt の表の skip）
+    let oserrors = if cfg!(windows) { vec![] } else { oracle["oserrors"].as_array().unwrap().clone() };
+    for (k, c) in oserrors.iter().enumerate() {
         let n = c["errno"].as_i64().unwrap() as i32;
         let text = std::io::Error::from_raw_os_error(n).to_string();
         let msg = text.rsplit_once(" (os error ").map(|(m, _)| m.to_string()).unwrap_or(text);

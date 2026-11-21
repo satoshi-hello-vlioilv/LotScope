@@ -1,5 +1,5 @@
 {
- "about": "答え合わせ役 36 本の行き先（版 3.117.0）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。案と採点は program/tools/ui-proposals/2026-11-stage3f.json）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）",
+ "about": "答え合わせ役 36 本の行き先（版 3.117.0）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。案と採点は program/tools/ui-proposals/2026-11-stage3f.json）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）。windows（版 3.117.3）は Windows の表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る段 ④ の後の形）の札: table は焼いた表（posix の答えに tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす本、measure はまだ測るだけの本（Windows の CI の測りの記録を tools/bless.py --take-nt で取り込むと table になる）",
  "bakedPhases": [
   "3.115.0",
   "3.116.0",
@@ -10,6 +10,7 @@
  "books": {
   "name_key": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "name_key_cases"
    ],
@@ -29,6 +30,7 @@
   },
   "seeds": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "seeds_parity"
    ],
@@ -39,6 +41,7 @@
   },
   "mirror": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "mirror_parity"
    ],
@@ -49,6 +52,7 @@
   },
   "builder": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "builder_parity"
    ],
@@ -65,6 +69,7 @@
   },
   "settings_write": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "settings_write_parity"
    ],
@@ -75,6 +80,7 @@
   },
   "access_write": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "access_write_parity"
    ],
@@ -85,6 +91,7 @@
   },
   "equip_rows": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "equip_rows_parity"
    ],
@@ -95,6 +102,7 @@
   },
   "sources_write": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "sources_write_parity"
    ],
@@ -105,6 +113,7 @@
   },
   "shifts": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "shifts_parity"
    ],
@@ -115,6 +124,7 @@
   },
   "sets": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "sets_parity"
    ],
@@ -125,6 +135,7 @@
   },
   "cards": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "cards_parity"
    ],
@@ -135,6 +146,7 @@
   },
   "dashboards": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "dashboards_parity"
    ],
@@ -145,6 +157,7 @@
   },
   "presets": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "presets_parity"
    ],
@@ -155,6 +168,7 @@
   },
   "worklog_write": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "worklog_write_parity"
    ],
@@ -165,6 +179,7 @@
   },
   "formats": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "formats_parity"
    ],
@@ -175,6 +190,7 @@
   },
   "seed_reads": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "seed_reads_parity"
    ],
@@ -184,6 +200,7 @@
   },
   "fs": {
    "phase": "3.115.0",
+   "windows": "measure",
    "tests": [
     "fs_parity"
    ],
@@ -195,6 +212,7 @@
   },
   "release_place": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "release_parity"
    ],
@@ -206,6 +224,7 @@
   },
   "place": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "place_parity"
    ],
@@ -217,6 +236,7 @@
   },
   "masters": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "masters_parity"
    ],
@@ -227,6 +247,7 @@
   },
   "access": {
    "phase": "3.115.0",
+   "windows": "table",
    "tests": [
     "access_parity"
    ],
@@ -238,6 +259,7 @@
   },
   "equipgroups": {
    "phase": "3.117.0",
+   "windows": "table",
    "tests": [
     "equipgroups_write_parity"
    ],
@@ -252,6 +274,7 @@
   },
   "routes": {
    "phase": "3.117.2",
+   "windows": "table",
    "tests": [
     "routes_parity"
    ],
@@ -269,6 +292,7 @@
   },
   "pivot": {
    "phase": "3.117.2",
+   "windows": "table",
    "tests": [
     "pivot_parity"
    ],
@@ -286,6 +310,7 @@
   },
   "schedule": {
    "phase": "3.117.1",
+   "windows": "table",
    "tests": [
     "schedule_parity"
    ],
@@ -302,6 +327,7 @@
   },
   "conversions": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "conversions_write_parity"
    ],
@@ -312,6 +338,7 @@
   },
   "presence": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "presence_parity"
    ],
@@ -322,6 +349,7 @@
   },
   "ui_defaults": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "ui_defaults_parity"
    ],
@@ -333,6 +361,7 @@
   },
   "ops": {
    "phase": "3.117.2",
+   "windows": "table",
    "tests": [
     "ops_parity"
    ],
@@ -347,6 +376,7 @@
   },
   "dashboard": {
    "phase": "3.117.2",
+   "windows": "table",
    "tests": [
     "dash_parity"
    ],
@@ -364,6 +394,7 @@
   },
   "settings": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "bundle_parity",
     "page_parity",
@@ -379,6 +410,7 @@
   },
   "calc": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "calc_parity"
    ],
@@ -392,6 +424,7 @@
   },
   "lists": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "lists_parity"
    ],
@@ -405,6 +438,7 @@
   },
   "lotlist": {
    "phase": "3.116.0",
+   "windows": "table",
    "tests": [
     "lotlist_parity"
    ],
@@ -417,6 +451,7 @@
   },
   "lotdsp": {
    "phase": "3.117.0",
+   "windows": "table",
    "tests": [
     "lotdsp_parity"
    ],

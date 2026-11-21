@@ -315,7 +315,10 @@ fn schedule_matches_python() {
     let answers: Vec<_> = hs.into_iter().map(|h| h.join().unwrap()).collect();
     let took = t0.elapsed().as_secs_f64();
     let n = live.ask("count rs silent").as_i64().unwrap() - before;
-    let want = Some((502u16, json!(format!("L-2 の予定を CM3 から取れません: CM3の応答がタイムアウトしました{}", da_core::cm3_net::HINT))));
+    let want = Some((
+        502u16,
+        json!(format!("L-2 の予定を予定の元から取れません: 予定の元の応答がタイムアウトしました{}", da_core::cm3_net::HINT)),
+    ));
     if answers.iter().any(|a| *a != want) || n != 1 || took > 2.2 {
         bad.push(format!("同時に 4 本: 答え {answers:?}・CM3 への要求 {n} 本・{took:.2} 秒（1 本・2.2 秒未満のはず）"));
     }

@@ -86,8 +86,8 @@ CONN_SPECS = {
     "table": {"label": "表（空なら自動）", "kind": "text"},
     "folder": {"label": "フォルダ（設備ごとの .sqlite3 を置く所）", "kind": "folder"},
     "pattern": {"label": "ファイル名の決まり（* が設備名）", "kind": "pattern"},
-    "url": {"label": "CM3 の URL", "kind": "url"},
-    "client_ip": {"label": "CM3 に名乗る端末の IP", "kind": "text"},
+    "url": {"label": "予定の元の URL", "kind": "url"},
+    "client_ip": {"label": "予定の元に名乗る端末の IP", "kind": "text"},
     "equipments": {"label": "設備（「、」区切り。端末区分が違う設備は L-9:2）", "kind": "text"},
     "inspect": {"label": "点検の行の言葉（「、」区切り）", "kind": "text"},
     "refresh": {"label": num_setting.LABELS["refresh"][0], "kind": "int", "min": 10, "max": 3600},     # 欄の名前は num_setting の決まりから

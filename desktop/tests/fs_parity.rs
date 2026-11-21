@@ -57,6 +57,8 @@ fn folder_browse_matches_python() {
     let oracle = bk.oracle("fs_oracle.py", &[base.to_str().unwrap()]);
     let root = oracle["root"].as_str().unwrap().to_string();
     let esc = serde_json::to_string(&root).unwrap();
+    // 表だけの形か（Python と比べる形は、答え合わせ役の Python に渡したのと同じ宣言の字を窓にも渡す）
+    let table_form = !bk.python();
     let app_paths: Vec<(String, String, String)> = oracle["appPaths"]
         .as_array()
         .unwrap()
@@ -81,7 +83,17 @@ fn folder_browse_matches_python() {
         }
         let me = || Gate::default().me(&c);
         let paths = || Some(app_paths.clone());
-        let body = st["body"].as_str().unwrap_or("").replace("@ROOT", &esc[1..esc.len() - 1]);
+        let body = st["body"].as_str().unwrap_or("");
+        // Windows の表だけの形（版 3.117.3）: 宣言の「file://@ROOT」は posix の根（/ で始まる）の書き方。Windows の根（C:/…）では
+        // 「file://C:/…」がサーバー名 C: になる（Windows の Python と比べる形も同じ答えで、場面の作り方の割れ）ので、Windows の file の URL の
+        // 書き方（file:///C:/…・file://localhost/C:/…）にする。Python と比べる形は書き直さない（版 3.117.3 の 1 回目の Windows の CI の直し:
+        // Python と比べる形でも書き直し、答え合わせ役の Python と窓に違う字を渡して [24][25][26] が食い違った）
+        let body = if cfg!(windows) && table_form {
+            common::re(r"(?i)(file://(?:localhost)?)@ROOT").replace_all(body, "${1}/@ROOT").into_owned()
+        } else {
+            body.to_string()
+        };
+        let body = body.replace("@ROOT", &esc[1..esc.len() - 1]);
         // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
         let r = match common::gate(st["method"].as_str().unwrap(), st["path"].as_str().unwrap(), body.as_bytes()) {
             Err(a) => Some(a),
@@ -96,7 +108,16 @@ fn folder_browse_matches_python() {
     let (mut steps, mut delegated) = (0, 0);
     for (i, st) in oracle["steps"].as_array().unwrap().iter().enumerate() {
         // その場の OS で決まる歩（/ の中身・~nobody の家）は焼かない（事例の表 ospath_cases が見る）。Python と比べるときだけ見る
-        let os_bound = ["\"/\"", "~nobody"].iter().any(|b| st["body"].as_str().unwrap_or("").contains(b));
+        // Windows（版 3.117.3 の 1 回目の CI の取り込みで見つけた）: 「~名前」は Windows では C:\Users\名前 になり、届いた所として
+        // その PC の C:\Users の中（runner の利用者のフォルダ）を答える。Linux の ~nobody と同じく流す PC で決まる歩なので表と比べない
+        let body_text = st["body"].as_str().unwrap_or("");
+        // 同じく Windows の本物のドライブの根（「C:」「\\\\?\\C:\\x」の届いた所 C:\\。版 3.117.3 の 3 回目の CI: runner の C:\\ の中身 35 件と
+        // 更新時刻を表に持ち、次の runner で落ちた）も流す PC で決まる。場面の中（@ROOT）でない、ドライブで始まる道の歩は表と比べない
+        let path_of =
+            serde_json::from_str::<Value>(body_text).ok().and_then(|b| b["path"].as_str().map(str::to_string)).unwrap_or_default();
+        let drive = common::re(r"^(?:\\\\\?\\)?[A-Za-z]:").is_match(&path_of) && !path_of.contains("@ROOT");
+        let os_bound =
+            ["\"/\"", "~nobody"].iter().any(|b| body_text.contains(b)) || (cfg!(windows) && (body_text.contains("\"~") || drive));
         if os_bound && !bk.python() {
             continue;
         }

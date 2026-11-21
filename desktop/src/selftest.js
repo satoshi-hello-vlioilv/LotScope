@@ -352,7 +352,7 @@
         if ((same && rs.by === want) || Date.now() > until) break;
         await new Promise((r) => setTimeout(r, 1000));
       }
-      ok(sch ? "設備グループの一覧は、スケジュールの元（CM3）がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）"
+      ok(sch ? "設備グループの一覧は、予定の元がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）"
              : "設備グループの一覧は窓が答え、Python と同じ答え（選べる設備の出どころと件数も）", rs.by === want && same,
          `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${sch ? "・スケジュールの元あり" : ""}`);
       const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };

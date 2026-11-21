@@ -829,7 +829,7 @@ fn cm3_reach(url: &str, proxy: bool) -> Answer {
     }
     let n = crate::cm3_http::Net { proxy: proxy.then(crate::sysproxy::System::read) };
     match crate::cm3_http::reach(url, std::time::Duration::from_secs(4), &n) {
-        Ok(()) => ok_msg(true, "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。"),
+        Ok(()) => ok_msg(true, "予定の元に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。"),
         Err(why) => ok_msg(false, why),
     }
 }

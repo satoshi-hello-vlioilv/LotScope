@@ -86,6 +86,11 @@ step py-tests bash -c "cd program && python -m unittest discover -s tests -t ."
 step bundle-tests python -m unittest discover -s desktop/bundle -t desktop/bundle
 # --no-fail-fast: 落ちた本で止めず、全部の本を流す（CI と同じ。落ちた本があれば終了コードは 0 でない）
 step cargo-test bash -c "cd desktop && cargo test --locked --no-fail-fast"
+# 4a) Linux の上の Windows の形（版 3.117.3。TPA_BAKE_OS=nt）: 札が table の本（books.json の windows）を、Windows の CI と同じ読み方
+#     （nt の表・札・Windows で作れない物の数え方）で表だけの形で流す。Windows の CI の 1 回目で初めて落ちる形（作れない物の数え違いなど）を先に見つける。
+#     答えは Linux の窓の答えなので、道の区切り・OS の誤りの字のような Windows の答えそのものはここでは守れない（それは Windows の CI）
+#     焼く係そのものの試験（bake_selftest）も Windows の形で流す（版 3.117.3 の 1 回目の Windows の CI で、焼く決めを見る 4 本が落ちた形）
+step nt-shape bash -c "(cd desktop && TPA_BAKE_OS=nt cargo test --locked --test bake_selftest) && python program/tools/bless.py --no-python --all --windows table --as-windows --skip-test route_reach"
 # 4b) CI に似せた形（版 3.116.0。root でない利用者・別の TMPDIR・SQLite の版が違う Python・リポジトリが家の下・時差・Python 無し・
 #     名前を引けない）で、焼いた本の試験を全部流す（program/tools/ci-shape.py。手元と CI の違いで初めて CI で落ちる形を先に見つける）
 step ci-shape python program/tools/ci-shape.py "$OUT/ci-shape"

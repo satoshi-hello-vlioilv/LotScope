@@ -1,0 +1,2986 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 release_place の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "release_place",
+ "file": "release_place",
+ "answers": {
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） #0": {
+   "dest": "@ROOT/new/first",
+   "done": "<読む順で変わる>",
+   "error": "写せませんでした: <OS の言葉>",
+   "files": "<読む順で変わる>",
+   "src": "@ROOT/rel/LotScope",
+   "state": "failed"
+  },
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） #2": {
+   "dest": "@ROOT/new/none",
+   "done": "<読む順で変わる>",
+   "error": "写せませんでした: <OS の言葉>",
+   "files": "<読む順で変わる>",
+   "src": "@ROOT/無い置き場",
+   "state": "failed"
+  },
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "new/first": {
+    "type": "dir"
+   },
+   "new/first/3.9.9": {
+    "type": "dir"
+   },
+   "new/first/3.9.9/release.json": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/made_empty": {
+    "type": "dir"
+   },
+   "new/made_empty/3.6.0": {
+    "type": "dir"
+   },
+   "new/made_empty/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/made_empty/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/made_empty/3.7.0": {
+    "type": "dir"
+   },
+   "new/made_empty/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/made_empty/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/made_empty/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/made_empty/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/made_empty/空のフォルダ": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "写す（move と進み具合・写した後は既に置き場・忙しい） ファイル": {
+   "file.txt": {
+    "mtimeNs": "1700000000123456700",
+    "sha1": "6422db7e92b5a03142b2fdb8468eb081a5944a38",
+    "size": 12,
+    "type": "file"
+   },
+   "link": {
+    "type": "link"
+   },
+   "new": {
+    "type": "dir"
+   },
+   "new/already": {
+    "type": "dir"
+   },
+   "new/already/3.5.0": {
+    "type": "dir"
+   },
+   "new/already/3.5.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/deep": {
+    "type": "dir"
+   },
+   "new/deep/a": {
+    "type": "dir"
+   },
+   "new/deep/a/b": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/depth3": {
+    "type": "dir"
+   },
+   "new/depth3/a": {
+    "type": "dir"
+   },
+   "new/depth3/a/b": {
+    "type": "dir"
+   },
+   "new/depth3/a/b/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/empty_dir": {
+    "type": "dir"
+   },
+   "new/fresh": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/fresh5": {
+    "type": "dir"
+   },
+   "new/fresh5/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh5/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh5/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh5/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh5/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh5/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh5/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh5/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh5/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/linked": {
+    "type": "link"
+   },
+   "new/marker_dir": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json/x": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "11f6ad8ec52a2984abaafd7c3b516503785c2072",
+    "size": 1,
+    "type": "file"
+   },
+   "new/occupied": {
+    "type": "dir"
+   },
+   "new/occupied/x.txt": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "7c319ab3e5df6b970a71c47737de6b05e8a98682",
+    "size": 18,
+    "type": "file"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "写せない（読めないファイル）: 写しかけを片付ける #1": {
+   "final": {
+    "dest": "@ROOT/new/fresh",
+    "done": "<読む順で変わる>",
+    "error": "写せませんでした: <OS の言葉>",
+    "files": "<読む順で変わる>",
+    "src": "@ROOT/rel/LotScope",
+    "state": "failed",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "json": {
+    "dest": "@ROOT/new/fresh",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "写せない（読めないファイル）: 写しかけを片付ける #2": {
+   "final": {
+    "dest": "@ROOT/new/fresh",
+    "done": "<読む順で変わる>",
+    "error": "写せませんでした: <OS の言葉>",
+    "files": "<読む順で変わる>",
+    "src": "@ROOT/rel/LotScope",
+    "state": "failed",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "json": {
+    "dest": "@ROOT/new/fresh",
+    "done": "<読む順で変わる>",
+    "error": "写せませんでした: <OS の言葉>",
+    "files": "<読む順で変わる>",
+    "src": "@ROOT/rel/LotScope",
+    "state": "failed",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "status": 200
+  },
+  "写せない（読めないファイル）: 写しかけを片付ける ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/sub": {
+    "type": "dir"
+   },
+   "rel/LotScope/sub/broken": {
+    "type": "link"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "名乗り（4 人・切断） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "名乗り（権限を読めない） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #0": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "@ROOT/new/fresh",
+    "files": 6,
+    "mode": "copy",
+    "name": "fresh",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #1": {
+   "final": {
+    "dest": "@ROOT/new/fresh",
+    "done": 2272,
+    "files": 6,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "json": {
+    "dest": "@ROOT/new/fresh",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #2": {
+   "final": null,
+   "json": {
+    "dest": "@ROOT/new/fresh",
+    "done": 2272,
+    "files": 6,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "status": 200
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #3": {
+   "final": {
+    "dest": "@ROOT/new/fresh2",
+    "done": 2272,
+    "files": 6,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2272,
+    "totalFiles": 6
+   },
+   "json": {
+    "dest": "@ROOT/new/fresh2",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #4": {
+   "dest": "@ROOT/new/fresh3",
+   "done": 2272,
+   "files": 6,
+   "src": "@ROOT/rel/LotScope",
+   "state": "done"
+  },
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "new/fresh": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/fresh2": {
+    "type": "dir"
+   },
+   "new/fresh2/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh2/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh2/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh2/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh2/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh2/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh2/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh2/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh2/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/fresh3": {
+    "type": "dir"
+   },
+   "new/fresh3/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh3/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh3/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh3/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh3/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh3/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh3/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh3/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh3/空のフォルダ": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "採点者: 確かめる・名乗り・写す #0": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #1": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/abc",
+    "files": 9,
+    "mode": "copy",
+    "name": "abc",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #10": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x​",
+    "files": 9,
+    "mode": "copy",
+    "name": "x​",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #11": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #15": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/conı",
+    "files": 9,
+    "mode": "copy",
+    "name": "conı",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #16": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/ＣＯＮ",
+    "files": 9,
+    "mode": "copy",
+    "name": "ＣＯＮ",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #17": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #2": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #22": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/LPT0",
+    "files": 9,
+    "mode": "copy",
+    "name": "LPT0",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #24": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/5e-324",
+    "files": 9,
+    "mode": "copy",
+    "name": "5e-324",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #25": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/-1.5e-07",
+    "files": 9,
+    "mode": "copy",
+    "name": "-1.5e-07",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #26": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/1.0",
+    "files": 9,
+    "mode": "copy",
+    "name": "1.0",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #27": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/1e+100",
+    "files": 9,
+    "mode": "copy",
+    "name": "1e+100",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #28": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/123456789012345678",
+    "files": 9,
+    "mode": "copy",
+    "name": "123456789012345678",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #3": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #30": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/0",
+    "files": 9,
+    "mode": "copy",
+    "name": "0",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #34": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/1e+22",
+    "files": 9,
+    "mode": "copy",
+    "name": "1e+22",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #35": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/1e-05",
+    "files": 9,
+    "mode": "copy",
+    "name": "1e-05",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #36": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/0.1",
+    "files": 9,
+    "mode": "copy",
+    "name": "0.1",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #37": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/2500000000000000.0",
+    "files": 9,
+    "mode": "copy",
+    "name": "2500000000000000.0",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #38": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #39": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #4": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/x",
+    "files": 9,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #40": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #41": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #42": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #43": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/cp",
+    "files": 9,
+    "mode": "copy",
+    "name": "cp",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #45": {
+   "final": null,
+   "json": {
+    "dest": "..\\program",
+    "name": "program",
+    "ok": false,
+    "parent": "..",
+    "problem": "いまの置き場と同じ場所・名前です。"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #48": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "zz-probe-nonexist",
+    "files": 9,
+    "mode": "copy",
+    "name": "zz-probe-nonexist",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": ".",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #52": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/brokenlink",
+    "files": 9,
+    "mode": "copy",
+    "name": "brokenlink",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #53": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/linkempty",
+    "files": 9,
+    "mode": "copy",
+    "name": "linkempty",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #58": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #60": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/LotScope",
+    "files": 9,
+    "mode": "copy",
+    "name": "LotScope",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #62": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/fresh",
+    "files": 9,
+    "mode": "copy",
+    "name": "fresh",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope/dirlink/.."
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #67": {
+   "final": {
+    "dest": "@ROOT/new/fresh",
+    "done": 2295,
+    "files": 9,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2295,
+    "totalFiles": 9
+   },
+   "json": {
+    "dest": "@ROOT/new/fresh",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #68": {
+   "final": {
+    "dest": "@ROOT/new/brokenlink",
+    "done": 2295,
+    "files": 9,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2295,
+    "totalFiles": 9
+   },
+   "json": {
+    "dest": "@ROOT/new/brokenlink",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #69": {
+   "final": {
+    "dest": "@ROOT/new/linkempty",
+    "done": 2295,
+    "files": 9,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2295,
+    "totalFiles": 9
+   },
+   "json": {
+    "dest": "@ROOT/new/linkempty",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #70": {
+   "final": {
+    "dest": "@ROOT/new/x",
+    "done": 2295,
+    "files": 9,
+    "src": "@ROOT/rel/LotScope",
+    "state": "done",
+    "total": 2295,
+    "totalFiles": 9
+   },
+   "json": {
+    "dest": "@ROOT/new/x",
+    "mode": "copy"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す #71": {
+   "dest": "@ROOT/file.txt/under",
+   "done": "<読む順で変わる>",
+   "error": "写せませんでした: <OS の言葉>",
+   "files": "<読む順で変わる>",
+   "src": "@ROOT/rel/LotScope",
+   "state": "failed"
+  },
+  "採点者: 確かめる・名乗り・写す #72": {
+   "dest": "@ROOT/new/occupied/x/y",
+   "done": 2295,
+   "files": 9,
+   "src": "@ROOT/rel/LotScope",
+   "state": "done"
+  },
+  "採点者: 確かめる・名乗り・写す #9": {
+   "final": null,
+   "json": {
+    "bytes": 2295,
+    "dest": "@ROOT/new/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "files": 9,
+    "mode": "copy",
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "note": "いまの置き場（9 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "採点者: 確かめる・名乗り・写す ファイル": {
+   "file.txt": {
+    "mtimeNs": "1700000000123456700",
+    "sha1": "6422db7e92b5a03142b2fdb8468eb081a5944a38",
+    "size": 12,
+    "type": "file"
+   },
+   "link": {
+    "type": "link"
+   },
+   "loop1": {
+    "type": "link"
+   },
+   "loop2": {
+    "type": "link"
+   },
+   "new": {
+    "type": "dir"
+   },
+   "new/already": {
+    "type": "dir"
+   },
+   "new/already/3.5.0": {
+    "type": "dir"
+   },
+   "new/already/3.5.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/brokenlink": {
+    "type": "dir"
+   },
+   "new/brokenlink/3.6.0": {
+    "type": "dir"
+   },
+   "new/brokenlink/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/brokenlink/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/brokenlink/3.7.0": {
+    "type": "dir"
+   },
+   "new/brokenlink/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/brokenlink/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/brokenlink/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/brokenlink/deepdir": {
+    "type": "dir"
+   },
+   "new/brokenlink/deepdir/x": {
+    "type": "dir"
+   },
+   "new/brokenlink/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/brokenlink/filelink": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/brokenlink/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "new/brokenlink/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "new/brokenlink/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/deep": {
+    "type": "dir"
+   },
+   "new/deep/a": {
+    "type": "dir"
+   },
+   "new/deep/a/b": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/depth3": {
+    "type": "dir"
+   },
+   "new/depth3/a": {
+    "type": "dir"
+   },
+   "new/depth3/a/b": {
+    "type": "dir"
+   },
+   "new/depth3/a/b/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/e2": {
+    "type": "dir"
+   },
+   "new/empty_dir": {
+    "type": "dir"
+   },
+   "new/fresh": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh/deepdir": {
+    "type": "dir"
+   },
+   "new/fresh/deepdir/x": {
+    "type": "dir"
+   },
+   "new/fresh/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/filelink": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "new/fresh/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "new/fresh/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/linked": {
+    "type": "link"
+   },
+   "new/linkempty": {
+    "type": "dir"
+   },
+   "new/linkempty/3.6.0": {
+    "type": "dir"
+   },
+   "new/linkempty/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/linkempty/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/linkempty/3.7.0": {
+    "type": "dir"
+   },
+   "new/linkempty/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/linkempty/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/linkempty/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/linkempty/deepdir": {
+    "type": "dir"
+   },
+   "new/linkempty/deepdir/x": {
+    "type": "dir"
+   },
+   "new/linkempty/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/linkempty/filelink": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/linkempty/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "new/linkempty/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "new/linkempty/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/linkfile": {
+    "type": "link"
+   },
+   "new/marker_dir": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json/x": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "11f6ad8ec52a2984abaafd7c3b516503785c2072",
+    "size": 1,
+    "type": "file"
+   },
+   "new/occupied": {
+    "type": "dir"
+   },
+   "new/occupied/x": {
+    "type": "dir"
+   },
+   "new/occupied/x.txt": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "7c319ab3e5df6b970a71c47737de6b05e8a98682",
+    "size": 18,
+    "type": "file"
+   },
+   "new/occupied/x/y": {
+    "type": "dir"
+   },
+   "new/occupied/x/y/3.6.0": {
+    "type": "dir"
+   },
+   "new/occupied/x/y/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/occupied/x/y/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/occupied/x/y/3.7.0": {
+    "type": "dir"
+   },
+   "new/occupied/x/y/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/occupied/x/y/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/occupied/x/y/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/occupied/x/y/deepdir": {
+    "type": "dir"
+   },
+   "new/occupied/x/y/deepdir/x": {
+    "type": "dir"
+   },
+   "new/occupied/x/y/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/occupied/x/y/filelink": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/occupied/x/y/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "new/occupied/x/y/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "new/occupied/x/y/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/x": {
+    "type": "dir"
+   },
+   "new/x/3.6.0": {
+    "type": "dir"
+   },
+   "new/x/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/x/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/x/3.7.0": {
+    "type": "dir"
+   },
+   "new/x/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/x/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/x/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/x/deepdir": {
+    "type": "dir"
+   },
+   "new/x/deepdir/x": {
+    "type": "dir"
+   },
+   "new/x/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/x/filelink": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/x/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "new/x/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "new/x/空のフォルダ": {
+    "type": "dir"
+   },
+   "pfile": {
+    "type": "link"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/deepdir": {
+    "type": "dir"
+   },
+   "rel/LotScope/deepdir/x": {
+    "type": "dir"
+   },
+   "rel/LotScope/dirlink": {
+    "type": "link"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/filelink": {
+    "type": "link"
+   },
+   "rel/LotScope/m000.bin": {
+    "mtimeNs": "1700000013123456700",
+    "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+    "size": 3,
+    "type": "file"
+   },
+   "rel/LotScope/zero.bin": {
+    "mtimeNs": "1700000014123456700",
+    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "size": 0,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "根の上のフォルダ・一時フォルダを作れない #0": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "\\relprobe-nonexist-q9",
+    "files": 6,
+    "mode": "copy",
+    "name": "relprobe-nonexist-q9",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "\\",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない #1": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "\\\\relprobe-nonexist-q9",
+    "files": 6,
+    "mode": "copy",
+    "name": "relprobe-nonexist-q9",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "\\\\",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない #2": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "\\\\\\relprobe-nonexist-q9",
+    "files": 6,
+    "mode": "copy",
+    "name": "relprobe-nonexist-q9",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "\\\\\\",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない #3": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "上のフォルダに届きません: //tmp（場所・BOX の同期・権限を確かめてください）"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない #4": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "上のフォルダに届きません: /tmp/（場所・BOX の同期・権限を確かめてください）"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない #5": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "\\relprobe-nonexist-q9",
+    "files": 6,
+    "mode": "copy",
+    "name": "relprobe-nonexist-q9",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "\\",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "根の上のフォルダ・一時フォルダを作れない ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "new/first": {
+    "type": "dir"
+   },
+   "new/first/3.9.9": {
+    "type": "dir"
+   },
+   "new/first/3.9.9/release.json": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/first/release.json": {
+    "type": "dir"
+   },
+   "new/first/release.json/under": {
+    "type": "dir"
+   },
+   "new/first/release.json/under/3.6.0": {
+    "type": "dir"
+   },
+   "new/first/release.json/under/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/first/release.json/under/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/first/release.json/under/3.7.0": {
+    "type": "dir"
+   },
+   "new/first/release.json/under/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/first/release.json/under/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/first/release.json/under/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/first/release.json/under/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/first/release.json/under/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/made_empty": {
+    "type": "dir"
+   },
+   "new/無い": {
+    "type": "dir"
+   },
+   "new/無い/上": {
+    "type": "dir"
+   },
+   "new/無い/上/置き場": {
+    "type": "dir"
+   },
+   "new/無い/上/置き場/3.6.0": {
+    "type": "dir"
+   },
+   "new/無い/上/置き場/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/無い/上/置き場/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/無い/上/置き場/3.7.0": {
+    "type": "dir"
+   },
+   "new/無い/上/置き場/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/無い/上/置き場/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/無い/上/置き場/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/無い/上/置き場/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/無い/上/置き場/空のフォルダ": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "権限を読めない（門番は 503） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "権限（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場） ファイル": {
+   "new": {
+    "type": "dir"
+   },
+   "new/fresh": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/3.7.0": {
+    "type": "dir"
+   },
+   "new/fresh/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "new/fresh/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "new/fresh/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "new/fresh/secret": {
+    "type": "dir"
+   },
+   "new/fresh/secret/s.txt": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "a0f1490a20d0211c997b44bc357e1972deab8ae3",
+    "size": 1,
+    "type": "file"
+   },
+   "new/fresh/zz.bin": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "d7dacae2c968388960bf8970080a980ed5c5dcb7",
+    "size": 2,
+    "type": "file"
+   },
+   "new/fresh/空のフォルダ": {
+    "type": "dir"
+   },
+   "new/noread": {
+    "type": "dir"
+   },
+   "new/noread/x": {
+    "mtimeNs": "1700000001123456700",
+    "sha1": "11f6ad8ec52a2984abaafd7c3b516503785c2072",
+    "size": 1,
+    "type": "file"
+   },
+   "new/only": {
+    "type": "dir"
+   },
+   "new/only/hidden": {
+    "type": "dir"
+   },
+   "new/only/hidden/h.txt": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "27d5482eebd075de44389774fce28c69f45c8a75",
+    "size": 1,
+    "type": "file"
+   },
+   "new/only/only": {
+    "type": "dir"
+   },
+   "new/only/only/a.txt": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+    "size": 1,
+    "type": "file"
+   },
+   "new/ro": {
+    "type": "dir"
+   },
+   "new/ro/x": {
+    "type": "dir"
+   },
+   "new/ro/x/hidden": {
+    "type": "dir"
+   },
+   "new/ro/x/hidden/h.txt": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "27d5482eebd075de44389774fce28c69f45c8a75",
+    "size": 1,
+    "type": "file"
+   },
+   "new/ro/x/only": {
+    "type": "dir"
+   },
+   "new/ro/x/only/a.txt": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+    "size": 1,
+    "type": "file"
+   },
+   "new/ro/y": {
+    "type": "dir"
+   },
+   "new/ro/y/hidden": {
+    "type": "dir"
+   },
+   "new/ro/y/hidden/h.txt": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "27d5482eebd075de44389774fce28c69f45c8a75",
+    "size": 1,
+    "type": "file"
+   },
+   "new/ro/y/only": {
+    "type": "dir"
+   },
+   "new/ro/y/only/a.txt": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+    "size": 1,
+    "type": "file"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/secret": {
+    "type": "dir"
+   },
+   "rel/LotScope/secret/s.txt": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "a0f1490a20d0211c997b44bc357e1972deab8ae3",
+    "size": 1,
+    "type": "file"
+   },
+   "rel/LotScope/zz.bin": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "d7dacae2c968388960bf8970080a980ed5c5dcb7",
+    "size": 2,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   },
+   "rel2": {
+    "type": "dir"
+   },
+   "rel2/LotScope": {
+    "type": "dir"
+   },
+   "rel2/LotScope/hidden": {
+    "type": "dir"
+   },
+   "rel2/LotScope/hidden/h.txt": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "27d5482eebd075de44389774fce28c69f45c8a75",
+    "size": 1,
+    "type": "file"
+   },
+   "rel2/LotScope/only": {
+    "type": "dir"
+   },
+   "rel2/LotScope/only/a.txt": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+    "size": 1,
+    "type": "file"
+   }
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #10": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "@ROOT/new/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+    "files": 6,
+    "mode": "copy",
+    "name": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #12": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #13": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #14": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "@ROOT/new/x",
+    "files": 6,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #15": {
+   "final": null,
+   "json": {
+    "bytes": 2272,
+    "dest": "@ROOT/new/x",
+    "files": 6,
+    "mode": "copy",
+    "name": "x",
+    "note": "いまの置き場（6 ファイル）を写してから切り替えます。前の置き場は消さずに残します。",
+    "ok": true,
+    "parent": "@ROOT/new",
+    "src": "@ROOT/rel/LotScope"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #18": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "上のフォルダに届きません: @ROOT/字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字（場所・BOX の同期・権限を確かめてください）"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #19": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "フォルダの名前が長すぎます（この PC の上限 255 字）。"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #25": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #26": {
+   "final": null,
+   "json": {
+    "ok": false,
+    "problem": "相対の道の中に、最後が空白か「.」の名前があります（Windows が名前を変えます）。ドライブ（C:\\…）か共有（\\\\サーバー\\共有\\…）から書いてください。"
+   },
+   "status": 200
+  },
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） ファイル": {
+   "file.txt": {
+    "mtimeNs": "1700000000123456700",
+    "sha1": "6422db7e92b5a03142b2fdb8468eb081a5944a38",
+    "size": 12,
+    "type": "file"
+   },
+   "link": {
+    "type": "link"
+   },
+   "new": {
+    "type": "dir"
+   },
+   "new/already": {
+    "type": "dir"
+   },
+   "new/already/3.5.0": {
+    "type": "dir"
+   },
+   "new/already/3.5.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/deep": {
+    "type": "dir"
+   },
+   "new/deep/a": {
+    "type": "dir"
+   },
+   "new/deep/a/b": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/depth3": {
+    "type": "dir"
+   },
+   "new/depth3/a": {
+    "type": "dir"
+   },
+   "new/depth3/a/b": {
+    "type": "dir"
+   },
+   "new/depth3/a/b/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/empty_dir": {
+    "type": "dir"
+   },
+   "new/linked": {
+    "type": "link"
+   },
+   "new/marker_dir": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json/x": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "11f6ad8ec52a2984abaafd7c3b516503785c2072",
+    "size": 1,
+    "type": "file"
+   },
+   "new/occupied": {
+    "type": "dir"
+   },
+   "new/occupied/x.txt": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "7c319ab3e5df6b970a71c47737de6b05e8a98682",
+    "size": 18,
+    "type": "file"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  },
+  "門番（版を置けない・参照先を書けない・切断・確かめと進み具合は門番なし） ファイル": {
+   "file.txt": {
+    "mtimeNs": "1700000000123456700",
+    "sha1": "6422db7e92b5a03142b2fdb8468eb081a5944a38",
+    "size": 12,
+    "type": "file"
+   },
+   "link": {
+    "type": "link"
+   },
+   "new": {
+    "type": "dir"
+   },
+   "new/already": {
+    "type": "dir"
+   },
+   "new/already/3.5.0": {
+    "type": "dir"
+   },
+   "new/already/3.5.0/release.json": {
+    "mtimeNs": "1700000002123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/deep": {
+    "type": "dir"
+   },
+   "new/deep/a": {
+    "type": "dir"
+   },
+   "new/deep/a/b": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c": {
+    "type": "dir"
+   },
+   "new/deep/a/b/c/release.json": {
+    "mtimeNs": "1700000003123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/depth3": {
+    "type": "dir"
+   },
+   "new/depth3/a": {
+    "type": "dir"
+   },
+   "new/depth3/a/b": {
+    "type": "dir"
+   },
+   "new/depth3/a/b/release.json": {
+    "mtimeNs": "1700000004123456700",
+    "sha1": "bf21a9e8fbc5a3846fb05b4fa0859e0917b2202f",
+    "size": 2,
+    "type": "file"
+   },
+   "new/empty_dir": {
+    "type": "dir"
+   },
+   "new/linked": {
+    "type": "link"
+   },
+   "new/marker_dir": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json": {
+    "type": "dir"
+   },
+   "new/marker_dir/release.json/x": {
+    "mtimeNs": "1700000005123456700",
+    "sha1": "11f6ad8ec52a2984abaafd7c3b516503785c2072",
+    "size": 1,
+    "type": "file"
+   },
+   "new/occupied": {
+    "type": "dir"
+   },
+   "new/occupied/x.txt": {
+    "mtimeNs": "1700000006123456700",
+    "sha1": "7c319ab3e5df6b970a71c47737de6b05e8a98682",
+    "size": 18,
+    "type": "file"
+   },
+   "rel": {
+    "type": "dir"
+   },
+   "rel/LotScope": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.6.0/LotScope-3.6.0-windows.zip": {
+    "mtimeNs": "1700000007123456700",
+    "sha1": "f99a70283b1dbb6cf20c8ca1e5c4e14305602290",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.6.0/release.json": {
+    "mtimeNs": "1700000008123456700",
+    "sha1": "d08d9ae082a81cdeb059c7ae9dad557cb681d00d",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0": {
+    "type": "dir"
+   },
+   "rel/LotScope/3.7.0/LotScope-3.7.0-windows.zip": {
+    "mtimeNs": "1700000009123456700",
+    "sha1": "fa7658c78943917fec5451a944221a2fd1956ec6",
+    "size": 1005,
+    "type": "file"
+   },
+   "rel/LotScope/3.7.0/release.json": {
+    "mtimeNs": "1700000010123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/LotScope.exe": {
+    "mtimeNs": "1700000011123456700",
+    "sha1": "abe6037297ebbb15d97fa11facf95521dfc684f9",
+    "size": 202,
+    "type": "file"
+   },
+   "rel/LotScope/distribute.json": {
+    "mtimeNs": "1700000012123456700",
+    "sha1": "dee34bb392447490044091cc81f12ab70e0e38c6",
+    "size": 20,
+    "type": "file"
+   },
+   "rel/LotScope/空のフォルダ": {
+    "type": "dir"
+   }
+  }
+ },
+ "posix": {
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） #0": "37d2d48a1344",
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） #2": "c916aa88c59b",
+  "2 つの PC が同じ置き場を写す（先に置き場ができた・空のフォルダだけ） ファイル": "17638c32f999",
+  "写す（move と進み具合・写した後は既に置き場・忙しい） ファイル": "a8bcdb72c303",
+  "写せない（読めないファイル）: 写しかけを片付ける #1": "0673b686eb7b",
+  "写せない（読めないファイル）: 写しかけを片付ける #2": "b1092357c638",
+  "写せない（読めないファイル）: 写しかけを片付ける ファイル": "c66d1459af93",
+  "名乗り（4 人・切断） ファイル": "3794858bd75e",
+  "名乗り（権限を読めない） ファイル": "3794858bd75e",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #0": "f771b08f7fea",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #1": "00ae4013def7",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #2": "d90c42bcd76c",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #3": "e95c3e5d46fb",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） #4": "be5610b3aa35",
+  "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない） ファイル": "4b5892d1c3ca",
+  "採点者: 確かめる・名乗り・写す #0": "bd223813182f",
+  "採点者: 確かめる・名乗り・写す #1": "7b42e1d88cea",
+  "採点者: 確かめる・名乗り・写す #10": "ec31df60559e",
+  "採点者: 確かめる・名乗り・写す #11": "bd223813182f",
+  "採点者: 確かめる・名乗り・写す #15": "9546684e81b2",
+  "採点者: 確かめる・名乗り・写す #16": "d491da14c04f",
+  "採点者: 確かめる・名乗り・写す #17": "bd223813182f",
+  "採点者: 確かめる・名乗り・写す #2": "bd223813182f",
+  "採点者: 確かめる・名乗り・写す #22": "fc1cee968184",
+  "採点者: 確かめる・名乗り・写す #24": "c0cb3d9d6c05",
+  "採点者: 確かめる・名乗り・写す #25": "af89724f6917",
+  "採点者: 確かめる・名乗り・写す #26": "81ddaea95ad2",
+  "採点者: 確かめる・名乗り・写す #27": "95994560072f",
+  "採点者: 確かめる・名乗り・写す #28": "2616115ad4d8",
+  "採点者: 確かめる・名乗り・写す #3": "bd223813182f",
+  "採点者: 確かめる・名乗り・写す #30": "cb59795f3f82",
+  "採点者: 確かめる・名乗り・写す #34": "53ca445b9f10",
+  "採点者: 確かめる・名乗り・写す #35": "36a5d6ec8a77",
+  "採点者: 確かめる・名乗り・写す #36": "748eb96cf702",
+  "採点者: 確かめる・名乗り・写す #37": "cb58290b29af",
+  "採点者: 確かめる・名乗り・写す #38": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #39": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #4": "3968d7f7b85e",
+  "採点者: 確かめる・名乗り・写す #40": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #41": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #42": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #43": "e4549a5a5069",
+  "採点者: 確かめる・名乗り・写す #45": "70bec2f3e450",
+  "採点者: 確かめる・名乗り・写す #48": "657785ec18bc",
+  "採点者: 確かめる・名乗り・写す #52": "b1eb434dd756",
+  "採点者: 確かめる・名乗り・写す #53": "d93c11d5ef10",
+  "採点者: 確かめる・名乗り・写す #58": "dac052a7fcbc",
+  "採点者: 確かめる・名乗り・写す #60": "6c447fb4be7a",
+  "採点者: 確かめる・名乗り・写す #62": "fb64edc833c9",
+  "採点者: 確かめる・名乗り・写す #67": "35f0922c05f2",
+  "採点者: 確かめる・名乗り・写す #68": "a792acaf4bfd",
+  "採点者: 確かめる・名乗り・写す #69": "8ea4265c56c7",
+  "採点者: 確かめる・名乗り・写す #70": "0e131c0ef70d",
+  "採点者: 確かめる・名乗り・写す #71": "bd2a0b122532",
+  "採点者: 確かめる・名乗り・写す #72": "e3962a0088fe",
+  "採点者: 確かめる・名乗り・写す #9": "02ef12da5c23",
+  "採点者: 確かめる・名乗り・写す ファイル": "0ae7a87ff99f",
+  "根の上のフォルダ・一時フォルダを作れない #0": "81a7d029bd75",
+  "根の上のフォルダ・一時フォルダを作れない #1": "3e5a99d0cca0",
+  "根の上のフォルダ・一時フォルダを作れない #2": "81a7d029bd75",
+  "根の上のフォルダ・一時フォルダを作れない #3": "7a15319d5b35",
+  "根の上のフォルダ・一時フォルダを作れない #4": "bab4c95b294c",
+  "根の上のフォルダ・一時フォルダを作れない #5": "81a7d029bd75",
+  "根の上のフォルダ・一時フォルダを作れない ファイル": "fd1b123ff8bf",
+  "権限を読めない（門番は 503） ファイル": "3794858bd75e",
+  "権限（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場） ファイル": "2a2fbf77c90f",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #10": "600ab441e01c",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #12": "f0d789f1435d",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #13": "dac052a7fcbc",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #14": "6c0e03261c5b",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #15": "888e08c8ae1e",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #18": "600ab441e01c",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #19": "600ab441e01c",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #25": "06cb5c2348c6",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） #26": "02756f4e7343",
+  "確かめる（名前・上のフォルダ・同じ所・中・既にある・空でない・写す量） ファイル": "2b6b42d8c811",
+  "門番（版を置けない・参照先を書けない・切断・確かめと進み具合は門番なし） ファイル": "2b6b42d8c811"
+ },
+ "skip": [],
+ "unmade": [
+  "fifo s10/rs/rel/LotScope/pipe",
+  "file s9/rs/rel/LotScope/改行\nの名前.txt",
+  "mode s0/rs/rel/LotScope/distribute.json",
+  "mode s1/rs/rel/LotScope/distribute.json",
+  "mode s2/rs/rel/LotScope/distribute.json",
+  "mode s7/rs/new/noread",
+  "mode s7/rs/new/ro",
+  "mode s7/rs/rel/LotScope/zz.bin",
+  "mode s7/rs/rel2/LotScope/hidden",
+  "mode s9/rs/rel/LotScope/distribute.json",
+  "mode s9/rs/rel/LotScope/m000.bin"
+ ]
+}

@@ -2626,7 +2626,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 | **3.117.0（この版）** | Windows の仕事を 2 つに割る・Windows の測りを ④ の後の形でも取る・土台（別の PC の形で 2 回目を焼く・PC の指紋の見張り・環境変数の形）・起こしたままの相手 | equipgroups・lotdsp（30/35） |
 | 3.117.1 | ③-6（CM3 の https・システムのプロキシを窓が取る。native-tls・戻り道の設定つき）・schedule の直し | schedule |
 | 3.117.2（済） | 場面の台本（ui_server.build・ops-bench の場面を作業フォルダの下・決めたキーで。routes の inode の使い回しを止める） | pivot・routes・dashboard・ops（35/35） |
-| 3.117.3 | Windows の切り替え（違う歩 0 の表を表だけの形で比べる・上書き variants.nt・丸ごとの 3 本）・凍らせる Python の写し・予算と文書 | — |
+| 3.117.3（済） | Windows の切り替え（違う歩 0 の 20 本を表だけの形で比べて落とす・残りの本は Windows の答えを nt の表に取り込む口）・凍らせる Python の写し・予算と文書 | — |
 
 **段 ④ の入口の条件**（どれか欠けたら ④ に入らない）:
 1. 36 本のうち keep を除く 35 本が Python 無しで流れる（3.117.0 で 30 本・3.117.1 で 31 本・**3.117.2 で 35 本。満たした**）
@@ -2634,8 +2634,27 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
    前の書き方「Windows の CI が焼いた表と比べている」は、どちらの形かを決めていなかった。④ の後に残るのは表の宣言から場面を作る形だけで、
    その形は Windows で 1 度も流れていなかった（3.116.0 の測りは Windows の Python が場面を作る形だけ。PR #116 の記録では 34 表のうち
    問い合わせが違う 27・場面が違う 12）。この版から、その形の数を毎回の Windows の CI が出す（測るだけ）
-3. 凍らせる Python の写しがある（3.117.3 に 1 回だけ写す）
+   → **3.117.3 で 20 本が比べて落とす形になった（まだ満たしていない: 20/35）**。残る 15 本は Windows の CI の記録を `bless.py --take-nt` で取り込むと比べる形になる
+   （下の 3.117.3 の節。札 measure の本は `bless.py --check` の知らせに数と名前が出る）
+3. 凍らせる Python の写しがある（3.117.3 に 1 回だけ写す）→ **3.117.3 で満たした**（`program/tests/legacy/3.117.3`）
 4. ③-6 が現場の PC で 1 回通った（利用者の確認。3.117.1 を配った後）
+
+**段 ④ の後の順**（利用者の決め 2026-11-21「片付けを先にして」。前の順は ④ → JSON の列の展開 → ⑤ → 残りの改良）:
+
+1. **④ 版 3.118.0**: Python を外す（窓が全部の道を答える。凍らせた Python の写しは、この版の間だけ、凍らせた試験 10 本と keep の本の相手に使う）
+2. **⑤ 不要になったファイルの片付け**（④ の次の版。ここで片付ける物の一覧はこの 1 か所）:
+   - program/app（画面の static・templates は desktop/ui へ移してから消す）
+   - 窓の sidecar（Python を起こす係）と、Python に任せる道（任せる歩の口・delegates の予算・route_reach の中身へ回す当たり）
+   - 答え合わせ役 36 本（program/tests/*_oracle.py。焼いた表と、人の事例の表〈tests/fixtures/*_cases.json〉・独立の答え〈tools/*-truth.py〉は残す）
+   - Python の中身だけを見ていた試験（program/tests の app を import する試験）
+   - 凍らせた写し program/tests/legacy/3.117.3 と凍らせた試験 10 本・keep の本（share_reader）・`TPA_FROZEN_PY` の口
+   - build.rs が組むたびに流す program/app/app_icon.py（絵を焼いた形へ）
+   - CI の Python の段（ci.yml の py-tests・desktop.yml の Windows の Python の試験）と、同梱の Python を作る手順
+   - 古い採点の記録（利用者の決め 2026-11-21「古い採点の記録も消してよいです」）: program/tools/ui-proposals/ の過去の案の定義と採点のファイル。
+     採点の道具（ui_score.py・ui-variants.mjs・ui-check.mjs など）と置き場そのものは、これからの改良で使うので残す。消すときは、記録を名指ししている
+     試験と文書（CLAUDE.md・RUST_PORT_PLAN.md）も一緒に直す。版 3.117.3 では消さない（3.117.3 の採点のファイルは今までどおり置く）
+   - CLAUDE.md を短くする（消した物の評価関数の行を外す）
+3. **改良 7 件**（⑤ の後。最初は JSON の列の展開）
 
 #### ① Windows の仕事を 2 つに割った（`.github/workflows/desktop.yml`）
 
@@ -2941,6 +2960,169 @@ Python 無しで流れる）を満たした。
   （今は登録が stat だけで開いていない。この版の Windows の測りは落とさない）。
 - HUGE（400,001 行）の SQLite を台本が作る時間の Windows の runner での値（測っていない）。
 - cargo の build.rs が組むたびに python3 で program/app/app_icon.py を流す（段 ④ で program/app を外すときの持ち越し）。
+
+### 段 ④ の入口まで（小さい版 4 つ）の 4 つ目: Windows の切り替えと凍らせる写し — 版 3.117.3
+
+採点は `tools/ui-proposals/2026-11-stage3f.json`（first_fixes 4・16。作った形は built_plan の built_3117_3）。入口の条件 2（Windows の CI が Python 無しの形で
+焼いた表と比べる）は、PR 120 の CI で 20 → 29 → **34/35**（札 table 34・measure 1）。fs は 3 回目の CI で、取り込んだ nt の表が runner の本物の C:\ の
+中身を持っていたと分かり（下の「3 回目の CI」）、札を measure に戻した。**fs は 4 回目の CI の記録を 3.118.0 の PR で取り込む**（3.118.0 も schedule の取り直しで
+CI を 2 回流すので回は増えない）。札 measure が 0 になるまで条件 2 は満たしていない（`bless.py --check` が数と名前を知らせる）。条件 3（凍らせる写し）を満たした。
+
+#### 材料: 3.117.2 の Windows の測り（PR #119。35 本・41 表）を元ごとに分けた
+
+表だけの形の違う歩 227・答えない歩 227（計 454 歩。表 41・歩 7925）を、記録の歩ごとの違う葉で分けた。3.117.1 の測り（main 4c933e7。違う歩 313）から、
+worklog_write が 3.117.2 の `fid_of` の直しで 97 → 11 歩になり（ファイルID・ageHours・items の長さの 86 歩が消えた）、3.117.2 の 4 本（routes・pivot・dashboard・ops）は違う歩 0・答えない歩 0:
+
+| 分類 | 歩 | 中身 | この版でしたこと |
+|---|---|---|---|
+| (a) 試験・場面の側の割れ | 67 | `@ROOT` の書き方 35（place）・rs/py の書き方 12（conversions・equipgroups・sources_write・worklog_write の「届かない共有」）・記号リンク 15・フォルダの時刻 2・file:// の場面 3（fs）。ほかに 3.117.2 で直したファイルID 86（3.117.1 の記録だけ） | 直した（下の ①） |
+| (b) OS の決まりで答えが違う | 76 | OS の誤りの字 34（Errno／WinError・No such file／The system cannot find。builder・mirror・schedule〈WinError 10061〉・worklog_write）・Windows の道の決まり 17（fs・place・builder: 相対の道の「\」・~名前・255 字・ドライブの段・置き場の候補）・信じるブラウザの名前 19（lotdsp 16・settings_write 3。Windows は msedge.exe・chrome.exe だけ）・Windows の getlogin 2（settings.bundle・pages: 環境が空白でも GetUserNameW が名前を返す）・最後の桁 3（calc。利用者の決め: 数は変えない）・道の区切り 1（masters） | Windows の答えとして nt の表に持つ（下の ②。そろえる決まり @OSERR は足していない） |
+| (c) Windows では成り立たない | 311 | OSError の表 84（release_place.tables: Linux の errno と文の事例）・見張りの場面 1（lotdsp: 作り物のブラウザの sh の包み）・場面を作れなかった 226（release_place: 改行の入った名前のファイルを場面が宣言し、os error 123 で場面ごと落ちた） | OSError の表と見張りの場面は Windows の表だけの形で流さない（nt の skip）。release_place は作れない物を除いて場面を作り（nt の unmade）、残りの歩は流して Windows の答えを持つ |
+
+#### ① (a) の直し
+
+- 道の書き方の候補（`tests/common.rs` の `path_forms`・`swap_path_json`・`mark_path`）: 表の宣言から作った場面（Windows）は道を「/」で書き、窓は「\」と
+  長い名前（8.3 の RUNNER~1 でなく）で答えるので、1 つの書き方で置き換えると当たらなかった。Windows では書いたままの字・長い名前と、それぞれの「/」「\」の
+  書き方の全部を置き換え、`@ROOT` の後ろの区切りは「/」にそろえる（焼く係の settle が @WORK の後ろでするのと同じ）。Linux では前と同じ 1 つの置き換え
+  （posix の表は 1 葉も変わらない）。rs→py の 7 か所（builder・conversions・equipgroups 2・sources_write・seed_reads・worklog_write）と place・release の `@ROOT`。
+- 場面を Windows でも宣言どおりに作る（`bake::materialize_os`）: 記号リンク（GitHub の runner は管理者なので作れる。Windows の Python の os.symlink も作っていた。
+  指す先がフォルダなら symlink_dir）・フォルダの更新時刻（FILE_FLAG_BACKUP_SEMANTICS と FILE_WRITE_ATTRIBUTES で開く。前は Linux だけ）。
+  作れない物（Windows で使えない名前・名前付きパイプ・権限の数）は「種類 道」の並びで返し、試験は落とさない（Linux では今までどおり落とす）。
+  Windows だけの所は作業用クレートで `cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` を通した。
+- fs の file:// の場面: 宣言の「file://@ROOT」は posix の根（/ で始まる）を前提にしていた。Windows の根（C:/…）では「file://C:/…」がサーバー名 C: になり
+  （Windows の Python と比べる形も同じ答えで、場面の作り方の割れ）、答えの asked に流すたびに変わる一時フォルダの字（da-fs-<番号>）が残った（nt の表に持つと
+  揺れる）。Windows では本文を作るときだけ Windows の file の URL の書き方（file:///C:/…・file://localhost/C:/…）にする（`fs_parity.rs`。posix の表は変わらない）。
+
+#### ② Windows の表の持ち方（first_fixes 4 を測りの数で決め直した）
+
+first_fixes 4 は「違いの多い 3 本は丸ごと 2 つ目の表 `<本>.nt.json`、少ない 8 表は上書き `variants.nt`」だった。決め直して、**どの本も同じ 1 つの形**にした:
+`desktop/tests/baked/nt/<表>.json`（posix の表の横の別のファイル）に
+
+- `answers`: posix と違う歩の Windows の答え（そろえた後の窓の答えそのもの。OS の誤りの字もそのまま）
+- `posix`: 上書きした posix の答えの指紋（sort_keys の JSON の sha256 の頭 12 字）。今の posix の答えと違えば `bless.py --check` が「上書きの元の posix の答えが変わった」と言う
+- `skip`: Windows では流さない歩（表にあって Windows の表だけの形が答えない歩）。増えても（答えなかった歩）減っても（流さない歩を答えた）落とす
+- `unmade`: Windows で作れない場面の物（`materialize_os` の並び）。増えても減っても落とす
+
+決め直した理由: (1) 丸ごとの表は場面と問い合わせを Windows の形で持つが、④ の後に残るのは表の宣言（posix の場面）から作る形だけで、場面と問い合わせは
+Windows でも posix の宣言のまま使う（違うのは答えだけ）。(2) 丸ごとの 3 本も、違う歩の答えだけを持てば足りる（fs 27・place 44 歩。答えの大きさは詰めて
+約 7・10 KB）。(3) posix の表（詰めた形・Rust が書く）の中に Python が書き足すと、表の書き方（1 項目 1 行・詰めた parts）を Python で作り直すことになる。
+別のファイルなら posix の表は 1 バイトも変わらず、Windows の答えを取り込んでも PR の差分は nt/ の中だけ。読む所は `bake.rs` の `table_answer` の 1 か所
+（Windows〈`bake_os` が nt〉は nt の answers を先に見る）、書く所は `bless.py --take-nt` の 1 か所。
+
+**本ごとの札**（`books.json` の `windows`）: `table` は Windows の表だけの形でも比べて落とす本・`measure` はまだ測るだけの本。3.117.2 の測りで違う歩も
+答えない歩も 0 だった 20 本（access・access_write・cards・dashboard・dashboards・equip_rows・formats・lists・lotlist・name_key・ops・pivot・presence・presets・routes・
+seed_reads・seeds・sets・shifts・ui_defaults）を table にした。残る 15 本は measure。
+大きさは nt の表を本の表に足して上限（本ごと・計 40 MB）を見る。3.117.1 の違う歩・答えない歩の posix の答えは計 0.59 MB（詰めて 70 KB。3.117.2 は worklog_write が減ってさらに小さい）で、
+nt の表も同じほど（計 35.9 MB → 約 36.5 MB の見込み）。
+
+#### ③ Windows の答えの取り込み口（CI は 2 回）
+
+**3.117.1・3.117.2 の測りの記録には Windows の答えそのものが無い**（違う歩ごとに最初の違う葉 1 つの字だけ）。そこで記録に答えを足し、CI を 2 回に分ける:
+
+1. この版の PR の Windows の CI（1 回目）: 札が table の 20 本は表と比べて落とす。measure の 15 本は表だけの形で流して測り、記録（`TPA_MEASURE` の
+   `<表>.json`）に、違う歩の Windows の答え `got`・答えない歩・作れない場面の物 `unmade`・比べた表と nt の表の指紋 `tableSha`・`ntSha` を書く（`bake.rs`）。
+   仕事の終わりの段（`bless.py --emit`）が記録を zlib・base64 にして 2,000 字ずつの行「`measure-z| 表|形 i/n …`」で出す（3.117.2 の測りの量で 63 行・約 6.6 万字〈生 469 KB〉。採点の係が測った。
+   仕事の記録の末尾〈約 1.2 万行・50 万字〉に入る。成果物の置き場に届かない所でも記録の行だけで取り込める）。
+2. 主がその仕事（`windows-test`）の記録を取り、`python program/tools/bless.py --take-nt 記録` を流す: 今の表（tableSha）・今の nt の表（ntSha）で取った・
+   終わりまで流れた・場面を作れた記録だけを nt の表に取り込み（posix と同じ答えは上書きしない・流さない歩の上書きは外す）、本の表のどれもが取り込めた本の
+   札を table にする。最後に `--check` を流す。
+3. 取り込んだ物をコミットして push（2 回目）: その本も Windows で比べて落とす。
+
+取り込めない記録（終わりまで流れなかった・場面を作れなかった・別の表で取った）は理由を出して札は measure のまま（直して 1 から）。
+nt の表に Windows の runner の字（利用者のフォルダ・8.3 の RUNNER~1・一時フォルダ・作業フォルダ da-）が残れば `--check` が落とす（流すたびに・PC ごとに
+変わる答えを持たない。`bless.WIN_MARKS`・`pc_marks`）。
+posix の表を焼き直して、**上書きした歩の** posix の答えが変わると、`--check` が指紋で古いと言う（Windows の記録を取り直す）。上書きしていない歩だけが
+変わったときは `--check` は言わない（tableSha は取り込む時に記録が今の表で取った物かを見るだけ。nt の表は持たない）。その歩の Windows の答えが posix と違えば、
+札が table の本なら Windows の CI が落として知らせる（札を measure に戻して取り直す）。
+
+#### ④ desktop.yml の切り替え
+
+`windows-test` の表だけの形の段を 2 つに割った: 「札が table の本」（`bless.py --no-python --all --windows table --skip-test route_reach`。落ちたら仕事が落ちる）と
+「札が measure の本」（`--windows measure`。`TPA_MEASURE`・落ちても続ける）。windows-test の仕事は 3.117.2 で 49 分（上限 90 分）。Python と比べる形（`cargo test`）は ④ まで残す。Windows の Python の試験の 4 段は
+`if: always()` にした（表と比べる段が落ちても流す）。終わりに `--emit` の段。時間は前と同じ（同じ試験を 2 段に分けただけ。表だけの形は計 約 8 分）。
+手元では yml を PyYAML で読み、仕事・段・needs・if を読み直した。
+
+#### ⑤ 凍らせる Python の写し（first_fixes 16）
+
+`program/tests/legacy/3.117.3/`（`python program/tools/freeze-legacy.py` が作る。既にあれば止まる。「1 回だけ」は「この版 3.117.3 の最後の形で 1 回」の意味:
+この版の途中で app を変えたとき〈予定の元の言葉〉は消して作り直し、試験に書いた sha256 も替えた）。中身は program と同じ形で、app/（static/ を除く）・
+上の段の *.py・config/・data/・tests/ の答え合わせ役のうち凍らせた試験が呼ぶ 6 本（share_reader・masters・mirror・place・schedule・seeds の oracle）と
+import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture・equipgroups_oracle・fakes_*・lotdsp_samples）・事例の表と作り物の証明書。125 ファイル・2.75 MB。
+ファイルごとの sha256 は `MANIFEST.json`、その指紋は `tests/test_baked_tables.py` の `LEGACY_MANIFEST_SHA`（git の印では代えない）。
+
+- 相手にする口: `TPA_FROZEN_PY=1`（`tests/common.rs` の `py_program`）で、`python_json`・`Live::start`（app を import する台本）と masters の hammer が写しの
+  tests/ と置き場を流す（標準の部品だけの台本〈-I〉は program のまま）。`bake::frozen_python` は `TPA_NO_PYTHON=1` でも `TPA_FROZEN_PY=1` なら流す。
+  `bless.py --no-python --frozen` がこの形。**確かめ**: `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で凍らせた 10 試験（appsettings_cases 1・masters_parity 1・
+  mirror_parity 2・place_parity 1・schedule_parity 2・seeds_parity 3）が全部通った。写しの master_store.py に 1 行足すと seeds_parity の凍らせた試験が落ちた。
+- **④ での使い方**: program/app を消す版（3.118.0）で、CI の Rust の試験を `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で流す（凍らせた試験と keep の本は写しを相手に、ほかは表と比べる）。
+  写しを使うのは ④ の版 3.118.0 の間だけで、次の ⑤ の版（片付け。利用者の決め 2026-11-21 で改良より先）で、凍らせた試験・keep の本・写しを一緒に消す
+  （前は「配布が終わった版で消す」だった）。写しの app が読む設定・マスタの既定は写しの config・data
+  （program の今の物ではない）。
+- lint とほかの確かめとの関わり: ruff は写しを範囲から外した（`program/ruff.toml` の `extend-exclude`。理由: 書き換えない写しなので、ruff の版が上がって
+  決まりが増えても直さない＝指紋が変わらない）。compileall は写しも確かめる（Python の版が上がって読めなくなれば凍らせた試験も流れないので、早く知る）。
+  js-check は .js を写さないので当たらない。版の指紋（`app_build.release_digest`・`tests/test_version.py`）は tests/ を数えないので写しは入らない。
+  単体の試験の discover は写しの置き場が package でない（`__init__.py` が無い・名前が「3.117.3」）ので入らない。`tests/test_single_entry.py` の残り物の確かめは
+  写しを外した（写しの更新履歴は昔の版の注記を含む）。改行は `.gitattributes` で `-text`（Windows の取り出しでも sha256 が同じ）。
+
+#### ⑤' 予定の元・1 回目の Windows の CI（PR #120）の直しと取り込み
+
+- **予定の元**（利用者の決め 2026-11-21「CM3 は設備の名前です。『予定の元』に替えてください」）: 利用者に見える字で予定を配る元を「CM3」と呼んでいた所を
+  「予定の元」に替えた（画面の JS 14・Python の app の字 約 80・窓の desktop/src の字 約 40・焼いた決まりの表 bundle_tables.json 7・人の事例の表〈cm3_net・sysproxy・
+  schedule_golden〉・更新履歴の前の版の説明）。Python と窓は同じ言い方の決まりで替え、突き合わせの試験で 1 字まで同じ。替えないのは設備の名前の CM3・内部の名前
+  （kind "cm3"・cm3_base_url・ファイル名・関数）・コメントと作り手向けの文書・試験の場面の名前。評価関数 `tests/test_schedule_source_words.py`（直す前 155 か所で落ち、
+  直した後 0。コメント・docstring・内部の名前は見ない・設備の名前として許す字は理由つきの ALLOWED）・`ui-eval-schedule.mjs` の ⑦（説明は「予定の元」と言い CM3 と言わない）。
+  画面の評価関数 schedule・sources・unify・srclist・narrow は 3 つの大きさで全部 OK。言葉の変わった本 schedule・builder・equipgroups・settings・settings_write と、
+  写しの比べ方の変わった routes・dashboard・ops を焼き直した（3 回の焼きが同じ）。凍らせる写しは 3.117.3 の最後の形で作り直した（凍らせた試験 10 本が写しを相手に通る）。
+- **1 回目の Windows の CI**（頭 21c49d3）: 札 table の 20 本のうち落ちたのは access の 1 本（作った後の採点の割れ 1。直した）。Python と比べる形の cargo test で 3 本:
+  (1) bake_selftest の 4 本が「Windows では焼きません」に当たった（`Bake::with` が bake_os を使っていた → 試験の変異は posix の形から始め、Windows の形は apply_os で選ぶ。
+  Linux で `TPA_BAKE_OS=nt cargo test --test bake_selftest` で同じ 4 本の落ちを再現してから直した。check-all の段 nt-shape に入れた）・(2) fs_parity の file:// の 3 歩
+  （Python と比べる形でも本文を Windows の URL に書き直し、答え合わせ役の Python と窓に違う字を渡した → 書き直すのは表だけの形だけ）・(3) ops_parity の「勤務体系が無い」
+  3 歩の写しの様子の reason「元ファイルは変わっていません / 写しを更新しました」（この問い合わせで写し直したかは、Python と窓のどちらが先に確かめたか・更新時刻の刻みで
+  入れ替わる → `common::mirror_part` は MIRROR_SAME の 2 語だけを「@写しは元と同じ」にそろえ、届かない・見送った・写せない理由と stale・unreachable はそのまま比べる。
+  `bake_selftest` の `the_mirror_reason_settles_only_whether_this_call_copied`）。
+- **取り込み**（`bless.py --take-nt pr120-wintest.log`。measure-z の行 35＝19 表）: 取り込んだ 16 表で札を table にした本 9（calc・conversions・lotdsp・masters・mirror・place・
+  release_place・sources_write・worklog_write）。札 table は 29 本・measure は 6 本（builder・equipgroups・schedule・settings・settings_write は焼き直して tableSha が合わない、
+  fs は記録に runner の字〈「参照…」のよく使う場所の C:\Users\runneradmin・「~名前」の届いた所の C:\Users の中〉が残る）。fs は場面の側で直した（Windows の家は USERPROFILE を @HOME に・
+  「~名前」は Windows では流す PC で決まる歩）。runner の字の見張りは runner の名前・8.3 の名前・一時フォルダだけに狭めた（前は C:\Users\ も止め、どの Windows でも同じ
+  「C:\Users\無い名前\x」まで断った）。release_place の違う歩 77 は、作れない改行の名前のファイル（中身 x の 1 バイト: bytes 2296 / 2295）・権限の数は Linux だけ・OS の誤りの字・
+  道の区切りで、どれも OS の決まりの帰結として nt に持った。
+- **Linux の上の Windows の形**（nt-shape）は、nt の答えと流さない歩を当てない（窓の答えは Linux の答え）。場面は Linux の形で作り、作れない物は Windows の決めで数えて nt の
+  unmade と比べる。守れるのは nt の表の読み方・札・作れない物の数え方で、Windows の答えそのものは Windows の CI が守る。札 table の 29 本が通った。
+- **CI は計 3 回**: 1 回目（済）→ 2 回目で measure の 6 本の記録を取り直す（札 table の 29 本は比べて落とす）→ 取り込んで 3 回目で 35 本が比べる形（入口の条件 2）。
+  2 回目（頭 b32297f）は windows-test・windows-exe とも緑（札 table の 29 本が本物の Windows で通り、1 回目の落ち 4 種が消えた）。その記録（measure-z の行 11＝8 表）を
+  `bless.py --take-nt` で取り込み（取り込めない 0。上書き: builder 11 歩・fs 7 歩〈流さない歩 1・作れない物 1〉・schedule 10 歩・settings.bundle 1・settings.pages 1・settings_write 3・
+  equipgroups と fs.tables は 0）、6 本の札を table にした。**札は table 35・measure 0**。3 回目の CI で 35 本を比べて落とす。
+  3 回目（頭 0099a22）は windows-test が赤（windows-exe・program・desktop は緑。Python と比べる形の cargo test も通った）。落ちは 3 つ:
+  (1) fs_parity の #28・#35（「C:」「\\?\C:\x」の届いた所 C:\）: 取り込んだ nt の表の答えが **runner の本物の C:\ の一覧**（actionarchivecache・actions-runner・Android…
+  WindowsAzure の 35 件と更新時刻）で、runner のイメージで中身も時刻も変わる。→ Windows ではドライブで始まり場面の中（@ROOT）でない道の歩を、「~名前」と同じく流す PC で
+  決まる歩にした（`fs_parity.rs`。表と比べない）。nt/fs.json を外し、fs の札を measure に戻した（**34/35**）。`bless.py --check` に見張り `outside_listings`
+  （場面の外の本物の絶対の道・ドライブの根の中身 entries を持つ答えを落とす。posix の表 41・nt の表を全部見て、当たったのは nt/fs の 2 歩だけ）。
+  (2) bundle_parity の「NaN の配った設定でも引っ越しの印は窓がたどる」: 試験の中の確かめ（覚えの置き場）が道を字のまま比べ、表の宣言から作った道〈「/」・RUNNER~1〉と
+  窓が書いた道〈「\」・長い名前〉を違うと言った（札 measure の間は落ちても続ける段で隠れていた）。→ `common::same_path`（書き方の候補が重なれば同じ置き場。
+  違う置き場は違う: `bake_selftest` の `same_path_is_the_same_place_not_the_same_spelling`）。ほかの試験で道を字のまま比べる確かめを探し、Python と比べる形だけの
+  1 か所（bundle_parity の覚えの置き場と Python の覚え。Windows の Python と同じ書き方で通っている）のほかは見つからなかった。
+  (3) 測る段（札 measure）が、札 measure の本 0 で `tests_of([])` が空になり、絞り無しの cargo test（全部）を流して 20 分で切られた。→ 流す本が 0 なら「流す本がありません」で
+  0 で終わる・cargo に試験 0 を渡すと断る（`tests/test_baked_tables.py` の `test_no_books_means_no_cargo`）。
+
+#### ⑥ 持ち越し（3.117.2 の carry_to_3117_3）の行き先
+
+- 作り物の CM3 の閉じた口（http://127.0.0.1:1）の Windows の秒と WinError 10061: (b) の OS の誤りの字として nt の表に持つ（schedule は measure。秒は記録で見る）。
+- `materialize` の権限・記号リンク・mkfifo: 記号リンクは Windows でも作る・権限と名前付きパイプは unmade に（①）。
+- keep/ へ握ったまま移す形（os.replace）: 表だけの形は窓だけが場面を流し答え合わせ役の Python は居ないので、PermissionError の形は ④ の後には起きない。
+- HUGE（400,001 行）の SQLite を台本が作る時間: ops は measure。Windows の記録の ops の段の時間で読む（この版の 1 回目の CI）。
+- cargo の build.rs が組むたびに python3 で app_icon.py を流す: 段 ④（program/app を外す版）で build.rs に絵を焼いた形へ替える（この版では変えていない）。
+
+#### 確かめ
+
+- `cargo test --test bake_selftest`: `the_windows_overlay_is_compared_in_the_windows_form`（Linux の上で Windows の形〈bk.os = "nt"〉を選ぶ。nt の答えを 1 字変える・
+  Windows で posix の答えを返す・skip を消す・skip の歩を答える・表に無い歩を skip に書く がどれも落ちる。posix の形は nt を見ない・Windows では焼かない）・
+  `the_unmade_scene_entries_and_the_windows_answers_are_kept`（unmade が宣言と違えば落ちる・測りの記録に got・unmade・tableSha・ntSha）。
+- `tests/test_baked_tables.py`: `test_the_windows_overlay_is_checked_against_the_posix_answers`（posix の答えを 1 字変えると `--check` が古いと言う ほか）・
+  `test_take_nt_reads_the_job_log_and_turns_the_book_to_table`（記録の行から取り込む・別の表で取った記録・終わりまで流れなかった記録・got の無い記録は取り込まない・
+  本の表のどれもが取り込めたら札を table）・`test_the_frozen_python_copy_is_unchanged`。
+- **手元で確かめられない物**（この版の 1 回目の Windows の CI で分かる）: 札が table の 20 本がこの版の直しの後も Windows の表だけの形で通るか・記号リンクとフォルダの時刻が
+  Windows で当たるか（fs の 17 歩が消えるか）・@ROOT と rs/py の書き方の 47 歩が消えるか・release_place の場面が作れない物を除いて作れ、残りの歩が終わりまで流れるか・
+  詰めた行の大きさが記録の末尾に入るか。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

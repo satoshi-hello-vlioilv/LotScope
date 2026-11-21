@@ -1,0 +1,503 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 settings.bundle の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "settings",
+ "file": "settings.bundle",
+ "answers": {
+  "ログイン ID の環境が空白だけ": {
+   "access": {
+    "place": {
+     "cache": "@WORK/s24/local/master_cache",
+     "data": "@WORK/s24/base/data",
+     "defaults": "@REPO/program/app/master_defaults",
+     "lockTtl": 20.0,
+     "presence": "@WORK/s24/share/presence_tpa",
+     "refreshSeconds": 5.0,
+     "shareDir": "@WORK/s24/share",
+     "shared": [
+      "access_permissions",
+      "app_seeds",
+      "conversion_defaults",
+      "conversions",
+      "dashboard_settings",
+      "dashboards",
+      "data_sources",
+      "display_formats",
+      "equipment_groups",
+      "equipment_master",
+      "path_settings",
+      "pivot_presets",
+      "pivot_quick",
+      "roll_master",
+      "shift_patterns",
+      "tab_access",
+      "ui_defaults",
+      "work_log_files"
+     ]
+    },
+    "who": {
+     "key": "PC-ORACLE@@USER",
+     "login": "@USER",
+     "pc": "PC-ORACLE",
+     "pcSource": "設定（この端末の名前）"
+    }
+   },
+   "broken": {},
+   "calculation": {
+    "rolls": 3
+   },
+   "conversions": {
+    "rev": null,
+    "tables": {
+     "読み替え": {
+      "inputs": [],
+      "other": "",
+      "rows": []
+     }
+    }
+   },
+   "engine": "rust",
+   "lists": {
+    "dash": {
+     "equipGroups": [
+      {
+       "equipment": [
+        "CAL"
+       ],
+       "except": [],
+       "id": 3,
+       "name": "壊れたルール",
+       "note": "",
+       "order": 0,
+       "rev": 1,
+       "rules": [],
+       "set": "グループ",
+       "updated_at": "",
+       "updated_by": {}
+      },
+      {
+       "equipment": [
+        "CR1",
+        "CR2"
+       ],
+       "except": [],
+       "id": 1,
+       "name": "CR ライン",
+       "note": "メモ",
+       "order": 10,
+       "rev": 1,
+       "rules": [],
+       "set": "グループ",
+       "updated_at": "",
+       "updated_by": {}
+      },
+      {
+       "equipment": [],
+       "except": [
+        "L-9"
+       ],
+       "id": 2,
+       "name": "L ライン",
+       "note": "",
+       "order": 20,
+       "rev": 1,
+       "rules": [
+        {
+         "op": "prefix",
+         "value": "L-"
+        }
+       ],
+       "set": "ライン別",
+       "unapplied": [
+        {
+         "op": "x",
+         "value": "a",
+         "why": "読めない決まりです（知らない比べ方「x」）。"
+        }
+       ],
+       "updated_at": "",
+       "updated_by": {}
+      }
+     ],
+     "equipNames": [
+      "CAL",
+      "CR1",
+      "L-1",
+      "TLV"
+     ],
+     "now": null
+    },
+    "hidden": null,
+    "shifts": [
+     {
+      "id": 1,
+      "rev": 1,
+      "区分": "[]",
+      "名称": "交替勤務",
+      "表示順": "10",
+      "適用設備": ""
+     }
+    ],
+    "sources": [
+     {
+      "api": "/api/lotlist",
+      "base": null,
+      "broken": null,
+      "equipColumn": "号機",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "lot",
+      "kind": "file",
+      "lotSet": "LOT",
+      "name": "品質の名",
+      "place": "/q/品質.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 45,
+       "stale_hours": 12.0
+      },
+      "role": "品質",
+      "table": "12"
+     },
+     {
+      "api": "/api/worklog",
+      "base": null,
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "work",
+      "kind": "folder",
+      "lotSet": "",
+      "name": "実績",
+      "place": "\\\\srv\\実績",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 1.5
+      },
+      "role": "実績",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s1",
+      "base": "",
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [
+       {
+        "cols": [
+         "c1",
+         "c2"
+        ],
+        "how": "inner",
+        "on": [
+         [
+          "合金",
+          "材質"
+         ]
+        ],
+        "with": "wip"
+       },
+       {
+        "cols": [
+         "a",
+         "b"
+        ],
+        "how": "left",
+        "on": [],
+        "with": "lot"
+       }
+      ],
+      "key": "s1",
+      "kind": "file",
+      "lotSet": "",
+      "name": "製造条件",
+      "place": "/m.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 2.5
+      },
+      "role": "マスタ",
+      "table": "M"
+     },
+     {
+      "api": "/api/src/wip",
+      "base": null,
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "前方一致",
+      "joins": [],
+      "key": "wip",
+      "kind": "file",
+      "lotSet": "",
+      "name": "仕掛X",
+      "place": "/wip.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 120,
+       "stale_hours": 36
+      },
+      "role": "仕掛",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s6",
+      "base": "",
+      "broken": null,
+      "equipColumn": "設備",
+      "equipMode": "前方一致",
+      "joins": [],
+      "key": "s6",
+      "kind": "file",
+      "lotSet": "",
+      "name": "前",
+      "place": "/s6.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s2",
+      "base": "wip",
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [
+       {
+        "cols": [],
+        "how": "left",
+        "on": [
+         [
+          "a",
+          "b"
+         ]
+        ],
+        "with": "s1"
+       }
+      ],
+      "key": "s2",
+      "kind": "view",
+      "lotSet": "",
+      "name": "結合した表",
+      "place": "/wip.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s3",
+      "base": "s2",
+      "broken": true,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "s3",
+      "kind": "view",
+      "lotSet": "",
+      "name": "s3",
+      "place": "",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s4",
+      "base": "無い元",
+      "broken": true,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "s4",
+      "kind": "view",
+      "lotSet": "",
+      "name": "s4",
+      "place": "",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s5",
+      "base": "",
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "s5",
+      "kind": "file",
+      "lotSet": "",
+      "name": "後",
+      "place": "/s5.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/s6",
+      "base": "",
+      "broken": null,
+      "equipColumn": "",
+      "equipMode": "そのまま",
+      "joins": [],
+      "key": "s6",
+      "kind": "file",
+      "lotSet": "",
+      "name": "前の 2 つ目",
+      "place": "/s6b.sqlite3",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 60,
+       "stale_hours": 36
+      },
+      "role": "その他",
+      "table": ""
+     },
+     {
+      "api": "/api/src/sch",
+      "base": null,
+      "broken": null,
+      "equipColumn": "設備",
+      "equipMode": "そのまま",
+      "joins": [
+       {
+        "cols": [
+         "製造調質",
+         "ｵｰﾀﾞｰ板厚",
+         "ｵｰﾀﾞｰ板幅",
+         "BOX実績_良品重量",
+         "実績_設備ｺｰｽ",
+         "残仕掛設備ｺｰｽ",
+         "設計_PIT炉番炉順",
+         "特急区分",
+         "保留_区分",
+         "工場納期",
+         "約束納期"
+        ],
+        "how": "left",
+        "on": [
+         [
+          "ロットNo",
+          "ﾛｯﾄ番号"
+         ]
+        ],
+        "with": "wip"
+       }
+      ],
+      "key": "sch",
+      "kind": "cm3",
+      "lotSet": "",
+      "name": "スケジュール",
+      "place": "http://cm3/x",
+      "read": {
+       "page_size": 200,
+       "refresh_seconds": 90,
+       "stale_hours": 36
+      },
+      "role": "予定",
+      "table": ""
+     }
+    ],
+    "work": {
+     "canEditShifts": null,
+     "folder": "\\\\srv\\実績",
+     "page_size": 500,
+     "pattern": "実績_*.db",
+     "refresh_seconds": 60,
+     "rows": [
+      {
+       "キー": "w1",
+       "ファイルID": null,
+       "ファイル名": "実績_CAL.db",
+       "並び": "2",
+       "表": null,
+       "表示": "有",
+       "設備名": "CAL"
+      },
+      {
+       "キー": "w2",
+       "ファイルID": "1:2",
+       "ファイル名": "実績_CR1.db",
+       "並び": "",
+       "表": null,
+       "表示": "無",
+       "設備名": "CR1"
+      },
+      {
+       "キー": "w3",
+       "ファイルID": null,
+       "ファイル名": null,
+       "並び": "1",
+       "表": null,
+       "表示": null,
+       "設備名": " "
+      },
+      {
+       "キー": "w4",
+       "ファイルID": null,
+       "ファイル名": null,
+       "並び": "x",
+       "表": null,
+       "表示": null,
+       "設備名": "L-1"
+      }
+     ],
+     "settingsWarn": [],
+     "stale_hours": 1.5,
+     "table": ""
+    }
+   },
+   "page_size": 300,
+   "refresh_seconds": 45,
+   "source": "/q/品質.sqlite3",
+   "stale_hours": 12.0,
+   "table": "12",
+   "uiProfileKeys": [
+    "tpa.lotlist.layout.v1",
+    "tpa.lotlist.colPresets.v1",
+    "tpa.lotlist.rules.v1",
+    "tpa.lotlist.rowGap.v1",
+    "tpa.lotlist.cellPad.v1",
+    "tpa.lotlist.overflow.v1",
+    "tpa.lotlist.freeze.v1",
+    "tpa.lotlist.arrange.v1",
+    "tpa.lotlist.sorts.v1",
+    "tpa.lotlist.pageSize.v1",
+    "tpa.lotlist.features.v1",
+    "tpa.lotlist.slicer.v1",
+    "tpa.lotlist.marks.v1",
+    "tpa.lotlist.zoomStep.v1",
+    "tpa.lotlist.presets.v1",
+    "tpa.lotlist.views.v1",
+    "tpa.lotlist.pivot.v1",
+    "tpa.worklog.count.v1"
+   ]
+  }
+ },
+ "posix": {
+  "ログイン ID の環境が空白だけ": "247cb138130f"
+ },
+ "skip": [],
+ "unmade": []
+}

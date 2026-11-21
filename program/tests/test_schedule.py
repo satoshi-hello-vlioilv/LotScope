@@ -268,14 +268,14 @@ class Api(unittest.TestCase):
         bad = {**self.cfg, "cm3_base_url": "http://127.0.0.1:9"}
         d = self.sch.ensure(bad, "L-1", force=True)
         self.assertEqual(d["path"], c["path"])
-        self.assertIn("CM3に接続できません", d["error"])
+        self.assertIn("予定の元に接続できません", d["error"])
         info = schedule.source_info(bad, d, "L-1")
         self.assertTrue(info["unreachable"] and info["mirrored"])
         # 一度も取れていない設備は 502（理由つき）
         self.settings["schedule"]["cm3_base_url"] = "http://127.0.0.1:9"
         r = self.c.get("/api/src/sch", query_string={"equip": "L-2"})
         self.assertEqual(r.status_code, 502)
-        self.assertIn("L-2 の予定を CM3 から取れません", r.get_json()["error"])
+        self.assertIn("L-2 の予定を予定の元から取れません", r.get_json()["error"])
         r = self.c.get("/api/src/sch", query_string={"equip": "X-9"})
         self.assertEqual(r.status_code, 400)
 
@@ -366,7 +366,7 @@ class OneKeeper(unittest.TestCase):
         def silent(cfg, code, kbn, kws):
             calls.append(code)
             time.sleep(0.4)
-            raise cm3_schedule.Cm3Error("CM3の応答がタイムアウトしました")
+            raise cm3_schedule.Cm3Error("予定の元の応答がタイムアウトしました")
         s = schedule.Schedules(self.root, fetch=silent)
         errs = []
 
@@ -380,7 +380,7 @@ class OneKeeper(unittest.TestCase):
         [t.start() for t in ts]
         [t.join() for t in ts]
         self.assertEqual(len(calls), 1, "取りに行くのは 1 回")
-        self.assertEqual(errs, ["CM3の応答がタイムアウトしました"] * 4)
+        self.assertEqual(errs, ["予定の元の応答がタイムアウトしました"] * 4)
         self.assertLess(time.monotonic() - t0, 1.2)
         # 続けて来た（待っていない）問い合わせは取り直す（失敗を覚える秒数は利用者の決め。今の答えのまま覚えない）
         with self.assertRaises(cm3_schedule.Cm3Error):

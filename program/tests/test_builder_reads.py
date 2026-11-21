@@ -219,10 +219,10 @@ class BuilderReads(unittest.TestCase):
         """確か 9・決め 6: スケジュール（CM3）の URL の確かめは CM3 に届くかを見て、CM3 の言葉で言う"""
         url = self.app.config["APP_SETTINGS"]["schedule"]["cm3_base_url"]
         r = self.c.post("/api/sources/sch/conn/check", json={"field": "url", "value": url}).get_json()
-        self.assertEqual((r["ok"], "CM3" in r["message"], "LotDsp" in r["message"]), (True, True, False), r)
+        self.assertEqual((r["ok"], "予定の元" in r["message"], "LotDsp" in r["message"]), (True, True, False), r)
         r = self.c.post("/api/sources/sch/conn/check", json={"field": "url", "value": "http://127.0.0.1:1"}).get_json()
         # 版 3.117.1 の作った後の直し（割れ 2）: 届かない言葉はスケジュールを取る道と同じ cm3_net の種類ごとの字（断られた口は OS の誤り）
-        self.assertEqual((r["ok"], r["message"].startswith("CM3に接続できません: "), "LotDsp" in r["message"]), (False, True, False), r)
+        self.assertEqual((r["ok"], r["message"].startswith("予定の元に接続できません: "), "LotDsp" in r["message"]), (False, True, False), r)
 
     def test_folder_check_uses_the_pattern_on_the_card(self):
         """疑い 2: 作業実績のフォルダの確かめは、カードで打ち替えたファイル名の決まり（本文の pattern）で探す"""

@@ -353,12 +353,12 @@ class Schedules:
             st = self.read_state(code)
             if st.get("path"):
                 return self.peek(code)
-            raise Cm3Error("CM3の応答がタイムアウトしました")
+            raise Cm3Error("予定の元の応答がタイムアウトしました")
         if self.keeps(cfg, code):                    # 窓が係を降りた: ここが取りに行く
             return self.ensure(cfg, code, max_age=max_age, force=force)
         st = self.peek(code)
         if not st.get("path"):
-            raise Cm3Error(st.get("error") or "CM3の応答がタイムアウトしました")
+            raise Cm3Error(st.get("error") or "予定の元の応答がタイムアウトしました")
         return st
 
     def _taken(self, code):

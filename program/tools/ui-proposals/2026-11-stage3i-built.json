@@ -1,0 +1,142 @@
+{
+  "title": "段 ④ の入口まで（小さい版 4 つ）の 4 つ目: Windows の切り替えと凍らせる写し。版 3.117.3 の作った後の採点",
+  "rule": "2026-11-06",
+  "applies": "2026-11-stage3f.json",
+  "applies_note": "版 3.117.3 は 2026-11-stage3f.json の first_fixes 4・16 を built_plan の built_3117_3 の形で作った物（枝 stage3i・頭 21c49d3。main 613e0a7 との差）",
+  "evaluator": "案を作った者でも作った者でもない採点者（別のエージェント・2026-11-21。決まり 2026-11-06 の作った後の 1 回だけの採点）。git diff 613e0a7..HEAD・bake.rs・common.rs・bless.py・books.json・desktop.yml・freeze-legacy.py・test_baked_tables.py・bake_selftest.rs・計画書の 3.117.3 の節・作った係のメモ・3.117.2 の Windows の測り（measure-119）を読み、bake_selftest を流し、program/app を壊す・写しを壊す変異で凍らせた試験を流し（戻した）、作り物の measure-z の記録で --take-nt を試し（欠けた行・壊れた行・runner の字。戻した）、焼いた 41 表の場面を Windows で作れない物の決め（materialize_os の非 unix の枝）で数え、詰めた行の大きさを見積もり、yml を PyYAML で読み、ruff 0.15.20 で写しを外す前後を流した。画面は変わらないので画像は撮らない。加点の 11 項目の読み替えは 2026-11-stage3h-built.json と同じ（作りの分かりやすさ・直しやすさ・決めの揃い方）",
+  "rounds": [],
+  "built": {
+    "name": "作った後（版 3.117.3・commit 21c49d3）",
+    "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad（画像は撮っていない。測りの記録だけ: s3i-selftest.log・s3i-frozen-broken.log・s3i-frozen-a.log〈app を壊した形〉・s3i-frozen-b.log〈写しを壊した形〉・s3i-take/〈作り物の記録〉・scan_unmade.py〈場面の作れない物の数え〉）",
+    "evaluator": "上と同じ採点者",
+    "measured": {
+      "selftest": "cargo test --test bake_selftest: 25 passed（nt の変異 6・unmade・測りの got を含む）",
+      "frozen": "program/app/__init__.py の末尾に raise を足して TPA_NO_PYTHON=1 TPA_FROZEN_PY=1 で appsettings_cases・masters・mirror・place・schedule・seeds を流す → 全部通った（写しだけを相手にしている）。写しの app/__init__.py に raise を足すと seeds_parity・mirror_parity が 2 件落ち、raise の字が記録に 4 回出た。どちらも git checkout で戻した",
+      "copy": "diff -rq app tests/legacy/3.117.3/app（static・__pycache__ を除く）: 差なし。上の段の *.py・config・data も同じ。freeze-legacy.check() は空・MANIFEST.json の sha256 は LEGACY_MANIFEST_SHA と同じ。git の写しは 126 ファイル（MANIFEST の 125＋MANIFEST）・2,759,619 バイト",
+      "take_nt": "作り物の measure-z の記録: 総数を 1/2 に書き替えた欠けた行・末尾を壊した行はどちらも「読めない記録」で取り込まない。良い記録に runner の道・ポート・ファイルID を入れると、take_nt は nt/mirror.json を書き books.json の札を table に替えた後で、--check が 3 件（ポート・ファイルID・runner の字）を言い終了コード 1。戻した",
+      "size": "3.117.2 の Windows の測り（表だけの形 17 表に違う歩・答えない歩）の got を posix の答えで代えて詰めると 63 行・65,504 字（生 469 KB）。PR #119 の windows-test の記録は 2,401 行なので末尾に入る",
+      "yml": "PyYAML で読んだ: table の段は if: always()・continue-on-error 無し・20 分、measure の段は always()・continue-on-error・20 分、Python の 4 段は always()、--emit は最後で always()・continue-on-error。仕事の上限 90 分。pwsh は $LASTEXITCODE で終わるので bless.py の終了コードは握りつぶされない",
+      "unmade_scan": "焼いた 41 表の場面で Windows の非 unix の枝が unmade に数える物: access 41（c*/local/instance_id の mode 493）・fs mode 1＋link 3・release_place mode 9＋fifo 1＋link 17＋使えない名前 1。札が table の本で 0 でないのは access だけ",
+      "lint": "ruff 0.15.20: ruff check program は program/ruff.toml がある形・外した形とも通る（今の写しは lint を通る。外すのは先の版の決まりの増えに備えた物）。ほかの ruff の設定は無い",
+      "untouched": "作業フォルダの git status は最後に空。commit・push はしていない。check-all の全段・Windows の本物・PR 120 の 1 回目の CI の結果（採点の間は windows-test がまだ流れていた）は見ていない"
+    },
+    "cracks": [
+      {
+        "name": "1. 札が table の access は、Windows の表だけの形で必ず落ちる。場面の 41 ファイルに権限の数（mode 493）があり、materialize_os の非 unix の枝がそれを unmade「mode c*/local/instance_id」に数えるが、access の nt の表は無い（unmade は空のはず）ので「Windows で作れない場面の物が nt の表と違う（増えた 41）」になる",
+        "where": "desktop/tests/common/bake.rs の materialize_os（#[cfg(not(unix))] の mode の枝）と rebuild_inner の unmade の比べ（self.os == \"nt\" && self.check）。焼いた表 desktop/tests/baked/access.json の scene.files の 41 件。books.json の access は windows: table",
+        "repro": "焼いた 41 表の場面を数えた（scratchpad/scan_unmade.py）: table の 20 本で mode を持つのは access の 41 件だけ（どれも 0o755 の c0〜c40/local/instance_id）。access_parity は Bake::open → rebuild_from_table → materialize_os を通る。3.117.2 の測りでは違う歩 0 だった（その時は mode を黙って捨て、unmade を比べていなかった）。Windows の本物では流していないが、コードの道は 1 本",
+        "effect": "PR 120 の windows-test の「札が table の本」の段が赤になり仕事が落ちる（release は windows-test を needs）。しかも access は table なので TPA_MEASURE の記録を書かず、--take-nt で unmade を取り込む道も無い（直す口が閉じている）。「20 本が比べて落とす形になった」は事実でなくなる",
+        "fix": "Windows で mode を unmade に数えるのは、Windows で表せない差のある物だけにする（例: 持ち主が読めない・書けない〈m & 0o600 != 0o600〉か、読むだけ〈Windows の読み取り専用で表せる〉以外。0o644・0o755 は数えない）か、mode を unmade から外して答えの違いで見る（3.117.2 の測りで access は違う歩 0）。bake_selftest に「mode 0o755 だけの場面は Windows の形で unmade 0」と「0o000 は unmade」を足す。直すまでは access を measure に戻してもよいが、その時は札の数（20）と文書を直す",
+        "reproduced": true,
+        "severity": "高",
+        "kind": "lost"
+      },
+      {
+        "name": "2. Linux の上で Windows の形を流す口は試験の手書き（bk.os・bk.nt・bk.check を直に入れる）だけで、本番の読み方（Bake::new の nt の表を読む所・check = Baked かつ札が table・nt_sha）は Windows でしか通らない",
+        "where": "desktop/tests/common/bake.rs の Bake::new の if bk.os == \"nt\" の節（bake_os は cfg!(windows) だけ）。bake_selftest の the_windows_overlay_is_compared_in_the_windows_form・the_unmade_scene_entries_and_the_windows_answers_are_kept は Bake::with の後に欄を書き替える",
+        "repro": "bake_selftest を読んだ: どの変異も Bake::with の後に bk.os = \"nt\"; bk.nt = Some(..); bk.check = true を書く。nt のファイルの名前・json_keep で読む所・windows_status で check を決める所・nt_sha の当て方は Linux のどの試験も通らない。割れ 1 も、この口があれば Linux で TPA_BAKE_OS=nt の access_parity を流して見つかった",
+        "effect": "本番の読み方の誤り（ファイルの名前・札の読み違い・作れない物の数え方）は Windows の CI の 1 回目まで分からない（CI は 2 回の段取りなので、そのたびに 1 往復増える）",
+        "fix": "TPA_BAKE_OS=nt（試験だけの環境変数）で bake_os を nt にできるようにし、materialize_os の Windows の枝の決め（mode・fifo・使えない名前）を cfg でなく os の値で選べる純粋な関数に分け、Linux で札が table の 20 本を TPA_NO_PYTHON=1 TPA_BAKE_OS=nt で流す段を check-all か ci-shape に足す（道の書き方の違いは Linux では出ないが、unmade・skip・札の読み方は当たる）",
+        "reproduced": true,
+        "severity": "中",
+        "kind": "hidden_state"
+      },
+      {
+        "name": "3. --take-nt は確かめる前に書く: runner の道・ポート・ファイルID が残った記録でも nt の表を書き、本の札を table に替えてから --check が落ちる。札が measure のまま忘れられないための仕組みも無い",
+        "where": "program/tools/bless.py の take_nt（ntp.write_text と books.json の書き替えの後に main が check() を呼ぶ）。入口の条件 2 は計画書の文だけで、measure の本が残っていても止める試験は無い",
+        "repro": "作り物の記録（mirror の 1 歩に C:\\Users\\runneradmin\\AppData\\Local\\Temp\\da-mirror-123・127.0.0.1:50123・123:456）を python program/tools/bless.py --take-nt で取り込むと、nt/mirror.json ができ books.json の mirror が table になった後で --check が 3 件を言い終了コード 1（ファイルは書いたまま）。git checkout と nt/ を消して戻した",
+        "effect": "取り込みの後の git diff に汚れた nt の表と札の替えが残り、コミットに紛れやすい（今は手で戻す）。measure の 15 本が段 ④ まで残っても気づく仕掛けが無い",
+        "fix": "take_nt の中で書く前に記録ごとに pc_marks・WIN_MARKS を当て、残る記録は取り込まない（理由を出す）。札の替えも全部の表を確かめた後に 1 回だけ。test_baked_tables に『版が 3.118.0 以上なら windows が measure の本は 0』か、bless.py --check の知らせ（measure の本の数と名前）を足す",
+        "reproduced": true,
+        "severity": "中",
+        "kind": "hidden_state"
+      },
+      {
+        "name": "4. 小さな残り（どれも今は試験を落とさない）",
+        "where": "(a) RUST_PORT_PLAN.md ③ の「posix の表を焼き直した本は tableSha が変わるので、その本の nt の表は --check が古いと言う」: check_nt は tableSha を見ず、上書きした歩の posix の指紋だけを見る（上書きの無い歩が変わっても言わない。Windows の CI で table の本が落ちて分かる）。(b) 同じ節の「約 40 行」: 3.117.2 の測りで見積もると 63 行・6.6 万字（入るので害は無い）。(c) bless.py check_nt の『if bad and bad[-1].startswith(f\"nt/{name}:\")』は runner の字の知らせの後でも残りの確かめ（posix の指紋）を飛ばす。(d) desktop.yml の table の段の if: always() は取り消し（cancel）でも流れる（!cancelled() が良い）。(e) materialize（古い口）は Windows で作れない物を黙って捨てる",
+        "repro": "文書とコードを読んだ。(b) は scratchpad の見積もり",
+        "effect": "文書が事実とずれる・知らせが 1 つ隠れる",
+        "fix": "(a) の文を『上書きした歩の posix の答えが変わると言う』に直すか、nt の表に tableSha を持たせて check_nt で比べる。(b) 数を直す。(c) 前の言葉の数で判定する。(d) if: ${{ !cancelled() }}。(e) materialize は Windows でも unmade が空でなければ知らせる",
+        "reproduced": true,
+        "severity": "低",
+        "kind": "more_steps"
+      }
+    ],
+    "not_cracks": [
+      "凍らせる写しは本物: program/app を壊しても凍らせた試験（6 本の試験の実行ファイル）が全部通り、写しを壊すと落ちる。写しは頭の app（static を除く）・上の段の *.py・config・data と同じ。MANIFEST の見張りは 1 字・消した・増えたで落ちる（test_the_frozen_python_copy_is_unchanged）",
+      "札 table の本は Windows の形で posix と違う答えを黙って通さない: check = Baked かつ札が table で、table_answer は nt の上書き → posix の順。nt の 1 字・posix の答えを返す・skip を消す／答える・知らない skip がどれも落ちる（bake_selftest 25 passed）",
+      "--take-nt の取り込み口: 欠けた行（i/n）・壊れた行は読めない記録として断る。別の表（tableSha）・別の nt の表（ntSha）・終わりまで流れなかった・got の無い記録も断る（test_baked_tables）。本の表のどれもが取り込めたときだけ札を替える",
+      "詰めた行の大きさ: 3.117.2 の測りの量で 63 行・6.6 万字。仕事の記録（2,401 行）の末尾に入る",
+      "(a) の直し（path_forms・swap_path_json・mark_path）は Linux では前と同じ 1 つの置き換え（cfg!(windows) の外は書いたままの字）。fs の file:// と release の OSError の表の変えも Windows だけ。posix の表は 1 バイトも変わっていない（git diff に baked/*.json が無い）",
+      "desktop.yml: table の段は落ちたら仕事が落ちる（continue-on-error 無し・pwsh の終了コード）、measure の段と数える段と --emit は続ける。Python の 4 段は always()。同じ試験を本ごとに 2 段に分けただけで時間は前とほぼ同じ（上限 90 分）",
+      "ruff の範囲の外は program/tests/legacy だけ（extend-exclude）。ほかの ruff の設定は無く、決まりは既定のまま。配る物（app_build.py の app の下・desktop/bundle）に写しは入らない",
+      "数: books.json の windows は table 20・measure 15（keep の share_reader は札なし）。227＋227＝454 歩の 67／76／311 の分け方は計画書の表と合う。写しは 125 ファイル＋MANIFEST・2.76 MB"
+    ],
+    "not_checked": [
+      "Windows の本物: 札が table の 20 本が表だけの形で通るか（割れ 1 は通らない見込み）・記号リンクとフォルダの時刻・@ROOT と rs/py の書き方の 47 歩が消えるか・release_place の場面が作れない物を除いて作れ終わりまで流れるか・GitHub の記録の取り方（get_job_logs）で 2,000 字の行が切れずに来るか",
+      "check-all の全段（作った係が流して 0。流し直していない）・Python と比べる形の全部の本・ci-shape"
+    ],
+    "carry": [
+      "measure の 15 本を table にする（2 回目の push で --take-nt。入口の条件 2 はそれまで満たしていない）",
+      "cargo の build.rs が組むたびに python3 で program/app/app_icon.py を流す（段 ④ で絵を焼いた形へ）",
+      "Windows の記号リンク（runner が管理者でない形）と release_place の作れない名前の扱い",
+      "割れ 4 の (a)〜(e)"
+    ],
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 7,
+        "visual": 7,
+        "steps": 7,
+        "effortless": 7,
+        "intuitive": 7,
+        "form": 8,
+        "place": 7,
+        "layout": 8,
+        "tone": 7
+      },
+      "minus": [
+        {
+          "kind": "lost",
+          "where": "1. 札が table の access は Windows の表だけの形で unmade（mode 41 件）が nt の表と違って必ず落ち、table なので --take-nt で直す道も無い"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "2. Linux で Windows の形を流す口が試験の手書きだけで、本番の読み方（Bake::new の nt の節）は Windows でしか通らない"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "3. --take-nt は確かめる前に nt の表と札を書く・measure の本が残っても止める仕掛けが無い"
+        },
+        {
+          "kind": "more_steps",
+          "where": "4. 小さな残り（文書の tableSha と行の数・check_nt の知らせの隠れ・always()・古い materialize）"
+        }
+      ],
+      "seen": "約束の first_fixes 4（1 つの形に決め直した nt の上書き・skip・unmade・札・取り込み口・CI の 2 段）と 16（凍らせる写し）は入っていて、ほとんど言ったとおりに動く。凍らせた写しは本物で、program/app を壊しても凍らせた試験は写しだけで通り、写しを壊すと落ちる。札 table の本は nt の上書き → posix の順に比べて黙って通さない。取り込み口は欠けた・壊れた・別の表・途中の記録を断り、詰めた行は記録の末尾に入る大きさ。足りないのは次の所。割れ 1: access の場面の権限の数 41 件を Windows では作れない物に数えるので、札が table の access が Windows の表だけの形で必ず落ちる（CI が赤・table なので取り込みで直せない）。割れ 2: Linux で本番の Windows の読み方を通す口が無い（割れ 1 もそれで見逃した）。割れ 3: --take-nt が確かめる前に書く・measure の本を忘れない仕掛けが無い。割れ 4: 文書の小さなずれ。確かめていない物: Windows の本物・PR 120 の 1 回目の CI の結果"
+    }
+  },
+  "built_fixed": [
+    {
+      "crack": 1,
+      "fixed": "Windows で作れない物の決めを desktop/tests/common/bake.rs の predicted_unmade の 1 か所にした（os の値で選ぶ。posix は何も数えない）。権限は windows_bad_mode（持ち主が読めない・書けない m & 0o600 != 0o600 だけ。0o644・0o755・0o700・0o775 は Windows では意味が無く答えも変わらないので数えない）、ほかに名前付きパイプと使えない名前（windows_bad_name: 制御文字・< > : \" / \\ | ? *・最後が空白か「.」・CON・PRN・AUX・NUL・COM0〜9・LPT0〜9。その下の物も）。materialize_os は数えた物を作らずに返し、Windows の本物で作るのが OS の誤りになった物・記号リンクを作れなかった物を足す。札が table の access の 41 件（0o755 の instance_id）は数えなくなった",
+      "tests": "bake_selftest の only_what_windows_cannot_express_is_unmade（0o755・0o644・0o700・0o775 だけの場面は 0・0o000・0o444・名前付きパイプ・改行の名前・COM0・最後が「. 」は数える・posix は 0・Windows の形で作ると数えた物は作らない）・every_baked_scene_of_a_table_book_is_made_on_windows（焼いた 41 表の全部の場面を数え、札 table の 20 本〈25 表〉はどれも nt の表の unmade と同じ＝0）。変異: windows_bad_mode を「権限があれば数える」に戻すと 2 本が落ち（札が table の access）、Linux の上の Windows の形（下の割れ 2）でも access_parity が「増えた 41（mode c0〜c40/local/instance_id）」で落ちた。戻した"
+    },
+    {
+      "crack": 2,
+      "fixed": "OS の形を決めるのを Bake::apply_os(os, nt の表のファイル, 札) の 1 か所にした（本番の Bake::open_part も試験の変異も同じ口。nt の表をファイルから json_keep で読む・nt_sha・札が table かつ表だけの形のときだけ比べる）。試験だけの環境変数 TPA_BAKE_OS=nt で bake_os を nt にでき、Linux の上で札が table の本を Windows の形で流す口 bless.py --no-python --all --windows table --as-windows を足し、check-all に段 nt-shape として入れた。bake_selftest の手書き（bk.os・bk.nt・bk.check を直に入れる）は apply_os に替えた。Linux では守れない所: 道の区切り・OS の誤りの字・記号リンクの作り方など Windows の窓の答えそのもの（答えは Linux の窓の答え）。守れる所: nt の表の読み方・札の読み方・作れない物の数え方・skip と unmade の比べ",
+      "tests": "bake_selftest の the_windows_overlay_is_compared_in_the_windows_form（apply_os で nt の表をファイルから読む・札 measure と Python と比べる形は比べない・nt の表の無い札 table の本は posix と比べる）・the_unmade_scene_entries_and_the_windows_answers_are_kept（apply_os）。bless.py --no-python --all --windows table --as-windows --skip-test route_reach: 札 table の 20 本が Linux の上の Windows の形で通った（凍らせた試験 3 本は流さない）。割れ 1 の変異でこの段が access で落ちることを確かめた"
+    },
+    {
+      "crack": 3,
+      "fixed": "bless.py の take_nt は記録ごとに nt の表の中身を先に作り、測った PC の指紋（pc_marks: ポート・ファイルID・作業フォルダ）と Windows の runner の字（WIN_MARKS）が残る記録は断って書かない。書くのは全部を確かめた後に 1 回だけで（nt の表と books.json の札の替え）、書いた後の check_nt が落ちたら前のバイトへ戻して何も変えない。札が measure の本は measure_books で数え、--check の知らせ・--take-nt の終わりに数と名前を出す。計画書・CLAUDE.md は「入口の条件 2 は札 measure が 0 になるまで満たしていない（20/35）」に直した",
+      "tests": "tests/test_baked_tables.py の test_take_nt_reads_the_job_log_and_turns_the_book_to_table（runner の道・ポート・ファイルID の 3 つの記録はどれも断り、nt の表と books.json のバイトが変わらない・書いた後の確かめ〈表に無い流さない歩〉が落ちると戻して札も替えない・measure_books）・test_the_measure_books_are_told（--check の知らせに札 measure の本の数と名前）"
+    },
+    {
+      "crack": 4,
+      "fixed": "(a) 計画書の③と CLAUDE.md を事実に: --check が古いと言うのは上書きした歩の posix の答えが変わったときだけ（tableSha は取り込む時の確かめ）。上書きしていない歩の Windows の違いは札 table の本の Windows の CI が落として知らせる。(b) 詰めた行は 3.117.2 の量で 63 行・約 6.6 万字（計画書・desktop.yml の注）。(c) check_nt は形の欠け（欄が無い・型が違う）のときだけ残りの確かめを止める（runner の字の知らせの後も確かめる）。(d) desktop.yml の札 table の段は if: ${{ !cancelled() }}。(e) 古い口 materialize は materialize_os(bake_os()) を呼び、作れない物があれば落とす（黙って捨てない）",
+      "tests": "bless.py --check（35 本・41 ファイル・知らせに札 measure の 15 本）・yml を PyYAML で読んで table の段の if が !cancelled()・bake_selftest 27 passed"
+    }
+  ]
+}

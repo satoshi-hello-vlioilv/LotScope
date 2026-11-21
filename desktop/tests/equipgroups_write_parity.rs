@@ -104,10 +104,8 @@ fn equipment_groups_match_python() {
             )
         };
         // 言葉の中の場面のフォルダ（共有に届かない置き場など）は Python の側の名前にそろえる（JSON の字の中の形どうしで）
-        let esc = |k: &str| {
-            let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
-            t[1..t.len() - 1].to_string()
-        };
+        // 場面の rs のフォルダの道（どの書き方も。common::swap_path_json）を py に
+        let swap = |t: &str| common::swap_path_json(t, sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
         // 一覧（最初の歩）の答えで、スケジュールの設備を数えたか（下の CM3 の場面の確かめ）
         let mut first_seen = Value::Null;
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
@@ -116,7 +114,7 @@ fn equipment_groups_match_python() {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
-            let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
+            let got: Value = serde_json::from_str(&swap(&got.to_string())).unwrap();
             let key = format!("{name} #{i}");
             let w = bk.want_step(&key, st);
             bk.note_step(&key, st, status, &got, &w);
@@ -173,7 +171,7 @@ fn equipment_groups_match_python() {
             let mine = std::fs::read(rs.join(&f))
                 .ok()
                 .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-                .and_then(|v| serde_json::from_str::<Value>(&v.to_string().replace(&esc("rs"), &esc("py"))).ok());
+                .and_then(|v| serde_json::from_str::<Value>(&swap(&v.to_string())).ok());
             let akey = format!("{name} 置いた最初の版");
             let want = bk.want(&akey, || sc["absentPlaced"].clone());
             bk.note_files(&akey, mine.as_ref().unwrap_or(&Value::Null), &want);

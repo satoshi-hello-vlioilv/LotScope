@@ -1264,7 +1264,7 @@ async function loadSources() {
   want.forEach((d) => {
     const id = `tabSrc_${d.key}`, key = altKey();
     tabOf(id, d.screen, d.kind === "cm3" ? SCH_ICON : SRC_ICON, d.name).title = d.kind === "cm3"
-      ? `設備ごとの作業予定（CM3）を、仕掛と突き合わせて見ます${key ? `（Alt+${key}）` : ""}`
+      ? `予定の元の設備ごとの作業予定を、仕掛と突き合わせて見ます${key ? `（Alt+${key}）` : ""}`
       : `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });

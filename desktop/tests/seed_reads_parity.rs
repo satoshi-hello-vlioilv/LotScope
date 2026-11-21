@@ -26,7 +26,7 @@ fn share_files(root: &Path, from: &str, to: &str) -> Map<String, Value> {
     names.sort();
     for f in names.into_iter().filter(|f| f.ends_with(".json") && f != "master.lock.json") {
         let t = std::fs::read_to_string(root.join("share").join(&f)).unwrap();
-        let v: Value = serde_json::from_str(&t.replace(from, to)).unwrap_or(json!("<読めない>"));
+        let v: Value = serde_json::from_str(&common::swap_path_json(&t, from, to)).unwrap_or(json!("<読めない>"));
         out.insert(f, v);
     }
     out
@@ -63,11 +63,7 @@ fn reads_seed_the_same_masters_as_python() {
             "/api/sources" => lot.sources_list(query).map(|(st, _)| st),
             _ => lot.handle_body_with("GET", path, query, b"", &ask).map(|(st, _)| st),
         };
-        let esc = |k: &str| {
-            let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
-            t[1..t.len() - 1].to_string()
-        };
-        let mine = share_files(Path::new(sc["rs"].as_str().unwrap()), &esc("rs"), &esc("py"));
+        let mine = share_files(Path::new(sc["rs"].as_str().unwrap()), sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
         // 焼いた表には窓が置いたファイルを記す（Python と同じかは下の決まりで見る。窓は束と門番のマスタを多く置いてよい）
         let w = bk.want(name, || sc["files"].clone());
         bk.note_files(name, &Value::Object(mine.clone()), &w);

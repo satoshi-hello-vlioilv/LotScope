@@ -58,8 +58,8 @@ function wlSkipChip() {
 function stateOf(s) {
   const m = s.mirror;
   if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>`;
-  if (s.kind === "cm3") return m && m.mirrored ? `<span class="sr-state ${m.unreachable ? "ng" : "ok"}" title="CM3 から最後に取った ${when(m.checkedAt || m.copiedAt)}"><i></i>${s.equipCount != null ? `${s.equipCount} 設備` : "取った"} <small>${hm(m.checkedAt || m.copiedAt)}</small></span>`
-    : '<span class="sr-state" title="開くと CM3 から取ります"><i></i>まだ取っていない</span>';
+  if (s.kind === "cm3") return m && m.mirrored ? `<span class="sr-state ${m.unreachable ? "ng" : "ok"}" title="予定の元から最後に取った ${when(m.checkedAt || m.copiedAt)}"><i></i>${s.equipCount != null ? `${s.equipCount} 設備` : "取った"} <small>${hm(m.checkedAt || m.copiedAt)}</small></span>`
+    : '<span class="sr-state" title="開くと予定の元から取ります"><i></i>まだ取っていない</span>';
   if (s.kind === "view" && s.broken) return '<span class="sr-state ng"><i></i>元がありません</span>';
   if (!m || !m.mirrored) return `<span class="sr-state" title="開くと共有から手元へ写します"><i></i>${s.kind === "view" ? "まだ組んでいない" : "まだ写していない"}</span>`;
   const at = m.copiedAt || m.at;

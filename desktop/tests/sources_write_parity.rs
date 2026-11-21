@@ -83,11 +83,9 @@ fn data_source_writes_match_python() {
             };
             // 言葉の中の場面のフォルダ（共有に届かない置き場など）は Python の側の名前にそろえる
             // JSON の字の中の形（Windows の道の \ は \\ と書かれる）どうしで置き換える
-            let esc = |k: &str| {
-                let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
-                t[1..t.len() - 1].to_string()
-            };
-            let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
+            // 場面の rs のフォルダの道（どの書き方も。common::swap_path_json）を py に
+            let swap = |t: &str| common::swap_path_json(t, sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
+            let got: Value = serde_json::from_str(&swap(&got.to_string())).unwrap();
             let key = format!("{name} #{i}");
             let w = bk.want_step(&key, st);
             bk.note_step(&key, st, status, &got, &w);

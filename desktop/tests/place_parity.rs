@@ -25,12 +25,13 @@ static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn norm(v: &Value, root: &str) -> Value {
     match v {
         Value::String(s) => {
-            let s = s.replace(root, "@ROOT");
+            // 場面のフォルダはどの書き方も（Windows の表だけの形: 宣言の「/」の道と窓の「\」・長い名前。common::mark_path）
+            let s = common::mark_path(s, root, "@ROOT");
             let s = common::re(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d").replace_all(&s, "<時刻>").into_owned();
             let s = common::re(r"\.(tmp|probe)-[0-9a-f]{8}").replace_all(&s, ".$1-<印>").into_owned();
             json!(s)
         }
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (k.replace(root, "@ROOT"), norm(x, root))).collect()),
+        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (common::mark_path(k, root, "@ROOT"), norm(x, root))).collect()),
         Value::Array(a) => Value::Array(a.iter().map(|x| norm(x, root)).collect()),
         _ => v.clone(),
     }

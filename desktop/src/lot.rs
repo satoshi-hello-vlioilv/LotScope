@@ -2912,7 +2912,7 @@ mod tests {
         lot.invalidate();
         let (st, v) = lot.handle_body_with("GET", e, "", b"", &down).expect("スケジュールの元があっても一覧は窓");
         assert_eq!(st, 200);
-        assert!(!v["seen"].to_string().contains("スケジュール"), "届かない CM3 は数えない: {}", v["seen"]);
+        assert!(!v["seen"].to_string().contains("スケジュール"), "届かない予定の元は数えない: {}", v["seen"]);
         assert!(lot.handle_body_with("GET", "/api/dashboard/equip-tree", "", b"", &down).is_some(), "設備の木も窓");
         let (st, _) = lot.handle_body_with("PUT", &format!("{e}/1"), "", br#"{"note": "x"}"#, &down).expect("書ける歩も窓");
         assert_eq!(st, 200);
@@ -4621,7 +4621,7 @@ mod tests {
         std::fs::write(&cfg, conf("https://127.0.0.1:1")).unwrap();
         lot.invalidate();
         let (st, v) = lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &down).expect("https は窓が答える");
-        assert!(st == 200 && v.to_string().contains("CM3"), "{st} {v}");
+        assert!(st == 200 && v.to_string().contains("予定の元"), "{st} {v}");
         // 戻り道（配った設定の schedule.fetch_engine が python）: 答えず（Python が取る）、状態に係を降りたと書く
         let url = format!("http://127.0.0.1:{port}");
         std::fs::write(

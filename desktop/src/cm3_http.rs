@@ -57,11 +57,11 @@ fn py<T, E: From<Fail>>(why: &'static str) -> Result<T, E> {
 }
 
 fn connect_err(reason: String) -> Fail {
-    Fail::Cm3(format!("CM3に接続できません: {reason}"))
+    Fail::Cm3(format!("予定の元に接続できません: {reason}"))
 }
 
 fn timeout_err() -> Fail {
-    Fail::Cm3("CM3の応答がタイムアウトしました".into())
+    Fail::Cm3("予定の元の応答がタイムアウトしました".into())
 }
 
 /// Python の str(OSError)
@@ -742,7 +742,7 @@ pub fn post(url: &str, base: &str, body: &[u8], timeout: Duration) -> R<Resp> {
     if (200..300).contains(&r.status) {
         return Ok(r);
     }
-    Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)))
+    Err(Fail::Cm3(format!("予定の元がHTTPエラーを返しました: {} {}", r.status, r.reason)))
 }
 
 /// スケジュールの CM3 への POST（版 3.117.1: https とシステムのプロキシ。届かない言葉は cm3_net の種類ごとの字に、PAC の一言 note を足す）
@@ -754,7 +754,7 @@ pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) 
         Ok(r) if (200..300).contains(&r.status) => Ok(r),
         // プロキシの認証（利用者の決め: 認証は無い。対応していない）
         Ok(r) if r.status == 407 => Err(Fail::Cm3(crate::cm3_net::message(Kind::ProxyAuth, "", ""))),
-        Ok(r) => Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))),
+        Ok(r) => Err(Fail::Cm3(format!("予定の元がHTTPエラーを返しました: {} {}", r.status, r.reason))),
         // 設定の誤り（unknown url type・no host given）と Python に任せる形は前のまま
         Err(X::F(f)) => Err(f),
         // プロキシの言葉（届かない・その先で切れた・答えを読めない）は、その問い合わせ（30x の行き先ごと）のプロキシで open・once が決めた
@@ -794,8 +794,8 @@ pub fn get_once(url: &str, timeout: Duration) -> R<Resp> {
 }
 
 /// 確かめるの言葉（Python の cm3_schedule.REACH_NOT_HTTP・REACH_UNKNOWN）
-pub const REACH_NOT_HTTP: &str = "CM3 の URL は http:// か https:// で始めてください。";
-pub const REACH_UNKNOWN: &str = "CM3 に届きません（社外・VPN 未接続・場所の間違い）。";
+pub const REACH_NOT_HTTP: &str = "予定の元の URL は http:// か https:// で始めてください。";
+pub const REACH_UNKNOWN: &str = "予定の元に届きません（社外・VPN 未接続・場所の間違い）。";
 
 /// CM3 に届くか（参照先・データ元の「確かめる」。版 3.117.1 の作った後の直し・割れ 2。Python の cm3_schedule.reach と同じ）: スケジュールを
 /// 取る道と同じ取り手（https・システムのプロキシ・届かない言葉）で GET を 1 回（30x はたどらない・本文は読まない）。HTTP の答えが返れば
@@ -827,7 +827,7 @@ pub fn reach(url: &str, timeout: Duration, n: &Net) -> Result<(), String> {
     } else if r.status == 407 {
         Err(crate::cm3_net::message(Kind::ProxyAuth, "", ""))
     } else {
-        Err(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason))
+        Err(format!("予定の元がHTTPエラーを返しました: {} {}", r.status, r.reason))
     }
 }
 
@@ -902,8 +902,8 @@ mod tests {
         );
         assert_eq!(target("HTTP://h").unwrap().selector, "/");
         assert_eq!(target("http://h:").unwrap().port, 80);
-        assert_eq!(target("nlmfangyweb1a:9085/x"), Err(Fail::Cm3("CM3に接続できません: unknown url type: nlmfangyweb1a".into())));
-        assert_eq!(target("http:///x"), Err(Fail::Cm3("CM3に接続できません: no host given".into())));
+        assert_eq!(target("nlmfangyweb1a:9085/x"), Err(Fail::Cm3("予定の元に接続できません: unknown url type: nlmfangyweb1a".into())));
+        assert_eq!(target("http:///x"), Err(Fail::Cm3("予定の元に接続できません: no host given".into())));
         assert!(matches!(target("https://h/x"), Err(Fail::Python(_))));
         assert!(matches!(target("nohost"), Err(Fail::Python(_))));
         assert!(matches!(target("http://h:99999/"), Err(Fail::Python(_))));

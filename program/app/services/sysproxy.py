@@ -40,7 +40,7 @@ def proxy_bypass(host):
 
 def unreadable(url_type):
     """読めないプロキシの言葉（値は出さない: 合言葉が入っているかもしれない）"""
-    return ProxyProblem(f"CM3に接続できません: {url_type} のプロキシの設定を読めません")
+    return ProxyProblem(f"予定の元に接続できません: {url_type} のプロキシの設定を読めません")
 
 
 def parse(value, url_type=""):
@@ -65,7 +65,7 @@ def choose(url_type, host, proxies, bypass=proxy_bypass):
         return None
     scheme = (scheme or "").lower()
     if scheme not in ("", "http", "https"):
-        raise ProxyProblem(f"CM3に接続できません: プロキシの種類 {scheme} には対応していません（http のプロキシだけを使えます）")
+        raise ProxyProblem(f"予定の元に接続できません: プロキシの種類 {scheme} には対応していません（http のプロキシだけを使えます）")
     hostport = urllib.parse.unquote(hostport)
     # 名前と番号（http.client の _get_hostport が落ちる形〈数字でない番号・65535 を超える番号・名前が空〉は読めない設定）
     name, port = hostport, ""

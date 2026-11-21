@@ -301,10 +301,10 @@ fn python_and_window_writing_together_lose_nothing() {
         let n = 150;
         let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
         let child = std::process::Command::new(py)
-            .arg(common::program().join("tests").join("masters_oracle.py"))
+            .arg(common::py_program().join("tests").join("masters_oracle.py"))
             .args(["--hammer", work.to_str().unwrap(), &n.to_string(), if shared { "shared" } else { "local" }])
             .env("PYTHONIOENCODING", "utf-8")
-            .current_dir(common::program())
+            .current_dir(common::py_program())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()

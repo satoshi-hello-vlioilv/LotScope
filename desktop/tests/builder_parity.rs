@@ -92,17 +92,15 @@ fn builder_reads_match_python_and_the_truth() {
         let lot = lot_of(&sc["env"]);
         // 場面の環境変数（プロキシ。配った設定の schedule.use_system_proxy が真の場面だけが読む）
         let _env = common::ProxyEnv::set(&sc["proxyEnv"]);
-        let esc = |k: &str| {
-            let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
-            t[1..t.len() - 1].to_string()
-        };
+        // 場面の rs のフォルダの道（どの書き方も。common::swap_path_json）を py に
+        let swap = |t: &str| common::swap_path_json(t, sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
             let Some((status, got)) = call(&lot, st) else {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {}?{} {}", st["method"], st["path"], st["query"], st["body"]));
                 continue;
             };
-            let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
+            let got: Value = serde_json::from_str(&swap(&got.to_string())).unwrap();
             let key = format!("{name} #{i}");
             let w = bk.want_step(&key, st);
             bk.note_step(&key, st, status, &got, &w);

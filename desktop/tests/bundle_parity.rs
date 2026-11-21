@@ -118,7 +118,7 @@ fn bundle_is_built_like_python() {
         if let Some(want) = sc["expectOverride"].as_str() {
             let over: Value =
                 serde_json::from_slice(&std::fs::read(p("local").join("master_share.json")).unwrap_or_default()).unwrap_or(Value::Null);
-            if over["dir"].as_str() != Some(want) {
+            if !over["dir"].as_str().is_some_and(|d| common::same_path(d, want)) {
                 bad.push(format!("{name}: 窓が束を組めなくても引っ越しの印をたどるはず（覚えの置き場 {}）", over["dir"]));
             }
         }

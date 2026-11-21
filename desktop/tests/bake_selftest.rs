@@ -836,3 +836,211 @@ fn the_scene_file_id_is_the_window_file_id() {
     assert_eq!(common::bake::fid_of(&base.join("無い.sqlite3")), "", "無いファイルは空");
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// Windows の上書きの表（版 3.117.3。tests/baked/nt/<表>.json）: Windows の形（os が nt）は、posix の本の答えに nt の answers を重ねて比べ、
+/// skip の歩は流さず、unmade は場面を作れなかった物と同じ並び。Linux の上で Windows の形を選ぶのは本番と同じ口 Bake::apply_os
+/// （nt の表をファイルから読む・札で比べるかを決める。版 3.117.3 の作った後の直し・割れ 2: 前は欄を手で書き替え、本番の読み方を通らなかった）
+#[test]
+fn the_windows_overlay_is_compared_in_the_windows_form() {
+    let base = common::work("bake-nt");
+    let t = table(
+        json!({"same": {"status": 200, "json": {"a": 1}}, "os": {"status": 200, "json": {"error": "Errno 2 No such file or directory"}},
+               "posix_only": {"status": 200, "json": {}}}),
+        json!({"same": "GET /s", "os": "GET /o", "posix_only": "GET /p"}),
+    );
+    let win = json!({"status": 200, "json": {"error": "WinError 2 The system cannot find the file specified"}});
+    let nt =
+        json!({"book": "selftest", "file": "selftest", "answers": {"os": win}, "posix": {"os": "0"}, "skip": ["posix_only"], "unmade": []});
+    // 流し方: Windows の形（表だけの形・札が table）。answers は歩ごとの窓の答え、nt は重ねる表
+    let ntf = base.join("nt.json");
+    let run = |answers: &[(&str, Value)], nt: &Value| {
+        std::fs::write(&ntf, nt.to_string()).unwrap();
+        let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);
+        bk.apply_os("nt", &ntf, "table");
+        for (k, v) in answers {
+            bk.note(k, "GET /x", v, &Value::Null);
+        }
+        finished(bk)
+    };
+    let good = [("same", json!({"status": 200, "json": {"a": 1}})), ("os", win.clone())];
+    assert!(run(&good, &nt).is_ok(), "{:?}", run(&good, &nt));
+    // 変異 1: nt の答えを 1 字変えると、Windows の形で落ちる（posix の答えを返しても落ちる）
+    let mut nt1 = nt.clone();
+    nt1["answers"]["os"]["json"]["error"] = json!("WinError 2 The system cannot find the file specified!");
+    assert!(run(&good, &nt1).unwrap_err().contains("焼いた表と違う"), "nt の答えの 1 字");
+    let posix = [("same", json!({"status": 200, "json": {"a": 1}})), ("os", t["answers"]["os"].clone())];
+    assert!(run(&posix, &nt).unwrap_err().contains("焼いた表と違う"), "Windows で posix の答え");
+    // 変異 2: 流さない歩（skip）を 1 つ消すと、答えなかった歩で落ちる
+    let mut nt2 = nt.clone();
+    nt2["skip"] = json!([]);
+    assert!(run(&good, &nt2).unwrap_err().contains("答えなかった歩"), "skip を消す");
+    // 流さない歩を窓が答えたら落ちる（skip が古い）・表に無い歩を skip に書いても落ちる
+    let mut more = good.to_vec();
+    more.push(("posix_only", json!({"status": 200, "json": {}})));
+    assert!(run(&more, &nt).unwrap_err().contains("流さない歩"), "skip の歩を答えた");
+    let mut nt3 = nt.clone();
+    nt3["skip"] = json!(["posix_only", "無い歩"]);
+    assert!(run(&good, &nt3).unwrap_err().contains("表に無い歩: 無い歩"), "skip に知らない歩");
+    // 札が measure の本は Windows の形で比べない（測るだけ）・Python と比べる形も表とは比べない
+    std::fs::write(&ntf, nt.to_string()).unwrap();
+    for (mode, status) in [(Mode::Baked, "measure"), (Mode::Python, "table")] {
+        let mut bk = Bake::with("selftest", "selftest", mode, vec![], Some(t.clone()), &base);
+        bk.apply_os("nt", &ntf, status);
+        assert!(!bk.check && bk.nt.is_some(), "{mode:?} {status}");
+    }
+    // nt の表が無い本（違う歩の無い札 table の本）は posix の答えと比べる
+    let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);
+    bk.apply_os("nt", &base.join("無い.json"), "table");
+    assert!(bk.check && bk.nt.is_none());
+    // posix の形（Linux）は nt を見ない: 同じ答えで posix の答えと比べる
+    let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base);
+    bk.apply_os("posix", &ntf, "table");
+    bk.nt = Some(nt.clone());
+    bk.check = true;
+    for (k, v) in &good {
+        bk.note(k, "GET /x", v, &Value::Null);
+    }
+    assert!(finished(bk).is_err(), "posix の形で Windows の答えは落ちる");
+    // Windows の形で焼かない（posix の表を Windows の答えで書き換えない）
+    let mut bk = Bake::with("selftest", "selftest", Mode::BlessScope, vec!["all".into()], Some(t.clone()), &base);
+    bk.apply_os("nt", &ntf, "table");
+    assert!(finished(bk).unwrap_err().contains("Windows では焼きません"));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// Windows で作れない場面の物（unmade）は nt の表と同じ並び: Linux は宣言のどれも作れるので、nt の表に 1 つ書くと「減った」で落ちる。
+/// 測りの記録は違う歩の Windows の答え（got）・作れない物・比べた表の指紋を持つ（tools/bless.py --take-nt が取り込む）
+#[test]
+fn the_unmade_scene_entries_and_the_windows_answers_are_kept() {
+    let base = common::work("bake-nt-unmade");
+    let mut t = table(json!({"k": {"status": 200, "json": {"a": "posix"}}}), json!({"k": "GET /k"}));
+    t["scene"] = json!({"files": {"a.txt": {"blob": "h"}}, "dirs": {}, "links": {}, "blobs": {"h": {"text": "中身"}}});
+    let ntf = base.join("nt.json");
+    let run = |unmade: Value| {
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::write(&ntf, json!({"answers": {}, "posix": {}, "skip": [], "unmade": unmade}).to_string()).unwrap();
+        let mut bk = Bake::with("selftest", "selftest", Mode::Baked, vec![], Some(t.clone()), &base.join("s"));
+        bk.apply_os("nt", &ntf, "table");
+        let _ = bk.oracle("無い台本.py", &[]);
+        bk.note("k", "GET /k", &json!({"status": 200, "json": {"a": "posix"}}), &Value::Null);
+        finished(bk)
+    };
+    assert!(run(json!([])).is_ok());
+    let e = run(json!(["file a.txt"])).unwrap_err();
+    assert!(e.contains("Windows で作れない場面の物") && e.contains("減った"), "{e}");
+    // 測りの記録（表と比べない形）: got・unmade・tableSha・ntSha
+    let out = base.join("measure");
+    let mut bk = Bake::with("selftest", "measured-nt", Mode::Baked, vec![], Some(t.clone()), &base.join("m"));
+    bk.apply_os("nt", &base.join("無い.json"), "measure");
+    bk.measure = Some(out.clone());
+    let _ = bk.oracle("無い台本.py", &[]);
+    bk.note("k", "GET /k", &json!({"status": 200, "json": {"a": "Windows"}}), &Value::Null);
+    assert!(finished(bk).is_ok());
+    let m: Value = serde_json::from_slice(&std::fs::read(out.join("measured-nt.json")).unwrap()).unwrap();
+    assert_eq!(m["differing"][0]["got"], json!({"status": 200, "json": {"a": "Windows"}}), "{m}");
+    assert!(m["unmade"].is_array() && m["tableSha"].is_string() && m["ntSha"].is_string(), "{m}");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// Windows で作れない物の決め（版 3.117.3 の作った後の直し・割れ 1）: 権限は持ち主が読めない・書けない物だけ（0o755・0o644 は数えない）・
+/// 名前付きパイプ・使えない名前（その下の物も）。os の値で選ぶ（posix は何も数えない）。Linux の上で Windows の形で場面を作ると、
+/// 数えた物は作らない
+#[test]
+fn only_what_windows_cannot_express_is_unmade() {
+    use common::bake::{materialize_os, predicted_unmade, windows_bad_name};
+    let scene = |files: Value, dirs: Value| json!({"files": files, "dirs": dirs, "links": {}, "blobs": {"h": {"text": "x"}}});
+    let ok = scene(
+        json!({"a/id": {"blob": "h", "mode": 0o755}, "b.txt": {"blob": "h", "mode": 0o644}, "c": {"blob": "h", "mode": 0o700}}),
+        json!({"a": {"mode": 0o755}, "d": {"mode": 0o775}}),
+    );
+    assert_eq!(predicted_unmade(&ok, "nt"), Vec::<String>::new(), "既定の権限・実行の印だけの場面は 0");
+    let bad = scene(
+        json!({"z.bin": {"blob": "h", "mode": 0o000}, "ro": {"blob": "h", "mode": 0o444}, "pipe": {"fifo": true}, "改行\nの名前.txt": {"blob": "h"},
+               "COM0/x": {"blob": "h"}}),
+        json!({"noread": {"mode": 0o000}, "末尾. ": {}}),
+    );
+    let mut want: Vec<String> = ["mode noread", "dir 末尾. ", "fifo pipe", "file COM0/x", "mode z.bin", "file 改行\nの名前.txt", "mode ro"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    want.sort();
+    assert_eq!(predicted_unmade(&bad, "nt"), want, "読めない・書けない権限・名前付きパイプ・使えない名前");
+    assert_eq!(predicted_unmade(&bad, "posix"), Vec::<String>::new());
+    assert!(
+        windows_bad_name("con.txt")
+            && windows_bad_name("LPT9")
+            && windows_bad_name("a:b")
+            && !windows_bad_name("COM10")
+            && !windows_bad_name("a b")
+    );
+    // Windows の形で作ると、数えた物は作らない（Linux の上で）
+    let base = common::work("bake-unmade-os");
+    let got = materialize_os(&bad, &base, &Ctx::new(&base), "nt");
+    assert_eq!(got, predicted_unmade(&bad, "nt"));
+    assert!(!base.join("pipe").exists() && !base.join("COM0").exists() && base.join("z.bin").exists());
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// 焼いた表の全部の場面を Windows の形の決めで数える: 札が table の本の表はどれも作れない物 0（nt の表が無い本は unmade も空のはず。
+/// 版 3.117.3 の作った後の採点の割れ 1: access の 41 件〈0o755〉を数えて、札が table の access が Windows で必ず落ちる形だった）。
+/// nt の表がある本は、その unmade と同じ並び
+#[test]
+fn every_baked_scene_of_a_table_book_is_made_on_windows() {
+    use common::bake::{baked_dir, nt_dir, predicted_unmade, unpack_table, windows_status};
+    let mut seen = 0;
+    for e in std::fs::read_dir(baked_dir()).unwrap().flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Some(file) = name.strip_suffix(".json") else { continue };
+        if ["books", "settle"].contains(&file) {
+            continue;
+        }
+        let book = file.split('.').next().unwrap();
+        let t = unpack_table(&common::json_keep(&std::fs::read(e.path()).unwrap()).unwrap());
+        let got = predicted_unmade(&t["scene"], "nt");
+        let want: Vec<String> = std::fs::read(nt_dir().join(&name))
+            .ok()
+            .and_then(|b| common::json_keep(&b))
+            .and_then(|n| {
+                n["unmade"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(Value::as_str).filter(|u| !u.starts_with("link ")).map(String::from).collect())
+            })
+            .unwrap_or_default();
+        if windows_status(book) == "table" {
+            assert_eq!(got, want, "札が table の {file}: Windows の形で作れない物");
+            seen += 1;
+        }
+    }
+    assert!(seen >= 20, "札が table の表 {seen}");
+}
+
+/// 写しの様子の比べる形（common::mirror_part）は、写し直したかだけで変わる 2 つの言葉だけをそろえ、ほかの理由はそのまま比べる（版 3.117.3）
+#[test]
+fn the_mirror_reason_settles_only_whether_this_call_copied() {
+    let m = |r: &str| common::mirror_part(&json!({"remote": "x", "stale": false, "unreachable": false, "reason": r}))["reason"].clone();
+    assert_eq!(m("写しを更新しました"), m("元ファイルは変わっていません"));
+    for other in [
+        "",
+        "写せませんでした: x",
+        "共有の元ファイルへ届かないため、前の写しを使い続けます（a: b）",
+        "書き手が公開している途中のため、写すのを見送りました（x）。少し空けて写し直します",
+    ] {
+        assert_eq!(m(other), json!(other), "{other}");
+        assert_ne!(m(other), m("写しを更新しました"), "{other}");
+    }
+}
+
+/// 道の比べ（common::same_path）: 同じ置き場の書き方は同じ・違う置き場は違う（Linux は字のまま。Windows は「/」「\\」・長い名前も）
+#[test]
+fn same_path_is_the_same_place_not_the_same_spelling() {
+    let base = common::work("bake-same-path");
+    let a = base.join("s25").join("share2");
+    std::fs::create_dir_all(&a).unwrap();
+    let t = a.to_string_lossy().into_owned();
+    assert!(common::same_path(&t, &t) && common::same_path(&format!("{t}/"), &t));
+    assert!(!common::same_path(&t, &base.join("s25").join("share").to_string_lossy()), "違う置き場（変異）");
+    if cfg!(windows) {
+        assert!(common::same_path(&t.replace('\\', "/"), &t), "区切りの違い");
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}

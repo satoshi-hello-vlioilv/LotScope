@@ -693,10 +693,10 @@ fn key_of(v: &Tree) -> R<Key> {
 
 /// CM3 の答え → 画面の形（Python の normalize）。答えは serde の値（鍵の順は問わない所）
 pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
-    let Tree::Obj(_) = raw else { return Err(Fail::Cm3("CM3応答の形式が不正です".into())) };
+    let Tree::Obj(_) = raw else { return Err(Fail::Cm3("予定の元の応答の形式が不正です".into())) };
     let status = raw.get("status").cloned().unwrap_or(Tree::Null);
     if status != Tree::Str("SUCCESS".into()) {
-        return Err(Fail::Cm3(format!("CM3応答 status={}", py_str(&status)?)));
+        return Err(Fail::Cm3(format!("予定の元の応答 status={}", py_str(&status)?)));
     }
     let entity = match raw.get("entity") {
         Some(e) if truthy(e) => e.clone(),
@@ -708,7 +708,7 @@ pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
     if entity.get("error").is_some_and(truthy) {
         let m = fix_text(entity.get("errorMessage").unwrap_or(&Tree::Null))?;
         let m = if truthy(&m) { py_str(&m)? } else { "詳細不明".into() };
-        return Err(Fail::Cm3(format!("CM3エラー: {m}")));
+        return Err(Fail::Cm3(format!("予定の元のエラー: {m}")));
     }
     let ts = entity.get("updateTs").cloned().unwrap_or(Tree::Null);
     let update_dt = match ms_to_seconds(&ts) {

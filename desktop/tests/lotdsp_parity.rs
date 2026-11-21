@@ -147,6 +147,12 @@ fn lotdsp_matches_python() {
     for (i, sc) in oracle["direct"].as_array().unwrap().iter().enumerate() {
         let name = sc["name"].as_str().unwrap();
         if sc["watch"] == true {
+            // Windows の表だけの形（版 3.117.3）: 表の宣言の場面は Linux の形（sh の包み）で、Windows の Python と比べる形と同じく
+            // 作り物のブラウザを起こせない（信じるブラウザの名前は msedge.exe・chrome.exe だけ）ので見張りの場面は流さない（nt の表の skip）
+            if cfg!(windows) && !bk.python() {
+                println!("見えない Edge / {name}: 飛ばす（Windows の表だけの形）");
+                continue;
+            }
             if let Some(why) = sc["skipped"].as_str() {
                 // 作り物のブラウザを起こせない環境（Windows の trusted_browser の決まり）だけ。Linux の CI で飛ばしたら落とす
                 if cfg!(unix) {

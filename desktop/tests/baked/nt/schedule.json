@@ -1,0 +1,151 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 schedule の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "schedule",
+ "file": "schedule",
+ "answers": {
+  "https が断られる #0": {
+   "json": {
+    "error": "L-1 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "https が断られる ファイル": {
+   "L-1-4cfbc7.state.json": {
+    "changedAt": null,
+    "checkedAt": "<t>",
+    "code": "L-1",
+    "data": null,
+    "error": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "fetchedAt": null,
+    "gen": 0,
+    "path": null,
+    "resigned": null,
+    "seq": 1,
+    "sig": ""
+   }
+  },
+  "プロキシ越しの 30x の行き先が直で断られる #0": {
+   "json": {
+    "error": "L-1 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "プロキシ越しの 30x の行き先が直で断られる ファイル": {
+   "L-1-4cfbc7.state.json": {
+    "changedAt": null,
+    "checkedAt": "<t>",
+    "code": "L-1",
+    "data": null,
+    "error": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "fetchedAt": null,
+    "gen": 0,
+    "path": null,
+    "resigned": null,
+    "seq": 1,
+    "sig": ""
+   }
+  },
+  "届かない（断られる） #0": {
+   "json": {
+    "error": "L-1 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "届かない（断られる） #1": {
+   "json": {
+    "error": "L-1 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "届かない（断られる） #2": {
+   "json": {
+    "ageHours": null,
+    "at": null,
+    "checkedAt": "<t>",
+    "copiedAt": null,
+    "interval_sec": 60,
+    "kind": "cm3",
+    "mirrored": false,
+    "reason": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "remote": "http://127.0.0.1:1/Cm3SchWeb/#/schapp/cmschview?termkbn=4&setsubi=L-1",
+    "stale": false,
+    "staleHours": 0,
+    "unreachable": true
+   },
+   "status": 200
+  },
+  "届かない（断られる） #4": {
+   "json": {
+    "error": "L-1: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください） / L-2: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください） / L-3: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "届かない（断られる） #6": {
+   "json": {
+    "error": "L-2 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "kind": "cm3"
+   },
+   "status": 502
+  },
+  "届かない（断られる） ファイル": {
+   "L-1-4cfbc7.state.json": {
+    "changedAt": null,
+    "checkedAt": "<t>",
+    "code": "L-1",
+    "data": null,
+    "error": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "fetchedAt": null,
+    "gen": 0,
+    "path": null,
+    "resigned": null,
+    "seq": 4,
+    "sig": ""
+   },
+   "L-2-396d29.state.json": {
+    "changedAt": null,
+    "checkedAt": "<t>",
+    "code": "L-2",
+    "data": null,
+    "error": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "fetchedAt": null,
+    "gen": 0,
+    "path": null,
+    "resigned": null,
+    "seq": 2,
+    "sig": ""
+   },
+   "L-3-70b753.state.json": {
+    "changedAt": null,
+    "checkedAt": "<t>",
+    "code": "L-3",
+    "data": null,
+    "error": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "fetchedAt": null,
+    "gen": 0,
+    "path": null,
+    "resigned": null,
+    "seq": 1,
+    "sig": ""
+   }
+  }
+ },
+ "posix": {
+  "https が断られる #0": "7786997c341a",
+  "https が断られる ファイル": "318f84739cbd",
+  "プロキシ越しの 30x の行き先が直で断られる #0": "7786997c341a",
+  "プロキシ越しの 30x の行き先が直で断られる ファイル": "318f84739cbd",
+  "届かない（断られる） #0": "7786997c341a",
+  "届かない（断られる） #1": "7786997c341a",
+  "届かない（断られる） #2": "7ff7f6567f9c",
+  "届かない（断られる） #4": "e7dffe44e801",
+  "届かない（断られる） #6": "d85938e58b89",
+  "届かない（断られる） ファイル": "a2811d340cda"
+ },
+ "skip": [],
+ "unmade": []
+}

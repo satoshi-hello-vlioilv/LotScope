@@ -6,6 +6,9 @@
 // ④ 設備停止・点検の行に色（sd-stop・sd-inspect）。完了予定の順のとき日付の境に線（sd-daybreak）
 // ⑤ HOT: 設備の札を押すとその設備だけ・釜番の札を押すとその釜番だけ（件数がサーバーと同じ）。帯の釜番の字は帯の中か、帯の上の段で、同じ段の字が重ならない
 // ⑥ 上の段は 1 段（折り返さない）で、横にはみ出さない
+// ⑦ 待っている間の知らせ（版 3.117.3。利用者の報告 2026-11-21: CM1・CM2 を読んでいる間も「CM3 から取っています」としか言わず、CM3 の予定を
+//    読んでいるように見えた）: 答えを遅らせて設備を切り替え、知らせの見出しがいま読んでいる設備の名前を言う・ほかの設備の名前を言わない・
+//    予定の元は見出しでなく下の説明で「予定の元」と言う（CM3 と言わない。利用者の決め 2026-11-21: CM3 は設備の名前）・読み終えたら知らせが消える
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 
@@ -86,6 +89,22 @@ try {
     check(`${v} ⑤ 帯の釜番の字は 8 割以上の帯に出る（帯の中か上の段）`, tl.every((x) => !x.blks || x.labelled / x.blks >= 0.8), tl);
     const hrow = await p.$eval("#llSched .sd-row", (r) => ({ sw: r.scrollWidth, cw: r.clientWidth }));
     check(`${v} ⑥ 上の段がはみ出さない（HOT）`, hrow.sw <= hrow.cw + 1, hrow);
+    // ⑦ 待っている間の知らせは、いま読んでいる設備を言う
+    await p.route("**/api/src/sch?*", async (route) => { await sleep(1500); await route.continue(); });
+    const names = { "L-2": "L-2", "L-3": "L-3", "__HOT__": "HOTコイル作業順", "L-1": "L-1" };
+    for (const [key, name] of Object.entries(names)) {
+      await p.click(`#llEquipBar [data-equip="${key}"]`);
+      await p.waitForFunction(() => { const n = document.querySelector("#llNote"); return n && !n.hidden && n.querySelector("b"); }, null, { timeout: 5000 }).catch(() => {});
+      const note = await p.$eval("#llNote", (n) => ({ shown: !n.hidden, head: n.querySelector("b")?.textContent || "", all: n.textContent, sw: n.scrollWidth, cw: n.clientWidth }));
+      const others = Object.values(names).filter((x) => x !== name && note.head.includes(x));
+      check(`${v} ⑦ 「${name}」を待つ間の知らせの見出しは「${name}」を言い、ほかの設備を言わない`, note.shown && note.head.includes(name) && !others.length && !/CM3/.test(note.head), note);
+      // 利用者の決め 2026-11-21: 予定を配る元は「予定の元」と言い、CM3 とは言わない（CM3 は設備の名前）
+      check(`${v} ⑦ 「${name}」を待つ間の説明は予定の元を「予定の元」と言い（CM3 と言わない）、はみ出さない`,
+        note.all.includes("予定の元") && !/CM3/.test(note.all.replaceAll(name, "")) && note.sw <= note.cw + 1, note);
+      await p.waitForFunction(() => document.querySelectorAll("#llBody tr[data-i]").length > 0, null, { timeout: 20000 }).catch(() => {}); await settle(p);
+      check(`${v} ⑦ 「${name}」を読み終えたら知らせが消える`, await p.$eval("#llNote", (n) => n.hidden), null);
+    }
+    await p.unroute("**/api/src/sch?*");
     check(`${v} 画面のエラーが無い`, !errors.length, errors);
     await p.context().close();
   }

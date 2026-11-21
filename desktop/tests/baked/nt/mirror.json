@@ -1,0 +1,65 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 mirror の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "mirror",
+ "file": "mirror",
+ "answers": {
+  "#03": {
+   "at": true,
+   "error": "WinError 2 The system cannot find the file specified",
+   "fails": 1,
+   "reason": "共有の元ファイルへ届かず、写しもまだありません（SIKADEF.sqlite3: WinError 2 The system cannot find the file specified）",
+   "remote": "<D>/share/SIKADEF.sqlite3",
+   "unreachable": true,
+   "updated": false
+  },
+  "#24": {
+   "at": true,
+   "error": "WinError 2 The system cannot find the file specified",
+   "fails": 1,
+   "reason": "共有の元ファイルへ届かないため、前の写しを使い続けます（SIKADEF.sqlite3: WinError 2 The system cannot find the file specified）",
+   "remote": "<D>/share/SIKADEF.sqlite3",
+   "unreachable": true,
+   "updated": false
+  },
+  "#25": {
+   "at": true,
+   "error": "WinError 2 The system cannot find the file specified",
+   "fails": 2,
+   "reason": "共有の元ファイルへ届かないため、前の写しを使い続けます（SIKADEF.sqlite3: WinError 2 The system cannot find the file specified）",
+   "remote": "<D>/share/SIKADEF.sqlite3",
+   "unreachable": true,
+   "updated": false
+  },
+  "#26": {
+   "ageHours": 10.0,
+   "at": true,
+   "checkedAt": true,
+   "copiedAt": true,
+   "interval_sec": 60,
+   "mirrored": true,
+   "reason": "共有の元ファイルへ届かないため、前の写しを使い続けます（SIKADEF.sqlite3: WinError 2 The system cannot find the file specified）",
+   "remote": "<D>/share/SIKADEF.sqlite3",
+   "stale": false,
+   "staleHours": 36.0,
+   "unreachable": true
+  },
+  "#36": {
+   "at": true,
+   "error": "WinError 3 The system cannot find the path specified",
+   "fails": 1,
+   "reason": "共有の元ファイルへ届かないため、前の写しを使い続けます（x.sqlite3: WinError 3 The system cannot find the path specified）",
+   "remote": "<D>/nowhere/x.sqlite3",
+   "unreachable": true,
+   "updated": false
+  }
+ },
+ "posix": {
+  "#03": "cad46c055f95",
+  "#24": "4b2f715255a1",
+  "#25": "f0ea2a5bd1f5",
+  "#26": "6cc79b2365dc",
+  "#36": "5bb8dca22bb7"
+ },
+ "skip": [],
+ "unmade": []
+}

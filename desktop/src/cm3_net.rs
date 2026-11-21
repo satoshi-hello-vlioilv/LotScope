@@ -73,21 +73,21 @@ impl Kind {
 /// 種類 → 言葉（detail は os・proxy_refused・text の中身と、proxy_unreachable・proxy_cut・proxy_bad のプロキシの名前:番号。note は届かない形に足す一言）
 pub fn message(kind: Kind, detail: &str, note: &str) -> String {
     let body = match kind {
-        Kind::Timeout => format!("CM3の応答がタイムアウトしました{HINT}"),
-        Kind::Os => format!("CM3に接続できません: {detail}{HINT}"),
-        Kind::Dns => format!("CM3に接続できません: サーバーの名前を引けません{HINT}"),
-        Kind::TlsUntrusted => format!("CM3に接続できません: 証明書を確かめられません（信頼できる発行元の証明書ではありません）{HINT}"),
-        Kind::TlsName => format!("CM3に接続できません: 証明書の名前が URL の名前と合いません{HINT}"),
-        Kind::TlsNot => "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）".to_string(),
-        Kind::TlsOther => format!("CM3に接続できません: 暗号の通信（TLS）を始められません{HINT}"),
-        Kind::ProxyRefused => format!("CM3に接続できません: プロキシが中継を断りました（{detail}）{HINT}"),
+        Kind::Timeout => format!("予定の元の応答がタイムアウトしました{HINT}"),
+        Kind::Os => format!("予定の元に接続できません: {detail}{HINT}"),
+        Kind::Dns => format!("予定の元に接続できません: サーバーの名前を引けません{HINT}"),
+        Kind::TlsUntrusted => format!("予定の元に接続できません: 証明書を確かめられません（信頼できる発行元の証明書ではありません）{HINT}"),
+        Kind::TlsName => format!("予定の元に接続できません: 証明書の名前が URL の名前と合いません{HINT}"),
+        Kind::TlsNot => "予定の元に接続できません: https で答えない口です（URL の http と https を確かめてください）".to_string(),
+        Kind::TlsOther => format!("予定の元に接続できません: 暗号の通信（TLS）を始められません{HINT}"),
+        Kind::ProxyRefused => format!("予定の元に接続できません: プロキシが中継を断りました（{detail}）{HINT}"),
         Kind::ProxyAuth => {
-            "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string()
+            "予定の元に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）".to_string()
         }
-        Kind::ProxyUnreachable => format!("CM3に接続できません: プロキシ（{detail}）に届きません{HINT}"),
-        Kind::ProxyCut => format!("CM3に接続できません: プロキシ（{detail}）には届きましたが、その先で接続が切れました{HINT}"),
-        Kind::ProxyBad => format!("CM3に接続できません: プロキシ（{detail}）の答えを読めません{HINT}"),
-        Kind::Text => format!("CM3に接続できません: {detail}"),
+        Kind::ProxyUnreachable => format!("予定の元に接続できません: プロキシ（{detail}）に届きません{HINT}"),
+        Kind::ProxyCut => format!("予定の元に接続できません: プロキシ（{detail}）には届きましたが、その先で接続が切れました{HINT}"),
+        Kind::ProxyBad => format!("予定の元に接続できません: プロキシ（{detail}）の答えを読めません{HINT}"),
+        Kind::Text => format!("予定の元に接続できません: {detail}"),
     };
     if kind.reach() {
         format!("{body}{note}")

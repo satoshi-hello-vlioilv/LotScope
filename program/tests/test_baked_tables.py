@@ -14,6 +14,10 @@ bless = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bless)
 
 
+# 凍らせた Python の写し（program/tests/legacy/3.117.3。版 3.117.3。tools/freeze-legacy.py が 1 回だけ作った）の MANIFEST.json の sha256。
+# 写しのファイルの sha256 は MANIFEST.json が持ち、MANIFEST.json そのものの指紋をここに書く（写しと MANIFEST.json を一緒に書き換えても落ちる）
+LEGACY_MANIFEST_SHA = "87e7503d7cdf71d9864c1a87c6410f3b6306f00ea23f806bcba9b4cc8ce0b3bc"
+
 # 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
 BOOKS_3117 = {"3.117.0": ["equipgroups", "lotdsp"], "3.117.1": ["schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
 
@@ -283,6 +287,189 @@ class BakedTables(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_no_books_means_no_cargo(self):
+        """流す本が 0（札が measure の本が 0 など）なら cargo を流さない（版 3.117.3 の 3 回目の Windows の CI: 絞り無しの cargo test を流して
+        20 分で切られた）。cargo に試験 0 を渡すと断る"""
+        import contextlib
+        import io
+        calls = []
+        import copy
+        old_cargo, old_books = bless.cargo, copy.deepcopy(bless.BOOKS)
+        try:
+            bless.cargo = lambda tests, env, filt=None: calls.append(tests) or 0
+            for b in bless.BOOKS.values():
+                b["windows"] = "table"
+            out = io.StringIO()
+            old_argv = sys.argv
+            sys.argv = ["bless.py", "--no-python", "--all", "--windows", "measure", "--skip-test", "route_reach"]
+            try:
+                with contextlib.redirect_stdout(out):
+                    bless.main()
+            finally:
+                sys.argv = old_argv
+            self.assertEqual(calls, [], "札 measure の本 0 で cargo を流した")
+            self.assertIn("流す本がありません", out.getvalue())
+        finally:
+            bless.cargo = old_cargo
+            bless.BOOKS.clear()
+            bless.BOOKS.update(old_books)
+        with self.assertRaises(ValueError):
+            old_cargo([], {})
+
+    def test_the_measure_books_are_told(self):
+        """札が measure の本（Windows の表だけの形でまだ比べていない本）は --check の知らせに数と名前が出る（版 3.117.3 の作った後の直し・割れ 3。
+        段 ④ の入口の条件 2 は 0 になるまで満たしていない）"""
+        left = bless.measure_books()
+        want = sorted(b for b, v in bless.BOOKS.items() if v["phase"] in bless.PHASES and v.get("windows") != "table")
+        self.assertEqual(left, want)
+        told = bless.windows_notice()
+        if left:
+            self.assertIn(f"札が measure の本 {len(left)}", told)
+            self.assertTrue(all(b in told for b in left))
+        else:
+            self.assertIsNone(told)
+        self.assertFalse(any(x.startswith("札が") for x in bless.notices()), "表ごとの知らせ（表の名前: …）とは別の欄")
+
+    def test_the_frozen_python_copy_is_unchanged(self):
+        """凍らせた Python の写し（版 3.117.3。段 ④ の入口の条件 3）: 中身が MANIFEST.json と同じ・MANIFEST.json の指紋が試験に書いた物と同じ・
+        凍らせた試験が呼ぶ答え合わせ役がそろう・単体の試験の discover に入らない（写しの置き場は package でない）。変異: 1 字変えると言う"""
+        import hashlib
+        spec = importlib.util.spec_from_file_location("freeze_legacy", PROGRAM / "tools" / "freeze-legacy.py")
+        fl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fl)
+        self.assertEqual(fl.check(), [])
+        self.assertEqual(hashlib.sha256((fl.DEST / fl.MANIFEST).read_bytes()).hexdigest(), LEGACY_MANIFEST_SHA,
+                         "MANIFEST.json が書き換わった（凍らせた写しは 1 回だけ作る）")
+        for name in fl.FROZEN_SCRIPTS:
+            self.assertTrue((fl.DEST / "tests" / f"{name}.py").is_file(), name)
+        self.assertFalse((fl.DEST.parent / "__init__.py").exists() or (fl.DEST / "__init__.py").exists(), "写しの置き場は package にしない")
+        self.assertFalse(any(p.name.startswith("test_") for p in fl.DEST.rglob("*.py")), "写しに単体の試験を入れない")
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            shutil.copytree(fl.DEST, tmp / "copy")
+            p = tmp / "copy" / "app" / "version.py"
+            p.write_bytes(p.read_bytes() + b"# x\n")
+            (tmp / "copy" / "tests" / "seeds_oracle.py").unlink()
+            (tmp / "copy" / "増えた.py").write_text("", encoding="utf-8")
+            bad = fl.check(tmp / "copy")
+            self.assertTrue(any("写しが変わった: app/version.py" in x for x in bad), bad)
+            self.assertTrue(any("写しから消えた: tests/seeds_oracle.py" in x for x in bad), bad)
+            self.assertTrue(any("写しに増えた: 増えた.py" in x for x in bad), bad)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_the_windows_overlay_is_checked_against_the_posix_answers(self):
+        """Windows の上書きの表（tests/baked/nt/<表>.json。版 3.117.3）: 上書きした posix の答えの指紋が今の posix の答えと同じか。
+        変異: posix の答えを 1 字変えると古いと言う・posix と同じ上書き・表に無い流さない歩・流さない歩の上書きも言う"""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            (tmp / "nt").mkdir()
+            posix = {"book": "x", "file": "x", "answers": {"a": {"status": 200, "json": {"e": "Errno 2"}}, "b": {"status": 200}}}
+            (tmp / "x.json").write_text(json.dumps(posix, ensure_ascii=False), encoding="utf-8")
+            win = {"status": 200, "json": {"e": "WinError 2"}}
+            nt = {"book": "x", "file": "x", "answers": {"a": win}, "posix": {"a": bless.nt_print(posix["answers"]["a"])}, "skip": ["b"], "unmade": ["link s/l"]}
+
+            def bad(n=None, p=None):
+                (tmp / "nt" / "x.json").write_text(json.dumps(n or nt, ensure_ascii=False), encoding="utf-8")
+                (tmp / "x.json").write_text(json.dumps(p or posix, ensure_ascii=False), encoding="utf-8")
+                return bless.check_nt(tmp)[0]
+            self.assertEqual(bad(), [])
+            self.assertGreater(bless.check_nt(tmp)[1]["x"], 0, "大きさを本に足す")
+            changed = json.loads(json.dumps(posix))
+            changed["answers"]["a"]["json"]["e"] = "Errno 3"
+            self.assertTrue(any("上書きの元の posix の答えが変わった" in x for x in bad(p=changed)), "posix の答えの 1 字")
+            same = {**nt, "answers": {"a": posix["answers"]["a"]}}
+            self.assertTrue(any("上書きが posix の答えと同じ" in x for x in bad(n=same)))
+            self.assertTrue(any("表に無い" in x for x in bad(n={**nt, "skip": ["b", "無い"]})))
+            self.assertTrue(any("流さない歩に上書き" in x for x in bad(n={**nt, "skip": ["a"]})))
+            self.assertTrue(any("unmade がありません" in x for x in bad(n={k: v for k, v in nt.items() if k != "unmade"})))
+            runner = {**nt, "answers": {"a": {"status": 200, "json": {"e": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\da-fs-2636\\x"}}}}
+            self.assertTrue(any("Windows の runner の字" in x for x in bad(n=runner)), "流すたびに変わる runner の道")
+            # 場面の外の本物の道の中身（runner の C:\\ の一覧。版 3.117.3 の 3 回目の CI）は持たない。場面の中（@WORK）の一覧は持ってよい
+            drive = {**nt, "answers": {"a": {"status": 200, "json": {"asked": "C:\\", "entries": [{"name": "Windows", "mtime": "2026-11-17T02:41"}]}}}}
+            self.assertTrue(any("場面の外の本物の道 C:\\ の中身 1 件" in x for x in bad(n=drive)), bad(n=drive))
+            scene = {**nt, "answers": {"a": {"status": 200, "json": {"asked": "@WORK/fs/tree", "entries": [{"name": "a"}]}}}}
+            self.assertFalse(any("場面の外" in x for x in bad(n=scene)))
+            self.assertEqual(bless.outside_listings({"k": {"path": "/", "entries": [1]}, "j": {"path": "/x", "entries": []}}), [("k", "/", 1)])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_take_nt_reads_the_job_log_and_turns_the_book_to_table(self):
+        """bless.py --take-nt（版 3.117.3）: 仕事の記録の詰めた行（measure-z）から nt の表を書き、本の表のどれもが取り込めた本の札を table にする。
+        今の表で取った記録だけ（tableSha）・終わりまで流れた記録だけ・posix と同じ答えは上書きしない"""
+        import contextlib
+        import io
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            baked = tmp / "baked"
+            baked.mkdir()
+            posix = {"book": "x", "file": "x", "answers": {"a": {"status": 200, "json": {"e": "Errno 2"}}, "b": {"status": 200}, "c": {"status": 1}}}
+            (baked / "x.json").write_text(json.dumps(posix, ensure_ascii=False), encoding="utf-8")
+            (baked / "x.part.json").write_text(json.dumps({**posix, "file": "x.part"}, ensure_ascii=False), encoding="utf-8")
+            books = baked / "books.json"
+            books.write_text(json.dumps({"books": {"x": {"phase": bless.PHASES[0], "windows": "measure", "tests": ["x_parity"]}}}), encoding="utf-8")
+            win = {"status": 200, "json": {"e": "WinError 2"}}
+
+            def rec(name, **kw):
+                return {"file": name, "book": "x", "os": "windows", "form": "table", "finished": True, "steps": 2, "tableSteps": 3,
+                        "differing": [{"key": "a", "route": "GET /a", "diff": "…", "got": win},
+                                      {"key": "c", "route": "GET /c", "diff": "…", "got": {"status": 1}}],
+                        "missing": ["b"], "unmade": ["link s/l"], "tableSha": bless.file_sha(baked / f"{name}.json"), "ntSha": "", **kw}
+            meas = tmp / "m"
+            meas.mkdir()
+            (meas / "x.json").write_text(json.dumps(rec("x"), ensure_ascii=False), encoding="utf-8")
+            (meas / "x.part.json").write_text(json.dumps(rec("x.part", tableSha="別の表"), ensure_ascii=False), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                bless.emit([meas])
+            log = tmp / "job.log"
+            log.write_text("\n".join("2026-11-20T20:45:19.0Z " + line for line in out.getvalue().splitlines()), encoding="utf-8")
+            self.assertIn(bless.JSON_Z, log.read_text(encoding="utf-8"))
+            taken, refused, flipped = bless.take_nt([log], baked=baked, books_json=books)
+            self.assertEqual(taken, ["x"])
+            self.assertTrue(any("x.part: 記録は別の表で取った" in r for r in refused), refused)
+            self.assertEqual(flipped, [], "本の表の 1 つ（x.part）が取り込めないので札は measure のまま")
+            n = json.loads((baked / "nt" / "x.json").read_text(encoding="utf-8"))
+            self.assertEqual(n["answers"], {"a": win}, "posix と同じ答え（c）は上書きしない")
+            self.assertEqual((n["skip"], n["unmade"]), (["b"], ["link s/l"]))
+            self.assertEqual(n["posix"], {"a": bless.nt_print(posix["answers"]["a"])})
+            self.assertEqual(bless.check_nt(baked)[0], [])
+            # 部分の表も今の表で取り直すと、本の札が table に（x は nt の表ができたので ntSha が要る）
+            (meas / "x.part.json").write_text(json.dumps(rec("x.part"), ensure_ascii=False), encoding="utf-8")
+            (meas / "x.json").write_text(json.dumps(rec("x", ntSha=bless.file_sha(baked / "nt" / "x.json"), differing=[]), ensure_ascii=False), encoding="utf-8")
+            taken, refused, flipped = bless.take_nt([meas], baked=baked, books_json=books)
+            self.assertEqual((sorted(taken), refused, flipped), (["x", "x.part"], [], ["x"]))
+            self.assertEqual(json.loads(books.read_text(encoding="utf-8"))["books"]["x"]["windows"], "table")
+            self.assertEqual(json.loads((baked / "nt" / "x.json").read_text(encoding="utf-8"))["answers"], {"a": win}, "前の上書きは残す")
+            # 書く前に確かめる（版 3.117.3 の作った後の直し・割れ 3）: runner の道・ポート・ファイルID が残る記録は断り、何も書かない
+            nt_before = (baked / "nt" / "x.json").read_bytes()
+            books_before = books.read_bytes()
+            for leak in ("C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\da-x-1\\y", "http://127.0.0.1:51234/x", "2049:1234567"):
+                one = tmp / "one"
+                one.mkdir(exist_ok=True)
+                (one / "x.json").write_text(json.dumps(rec("x", ntSha=bless.file_sha(baked / "nt" / "x.json"), differing=[
+                    {"key": "a", "route": "GET /a", "diff": "…", "got": {"status": 200, "json": {"e": leak, "ファイルID": leak}}}]), ensure_ascii=False), encoding="utf-8")
+                taken, refused, flipped = bless.take_nt([one], baked=baked, books_json=books)
+                self.assertTrue(any("x: 記録に測った PC の指紋が残る" in r for r in refused), (leak, refused))
+                self.assertEqual(((baked / "nt" / "x.json").read_bytes(), books.read_bytes()), (nt_before, books_before), leak)
+            # 書いた後の確かめ（check_nt）が落ちたら、前の中身に戻して札も替えない（表に無い歩を流さない歩に書いた記録）
+            books.write_text(json.dumps({"books": {"x": {"phase": bless.PHASES[0], "windows": "measure", "tests": ["x_parity"]}}}), encoding="utf-8")
+            books_before = books.read_bytes()
+            for nm in ("x", "x.part"):
+                ntf = baked / "nt" / f"{nm}.json"
+                (meas / f"{nm}.json").write_text(json.dumps(rec(nm, ntSha=bless.file_sha(ntf), missing=["b", "無い歩"]), ensure_ascii=False), encoding="utf-8")
+            taken, refused, flipped = bless.take_nt([meas], baked=baked, books_json=books)
+            self.assertEqual((taken, flipped), ([], []))
+            self.assertTrue(any("何も変えていません" in r and "無い歩" in r for r in refused), refused)
+            self.assertEqual(((baked / "nt" / "x.json").read_bytes(), books.read_bytes()), (nt_before, books_before))
+            self.assertEqual(bless.measure_books(books), ["x"], "札が measure の本の名前")
+            # 終わりまで流れなかった記録・got の無い前の記録は取り込まない
+            for bad, why in ((rec("x", finished=False), "終わりまで流れなかった"), (rec("x", differing=[{"key": "a", "diff": "…"}]), "got が無い")):
+                (meas / "x.json").write_text(json.dumps({**bad, "ntSha": bless.file_sha(baked / "nt" / "x.json")}, ensure_ascii=False), encoding="utf-8")
+                self.assertTrue(any(why in r for r in bless.take_nt([meas], baked=baked, books_json=books)[1]), why)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_the_measure_summary_names_the_tables_without_a_record(self):
         """測りのまとめは、焼いた表の一覧と比べて記録の無い表を名前で出す（版 3.117.0 の作った後の採点の割れ 3: 前は記録のある表だけを数え、
         段が上限で切れた・試験が Bake を開く前に落ちた表は、計の「違う歩 0」の側に黙って抜けた）。流さなかった試験（--skip-test）だけが焼く本の表は数えない"""
@@ -305,11 +492,20 @@ class BakedTables(unittest.TestCase):
                 return out.getvalue()
             self.assertIn(f"表 {len(want)} つ・歩 {len(want)}・焼いた表（posix）と違う歩 0", summary())
             self.assertIn("・記録の無い表 0（", summary())
-            (tmp / "lotdsp.json").unlink()
-            text = summary()
-            self.assertIn(f"表 {len(want) - 1} つ", text)
-            self.assertIn("・記録の無い表 1（lotdsp）", text)
-            self.assertIn("・記録の無い表 0（", summary(skip=bless.BOOKS["lotdsp"]["tests"]), "流さなかった試験の表は数えない")
+            # 表だけの形の記録が無いと数えるのは札が measure の本の表だけ（札が table の本は Windows で表と比べて落とすので記録を書かない。版 3.117.3）
+            one = {b: [n for n, bk in bless.tables().items() if bk == b] for b in bless.BOOKS}
+            tabled = next(b for b in sorted(one) if len(one[b]) == 1 and bless.BOOKS[b].get("windows") == "table")
+            (tmp / f"{tabled}.json").unlink()
+            self.assertIn("・記録の無い表 0（", summary(), f"札が table の {tabled} の記録は無くてよい")
+            (tmp / f"{tabled}.json").write_text(json.dumps({"file": tabled, "os": "windows", "form": "table", "finished": True, "steps": 1,
+                                                             "missing": [], "differing": []}), encoding="utf-8")
+            gone = next((b for b in bless.measure_books() if len(one.get(b, [])) == 1), None)
+            if gone:
+                (tmp / f"{gone}.json").unlink()
+                text = summary()
+                self.assertIn(f"表 {len(want) - 1} つ", text)
+                self.assertIn(f"・記録の無い表 1（{gone}）", text)
+                self.assertIn("・記録の無い表 0（", summary(skip=bless.BOOKS[gone]["tests"]), "流さなかった試験の表は数えない")
             for p in tmp.glob("*.json"):
                 p.unlink()
             self.assertIn(f"記録の無い表 {len(want)}", summary())
@@ -466,7 +662,7 @@ class BakedTables(unittest.TestCase):
             self.assertEqual([x for x in bless.check(tmp) if "名前を引く係" in x], [])
             for word in ("[Errno -2] Name or service not known", "[Errno -3] Temporary failure in name resolution"):
                 t = json.loads((tmp / "builder.json").read_text(encoding="utf-8"))
-                t["answers"]["x"] = {"error": f"CM3に接続できません: {word}"}
+                t["answers"]["x"] = {"error": f"予定の元に接続できません: {word}"}
                 (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
                 self.assertTrue(any("builder: PC の名前を引く係" in x for x in bless.check(tmp)), word)
         finally:
