@@ -2639,6 +2639,23 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 3. 凍らせる Python の写しがある（3.117.3 に 1 回だけ写す）→ **3.117.3 で満たした**（`program/tests/legacy/3.117.3`）
 4. ③-6 が現場の PC で 1 回通った（利用者の確認。3.117.1 を配った後）
 
+**段 ④ の後の順**（利用者の決め 2026-11-21「片付けを先にして」。前の順は ④ → JSON の列の展開 → ⑤ → 残りの改良）:
+
+1. **④ 版 3.118.0**: Python を外す（窓が全部の道を答える。凍らせた Python の写しは、この版の間だけ、凍らせた試験 10 本と keep の本の相手に使う）
+2. **⑤ 不要になったファイルの片付け**（④ の次の版。ここで片付ける物の一覧はこの 1 か所）:
+   - program/app（画面の static・templates は desktop/ui へ移してから消す）
+   - 窓の sidecar（Python を起こす係）と、Python に任せる道（任せる歩の口・delegates の予算・route_reach の中身へ回す当たり）
+   - 答え合わせ役 36 本（program/tests/*_oracle.py。焼いた表と、人の事例の表〈tests/fixtures/*_cases.json〉・独立の答え〈tools/*-truth.py〉は残す）
+   - Python の中身だけを見ていた試験（program/tests の app を import する試験）
+   - 凍らせた写し program/tests/legacy/3.117.3 と凍らせた試験 10 本・keep の本（share_reader）・`TPA_FROZEN_PY` の口
+   - build.rs が組むたびに流す program/app/app_icon.py（絵を焼いた形へ）
+   - CI の Python の段（ci.yml の py-tests・desktop.yml の Windows の Python の試験）と、同梱の Python を作る手順
+   - 古い採点の記録（利用者の決め 2026-11-21「古い採点の記録も消してよいです」）: program/tools/ui-proposals/ の過去の案の定義と採点のファイル。
+     採点の道具（ui_score.py・ui-variants.mjs・ui-check.mjs など）と置き場そのものは、これからの改良で使うので残す。消すときは、記録を名指ししている
+     試験と文書（CLAUDE.md・RUST_PORT_PLAN.md）も一緒に直す。版 3.117.3 では消さない（3.117.3 の採点のファイルは今までどおり置く）
+   - CLAUDE.md を短くする（消した物の評価関数の行を外す）
+3. **改良 7 件**（⑤ の後。最初は JSON の列の展開）
+
 #### ① Windows の仕事を 2 つに割った（`.github/workflows/desktop.yml`）
 
 1 つの仕事 windows は約 80 分で、上限 90 分に余りが約 10 分しか無かった（PR #116: cargo test 40.5 分〈route_reach 1,120 秒〉・release の組み立て 6 分・
@@ -3026,7 +3043,8 @@ posix の表を焼き直して、**上書きした歩の** posix の答えが変
 
 #### ⑤ 凍らせる Python の写し（first_fixes 16）
 
-`program/tests/legacy/3.117.3/`（`python program/tools/freeze-legacy.py` が 1 回だけ作った。既にあれば止まる）。中身は program と同じ形で、app/（static/ を除く）・
+`program/tests/legacy/3.117.3/`（`python program/tools/freeze-legacy.py` が作る。既にあれば止まる。「1 回だけ」は「この版 3.117.3 の最後の形で 1 回」の意味:
+この版の途中で app を変えたとき〈予定の元の言葉〉は消して作り直し、試験に書いた sha256 も替えた）。中身は program と同じ形で、app/（static/ を除く）・
 上の段の *.py・config/・data/・tests/ の答え合わせ役のうち凍らせた試験が呼ぶ 6 本（share_reader・masters・mirror・place・schedule・seeds の oracle）と
 import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture・equipgroups_oracle・fakes_*・lotdsp_samples）・事例の表と作り物の証明書。125 ファイル・2.75 MB。
 ファイルごとの sha256 は `MANIFEST.json`、その指紋は `tests/test_baked_tables.py` の `LEGACY_MANIFEST_SHA`（git の印では代えない）。
@@ -3035,8 +3053,9 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
   tests/ と置き場を流す（標準の部品だけの台本〈-I〉は program のまま）。`bake::frozen_python` は `TPA_NO_PYTHON=1` でも `TPA_FROZEN_PY=1` なら流す。
   `bless.py --no-python --frozen` がこの形。**確かめ**: `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で凍らせた 10 試験（appsettings_cases 1・masters_parity 1・
   mirror_parity 2・place_parity 1・schedule_parity 2・seeds_parity 3）が全部通った。写しの master_store.py に 1 行足すと seeds_parity の凍らせた試験が落ちた。
-- **④ での使い方**: program/app を消す版で、CI の Rust の試験を `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で流す（凍らせた試験と keep の本は写しを相手に、ほかは表と比べる）。
-  配布が終わった版（前の版の PC が残っていない）で、凍らせた試験・keep の本・写しを一緒に消す。写しの app が読む設定・マスタの既定は写しの config・data
+- **④ での使い方**: program/app を消す版（3.118.0）で、CI の Rust の試験を `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で流す（凍らせた試験と keep の本は写しを相手に、ほかは表と比べる）。
+  写しを使うのは ④ の版 3.118.0 の間だけで、次の ⑤ の版（片付け。利用者の決め 2026-11-21 で改良より先）で、凍らせた試験・keep の本・写しを一緒に消す
+  （前は「配布が終わった版で消す」だった）。写しの app が読む設定・マスタの既定は写しの config・data
   （program の今の物ではない）。
 - lint とほかの確かめとの関わり: ruff は写しを範囲から外した（`program/ruff.toml` の `extend-exclude`。理由: 書き換えない写しなので、ruff の版が上がって
   決まりが増えても直さない＝指紋が変わらない）。compileall は写しも確かめる（Python の版が上がって読めなくなれば凍らせた試験も流れないので、早く知る）。

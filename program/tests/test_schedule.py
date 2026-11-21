@@ -380,7 +380,7 @@ class OneKeeper(unittest.TestCase):
         [t.start() for t in ts]
         [t.join() for t in ts]
         self.assertEqual(len(calls), 1, "取りに行くのは 1 回")
-        self.assertEqual(errs, ["CM3の応答がタイムアウトしました"] * 4)
+        self.assertEqual(errs, ["予定の元の応答がタイムアウトしました"] * 4)
         self.assertLess(time.monotonic() - t0, 1.2)
         # 続けて来た（待っていない）問い合わせは取り直す（失敗を覚える秒数は利用者の決め。今の答えのまま覚えない）
         with self.assertRaises(cm3_schedule.Cm3Error):
