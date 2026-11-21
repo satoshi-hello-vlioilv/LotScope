@@ -92,6 +92,9 @@
      api: 一覧の問い合わせの頭（/slicer・/source・/refresh も同じ頭）。params: どの設備か（作業実績だけ）。
      scope(表): 覚えの範囲。target(表): 表示列の対象。owns(範囲): その元の範囲か（書き出しの「すべての表」を元ごとにする）。 */
   const equipName = (k) => ((S && S.equips || []).find((e) => e.key === k) || {}).name || "";
+  /* 待ちの知らせの見出し（1 か所。版 3.117.3）: 設備を選ぶ元（作業実績・スケジュール）は「設備の元」と、いま読んでいる設備を言う。
+     前は元の名前だけで、スケジュールは「スケジュールを CM3 から取っています…」としか言わず、CM1・CM2 を読んでいても CM3 を読んでいるように見えた（利用者の報告 2026-11-21） */
+  const waitHead = (verb = S.src.waitVerb) => { const e = equipName(S.equip); return `${e ? `${e}の` : ""}${S.src.waitNoun}を${verb}…`; };
   let lotJoined = false;            // 品質データに結合があるか（defineSources が置く）
   let GROUPS = {};                  // 見出しのグループのタブに並ぶデータ元（グループ名 → 並び。「マスタ」も。版 3.53.0・3.54.0）
   const joinSigs = {};              // データ元ごとの結合の決まり（変わったら、開いている一覧を引き直す）
@@ -104,7 +107,7 @@
       loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
       settingsKey: "lot_list.", settingsTab: "sources", settingsOpen: "lot", settingsLabel: "データ元を開く",
       settingsTip: "元ファイルの場所・名前を「マスタ管理」の「データ元」で直します",
-      remoteHint: "（設定 lot_list.source）", reading: "品質データを読んでいます…",
+      remoteHint: "（設定 lot_list.source）", waitNoun: "品質データ", waitVerb: "読んでいます",
       firstNote: "初めて開いたときは、共有の元ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: "最近の異常ロットは一覧に出ません。",
     },
@@ -117,7 +120,7 @@
       saveTable: (t) => { const m = store.get(KEY.workTable, {}); if (t) m[S.equip] = t; else delete m[S.equip]; store.set(KEY.workTable, m); },
       settingsKey: "work_log.", settingsTab: "sources", settingsOpen: "work", settingsLabel: "データ元の実績を開く",
       settingsTip: "作業実績のフォルダ・設備（どのファイルを・表示するか）を「マスタ管理」の「データ元」の「実績」で確かめます",
-      remoteHint: "（作業実績のフォルダ）", reading: "作業実績を読んでいます…",
+      remoteHint: "（作業実績のフォルダ）", waitNoun: "作業実績", waitVerb: "読んでいます",
       firstNote: "初めて開いた設備は、共有の実績ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: "最近の作業実績は一覧に出ません。",
     },
@@ -135,7 +138,7 @@
       saveTable: (t) => { const m = store.get(KEY.srcTable, {}); if (t) m[k] = t; else delete m[k]; store.set(KEY.srcTable, m); },
       settingsKey: `sources.${k}`, settingsTab: "sources", settingsOpen: k, settingsLabel: "データ元を開く",
       settingsTip: `${name}の場所（共有のファイル）を「マスタ管理」の「データ元」で直します`,
-      remoteHint: "（データ元）", reading: `${name}を読んでいます…`,
+      remoteHint: "（データ元）", waitNoun: name, waitVerb: "読んでいます",
       firstNote: "初めて開いたときは、共有のファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: `最近の${name}は一覧に出ません。`,
     };
@@ -151,8 +154,9 @@
       loadTable: () => "", saveTable: () => {},           // 表は設備で決まる（設備は予定、HOT コイル作業順は HOT）
       settingsKey: "schedule.", settingsTab: "sources", settingsOpen: def.key, settingsLabel: "データ元を開く",
       settingsTip: "CM3 の場所・設備・仕掛との結合を「マスタ管理」の「データ元」で直します",
-      remoteHint: "（CM3）", reading: `${name}を CM3 から取っています…`,
-      firstNote: "CM3 から設備の作業予定を取り、仕掛と突き合わせています（数秒）。",
+      // 待ちの知らせの見出しは、いま読んでいる設備を言う（waitHead）。予定の元の名前（CM3）は設備の名前と紛れるので、見出しに入れず下の説明で言う
+      remoteHint: "（CM3）", waitNoun: name, waitVerb: "取っています",
+      firstNote: "予定の元（CM3）から作業予定を取り、仕掛と突き合わせています（数秒）。",
       staleWhat: "",
     };
   }
@@ -1623,7 +1627,7 @@
       if (waitingNow()) {   // 読み込みを待っている（写している・設備を切り替えた直後に一時的に読めない）。「読めませんでした」とは言わない
         const copying = S.errorKind === "copying", sec = Math.round((Date.now() - (S.failSince || Date.now())) / 1000);
         note.setAttribute("role", "status");
-        note.innerHTML = `<b class="ll-wait-h"><i class="wait-spin" aria-hidden="true"></i>${esc(equipName(S.equip) || S.src.title)}の${esc(S.src.title)}を読み込んでいます…</b>`
+        note.innerHTML = `<b class="ll-wait-h"><i class="wait-spin" aria-hidden="true"></i>${esc(waitHead("読み込んでいます"))}</b>`
           + `<span class="ll-wait-why">${copying ? "共有の実績ファイルを手元へ写しています。写し終えると一覧が出ます（大きいファイルは数十秒）。"
             : "設備の登録と実績ファイルを確かめています。見つかりしだい開きます。"}${sec >= 3 ? `（${sec} 秒）` : ""}</span>`
           + `<small class="ll-wait-detail">${esc(S.error)}</small>${from}`;
@@ -1805,7 +1809,7 @@
     // まだ1行も無いまま待っているとき（初めて開いた＝共有から写している最中）は、何を待っているかを言う
     const note = $("#llNote");
     if (S.loading && !S.rows.length && !S.error && note) {
-      note.innerHTML = `<b>${esc(S.src.reading)}</b><br>${esc(S.src.firstNote)}`;
+      note.innerHTML = `<b>${esc(waitHead())}</b><br>${esc(S.src.firstNote)}`;
       note.hidden = false;
     }
   }
