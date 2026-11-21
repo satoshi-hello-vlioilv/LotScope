@@ -1029,3 +1029,18 @@ fn the_mirror_reason_settles_only_whether_this_call_copied() {
         assert_ne!(m(other), m("写しを更新しました"), "{other}");
     }
 }
+
+/// 道の比べ（common::same_path）: 同じ置き場の書き方は同じ・違う置き場は違う（Linux は字のまま。Windows は「/」「\\」・長い名前も）
+#[test]
+fn same_path_is_the_same_place_not_the_same_spelling() {
+    let base = common::work("bake-same-path");
+    let a = base.join("s25").join("share2");
+    std::fs::create_dir_all(&a).unwrap();
+    let t = a.to_string_lossy().into_owned();
+    assert!(common::same_path(&t, &t) && common::same_path(&format!("{t}/"), &t));
+    assert!(!common::same_path(&t, &base.join("s25").join("share").to_string_lossy()), "違う置き場（変異）");
+    if cfg!(windows) {
+        assert!(common::same_path(&t.replace('\\', "/"), &t), "区切りの違い");
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
