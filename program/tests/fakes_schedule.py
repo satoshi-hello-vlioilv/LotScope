@@ -162,6 +162,19 @@ class World:
             if req["method"] == "POST":
                 return fx.reply(302, "Found", b"", [("Location", f"{base}/next?eq={eq}")])
             return fx.json_reply(self.small[eq])
+        # 版 3.118.0 の作った後の採点の割れ 2: 3.117.3 の Python（urllib）が読めた 30x の形を窓も読む
+        if scene == "rrel":                          # 相対の行き先（urljoin: いまの道の段に足す）
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"next?eq={eq}")])
+            return fx.json_reply(self.small[eq])
+        if scene == "rdots":                         # . と .. の段のある絶対の道（urljoin が畳む）
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"{base}/a/../b/./next?eq={eq}")])
+            return fx.json_reply(self.small[eq])
+        if scene == "rjp":                           # 空白と ASCII でない字の行き先（urllib は %XX で逃がす。見出しは UTF-8 のバイト）
+            if req["method"] == "POST":
+                return fx.reply(302, "Found", b"", [("Location", f"{base}/次 の頁?eq={eq}".encode("utf-8").decode("latin-1"))])
+            return fx.json_reply(self.small[eq])
         if scene == "r302html":
             if req["method"] == "POST":
                 return fx.reply(302, "Found", b"", [("Location", f"{base}/page")])

@@ -41,8 +41,9 @@ jobs:
   desktop:
     runs-on: ubuntu-latest
     # 版 3.111.0 で 60 → 90 分: 窓の通しに 4b〜4e と Python の無い PC の通しを足し、更新の通しが約 44 分（場面ごとに debug の窓の自己診断が 2〜4 分）になって、
-    # Rust の試験（約 11 分）・自己診断（約 3 分）と合わせて 60 分で切れた（PR #111。最後の段の Python の無い PC の通しは通った直後）。控えが効かないと組み立てで約 13 分増える
-    timeout-minutes: 90
+    # Rust の試験（約 11 分）・自己診断（約 3 分）と合わせて 60 分で切れた（PR #111。最後の段の Python の無い PC の通しは通った直後）。控えが効かないと組み立てで約 13 分増える。
+    # 版 3.118.0 で 90 → 120 分: Rust の試験を 2 つの形（Python と比べる・表だけ）で流す（約 11 分増える）
+    timeout-minutes: 120
     env:
       TPA_PYTHON: python
     steps:
@@ -72,9 +73,14 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       # --no-fail-fast: 落ちた本で止めず、全部の本を流す（落ちた所を 1 回の CI で全部見る。落ちた本があれば終了コードは 0 でない。
       # 版 3.115.0 の PR #115 は、最初に落ちた本で止まるので落ちる所が 1 回に 1 つずつしか分からず、4 往復になった）
-      # 版 3.118.0（段 ④。採点の first_fixes 9）: 表だけの形（TPA_NO_PYTHON=1: 焼いた本は表の宣言から場面を作り焼いた答えと比べる・
-      # TPA_FROZEN_PY=1: 凍らせた Python を相手にする試験は凍らせた写し program/tests/legacy/3.117.3 を相手に流す）が標準。check-all.sh も同じ
-      - name: test（Rust）
+      # Python と比べる形（環境変数なし。CLAUDE.md の「push 前の確かめ」の命令そのまま。段 ⑤ まで残す）
+      - name: test（Rust・Python と比べる形）
+        working-directory: desktop
+        run: cargo test --locked --no-fail-fast
+      # 版 3.118.0（段 ④。採点の first_fixes 9）: 表だけの形も流す（TPA_NO_PYTHON=1: 焼いた本は表の宣言から場面を作り焼いた答えと比べる・
+      # TPA_FROZEN_PY=1: 凍らせた Python を相手にする試験は凍らせた写し program/tests/legacy/3.117.3 を相手に流す）。check-all.sh も両方
+      - name: test（Rust・表だけの形）
+        if: ${{ !cancelled() }}
         working-directory: desktop
         env:
           TPA_NO_PYTHON: "1"
@@ -88,9 +94,13 @@ jobs:
           export TRANSFER_APP_CONFIG="$RUNNER_TEMP/appsettings.json"
           export TRANSFER_LOCAL_ROOT="$RUNNER_TEMP/root" TPA_SELFTEST="$RUNNER_TEMP/selftest.json"
           exe="$(python -c "import json;print(json.load(open('program/app/brand.json',encoding='utf-8'))['exe'][:-4])")"
-          # 版 3.118.0（段 ④）: 窓を起こすときだけ TPA_PYTHON を無い道にする（窓は Python を探さない。起きたかは窓の記録で見る）
-          cd "$RUNNER_TEMP" && TPA_PYTHON="$RUNNER_TEMP/どこにも無い/python3" timeout 240 xvfb-run -a "$GITHUB_WORKSPACE/desktop/target/debug/$exe" || true
-          if grep -E " READY version=| PID 起こした" "$RUNNER_TEMP/root/logs/desktop.log"; then echo "Python が起きました（段 ④ の窓は起こさない）"; exit 4; fi
+          # 版 3.118.0（段 ④）: PATH に Python がある形のまま開く（窓は Python を探さない。起こそうとしたかは窓の記録で見る）
+          cd "$RUNNER_TEMP" && timeout 240 xvfb-run -a "$GITHUB_WORKSPACE/desktop/target/debug/$exe" || true
+          # 起こした印（採点の割れ 3）: 窓を閉じた記録の python_attempts が 0・中身を起こすと必ず作られる sidecar_stderr.log が無い
+          grep "python_attempts=" "$RUNNER_TEMP/root/logs/desktop.log" || { echo "窓を閉じた記録（python_attempts）がありません"; exit 4; }
+          if grep "python_attempts=" "$RUNNER_TEMP/root/logs/desktop.log" | grep -v "python_attempts=0" || [ -e "$RUNNER_TEMP/root/logs/sidecar_stderr.log" ]; then
+            echo "Python を起こそうとしました（段 ④ の窓は起こさない）"; exit 4
+          fi
           python - <<'PY'
           import json, os, sys
           path = os.environ["TPA_SELFTEST"]

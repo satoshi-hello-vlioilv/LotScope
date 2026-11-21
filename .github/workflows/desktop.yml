@@ -259,9 +259,14 @@ jobs:
           Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 25 -Encoding utf8 }
           # 起動の時間（版 3.86.0）: 画面を開いた時刻（OPEN ms）。版 3.118.0 から中身の準備（READY）は無い
           Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern "START program|OPEN |READY |BACKEND " | ForEach-Object { Write-Host "TIMING $($_.Line)" }
-          # Python が 1 度も起きていない（版 3.118.0）: 窓の記録に中身を起こした印（READY・PID）が無く、走っている間に新しい Python のプロセスが無い
-          $py = Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern " READY version=| PID 起こした"
-          if ($py -or $started) { Write-Host "Python が起きました（段 ④ の窓は起こさない）: $($py.Line) $($started -join ' / ')"; exit 4 }
+          # Python が 1 度も起きていない（版 3.118.0。採点の割れ 3）: 窓を閉じた記録の python_attempts が 0・sidecar_stderr.log が無い・
+          # 走っている間に新しい Python のプロセスが無い
+          $ex = @(Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern "python_attempts=")
+          $bad = @($ex | Where-Object { $_.Line -notmatch "python_attempts=0" })
+          if (-not $ex) { Write-Host "窓を閉じた記録（python_attempts）がありません"; exit 4 }
+          if ($bad -or (Test-Path "$env:TRANSFER_LOCAL_ROOT\logs\sidecar_stderr.log") -or $started) {
+            Write-Host "Python を起こそうとしました（段 ④ の窓は起こさない）: $($bad.Line) $($started -join ' / ')"; exit 4
+          }
           if (-not (Test-Path $env:TPA_SELFTEST)) { Write-Host "結果のファイルがありません"; exit 2 }
           $r = Get-Content $env:TPA_SELFTEST -Raw -Encoding utf8 | ConvertFrom-Json
           $r.results | ForEach-Object { Write-Host ("{0}: {1} -- {2}" -f ($(if ($_.ok) { "PASS" } else { "FAIL" })), $_.name, $_.info) }

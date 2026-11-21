@@ -116,6 +116,10 @@ def scenes(urls):
         ("JSON でない", {**base, "cm3_base_url": u("nojson")}, ONE[:1], None),
         ("302 → GET の JSON", {**base, "cm3_base_url": u("r302json")}, ONE, None),
         ("302 → HTML", {**base, "cm3_base_url": u("r302html")}, ONE[:1], None),
+        # 版 3.118.0 の作った後の採点の割れ 2: 相対の行き先・. と .. の段・空白と ASCII でない字の行き先（前は窓が Python に任せた形）
+        ("302 の相対の行き先", {**base, "cm3_base_url": u("rrel")}, ONE[:1], None),
+        ("302 の . と .. の段", {**base, "cm3_base_url": u("rdots")}, ONE[:1], None),
+        ("302 の行き先に空白と日本語", {**base, "cm3_base_url": u("rjp")}, ONE[:1], None),
         ("301 の絶対の URL・chunked", {**base, "cm3_base_url": u("r301abs")}, ONE[:1], None),
         ("303 → 307（GET はたどる）", {**base, "cm3_base_url": u("r303then307")}, ONE[:1], None),
         ("307（POST はたどらない）", {**base, "cm3_base_url": u("r307")}, ONE[:1], None),

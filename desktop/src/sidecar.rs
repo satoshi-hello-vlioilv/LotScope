@@ -598,8 +598,7 @@ impl Supervisor {
         });
     }
 
-    /// 起こそうとした回数（試験）
-    #[cfg(test)]
+    /// 起こそうとした回数（試験と、窓を閉じるときの記録 EXIT の python_attempts。版 3.118.0: 段 ④ の窓は 0）
     pub fn attempts(&self) -> u64 {
         self.inner.attempts.load(Ordering::SeqCst)
     }

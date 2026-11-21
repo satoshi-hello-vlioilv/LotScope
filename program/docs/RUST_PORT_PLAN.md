@@ -2678,12 +2678,26 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 - **戻す設定**: `desktop.lotlist_engine`・`schedule.fetch_engine` の python は効かない（`bundle::engine_of` はいつも rust。残っていれば起動の記録に 1 行）。
   スケジュールは係を降りない（resign・adopt を外した）。窓が同じに読めない形は `cm3::windowed` で窓の言葉の失敗にし、前の答えを残す。
   i64 に入らない整数・入れ子の深い JSON は理由つきで断る（利用者の決め ask_user 5 の既定。`schedule::BIG_OR_DEEP`）
-- **CI**: 窓の試験は表だけの形（`TPA_NO_PYTHON=1 TPA_FROZEN_PY=1`。ci.yml・check-all.sh・desktop.yml。Windows は本でない試験を `bless.py --nonbook-args` で）。
+- **CI**: 窓の試験は表だけの形（`TPA_NO_PYTHON=1 TPA_FROZEN_PY=1`）も流す（ci.yml・check-all.sh・desktop.yml。Windows は本でない試験を `bless.py --nonbook-args` で）。
+  **Python と比べる形（環境変数なしの `cargo test --locked --no-fail-fast`）は ⑤ まで check-all と Linux の CI に残す**（CLAUDE.md の「push 前の確かめ」の命令そのまま。
+  決まりの節を書き直すのは ⑤ の片付けで、利用者に尋ねてから。Windows の CI は表だけの形）。
   自己診断と窓の通しは窓を起こすときだけ PATH から Python を外し、記録に中身を起こした印（READY・PID）が無いこと・走っている間に Python が起きないことを見る。
   verify.py の 4b は「Python の無い PC で入れ替える」に、4c（Python が遅い版）は外した。前の版の窓から取り込む／前の版へ戻す通し `verify.py prev` は
   Windows の CI（Releases の v3.117.x の ZIP）で流す（前の版の Linux の exe は Releases に無いので、Linux は前の版の窓の形 stage_by_old_window で代える）
 - **前の版へ戻したとき**: 前の版（3.117.x）は Python を起こすので、PC の Python は ⑤ まで消さない（README）。更新の途中に前の版の Python が残った形は、
   3.118.0 は起こさないので次の起動で入れ替えられる（rename_patiently。今と同じ）
+- **Windows の記録の取り直し（schedule と fs）**: schedule は 3.118.0 で焼き直し（戻り道の歩・30x の 3 場面）、fs は stage3i の直し（PR #120）で札を measure に
+  戻したので、どちらも Windows の表だけの形の答え（nt の表）が古い。手順: ① 3.118.0 の PR の 1 回目の Windows の CI（windows-test）の記録か成果物
+  `desktop-windows-measure` を取る → ② `python program/tools/bless.py --take-nt 記録か測りのフォルダ`（今の表〈tableSha〉で取った・終わりまで流れた記録だけを
+  取り込み、本の表のどれもが取り込めた本の `books.json` の windows の札を table にする）→ ③ `python program/tools/bless.py --check` の「札が measure の本」が 0 →
+  ④ 2 回目の CI で比べる（札が table の本は落とす）。fs は PR #120 の 4 回目の CI の記録で取り込む（主が渡す）
+- **作った後の採点の割れの直し**（`tools/ui-proposals/2026-11-stage4-built.json` の built_fixed。決まり 2026-11-06 で採点は 1 回）:
+  権限の表が共有・写しとも読めない PC で、読む道は 3.117.3 の Python と同じく続ける（出さないタブ無し・書けない。`lot.rs` の `viewer_me`・`me_read`）、
+  Python も断った読む道（/api/access/me・/api/masters/access・/api/ui-defaults・/api/masters/tabaccess・/api/presence）と書く道は理由つきの 503
+  （master_unreadable。`me_strict`）／スケジュールの読めない形の言葉を利用者の言葉に（`cm3::Unread`・`windowed`。事例の表 cm3_net_cases.json の unread）、
+  30x の相対の行き先・. と .. の段・空白と ASCII でない字は urllib と同じに組み（`cm3_http::join_location`。表の joins・schedule_parity の 3 場面）、
+  [IPv6] の名前も読む・断った回数を unanswered に／「Python が 1 度も起きていない」は窓を閉じた記録の `python_attempts=0` と sidecar_stderr.log の有無で見る
+  （verify の 1 段目は Python のある PATH）／画面の接続の言葉から Python を外した（app.js・ui-eval-pydown の ①'）／HOT の表を置けない・束にスケジュールの段が無いは理由つき
 - **3.118.1 へ送った物**: 自己診断の Python と比べる項目（ok）35 を窓だけの確かめ（okw）に書き直す（いまは「中身（Python）を通す項目」の包みに数えて飛ばす）
 - **3.118.2 へ送った物（⑤ の前の穴）**: 撮る・採点する道具 73 本（ui-eval-*・ui-check・ui-variants・shot-*）は `ui-harness.mjs` から Python の開発用サーバー
   `tools/ui_server.py`（app を import する）を起こす。⑤ で program/app を消すと起きなくなるので、窓（Lot と静的ファイル）を HTTP で出す開発用サーバーを先に作る

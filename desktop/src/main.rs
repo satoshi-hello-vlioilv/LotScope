@@ -1151,10 +1151,12 @@ fn main() {
                 let _ = rx.recv_timeout(LEAVE_WAIT);
             }
             // 中身の Python を止める（入力を閉じる → 片付けて自分で終わる。終わらなければ止める）
+            // 起こそうとした回数を記録に残す（版 3.118.0。段 ④ の窓は 0。窓の通し verify.py・CI の自己診断が見る）
+            let attempts = slot.get().map(|r| r.backend.attempts()).unwrap_or(0);
             if let Some(r) = slot.get() {
                 r.backend.stop();
             }
-            log("EXIT 窓を閉じた");
+            log(&format!("EXIT 窓を閉じた python_attempts={attempts}"));
         }
         _ => {}
     });

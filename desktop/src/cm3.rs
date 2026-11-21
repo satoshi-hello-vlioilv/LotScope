@@ -31,15 +31,56 @@ impl Fail {
     }
 }
 
-/// 段 ④（版 3.118.0）: 窓が Python と同じに答えられない形（Fail::Python）を、窓の言葉の失敗（Cm3: 「head（理由）」）にする 1 か所。
-/// スケジュールの係（schedule.rs）は答えを返す前にここを通し、係を降りない（中身〈Python〉は起こさないので任せる先が無い）。型は段 ⑤ まで残す
-pub fn windowed(f: Fail, head: &str) -> Fail {
+/// 予定の元の答えを窓が読めない形の種類（版 3.118.0 の作った後の採点の割れ 2。言葉の頭と、利用状況の unanswered に数える名前）
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Unread {
+    /// URL の形（種類・名前・ポート）
+    Url,
+    /// 答えそのもの（状態の行・見出し・本文・移る先）
+    Answer,
+    /// 答えの字（文字コード・文字参照）
+    Text,
+    /// 答えの中身の形（entity・meisaiList・日付・数）
+    Shape,
+    /// 表に置けない値
+    Table,
+}
+
+impl Unread {
+    pub fn head(self) -> &'static str {
+        match self {
+            Unread::Url => "予定の元の URL を使えません",
+            Unread::Answer => "予定の元の答えを読めません",
+            Unread::Text => "予定の元の答えの字を読めません",
+            Unread::Shape => "予定の元の答えの形が違います",
+            Unread::Table => "予定の元の答えを表に置けません",
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Unread::Url => "url",
+            Unread::Answer => "answer",
+            Unread::Text => "text",
+            Unread::Shape => "shape",
+            Unread::Table => "table",
+        }
+    }
+}
+
+/// 段 ④（版 3.118.0）: 窓が同じに答えられない形（Fail::Python。理由は利用者の言葉: cm3.rs・cm3_http.rs の py の字）を、窓の言葉の失敗
+/// （Cm3: 「頭（理由）」）にする 1 か所。スケジュールの係（schedule.rs）は答えを返す前にここを通し、係を降りない（中身〈Python〉は起こさないので
+/// 任せる先が無い）。断った回数は利用状況の unanswered に「unanswered schedule <種類>」で数える（段 ⑤ の前に「現場で 0 か」を見る）。型は段 ⑤ まで残す
+pub fn windowed(f: Fail, kind: Unread) -> Fail {
     match f {
-        Fail::Python(why) => Fail::Cm3(format!("{head}（{why}）")),
+        Fail::Python(why) => {
+            crate::delegate::note(&format!("unanswered schedule {}", kind.name()));
+            Fail::Cm3(format!("{}（{why}）", kind.head()))
+        }
         x => x,
     }
 }
 
+/// 窓が同じに答えられない形（理由は利用者の言葉。cm3_net_cases.json の unread）
 fn py<T>(why: &'static str) -> R<T> {
     Err(Fail::Python(why))
 }
@@ -278,7 +319,7 @@ pub fn unescape(s: &str) -> R<String> {
             let n = digits(1, false);
             let txt: String = rest[1..1 + n].iter().collect();
             if txt.len() > 4300 {
-                return py("4300 桁を超える数の参照（Python の int() が落ちる）");
+                return py("4300 桁を超える数の文字参照があります");
             }
             (1 + n + semi(1 + n), charref(t, txt.parse::<u128>().unwrap_or(u128::MAX)))
         } else if rest.first() == Some(&'#') && matches!(rest.get(1), Some('x' | 'X')) && digits(2, true) > 0 {
@@ -490,7 +531,7 @@ fn is_duration(s: &str) -> bool {
 /// 停止の文（答えの項目の順につなぐ。長さは最後）
 fn stop_text(m: &Tree) -> R<String> {
     let (mut name, mut extra) = (String::new(), vec![]);
-    let Tree::Obj(items) = m else { return py("行が表でない") };
+    let Tree::Obj(items) = m else { return py("予定の行が表の形でありません") };
     for (k, v) in items {
         if NON_TEXT_KEYS.contains(&k.as_str()) || k == "kanryoYotei" {
             continue;
@@ -706,7 +747,7 @@ fn key_of(v: &Tree) -> R<Key> {
             _ => Key::F(n.as_f64().unwrap_or(0.0)),
         },
         Tree::Null => Key::S("\u{0}None".into()),
-        _ => return py("ロット番号が並び・表（dict の鍵にできない）"),
+        _ => return py("ロット番号が並びか表の形です"),
     })
 }
 
@@ -722,7 +763,7 @@ pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
         _ => Tree::Obj(vec![]),
     };
     if !matches!(entity, Tree::Obj(_)) {
-        return py("entity が表でない（Python は .get で落ちる）");
+        return py("entity が表の形でありません");
     }
     if entity.get("error").is_some_and(truthy) {
         let m = fix_text(entity.get("errorMessage").unwrap_or(&Tree::Null))?;
@@ -742,17 +783,17 @@ pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
         Some(x) if !truthy(x) => vec![],
         None => vec![],
         Some(Tree::Arr(a)) => a.clone(),
-        Some(_) => return py("meisaiList が並びでない"),
+        Some(_) => return py("meisaiList が並びの形でありません"),
     };
     let mut lot_count: Vec<(Key, i64)> = vec![];
     let mut items: Vec<Map<String, Value>> = vec![];
     let mut lot_keys: Vec<Option<Key>> = vec![];
     for (idx, m) in rows.iter().enumerate() {
         if !matches!(m, Tree::Obj(_)) {
-            return py("meisaiList の行が表でない");
+            return py("meisaiList の行が表の形でありません");
         }
         let rk = or_empty(m.get("kanryoYotei"));
-        let Tree::Str(rk) = fix_text(&rk)? else { return py("完了予定が字でない（正規表現が落ちる）") };
+        let Tree::Str(rk) = fix_text(&rk)? else { return py("完了予定が字でありません") };
         let md = date_time(&rk);
         let mt = if md.is_some() { None } else { time_only(&rk) };
         let (hh, mm) = match (md, mt) {
@@ -775,7 +816,7 @@ pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
             if let Some(mut k) = make(year, mo, cur_day.unwrap_or(0), h, mi) {
                 if prev_dt.is_some_and(|p| k < p) && md.is_none() {
                     let Some(n) = k.0.checked_add_signed(chrono::TimeDelta::days(1)).filter(|n| n.year() <= 9999) else {
-                        return py("日付の繰り上がりが 9999 年を越える（Python は OverflowError）");
+                        return py("日付を繰り上げると 9999 年を越えます");
                     };
                     k = Jst(n);
                     cur_month = Some(k.0.month() as u64);
@@ -892,7 +933,7 @@ fn reduction(a: Option<&Tree>, b: Option<&Tree>) -> R<Option<f64>> {
     let Some(b) = b else { return Ok(None) };
     let r = crate::aggregate::py_round((a - b) / a * 100.0, 1);
     if !r.is_finite() {
-        return py("圧下率が NaN・無限（JSON の NaN は窓が書けない）");
+        return py("圧下率が数として読めません（NaN・無限）");
     }
     Ok(Some(r))
 }
@@ -948,11 +989,11 @@ impl Cell {
             Value::String(s) => Cell::Text(s.clone()),
             Value::Number(n) => match (n.as_i64(), n.as_f64()) {
                 (Some(i), _) => Cell::Int(i),
-                (None, Some(_)) if n.is_u64() => return py("i64 に入らない整数（sqlite3 は OverflowError）"),
+                (None, Some(_)) if n.is_u64() => return py("桁の大きすぎる整数があります"),
                 (None, Some(f)) => Cell::Real(f),
                 _ => Cell::Null,
             },
-            _ => return py("表に置けない値（並び・表。sqlite3 が断る）"),
+            _ => return py("表に置けない値（並び・表）があります"),
         })
     }
 

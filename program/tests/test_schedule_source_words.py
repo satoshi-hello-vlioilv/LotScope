@@ -159,3 +159,21 @@ class ScheduleSourceWords(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WindowUnreadWords(unittest.TestCase):
+    """窓が予定の元の答えを読めない形の言葉（版 3.118.0 の作った後の採点の割れ 2）: desktop/src/cm3.rs・cm3_http.rs の py の字（利用者に出る理由）に
+    作り手向けの名前を書かない（前は「urllib は ValueError」「http.client は IncompleteRead」のような字が利用者に出た）"""
+    DEV = ("Python", "urllib", "http.client", "sqlite3", "Error", "urljoin", "int()", "窓が")
+
+    def test_reasons_are_user_words(self):
+        bad = []
+        for name in ("cm3.rs", "cm3_http.rs"):
+            text = (REPO / "desktop" / "src" / name).read_text(encoding="utf-8")
+            for m in re.finditer(r'py\("([^"]*)"\)', text):
+                hit = [d for d in self.DEV if d in m.group(1)]
+                if hit:
+                    bad.append(f"{name}: {m.group(1)}（{hit}）")
+        self.assertEqual(bad, [])
+        self.assertGreater(len(re.findall(r'py\("', (REPO / "desktop" / "src" / "cm3_http.rs").read_text(encoding="utf-8"))), 10)
+

@@ -247,6 +247,38 @@ pub type Clock = Arc<dyn Fn() -> f64 + Send + Sync>;
 /// 足すデータ元のキーを作る係
 pub type NewKey = Arc<dyn Fn() -> String + Send + Sync>;
 
+thread_local! {
+    /// いま答えている問い合わせが読む道（GET・HEAD）か（版 3.118.0 の作った後の採点の割れ 1。handle_body が置き、me_read が見る）
+    static READING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 権限の表を読めない（共有も写しも）ときの断り（版 3.118.0 の作った後の採点の割れ 1。Python の MasterUnreadable と同じ 503 と言葉）
+fn me_unreadable(e: &str) -> (u16, Value) {
+    (503, json!({"error": e, "kind": "master_unreadable"}))
+}
+
+/// 権限の表を読めないときに読む道が続ける me（版 3.118.0 の作った後の採点の割れ 1）: 3.117.3 の Python の except の形と同じく、出さないタブ無し・
+/// 書けない（can_write は偽。routes/common.can_write・tab_denied）。区分は一般ユーザー・マスタ編集は「閲覧のみ」・読めない理由は unreadable
+pub fn viewer_me(access: &Value, why: &str) -> Value {
+    let who = access.get("who").and_then(Value::as_object).cloned().unwrap_or_default();
+    let mut f = crate::access::flags(
+        &[],
+        who.get("login").and_then(Value::as_str).unwrap_or(""),
+        who.get("pc").and_then(Value::as_str).unwrap_or(""),
+    );
+    f.insert("role".into(), json!(crate::access::ROLE_USER));
+    f.insert("masterEdit".into(), json!("閲覧のみ"));
+    f.insert("hiddenTabs".into(), json!([]));
+    let caps = crate::access::capabilities(&f);
+    let mut out = who;
+    out.insert("rows".into(), json!([]));
+    out.insert("flags".into(), Value::Object(f));
+    out.insert("caps".into(), caps);
+    out.insert("revoked".into(), Value::Null);
+    out.insert("unreadable".into(), json!(why));
+    Value::Object(out)
+}
+
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
         // 全列の検索の索引の置き場（版 3.66.0。src/search_index.rs。写しの係の片付けとぶつからない下のフォルダ）
@@ -330,7 +362,10 @@ impl Lot {
         if writes {
             self.gate.forget(); // 書く前は、いまの権限の表で決める
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -381,7 +416,10 @@ impl Lot {
         if writes {
             self.gate.forget(); // 書く前は、いまの権限の表で決める
         }
-        let me = self.gate.me(&access).ok()?;
+        let me = match self.me_read(&access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -417,7 +455,10 @@ impl Lot {
         if writes {
             self.gate.forget(); // 書く前は、いまの権限の表で決める
         }
-        let me = self.gate.me(&access).ok()?;
+        let me = match self.me_read(&access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -620,6 +661,22 @@ impl Lot {
     }
 
     /// 権限のマスタを書く 4 本（版 3.68.0。src/access_write.rs）を窓が受ける。権限を読み直して門番に通し、窓の書く係で書く。
+    /// me（版 3.118.0 の作った後の採点の割れ 1）: 権限の表を読めないとき、読む道（GET・HEAD）は viewer_me で続け（3.117.3 の Python と同じ）、
+    /// 書く道は理由つきの 503 で断る（読めない権限で書かない）
+    fn me_read(&self, access: &Value) -> Result<Value, (u16, Value)> {
+        match self.gate.me(access) {
+            Ok(m) => Ok(m),
+            Err(e) if READING.with(|r| r.get()) => Ok(viewer_me(access, &e)),
+            Err(e) => Err(me_unreadable(&e)),
+        }
+    }
+
+    /// me（版 3.118.0 の作った後の採点の割れ 1）: 権限の表を読めないとき、読む道も理由つきの 503（3.117.3 の Python が MasterUnreadable で断った道:
+    /// /api/access/me・/api/masters/access・/api/ui-defaults・/api/masters/tabaccess・/api/presence）
+    fn me_strict(&self, access: &Value) -> Result<Value, (u16, Value)> {
+        self.gate.me(access).map_err(|e| me_unreadable(&e))
+    }
+
     /// 判定の材料（access）が無い・me を決められないときは None（Python が答える）
     fn access_write(&self, method: &str, path: &str, route: crate::access_write::Route, query: &str, body: &[u8]) -> Option<(u16, Value)> {
         let s = self.settings().ok()?;
@@ -627,7 +684,10 @@ impl Lot {
             return None;
         }
         self.gate.forget(); // 書く前は、いまの権限の表で決める
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -655,7 +715,10 @@ impl Lot {
         if version.is_empty() {
             return None;
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_strict(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         Some((200, crate::access::read_answer(route, &me, &version)))
     }
 
@@ -674,7 +737,10 @@ impl Lot {
         if writes {
             self.gate.forget(); // 書く前は、いまの権限の表で決める
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -702,7 +768,10 @@ impl Lot {
             return None;
         }
         self.gate.forget(); // 書く前は、いまの権限の表で決める
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -730,7 +799,10 @@ impl Lot {
         if !s.access.is_object() {
             return None;
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -754,7 +826,10 @@ impl Lot {
         if route == crate::ui_defaults::Route::Put {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_strict(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let rows = crate::access::Place::from_json(&s.access["place"]).rows(crate::ui_defaults::NAME).ok()?;
         let store = self.store_for(&s.access)?;
         crate::ui_defaults::handle(&store, &me, route, body, &rows, &profile)
@@ -769,7 +844,10 @@ impl Lot {
         if route != crate::dash_sets::Route::List {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let place = crate::access::Place::from_json(&s.access["place"]);
         let store = self.store_for(&s.access)?;
         crate::dash_sets::answer(&store, &me, route, query, body, &place)
@@ -784,7 +862,10 @@ impl Lot {
         if route != crate::dashboards_write::Route::List {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let place = crate::access::Place::from_json(&s.access["place"]);
         let store = self.store_for(&s.access)?;
         crate::dashboards_write::answer(&store, &me, route, query, body, &place)
@@ -799,7 +880,10 @@ impl Lot {
         if route != crate::pivot_presets::Route::List {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let place = crate::access::Place::from_json(&s.access["place"]);
         let store = self.store_for(&s.access)?;
         crate::pivot_presets::answer(&store, &me, route, query, body, &place)
@@ -814,7 +898,10 @@ impl Lot {
         if route != crate::card_forms::Route::List {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let place = crate::access::Place::from_json(&s.access["place"]);
         let store = self.store_for(&s.access)?;
         crate::card_forms::answer(&store, &me, route, query, body, &place)
@@ -837,7 +924,10 @@ impl Lot {
         if route != crate::formats_write::Route::List {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_read(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -868,7 +958,7 @@ impl Lot {
             return Some(r);
         }
         let access = json!({"who": inp.who, "place": inp.place});
-        let me = self.gate.me(&access).ok()?;
+        let me = self.gate.me(&access).unwrap_or_else(|e| viewer_me(&access, &e)); // 読む道（main.rs が直に呼ぶ）
         let store = self.store_for(&access)?;
         // スケジュールのカード（版 3.96.0）: 窓の係の状態のファイルから（受け身の Python の答えと同じ所を読む）。設定を組めなければ中身に尋ねる
         let cfg = crate::schedule::Cfg::from_section(inp.eff.get("schedule"));
@@ -907,7 +997,10 @@ impl Lot {
         if method != "GET" {
             self.gate.forget(); // 書く前は、いまの権限の表で決める
         }
-        let me = self.gate.me(&access).ok()?;
+        let me = match self.me_read(&access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, &path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -1063,7 +1156,10 @@ impl Lot {
         if let Some(r) = self.refused(&["sources"]) {
             return Some(r);
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_strict(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         let store = self.store_for(&s.access)?;
         let tabs = crate::access::Place::from_json(&s.access["place"]).rows("tab_access").ok()?;
         let parts = self.bundle.lock().unwrap().clone()?.inputs().ok()?.sources_parts().ok()?;
@@ -1144,7 +1240,10 @@ impl Lot {
                 let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
                 let parts = inp.sources_parts().ok()?;
                 let access = json!({"who": inp.who, "place": inp.place});
-                let me = self.gate.me(&access).ok()?;
+                let me = match self.me_read(&access) {
+                    Ok(m) => m,
+                    Err(r) => return Some(r),
+                };
                 if let Some((status, kind, msg)) = crate::access::guard(method, "/api/sources/join/preview", &me) {
                     return Some((status, json!({"error": msg, "kind": kind})));
                 }
@@ -1200,7 +1299,10 @@ impl Lot {
         let parts = inp.sources_parts().ok()?;
         let access = json!({"who": inp.who, "place": inp.place});
         self.gate.forget(); // 書く前は、いまの権限の表で決める
-        let me = self.gate.me(&access).ok()?;
+        let me = match self.me_read(&access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
@@ -1315,7 +1417,9 @@ impl Lot {
             let python_decided = v.is_null() || v["hidden"].is_array();
             return python_decided.then_some(v);
         }
-        let m = self.gate.me(&s.access).ok()?;
+        // 版 3.118.0 の作った後の採点の割れ 1: 権限の表を読めないときは、3.117.3 の Python（routes/common.tab_denied・can_write の except）と同じく
+        // 出さないタブ無し・勤務体系は直せない、で続ける（前は None で中身へ回し、製品では一覧・作業実績・データ元・ダッシュボードが 503 になった）
+        let m = self.gate.me(&s.access).unwrap_or_else(|e| viewer_me(&s.access, &e));
         if let Some(o) = v.as_object_mut() {
             o.insert("hidden".into(), m["flags"]["hiddenTabs"].clone());
             if let Some(w) = o.get_mut("work").and_then(Value::as_object_mut) {
@@ -1450,7 +1554,10 @@ impl Lot {
         if !s.access.is_object() {
             return None;
         }
-        let me = self.gate.me(&s.access).ok()?;
+        let me = match self.me_strict(&s.access) {
+            Ok(m) => m,
+            Err(r) => return Some(r),
+        };
         self.presence.handle_with_place(&me, &crate::access::Place::from_json(&s.access["place"]), method, path, query, body)
     }
 
@@ -1526,6 +1633,7 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8]) -> Option<(u16, Value)> {
+        READING.with(|r| r.set(matches!(method, "GET" | "HEAD")));
         // 書く道の本文の門（版 3.104.0。src/body.rs）: どの係よりも先（Python も前の係の列のいちばん前）。読めない本文は窓が断り、
         // 整数の -0 は 0 に書き直して部品へ渡す。?engine=python は Python の門が見る
         let gated;
@@ -2090,9 +2198,11 @@ mod tests {
         let (st, v) = lot.handle_with("GET", "/api/src/m1", "", &ask).unwrap();
         assert_eq!((st, v["count"].as_i64(), v["table"].as_str()), (200, Some(2), Some("仕掛")), "{v}");
         assert_eq!(lot.handle_with("GET", "/api/src/%E7%84%A1", "", &ask).unwrap().0, 404, "知らない元");
-        assert!(
-            lot.handle_with("GET", "/api/src/sch", "", &ask).is_none() && lot.handle_with("GET", "/api/src/sch/source", "", &ask).is_none()
-        );
+        // 束にスケジュールの段が無い（版 3.118.0 の作った後の採点の割れ 5）: 理由つきの 503（前は None で中身へ回した）
+        for p in ["/api/src/sch", "/api/src/sch/source"] {
+            let (st, v) = lot.handle_with("GET", p, "", &ask).expect("段が無くても窓が答える");
+            assert_eq!((st, v["kind"].as_str()), (503, Some("settings")), "{p}: {v}");
+        }
         // 集計表（版 3.61.0 から窓が答える）: 行の無い組みは件数の総計だけ・出さないタブは 403・組み方の誤りは 400
         let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", "", &ask).expect("集計表も窓が答える");
         assert_eq!((st, v["cells"][0]["v"][0].as_i64(), v["count"].as_i64()), (200, Some(2), Some(2)), "{v}");
@@ -2101,7 +2211,8 @@ mod tests {
         assert_eq!((st, v["error"].as_str()), (400, Some("列「無」がありません。")));
         let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", "fields=1", &ask).unwrap();
         assert!(st == 200 && v["fields"].as_array().is_some_and(|f| !f.is_empty()), "{v}");
-        assert!(lot.handle_with("GET", "/api/src/sch/pivot", "", &ask).is_none(), "スケジュールの集計は Python");
+        // スケジュールの集計: 束にスケジュールの段が無い形は理由つきの 503（版 3.118.0 の作った後の採点の割れ 5）
+        assert_eq!(lot.handle_with("GET", "/api/src/sch/pivot", "", &ask).map(|r| r.0), Some(503), "スケジュールの段が無い集計");
         let (st, v) = lot.handle_with("GET", "/api/src/e1/pivot", "table=v", &ask).unwrap();
         assert_eq!((st, v["error"].as_str()), (503, Some("no such table: main.missing")), "{v}");
         assert!(v["source"].is_object(), "読めないときは元の様子も返す: {v}");
@@ -4140,7 +4251,8 @@ mod tests {
         let ask_bad = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": {"place": boss["place"]}}));
         let lot_b = Lot::new(dir.join("cache-b"));
         lot_b.presence.set_version("3.76.0");
-        assert!(lot_b.access_read_with("GET", "/api/access/me", &ask_bad).is_none());
+        // 版 3.118.0 の作った後の採点の割れ 1: me を決められない読む道は理由つきの 503（Python も MasterUnreadable で断った）
+        assert_eq!(lot_b.access_read_with("GET", "/api/access/me", &ask_bad).map(|r| r.0), Some(503));
         assert!(Lot::new(dir.join("cache-c")).access_read_with("GET", "/api/access/me", &ask_none).is_none());
         assert!(
             body_refused(lot.handle_body_with("POST", "/api/masters/access", "", r#"{"ログインID": "n", "x": NaN}"#.as_bytes(), &ask_boss)),
@@ -4251,13 +4363,30 @@ mod tests {
             l
         };
         assert_eq!(shifts(&work(&lot2).1), json!(false), "切断されている間は直せない");
-        // ⑦ 窓が me を決められない（権限の表も写しも読めない）: 窓は答えず Python に任せる（Python が自分の me で答える）
+        // ⑦ 窓が me を決められない（権限の表も写しも読めない）: 版 3.118.0 の作った後の採点の割れ 1 から、3.117.3 の Python と同じく窓が答え続ける
+        //   （出さないタブ無し・勤務体系は直せない。前は None で中身へ回し、製品では 503 になった）。書く道と、Python も断った読む道は理由つきの 503
         std::fs::write(share.join("access_permissions.json"), "{").unwrap();
         std::fs::create_dir_all(dir.join("mcache")).unwrap();
         std::fs::write(dir.join("mcache").join("access_permissions.json"), "[").unwrap();
         let lot3 = Lot::new(dir.join("cache3"));
-        assert!(lot3.handle_with("GET", "/api/worklog", "equip=a&work=1", &ask).is_none(), "一覧は Python に任せる");
-        assert!(lot3.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_none(), "ダッシュボードも Python に任せる");
+        let (st, v) = lot3.handle_with("GET", "/api/worklog", "equip=a&work=1", &ask).expect("一覧は窓が答え続ける");
+        assert_eq!((st, shifts(&v)), (200, json!(false)), "出さないタブ無し・勤務体系は直せない: {v}");
+        let (st, v) = lot3.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).expect("ダッシュボードも窓が答え続ける");
+        assert_eq!(st, 200, "{v}");
+        let (st, v) = lot3.handle_body_with("GET", "/api/masters/shifts", "", b"", &ask).expect("勤務体系の一覧も窓");
+        assert_eq!((st, v["canEdit"].clone()), (200, json!(false)), "{v}");
+        let (st, v) =
+            lot3.handle_body_with("POST", "/api/masters/shifts", "", "{\"名称\": \"x\"}".as_bytes(), &ask).expect("書く道は窓が断る");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "{v}");
+        assert!(
+            v["error"].as_str().unwrap().contains("この PC の写しの access_permissions.json が読めません（"),
+            "Python と同じ言葉でどのファイルかを言う: {v}"
+        );
+        lot3.presence.set_version("3.118.0");
+        for path in ["/api/access/me", "/api/masters/access"] {
+            let (st, v) = lot3.access_read_with("GET", path, &ask).expect("権限の読む道は窓が断る");
+            assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "{path}: {v}");
+        }
         // データの時刻・再読込は出さないタブを見ないので、窓が答え続ける（Python に回すと同じ台帳に写しの係が 2 つ動く）
         assert_eq!(lot3.handle_with("GET", "/api/lotlist/source", "", &ask).map(|r| r.0), Some(200), "品質のデータの時刻は窓");
         assert_eq!(lot3.handle_with("POST", "/api/lotlist/refresh", "", &ask).map(|r| r.0), Some(200), "品質の再読込は窓");

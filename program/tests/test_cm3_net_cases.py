@@ -84,3 +84,19 @@ class Cm3NetCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Joins(unittest.TestCase):
+    """30x の行き先の組み方の事例（版 3.118.0 の作った後の採点の割れ 2。cm3_net_cases.json の joins）が、Python 3.13 の urllib の手順の答えのまま"""
+
+    def test_joins_are_urllib(self):
+        import string
+        from urllib.parse import quote, urljoin, urlparse, urlunparse
+        t = json.loads((Path(__file__).resolve().parent / "fixtures" / "cm3_net_cases.json").read_text(encoding="utf-8"))
+        for c in t["joins"]:
+            u = urlparse(c["loc"])
+            if not u.path and u.netloc:
+                u = u._replace(path="/")
+            got = urljoin(c["base"], quote(urlunparse(u), encoding="iso-8859-1", safe=string.punctuation))
+            self.assertEqual(got, c["want"], c)
+

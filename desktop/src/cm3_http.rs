@@ -190,7 +190,7 @@ pub fn target(url: &str) -> R<Target> {
 /// URL を分ける。https: https も取るか（スケジュール。版 3.117.1）
 pub fn target_with(url: &str, https: bool) -> R<Target> {
     if !url.chars().all(|c| ('\x21'..='\x7e').contains(&c)) {
-        return py("URL に空白・制御文字・ASCII でない字（urllib が落ちるか、窓と読みが違う）");
+        return py("URL に空白・制御文字・ASCII でない字があります");
     }
     // urllib の _splittag（最後の「#」で分ける）
     let (full, frag) = match url.rsplit_once('#') {
@@ -199,14 +199,14 @@ pub fn target_with(url: &str, https: bool) -> R<Target> {
     };
     // _splittype: ([^/:]+):(.*)
     let Some(colon) = full.find(':').filter(|i| *i > 0 && !full[..*i].contains('/')) else {
-        return py("URL に種類が無い（urllib は ValueError）");
+        return py("URL に http:// などの種類がありません");
     };
     let scheme = full[..colon].to_ascii_lowercase();
     let rest = &full[colon + 1..];
     let tls = match scheme.as_str() {
         "http" => false,
         "https" if https => true,
-        "https" | "ftp" | "file" | "data" => return py("http でない（https・ftp など。窓は http だけを取る）"),
+        "https" | "ftp" | "file" | "data" => return py("http・https でない URL です"),
         _ => return Err(connect_err(format!("unknown url type: {scheme}"))),
     };
     // _splithost: //([^/#?]*)(.*)
@@ -224,17 +224,37 @@ pub fn target_with(url: &str, https: bool) -> R<Target> {
     if netloc.is_empty() {
         return Err(connect_err("no host given".into()));
     }
-    if netloc.contains(['%', '@', '[', ']']) {
-        return py("Host に % @ [ ]（urllib の unquote・IPv6・利用者の名前）");
+    if netloc.contains(['%', '@']) {
+        return py("サーバーの名前に % や @ があります");
     }
     let default = if tls { 443 } else { 80 };
+    // [IPv6]（版 3.118.0 の作った後の採点の割れ 2。http.client の _get_hostport: 最後の「:」が「]」より後ならポート、名前の [ ] を外す）
+    if netloc.contains(['[', ']']) {
+        let Some(close) = netloc.rfind(']').filter(|_| netloc.starts_with('[')) else {
+            return py("サーバーの名前の [ ] の形が読めません");
+        };
+        let inner = &netloc[1..close];
+        if inner.is_empty() || !inner.chars().all(|c| c.is_ascii_hexdigit() || c == ':' || c == '.') {
+            return py("サーバーの名前の [ ] の形が読めません");
+        }
+        let port = match &netloc[close + 1..] {
+            "" | ":" => default,
+            p if p.starts_with(':') && p[1..].bytes().all(|b| b.is_ascii_digit()) => match p[1..].parse::<u32>() {
+                Ok(n) if n <= 65535 => n as u16,
+                _ => return py("ポートの番号が 65535 を超えています"),
+            },
+            _ => return py("ポートの番号が数字でありません"),
+        };
+        let selector = if path.is_empty() { "/".to_string() } else { path };
+        return Ok(Target { netloc: netloc.clone(), host: inner.to_string(), port, selector, full, tls, frag });
+    }
     let (host, port) = match netloc.rsplit_once(':') {
         Some((h, "")) => (h.to_string(), default),
         Some((h, p)) if p.bytes().all(|b| b.is_ascii_digit()) => match p.parse::<u32>() {
             Ok(n) if n <= 65535 => (h.to_string(), n as u16),
-            _ => return py("ポートが 65535 を超える（Python は OverflowError）"),
+            _ => return py("ポートの番号が 65535 を超えています"),
         },
-        Some(_) => return py("ポートが数字でない（http.client は InvalidURL）"),
+        Some(_) => return py("ポートの番号が数字でありません"),
         None => (netloc.clone(), default),
     };
     let selector = if path.is_empty() { "/".to_string() } else { path };
@@ -321,7 +341,7 @@ impl<S: Read> Conn<S> {
         let mut buf = vec![];
         let n = (&mut self.r).take((MAXLINE + 1) as u64).read_until(b'\n', &mut buf).map_err(read_err)?;
         if n > MAXLINE {
-            return py("見出しの行が長すぎる（http.client は LineTooLong）");
+            return py("答えの見出しの行が長すぎます");
         }
         Ok(buf)
     }
@@ -331,7 +351,7 @@ impl<S: Read> Conn<S> {
         let mut got = 0;
         while got < n {
             match self.r.read(&mut buf[got..]) {
-                Ok(0) => return py("本文が途中で切れた（http.client は IncompleteRead）"),
+                Ok(0) => return py("答えの本文が途中で切れました"),
                 Ok(k) => got += k,
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
                 Err(e) => return Err(read_err(e)),
@@ -349,7 +369,7 @@ impl<S: Read> Conn<S> {
                 break;
             }
             if hs.len() >= 100 {
-                return py("見出しが 100 を超える（http.client が落ちる）");
+                return py("答えの見出しが 100 を超えています");
             }
             let text = latin1(&l);
             let text = text.trim_end_matches(['\r', '\n']);
@@ -381,14 +401,14 @@ impl<S: Read> Conn<S> {
         let (version, status, reason) = match parts.len() {
             3 => (parts[0].clone(), parts[1].clone(), parts[2].clone()),
             2 => (parts[0].clone(), parts[1].clone(), String::new()),
-            _ => return py("状態の行が読めない（BadStatusLine）"),
+            _ => return py("答えの最初の行（状態の行）が HTTP の形でありません"),
         };
         if !version.starts_with("HTTP/") || status.len() != 3 || !status.bytes().all(|b| b.is_ascii_digit()) {
-            return py("状態の行が読めない（BadStatusLine）");
+            return py("答えの最初の行（状態の行）が HTTP の形でありません");
         }
         let code: u16 = status.parse().unwrap_or(0);
         if code < 100 {
-            return py("状態の番号が 100 より小さい（BadStatusLine）");
+            return py("答えの状態の番号が 100 より小さい数です");
         }
         Ok((version, code, crate::pyfmt::strip(&reason).to_string()))
     }
@@ -610,7 +630,7 @@ fn once_raw(
         }
     };
     if version != "HTTP/1.0" && !version.starts_with("HTTP/1.") {
-        return py("知らない HTTP の版（UnknownProtocol）");
+        return py("答えが知らない HTTP の版です");
     }
     let hs = c.headers()?;
     let mut resp = Resp { status, reason, headers: hs, body: vec![] };
@@ -633,7 +653,7 @@ fn once_raw(
             let txt = crate::pyfmt::strip(&latin1(head)).to_string();
             let txt = txt.strip_prefix("0x").or_else(|| txt.strip_prefix("0X")).unwrap_or(&txt).to_string();
             if txt.is_empty() || !txt.bytes().all(|b| b.is_ascii_hexdigit()) || txt.len() > 15 {
-                return py("chunked の大きさが読めない（http.client が落ちる）");
+                return py("分けて送られた答え（chunked）の大きさが読めません");
             }
             let n = usize::from_str_radix(&txt, 16).unwrap_or(0);
             if n == 0 {
@@ -679,36 +699,135 @@ fn headers_for(t: &Target, post: Option<&[u8]>, base: &str) -> Vec<(String, Stri
 
 const INF_MSG: &str = "The HTTP server returned a redirect error that would lead to an infinite loop.\nThe last 30x error message was:\n";
 
-/// 30x の行き先（urllib と同じに組める形だけ。ほかは Python に任せる）。https: https の行き先もたどるか
+/// 30x の行き先（urllib の HTTPRedirectHandler.redirect_request と同じ: 版 3.118.0 の作った後の採点の割れ 2 から、相対の行き先・. と .. の段・
+/// 空白や ASCII でない字の行き先も窓が組む〈前は Python に任せた〉）。見出しは latin-1 で読んだ字（1 字 1 バイト）なので、quote(newurl,
+/// encoding="iso-8859-1", safe=string.punctuation) は「印字できる ASCII でない字を %XX」と同じ。そのあと urljoin(いまの URL, newurl)。
+/// https: https の行き先もたどるか
 fn redirect_url(cur: &Target, loc: &str, https: bool) -> H<String> {
-    if !loc.chars().all(|c| ('\x21'..='\x7e').contains(&c)) {
-        return py("30x の行き先に空白・ASCII でない字（urllib は % で逃がす）");
+    // urlparse → 道が空で名前があれば「/」→ urlunparse（空の ? と # は落ちる）
+    let (sc, nl, path, q, f) = url_split(loc);
+    let path = if path.is_empty() && nl.is_some() { "/".to_string() } else { path };
+    let loc = url_unsplit(&sc, nl.as_deref(), &path, q.as_deref(), f.as_deref());
+    let quoted: String =
+        loc.chars().map(|c| if ('\x21'..='\x7e').contains(&c) { c.to_string() } else { format!("%{:02X}", c as u32 & 0xff) }).collect();
+    let joined = url_join(cur, &quoted);
+    let low = joined.to_ascii_lowercase();
+    if low.starts_with("http://") || (https && low.starts_with("https://")) {
+        return Ok(joined);
     }
-    let lower = loc.to_ascii_lowercase();
-    let abs = if lower.starts_with("http://") {
-        Some(("http", 7))
-    } else if https && lower.starts_with("https://") {
-        Some(("https", 8))
-    } else {
-        None
+    py("移る先が http・https でない場所です")
+}
+
+/// 30x の行き先を組む（いまの URL base と見出しの Location の字 loc。試験と事例の表 cm3_net_cases.json の joins）。組めなければ None
+pub fn join_location(base: &str, loc: &str) -> Option<String> {
+    redirect_url(&target_with(base, true).ok()?, loc, true).ok()
+}
+
+/// urllib.parse.urlsplit の形（種類・名前・道・問い・印）。種類は「英字で始まる英数字と + - .」の後の「:」まで（小文字にする）
+fn url_split(u: &str) -> (String, Option<String>, String, Option<String>, Option<String>) {
+    let mut rest = u;
+    let mut scheme = String::new();
+    if let Some(i) = u.find(':') {
+        let s = &u[..i];
+        if s.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) && s.chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c)) {
+            scheme = s.to_ascii_lowercase();
+            rest = &u[i + 1..];
+        }
+    }
+    let mut netloc = None;
+    if let Some(r) = rest.strip_prefix("//") {
+        let end = r.find(['/', '?', '#']).unwrap_or(r.len());
+        netloc = Some(r[..end].to_string());
+        rest = &r[end..];
+    }
+    let (rest, frag) = match rest.split_once('#') {
+        Some((a, f)) => (a, Some(f.to_string())),
+        None => (rest, None),
     };
-    if let Some((scheme, n)) = abs {
-        let rest = &loc[n..];
-        let has_path = rest.contains(['/', '?', '#']);
-        let url = if has_path { loc.to_string() } else { format!("{loc}/") };
-        let (u, _) = url.split_once('#').map(|(a, b)| (a.to_string(), b)).unwrap_or((url.clone(), ""));
-        if u[n..].split(['?']).next().unwrap_or("").contains("/.") {
-            return py("30x の行き先の道に . の段（urljoin が畳む）");
+    let (path, query) = match rest.split_once('?') {
+        Some((a, q)) => (a.to_string(), Some(q.to_string())),
+        None => (rest.to_string(), None),
+    };
+    (scheme, netloc, path, query, frag)
+}
+
+/// urllib.parse.urlunsplit（名前があれば道の頭に「/」・空の問いと印は落とす）
+fn url_unsplit(scheme: &str, netloc: Option<&str>, path: &str, query: Option<&str>, frag: Option<&str>) -> String {
+    let mut url = path.to_string();
+    if let Some(n) = netloc.filter(|n| !n.is_empty()).or((matches!(scheme, "http" | "https") && !url.starts_with("//")).then_some("")) {
+        if !url.is_empty() && !url.starts_with('/') {
+            url = format!("/{url}");
         }
-        return Ok(format!("{scheme}://{}", &url[n..]));
+        url = format!("//{n}{url}");
     }
-    if loc.starts_with('/') && !loc.starts_with("//") {
-        if loc.split(['?', '#']).next().unwrap_or("").contains("/.") {
-            return py("30x の行き先の道に . の段（urljoin が畳む）");
+    if !scheme.is_empty() {
+        url = format!("{scheme}:{url}");
+    }
+    if let Some(q) = query.filter(|q| !q.is_empty()) {
+        url = format!("{url}?{q}");
+    }
+    if let Some(f) = frag.filter(|f| !f.is_empty()) {
+        url = format!("{url}#{f}");
+    }
+    url
+}
+
+/// urllib.parse.urljoin(いまの URL, url)（Python 3.13: 種類が違えば url のまま・名前があれば url のまま〈. の段も畳まない〉・相対の道は
+/// いまの道の段に足して . と .. を畳む）
+fn url_join(cur: &Target, url: &str) -> String {
+    let bscheme = cur.scheme();
+    if url.is_empty() {
+        return format!("{bscheme}://{}{}", cur.netloc, cur.selector);
+    }
+    let (sc, nl, path, query, frag) = url_split(url);
+    let scheme = if sc.is_empty() { bscheme.to_string() } else { sc };
+    if scheme != bscheme {
+        return url.to_string();
+    }
+    if let Some(n) = nl {
+        return url_unsplit(&scheme, Some(&n), &path, query.as_deref(), frag.as_deref());
+    }
+    let (bpath, bquery) = match cur.selector.split_once('?') {
+        Some((p, q)) => (p.to_string(), Some(q.to_string())),
+        None => (cur.selector.clone(), None),
+    };
+    if path.is_empty() {
+        let q = if query.is_some() { query } else { bquery };
+        return url_unsplit(&scheme, Some(&cur.netloc), &bpath, q.as_deref(), frag.as_deref());
+    }
+    let segments: Vec<String> = if path.starts_with('/') {
+        path.split('/').map(str::to_string).collect()
+    } else {
+        let mut base: Vec<String> = bpath.split('/').map(str::to_string).collect();
+        if base.last().is_some_and(|x| !x.is_empty()) {
+            base.pop();
         }
-        return Ok(format!("{}://{}{loc}", cur.scheme(), cur.netloc));
+        base.extend(path.split('/').map(str::to_string));
+        let n = base.len();
+        // segments[1:-1] = filter(None, segments[1:-1])
+        let mut out = vec![base[0].clone()];
+        out.extend(base[1..n.saturating_sub(1).max(1)].iter().filter(|x| !x.is_empty()).cloned());
+        if n > 1 {
+            out.push(base[n - 1].clone());
+        }
+        out
+    };
+    let mut resolved: Vec<String> = vec![];
+    for seg in &segments {
+        match seg.as_str() {
+            ".." => {
+                resolved.pop();
+            }
+            "." => {}
+            _ => resolved.push(seg.clone()),
+        }
     }
-    py("30x の行き先が http の URL でも絶対の道でもない（urllib は urljoin・ほかの種類）")
+    if segments.last().is_some_and(|x| x == "." || x == "..") {
+        resolved.push(String::new());
+    }
+    let joined = resolved.join("/");
+    let p = if joined.is_empty() { "/".to_string() } else { joined };
+    url_unsplit(&scheme, Some(&cur.netloc), &p, query.as_deref(), frag.as_deref())
 }
 
 /// スケジュールの問い合わせの仕方（版 3.117.1）
@@ -863,14 +982,14 @@ fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads, https: bool, 
         let low = loc.to_ascii_lowercase();
         let scheme = low.find(':').map(|i| &low[..i]).filter(|s| !s.contains(['/', '?', '#']));
         if scheme.is_some_and(|s| !matches!(s, "http" | "https" | "ftp")) {
-            return py("30x の行き先が許されない種類（urllib は HTTPError の文に URL を入れる）");
+            return py("移る先が http・https でない場所（file: など）です");
         }
         // POST の 307・308 は urllib がたどらない（行き先の種類を見た後・行き先を組む前）
         if method == "POST" && matches!(r.status, 307 | 308) {
             return Ok(r);
         }
         if scheme.is_some_and(|s| s == "ftp" || (s == "https" && !https)) {
-            return py("30x の行き先が https・ftp");
+            return py("移る先が ftp か、https を取らない問い合わせの https です");
         }
         let new_url = redirect_url(&t, &loc, https)?;
         let seen = visited.iter().find(|(u, _)| *u == new_url).map(|x| x.1).unwrap_or(0);

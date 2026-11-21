@@ -3,6 +3,7 @@
 // 開発用サーバーを、手元のマスタに読めない行を足し（TPA_UI_BAD_ROWS）、共有に届かない形（TPA_UI_SHARE=down）で起こし、1728×1152・1536×864・1280×720 で、
 // 本物のキーとマウスで:
 // ① ふだん（動いている）: 知らせの段も札「中身停止」も無く、暇な「待機中」は出る
+// ①' 版 3.118.0: 中身を起こさない窓（心拍の python が absent）も同じで、「接続 ●」の説明に Python の字が無い
 // ② 止まる（窓が知らせる tpa:python と、心拍の答えの python）: 見出しのすぐ下に 1 段の知らせの段（38px・字も釦も 1 段・切れない）。画面は 38px 縮み、
 //    段の下から始まる（表に重ならない・窓の下にはみ出さない）。「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま。段が出ている間は札を出さない。
 //    見出しは 1 段で「終了」まで届く。1728 は見出しのタブの絵が残る
@@ -98,6 +99,15 @@ try {
     const a = await look(p);
     check(`① ${tag} ふだんは段も札「中身停止」も無く、暇な「待機中」は出る`, !a.bar && !a.pill.shown && a.status.shown && a.status.text === "待機中" && !a.bodyOn && a.conn === "接続 ●", a);
     await shot(p, `pydown-ok-${tag}`);
+    // ①' 版 3.118.0（段 ④。作った後の採点の割れ 4）: 窓が中身を起こさない形（心拍の python が absent）は、ふだんと同じ（段も札も出さない）で、
+    //    見出しの「接続 ●」の説明に Python の字が無い
+    PY = { state: "absent", why: "" };
+    await sleep(3500);
+    const z = await look(p);
+    const zt = await p.evaluate(() => document.querySelector("#conn").title);
+    check(`①' ${tag} 中身を起こさない窓（absent）は段も札も無く、「接続 ●」の説明に Python が無い`,
+      !z.bar && !z.pill.shown && z.conn === "接続 ●" && zt && !/Python/.test(zt), { ...z, title: zt });
+    PY = { state: "ready", why: "" };
     // ④ の支度: 一覧を送り、行を押して選ぶ
     await p.evaluate(() => { const w = document.querySelector(".ll-grid-wrap"); if (w) w.scrollTop = 600; });
     await sleep(500);

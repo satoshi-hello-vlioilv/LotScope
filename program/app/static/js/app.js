@@ -659,7 +659,7 @@ function paintPill() {
   pill.setAttribute("aria-label", p.state === "starting" ? "中身（Python）を起こしています" : "中身（Python）が止まっています。押すと知らせの段を出します");
   pill.classList.toggle("is-wait", p.state === "starting");
   pill.title = p.state === "starting" ? "中身（Python）を起こしています" : `窓とはつながっています。中身（Python）が止まっています${p.why ? `: ${p.why}` : ""}（押すと知らせの段を出します）`;
-  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は見出しの下の段・右の札）" : "アプリ（窓）と中身（Python）に接続中";
+  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は見出しの下の段・右の札）" : "アプリ（窓）と接続中";   // 版 3.118.0: 窓が全部を答える（中身〈Python〉は起こさない）
   paintIdle();
 }
 /** 止まっている間だけ、暇なときの「待機中」の札を隠して幅を札に渡す（計算中・エラーの札は出す） */
@@ -757,7 +757,7 @@ function setConn(ok) {
   const el = $("#conn");
   el.className = "pill " + (ok ? "conn-ok" : "conn-bad");
   el.textContent = ok ? "接続 ●" : "未接続 ○";
-  el.title = ok ? "アプリの中身（Python）と接続中" : "アプリの中身（Python）と接続できません。少し待っても戻らなければ、アプリを開き直してください。";
+  el.title = ok ? "アプリ（窓）と接続中" : "アプリ（窓）と接続できません。少し待っても戻らなければ、アプリを開き直してください。";
 }
 
 /* ---------------- ビュータブ / 列メニュー ---------------- */
@@ -1740,7 +1740,7 @@ async function recalc() {
   } catch (e) {
     if (seq !== state.calcSeq) return;
     // 通信そのものの失敗（バックエンド停止）は、つながり次第やり直す（calcPending を残す）
-    if (e instanceof TypeError) { setConn(false); fail("アプリの中身（Python）に接続できません。つながると入力中の値で自動で再計算します（戻らないときはアプリを開き直してください）。"); }
+    if (e instanceof TypeError) { setConn(false); fail("アプリ（窓）に接続できません。つながると入力中の値で自動で再計算します（戻らないときはアプリを開き直してください）。"); }
     else { state.calcPending = false; fail(e.message); }
   }
 }

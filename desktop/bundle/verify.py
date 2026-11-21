@@ -304,10 +304,14 @@ def same(a, b) -> bool:
 
 
 def leftover_python(root: Path) -> list[str]:
-    """作業フォルダの program を動かしている Python が残っていないか（Linux は /proc、Windows は wmic の代わりに tasklist では見えないので省く）。"""
-    if os.name == "nt":
-        return []
+    """作業フォルダの program を動かしている Python（sidecar.py）が残っていないか（Linux は /proc、Windows は Win32_Process の CommandLine）。"""
     out = []
+    if os.name == "nt":
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*sidecar.py*' } | "
+              "ForEach-Object { \"$($_.ProcessId) $($_.CommandLine)\" }")
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           check=False)
+        return [x[:160] for x in r.stdout.splitlines() if x.strip() and str(root).lower() in x.lower()]
     for d in Path("/proc").iterdir():
         if d.name.isdigit():
             try:
@@ -333,9 +337,18 @@ def without_python(env: dict, work: Path) -> dict:
     return {**env, "PATH": no_python_path(env.get("PATH", "")), "TPA_PYTHON": str(work / "どこにも無い" / "python3")}
 
 
-def python_started(local: Path) -> list[str]:
-    """窓の記録で、窓が中身（Python）を起こした印（版 3.117.x までの窓の READY・PID の行）。段 ④ の窓では 1 度も無い"""
-    return [line[:160] for line in desktop_log(local) if " READY version=" in line or " PID 起こした" in line]
+def python_started(local: Path, since: int = 0) -> list[str]:
+    """窓が中身（Python）を起こした・起こそうとした印（版 3.118.0。採点の割れ 3）。段 ④ の窓では空。見る物は窓が持つ物だけ:
+    - 窓を閉じるときの記録「EXIT 窓を閉じた python_attempts=N」（Supervisor の起こそうとした回数）が 0 でない・その行が 1 つも無い
+    - 中身を起こすと必ず作られる作業場所の logs/sidecar_stderr.log がある
+    since は desktop.log の何行目から見るか（前の版の窓が先に書いた行を外す: prev）"""
+    lines = desktop_log(local)[since:]
+    out = [line[:160] for line in lines if "python_attempts=" in line and "python_attempts=0" not in line]
+    if not any("python_attempts=" in line for line in lines):
+        out.append("窓を閉じた記録（EXIT … python_attempts=）がありません")
+    if since == 0 and (local / "logs" / "sidecar_stderr.log").exists():
+        out.append("logs/sidecar_stderr.log がある（中身を起こした）")
+    return out
 
 
 def update(exe: Path, work: Path) -> bool:
@@ -365,8 +378,9 @@ def update(exe: Path, work: Path) -> bool:
     links = [work / "links" / "Desktop", work / "links" / "Programs"]
     env = {k: v for k, v in os.environ.items() if k not in ("TPA_NO_HANDOFF", "TPA_PROGRAM_DIR", "TPA_SELFTEST")}
     env.update({"TRANSFER_APP_CONFIG": str(conf), "TRANSFER_LOCAL_ROOT": str(local), "TPA_LINK_DIRS": os.pathsep.join(map(str, links))})
-    env = without_python(env, work)    # 版 3.118.0: いまの窓は Python の無い PATH で開く（中身を起こさない）
+    # 版 3.118.0: 1 段目は Python のある PATH のまま開き（PATH に Python があっても起こさない。採点の割れ 3）、2 段目から Python の無い PATH で開く
     run = Run(work, env)
+    env = without_python(env, work)
     app = local / "app"
     ok = True
 
@@ -407,6 +421,10 @@ def update(exe: Path, work: Path) -> bool:
     # 人が作った、共有の exe を指し作業フォルダも共有のショートカット（次の起動で直る）
     lnk = links[0] / f"{b['name']}.lnk"
     make_link(lnk, share_exe, share_app)
+
+    ok &= check(not python_started(local), "1. PATH に Python がある PC でも窓は中身を起こさない（python_attempts=0・sidecar_stderr.log が無い）",
+                python_started(local))
+    run = Run(work, env)    # 2 段目から Python の無い PATH
 
     # 2. ショートカットの行き先（app の exe）で開く → 入れ替わる
     r = run.open(app / b["exe"], "app")
@@ -701,8 +719,8 @@ def prev(old_zip: Path, exe: Path, work: Path) -> bool:
     good, why = window_only_ok(r, "new")
     ok &= check(info.get("version") == v_new and good, f"prev 2. 入れ替えて開き直すと {v_new}（python absent・窓だけの項目が通る）", why)
     ok &= check(not (local / "update" / "applied.json").exists(), "prev 2. 確かめの印は画面の最初の心拍で消えた")
-    started = [x for x in desktop_log(local)[before:] if " READY version=" in x or " PID 起こした" in x]
-    ok &= check(not started, "prev 2. いまの窓は Python を 1 度も起こさない", started)
+    started = python_started(local, before)
+    ok &= check(not started, "prev 2. いまの窓は Python を 1 度も起こさない（python_attempts=0）", started)
     # 3. 配る版を前の版に戻す → いまの窓が 1 回開くだけで前の版を取り込み・入れ替え・開き直す（前の版は Python を起こすので Python のある PATH）
     (rel_root / b["name"] / "distribute.json").write_text(json.dumps(
         {"schema": 1, "app_id": b["app_id"], "version": old_v, "entry": b["exe"], "setAt": time.strftime("%Y-%m-%dT%H:%M:%S"),

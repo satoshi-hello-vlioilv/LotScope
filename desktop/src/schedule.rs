@@ -230,7 +230,7 @@ impl Cfg {
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
         let secs = timeout_secs(&self.m["timeout_sec"]);
         let url = format!("{base}{init}");
-        crate::cm3_http::target_with(&url, true).map_err(|f| windowed(f, "予定の元の URL を窓が使えません"))?;
+        crate::cm3_http::target_with(&url, true).map_err(|f| windowed(f, cm3::Unread::Url))?;
         Ok((url, base, Duration::from_secs_f64(secs)))
     }
 
@@ -544,7 +544,7 @@ impl Schedules {
         let got = plan.and_then(|(url, base, timeout)| self.fetch(cfg, &e, &url, &base, timeout));
         let got = got.and_then(|mut data| {
             data["fetchedAt"] = json!(local_text(t));
-            let rows = cm3::table_rows(&data).map_err(|f| windowed(f, "予定の元の答えを表に置けません"))?;
+            let rows = cm3::table_rows(&data).map_err(|f| windowed(f, cm3::Unread::Table))?;
             Ok((data, rows))
         });
         // 置き場に書けない（作業場所の db_cache\schedule）: 前の答えがあればそれ・無ければ失敗（前は Python に任せた。Python の _store は OSError で落ちる）
@@ -553,7 +553,7 @@ impl Schedules {
         });
         match got {
             Err(f) => {
-                let msg = windowed(f, "予定の元の答えを窓が読めません").text();
+                let msg = windowed(f, cm3::Unread::Answer).text();
                 let st = {
                     let mut g = self.inner.lock().unwrap();
                     let cur = g.state.entry(code.into()).or_default();
@@ -598,8 +598,8 @@ impl Schedules {
         ]);
         let body = payload.dumps(", ", ": ");
         let (r, via) = crate::cm3_http::post_cm3(url, base, body.as_bytes(), timeout, &cfg.net());
-        let r = r.map_err(|f| windowed(f, "予定の元の答えを窓が読めません"))?;
-        let text = cm3::decode_body(&r.body, r.header("Content-Type")).map_err(|f| windowed(f, "予定の元の答えの字を窓が読めません"))?;
+        let r = r.map_err(|f| windowed(f, cm3::Unread::Answer))?;
+        let text = cm3::decode_body(&r.body, r.header("Content-Type")).map_err(|f| windowed(f, cm3::Unread::Text))?;
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
         // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
         if json_constant(&text) {
@@ -607,10 +607,11 @@ impl Schedules {
         }
         // 大きな整数・深い入れ子（版 3.118.0。利用者の決め ask_user 5: 窓は理由つきで断る。前の答えがあればそれ。前は Python に任せた）
         if first.is_some_and(|c| "{[\"-0123456789tfnNI".contains(c)) && crate::master_rows::text_split(&text) {
+            crate::delegate::note("unanswered schedule big");
             return Err(Fail::Cm3(BIG_OR_DEEP.into()));
         }
         let Some(raw) = Tree::parse(&text) else { return Err(Fail::Cm3("予定の元の応答がJSONではありません".into())) };
-        let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect).map_err(|f| windowed(f, "予定の元の答えを窓が整えられません"))?;
+        let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect).map_err(|f| windowed(f, cm3::Unread::Shape))?;
         // 取った道（版 3.117.1: 取った係・https か・直かプロキシ越しか。スケジュールのタブのデータの時刻の title に出す）
         if let Some(v) = via {
             data["via"] = json!({"engine": "rs", "tls": v.tls, "proxy": v.proxy});

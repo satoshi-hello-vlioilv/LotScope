@@ -785,7 +785,15 @@ impl Lists {
                     &[],
                 ))
             }
-            None => return Ok(None),
+            // 束にスケジュールの設定が無い（窓の束の組み違い）: 理由つきで断る（版 3.118.0 の作った後の採点の割れ 5。前は中身へ回した）
+            None => {
+                return Err(error(
+                    503,
+                    "スケジュールの設定を組めません（設定の束にスケジュールの段がありません）。アプリを開き直しても続くときは、配る人に知らせてください",
+                    Some("settings"),
+                    &[],
+                ))
+            }
         };
         let code = Self::sch_equip(&cfg, equip)?;
         if code == HOT_KEY {
@@ -899,7 +907,16 @@ impl Lists {
             let msg = if errors.is_empty() { "HOT の設備の予定を取れません。".to_string() } else { errors.join(" / ") };
             return Err(error(502, &msg, Some("cm3"), &[]));
         }
-        let Ok((path, info)) = self.sched.build_hot(&cfg, &parts, &errors) else { return Ok(None) };
+        // HOT の表を置けない（この PC の作業場所の db_cache\schedule に書けない・空きが無い）: 理由つきで答える（版 3.118.0 の作った後の採点の割れ 5。
+        // 前は窓が答えず中身へ回した）
+        let (path, info) = self.sched.build_hot(&cfg, &parts, &errors).map_err(|e| {
+            error(
+                502,
+                &format!("HOT コイル作業順の表をこの PC の作業場所に置けません（{e}）。作業場所の空きと書き込みの権限を確かめてください。"),
+                Some("cm3"),
+                &[],
+            )
+        })?;
         let hot = self.sched.peek(HOT_KEY);
         let ats: Vec<f64> =
             states.iter().filter_map(|(k, st)| schedule::source_info(&cfg, st, k)["at"].as_f64()).filter(|x| *x != 0.0).collect();
@@ -946,7 +963,26 @@ impl Lists {
     /// データの時刻（GET /api/src/<スケジュール>/source。Python の schedule_source）: 古くなった設備は裏で取り直す（答えは待たない）。
     /// 窓が答えない形（設定を組めない・係を降りた設備がある）は None
     pub fn sch_source(&self, conf: &Conf, equip: &str) -> Option<(u16, Value)> {
-        let Ok(cfg) = conf.sched_cfg()? else { return None };
+        // 版 3.118.0 の作った後の採点の割れ 5: 組めない形も理由つきで答える（前は中身へ回した）
+        let cfg = match conf.sched_cfg() {
+            Some(Ok(c)) => c,
+            Some(Err(why)) => {
+                return Some(error(
+                    503,
+                    &format!("スケジュールの設定を組めません（{why}）。全員の設定ファイルの「schedule」を直してください"),
+                    Some("settings"),
+                    &[],
+                ))
+            }
+            None => {
+                return Some(error(
+                    503,
+                    "スケジュールの設定を組めません（設定の束にスケジュールの段がありません）。アプリを開き直しても続くときは、配る人に知らせてください",
+                    Some("settings"),
+                    &[],
+                ))
+            }
+        };
         let code = match Self::sch_equip(&cfg, equip) {
             Ok(c) => c,
             Err(f) => return Some(f),
@@ -1025,6 +1061,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn schedule_settings_that_cannot_be_built_are_answered_with_a_reason() {
+        // 版 3.118.0 の作った後の採点の割れ 5: 束にスケジュールの段が無い・組めないデータの時刻は、窓が理由つきで答える（前は None で中身へ回した）
+        let dir = std::env::temp_dir().join(format!("da-lists-schconf-{}", std::process::id()));
+        let lists = Lists::new(&dir);
+        let none = json!({});
+        let (st, v) = lists.sch_source(&Conf { v: &none }, "L-1").expect("段が無くても窓が答える");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("settings")), "{v}");
+        assert!(
+            v["error"].as_str().unwrap().contains("スケジュールの設定を組めません") && !v["error"].as_str().unwrap().contains("Python"),
+            "{v}"
+        );
+        let bad = json!({"scheduleConf": {"auto_refresh_sec": "x"}});
+        let (st, v) = lists.sch_source(&Conf { v: &bad }, "L-1").expect("組めなくても窓が答える");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("settings")), "{v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn folder_rules_like_python() {
