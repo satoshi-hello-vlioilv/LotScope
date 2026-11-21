@@ -1151,7 +1151,7 @@ fn fid_unsub(s: &str, base: &Path) -> String {
 /// 宣言から場面のフォルダを作る（snapshot の逆）。宣言どおりに作れない物があれば落とす（版 3.117.3 の作った後の直し・割れ 4 (e): 前は
 /// Windows で作れない物を黙って捨てた。作り方は materialize_os の 1 つ）
 pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
-    let unmade = materialize_os(decl, base, ctx, bake_os());
+    let unmade = materialize_os(decl, base, ctx, if cfg!(windows) { "nt" } else { "posix" });
     assert!(unmade.is_empty(), "場面を宣言どおりに作れません（Windows で作れない物は nt の表の unmade に持つ）: {unmade:?}");
 }
 
