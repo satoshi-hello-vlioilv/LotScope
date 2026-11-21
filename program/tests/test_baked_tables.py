@@ -618,7 +618,7 @@ class BakedTables(unittest.TestCase):
             self.assertEqual([x for x in bless.check(tmp) if "名前を引く係" in x], [])
             for word in ("[Errno -2] Name or service not known", "[Errno -3] Temporary failure in name resolution"):
                 t = json.loads((tmp / "builder.json").read_text(encoding="utf-8"))
-                t["answers"]["x"] = {"error": f"CM3に接続できません: {word}"}
+                t["answers"]["x"] = {"error": f"予定の元に接続できません: {word}"}
                 (tmp / "builder.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
                 self.assertTrue(any("builder: PC の名前を引く係" in x for x in bless.check(tmp)), word)
         finally:

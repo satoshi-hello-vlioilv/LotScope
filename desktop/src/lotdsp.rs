@@ -998,7 +998,7 @@ pub fn call(lot_no: &str, cfg: &ApiCfg) -> Result<J, ApiError> {
     let r =
         match crate::cm3_http::post_plain(&cfg.search_url, text.as_bytes(), std::time::Duration::from_secs_f64(cfg.timeout.min(86400.0))) {
             Ok(r) => r,
-            Err(crate::cm3::Fail::Cm3(m)) if m == "CM3の応答がタイムアウトしました" => {
+            Err(crate::cm3::Fail::Cm3(m)) if m == "予定の元の応答がタイムアウトしました" => {
                 return api_err("timeout", format!("LotDsp の API から {} 秒たっても応答がありません。", py_g(cfg.timeout, 6)))
             }
             Err(_) if cfg.search_url.to_ascii_lowercase().starts_with("https:") => {

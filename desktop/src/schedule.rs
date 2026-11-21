@@ -221,10 +221,10 @@ impl Cfg {
         let base = if truthy(base_v) { cm3::py_str(&Tree::from_value(base_v))? } else { String::new() };
         let base = base.trim_end_matches('/').to_string();
         if base.is_empty() {
-            return Err(Fail::Cm3("CM3 の場所（参照先の「CM3 の URL」）が決まっていません".into()));
+            return Err(Fail::Cm3("予定の元の場所（参照先の「予定の元の URL」）が決まっていません".into()));
         }
         if self.python_engine() {
-            return Err(Fail::Python("配った設定の schedule.fetch_engine が python（前の道: Python が CM3 を取る）"));
+            return Err(Fail::Python("配った設定の schedule.fetch_engine が python（前の道: Python が予定の元を取る）"));
         }
         let iv = &self.m["init_path"];
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
@@ -687,12 +687,12 @@ impl Schedules {
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
         // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
         if json_constant(&text) {
-            return Err(Fail::Cm3("CM3の応答がJSONではありません".into()));
+            return Err(Fail::Cm3("予定の元の応答がJSONではありません".into()));
         }
         if first.is_some_and(|c| "{[\"-0123456789tfnNI".contains(c)) && crate::master_rows::text_split(&text) {
             return Err(Fail::Python("JSON の読みが Python と割れる（NaN・大きな整数・深い入れ子）"));
         }
-        let Some(raw) = Tree::parse(&text) else { return Err(Fail::Cm3("CM3の応答がJSONではありません".into())) };
+        let Some(raw) = Tree::parse(&text) else { return Err(Fail::Cm3("予定の元の応答がJSONではありません".into())) };
         let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect)?;
         // 取った道（版 3.117.1: 取った係・https か・直かプロキシ越しか。スケジュールのタブのデータの時刻の title に出す）
         if let Some(v) = via {

@@ -789,7 +789,7 @@ impl Lists {
         let st = match self.sched.ensure(&cfg, &code, cfg.auto_refresh(), force) {
             Ok(st) => st,
             Err(crate::cm3::Fail::Cm3(e)) => {
-                return Err(error(502, &format!("{code} の予定を CM3 から取れません: {e}"), Some("cm3"), &[]));
+                return Err(error(502, &format!("{code} の予定を予定の元から取れません: {e}"), Some("cm3"), &[]));
             }
             Err(crate::cm3::Fail::Python(_)) => return Ok(None),
         };

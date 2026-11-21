@@ -65,15 +65,15 @@ class Cm3NetCases(unittest.TestCase):
         refused = ConnectionRefusedError(111, "Connection refused")
         cut = http.client.RemoteDisconnected("Remote end closed connection without response")
         hint = CASES["hint"]
-        self.assertEqual(cm3_net.message_of(refused, "", "p:1", False), f"CM3に接続できません: プロキシ（p:1）に届きません{hint}")
-        self.assertEqual(cm3_net.message_of(cut, "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
-        self.assertEqual(cm3_net.message_of(cut, "", None, True), f"CM3に接続できません: Remote end closed connection without response{hint}")
-        self.assertEqual(cm3_net.message_of(socket.gaierror(-2, "x"), "", "p:1", False), f"CM3に接続できません: プロキシ（p:1）に届きません{hint}")
-        self.assertEqual(cm3_net.message_of(cm3_net.ProxyBadAnswer("x"), "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）の答えを読めません{hint}")
-        self.assertEqual(cm3_net.message_of(TimeoutError("timed out"), "", "p:1", True), f"CM3の応答がタイムアウトしました{hint}")
+        self.assertEqual(cm3_net.message_of(refused, "", "p:1", False), f"予定の元に接続できません: プロキシ（p:1）に届きません{hint}")
+        self.assertEqual(cm3_net.message_of(cut, "", "p:1", True), f"予定の元に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
+        self.assertEqual(cm3_net.message_of(cut, "", None, True), f"予定の元に接続できません: Remote end closed connection without response{hint}")
+        self.assertEqual(cm3_net.message_of(socket.gaierror(-2, "x"), "", "p:1", False), f"予定の元に接続できません: プロキシ（p:1）に届きません{hint}")
+        self.assertEqual(cm3_net.message_of(cm3_net.ProxyBadAnswer("x"), "", "p:1", True), f"予定の元に接続できません: プロキシ（p:1）の答えを読めません{hint}")
+        self.assertEqual(cm3_net.message_of(TimeoutError("timed out"), "", "p:1", True), f"予定の元の応答がタイムアウトしました{hint}")
         eof = ssl.SSLEOFError(8, "EOF occurred in violation of protocol")
-        self.assertEqual(cm3_net.message_of(eof, "", "p:1", True), f"CM3に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
-        self.assertEqual(cm3_net.message_of(eof, "", None, False), f"CM3に接続できません: 暗号の通信（TLS）を始められません{hint}")
+        self.assertEqual(cm3_net.message_of(eof, "", "p:1", True), f"予定の元に接続できません: プロキシ（p:1）には届きましたが、その先で接続が切れました{hint}")
+        self.assertEqual(cm3_net.message_of(eof, "", None, False), f"予定の元に接続できません: 暗号の通信（TLS）を始められません{hint}")
 
     def test_every_kind_has_a_message(self):
         kinds = {c["kind"] for c in CASES["messages"]}

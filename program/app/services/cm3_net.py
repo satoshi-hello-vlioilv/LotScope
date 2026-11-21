@@ -23,19 +23,19 @@ import ssl
 
 HINT = "（社内 LAN か VPN につながっているか確かめてください）"
 MESSAGES = {
-    "timeout": "CM3の応答がタイムアウトしました{hint}",
-    "os": "CM3に接続できません: {os}{hint}",
-    "dns": "CM3に接続できません: サーバーの名前を引けません{hint}",
-    "tls_untrusted": "CM3に接続できません: 証明書を確かめられません（信頼できる発行元の証明書ではありません）{hint}",
-    "tls_name": "CM3に接続できません: 証明書の名前が URL の名前と合いません{hint}",
-    "tls_not": "CM3に接続できません: https で答えない口です（URL の http と https を確かめてください）",
-    "tls_other": "CM3に接続できません: 暗号の通信（TLS）を始められません{hint}",
-    "proxy_refused": "CM3に接続できません: プロキシが中継を断りました（{status}）{hint}",
-    "proxy_auth": "CM3に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）",
-    "proxy_unreachable": "CM3に接続できません: プロキシ（{proxy}）に届きません{hint}",
-    "proxy_cut": "CM3に接続できません: プロキシ（{proxy}）には届きましたが、その先で接続が切れました{hint}",
-    "proxy_bad": "CM3に接続できません: プロキシ（{proxy}）の答えを読めません{hint}",
-    "text": "CM3に接続できません: {text}",
+    "timeout": "予定の元の応答がタイムアウトしました{hint}",
+    "os": "予定の元に接続できません: {os}{hint}",
+    "dns": "予定の元に接続できません: サーバーの名前を引けません{hint}",
+    "tls_untrusted": "予定の元に接続できません: 証明書を確かめられません（信頼できる発行元の証明書ではありません）{hint}",
+    "tls_name": "予定の元に接続できません: 証明書の名前が URL の名前と合いません{hint}",
+    "tls_not": "予定の元に接続できません: https で答えない口です（URL の http と https を確かめてください）",
+    "tls_other": "予定の元に接続できません: 暗号の通信（TLS）を始められません{hint}",
+    "proxy_refused": "予定の元に接続できません: プロキシが中継を断りました（{status}）{hint}",
+    "proxy_auth": "予定の元に接続できません: プロキシが認証を求めています（このアプリは認証つきのプロキシに対応していません）",
+    "proxy_unreachable": "予定の元に接続できません: プロキシ（{proxy}）に届きません{hint}",
+    "proxy_cut": "予定の元に接続できません: プロキシ（{proxy}）には届きましたが、その先で接続が切れました{hint}",
+    "proxy_bad": "予定の元に接続できません: プロキシ（{proxy}）の答えを読めません{hint}",
+    "text": "予定の元に接続できません: {text}",
 }
 # 足す一言（PAC）を付ける種類（届かない形。設定の誤り text・https でない口 tls_not には付けない）
 REACH = {"timeout", "os", "dns", "tls_untrusted", "tls_name", "tls_other", "proxy_refused", "proxy_unreachable", "proxy_cut", "proxy_bad"}

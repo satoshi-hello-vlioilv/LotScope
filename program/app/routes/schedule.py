@@ -88,7 +88,7 @@ def schedule_plan(s, *, joined=True, equip=None, force=False):
     try:
         st = schedules().ensure(c, code, max_age=c["auto_refresh_sec"], force=force)
     except Cm3Error as e:
-        return None, error(f"{code} の予定を CM3 から取れません: {e}", 502, "cm3")
+        return None, error(f"{code} の予定を予定の元から取れません: {e}", 502, "cm3")
     plan = {"path": st["path"], "table": schedule.TABLE, "page_size": s["read"]["page_size"], "def": s, "equip": code,
             "state": st, "source": schedule.source_info(c, st, code)}
     if not joined:

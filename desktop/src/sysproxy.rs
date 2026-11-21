@@ -344,7 +344,7 @@ fn unquote(s: &str) -> String {
 
 /// 読めないプロキシの言葉（値は出さない: 合言葉が入っているかもしれない）
 fn unreadable(url_type: &str) -> String {
-    format!("CM3に接続できません: {url_type} のプロキシの設定を読めません")
+    format!("予定の元に接続できません: {url_type} のプロキシの設定を読めません")
 }
 
 /// 1 回の問い合わせのプロキシ（Python の sysproxy.choose。urllib の ProxyHandler.proxy_open と同じ選び方に、利用者の決めを足した物）。
@@ -359,7 +359,7 @@ pub fn choose(url_type: &str, host: &str, proxies: &[(String, String)], bypass: 
     }
     let scheme = scheme.unwrap_or_default();
     if !matches!(scheme.as_str(), "" | "http" | "https") {
-        return Err(format!("CM3に接続できません: プロキシの種類 {scheme} には対応していません（http のプロキシだけを使えます）"));
+        return Err(format!("予定の元に接続できません: プロキシの種類 {scheme} には対応していません（http のプロキシだけを使えます）"));
     }
     let hostport = unquote(&hostport);
     let (i, j) = (hostport.rfind(':').map(|x| x as i64).unwrap_or(-1), hostport.rfind(']').map(|x| x as i64).unwrap_or(-1));

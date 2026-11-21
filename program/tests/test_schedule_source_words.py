@@ -18,7 +18,13 @@ WORD = re.compile(r"(?<![A-Za-z0-9_])CM3(?![A-Za-z0-9_])")
 # 設備の名前として CM3 を書く字（理由つき）。予定の元の意味の CM3 はここに足さない
 ALLOWED = {
     "CM1・CM2・CM3": "設備の名前の並び（予定の元ではない）",
+    "設備の CM3": "設備の名前（更新履歴の 3.117.3 の説明）",
+    "CM3 と呼んでいた": "前の呼び名を言う所（更新履歴の 3.117.3 の説明）",
+    "CM3 は設備の名前": "前の呼び名を替えた訳（更新履歴の 3.117.3 の説明）",
+    "CM3.CORP": "プロキシの迂回の事例の作り物のサーバーの名前（sysproxy_cases.json。予定の元の言葉ではない）",
 }
+# 人の事例の表・焼いた決まりの表のうち、作り手向けの説明の欄（字は利用者に見えない）
+DEV_KEYS = ("about", "decisions", "why")
 
 
 def py_strings(p):
@@ -82,6 +88,8 @@ def json_strings(v, path=""):
         yield path, v
     elif isinstance(v, dict):
         for k, x in v.items():
+            if k in DEV_KEYS:
+                continue
             yield from json_strings(k, path + "/<鍵>")
             yield from json_strings(x, f"{path}/{k}")
     elif isinstance(v, list):

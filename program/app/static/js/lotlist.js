@@ -153,10 +153,10 @@
       colTable: (t) => `${id}:${t || ""}`, place: (t) => `${equipName(st().equip) || ""}・${t || ""}`,
       loadTable: () => "", saveTable: () => {},           // 表は設備で決まる（設備は予定、HOT コイル作業順は HOT）
       settingsKey: "schedule.", settingsTab: "sources", settingsOpen: def.key, settingsLabel: "データ元を開く",
-      settingsTip: "CM3 の場所・設備・仕掛との結合を「マスタ管理」の「データ元」で直します",
+      settingsTip: "予定の元の場所・設備・仕掛との結合を「マスタ管理」の「データ元」で直します",
       // 待ちの知らせの見出しは、いま読んでいる設備を言う（waitHead）。予定の元の名前（CM3）は設備の名前と紛れるので、見出しに入れず下の説明で言う
-      remoteHint: "（CM3）", waitNoun: name, waitVerb: "取っています",
-      firstNote: "予定の元（CM3）から作業予定を取り、仕掛と突き合わせています（数秒）。",
+      remoteHint: "（予定の元）", waitNoun: name, waitVerb: "取っています",
+      firstNote: "予定の元から作業予定を取り、仕掛と突き合わせています（数秒）。",
       staleWhat: "",
     };
   }

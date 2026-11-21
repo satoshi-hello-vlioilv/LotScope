@@ -236,17 +236,17 @@
    "label": "ロット問い合わせ（LotDsp）の URL"
   },
   {
-   "hint": "設備ごとの作業予定を読みに行く CM3 スケジューリングシステムの場所（例: http://nlmfangyweb1a:9085）。「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。",
+   "hint": "設備ごとの作業予定を読みに行く予定の元（スケジューリングシステム）の場所（例: http://nlmfangyweb1a:9085）。「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。",
    "key": "schedule.cm3_base_url",
    "kind": "url",
-   "label": "スケジュール（CM3）の URL",
+   "label": "予定の元の URL",
    "page": "sources"
   },
   {
-   "hint": "CM3 への問い合わせに入れる端末の IP（CM3 の画面を開いたときにブラウザが送る値と同じ）。",
+   "hint": "予定の元への問い合わせに入れる端末の IP（予定の元の画面を開いたときにブラウザが送る値と同じ）。",
    "key": "schedule.client_ip",
    "kind": "text",
-   "label": "CM3 に名乗る端末の IP",
+   "label": "予定の元に名乗る端末の IP",
    "page": "sources"
   },
   {
@@ -264,7 +264,7 @@
    "page": "sources"
   },
   {
-   "hint": "「スケジュール」の画面を開いている間、この間隔で CM3 から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。",
+   "hint": "「スケジュール」の画面を開いている間、この間隔で予定の元から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。",
    "key": "schedule.auto_refresh_sec",
    "kind": "int",
    "label": "スケジュールを取り直す間隔（秒）",
@@ -505,7 +505,7 @@
   "connSpecs": {
    "client_ip": {
     "kind": "text",
-    "label": "CM3 に名乗る端末の IP"
+    "label": "予定の元に名乗る端末の IP"
    },
    "equipments": {
     "kind": "text",
@@ -550,7 +550,7 @@
    },
    "url": {
     "kind": "url",
-    "label": "CM3 の URL"
+    "label": "予定の元の URL"
    }
   },
   "equipModes": [

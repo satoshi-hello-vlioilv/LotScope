@@ -187,7 +187,7 @@ def fetch_raw(cfg, setsubi, term_kbn):
     """CM3 の答え（JSON の dict）そのもの。cfg: {cm3_base_url, init_path, client_ip, timeout_sec, use_system_proxy}"""
     base = str(cfg.get("cm3_base_url") or "").rstrip("/")
     if not base:
-        raise Cm3Error("CM3 の場所（参照先の「CM3 の URL」）が決まっていません")
+        raise Cm3Error("予定の元の場所（参照先の「予定の元の URL」）が決まっていません")
     body = json.dumps(build_payload(setsubi, term_kbn, cfg.get("client_ip")), ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(base + str(cfg.get("init_path") or ""), data=body, method="POST", headers={
         "Accept": "application/json, text/plain, */*", "Content-Type": "application/json;charset=UTF-8",
@@ -203,7 +203,7 @@ def fetch_raw(cfg, setsubi, term_kbn):
     except urllib.error.HTTPError as e:
         if e.code == 407:       # プロキシの認証（利用者の決め: 認証は無い。対応していない）
             raise Cm3Error(cm3_net.message("proxy_auth")) from None
-        raise Cm3Error(f"CM3がHTTPエラーを返しました: {e.code} {e.reason}") from None
+        raise Cm3Error(f"予定の元がHTTPエラーを返しました: {e.code} {e.reason}") from None
     except urllib.error.URLError as e:
         raise Cm3Error(cm3_net.message_of(e.reason, note, hop.proxy, hop.connected)) from None
     except OSError as e:
@@ -211,12 +211,12 @@ def fetch_raw(cfg, setsubi, term_kbn):
     try:
         return json.loads(text, parse_constant=_no_constant)
     except ValueError:
-        raise Cm3Error("CM3の応答がJSONではありません") from None
+        raise Cm3Error("予定の元の応答がJSONではありません") from None
 
 
 # 確かめるの言葉（版 3.117.1 の作った後の直し・割れ 2。services/builder.cm3_reach・窓の src/cm3_http.rs の reach と同じ）
-REACH_NOT_HTTP = "CM3 の URL は http:// か https:// で始めてください。"
-REACH_UNKNOWN = "CM3 に届きません（社外・VPN 未接続・場所の間違い）。"
+REACH_NOT_HTTP = "予定の元の URL は http:// か https:// で始めてください。"
+REACH_UNKNOWN = "予定の元に届きません（社外・VPN 未接続・場所の間違い）。"
 
 
 def reach(url, use_system_proxy, timeout):
@@ -240,7 +240,7 @@ def reach(url, use_system_proxy, timeout):
             return True, ""
         if e.code == 407:
             return False, cm3_net.message("proxy_auth")
-        return False, f"CM3がHTTPエラーを返しました: {e.code} {e.reason}"
+        return False, f"予定の元がHTTPエラーを返しました: {e.code} {e.reason}"
     except urllib.error.URLError as e:
         return False, cm3_net.message_of(e.reason, note, hop.proxy, hop.connected)
     except OSError as e:
@@ -367,12 +367,12 @@ def normalize(raw, own_setsubi, inspect_keywords=None):
     """CM3 の答え → 画面の形（行は items）。完了予定は日付の付く行（"10/19 14:05"）と時刻だけの行（"     14:27"）があり、
     時刻だけの行は前の行の日付を引き継ぐ（前の行より早い時刻なら翌日）。開始予定は前の行の完了予定（推定）。"""
     if not isinstance(raw, dict):
-        raise Cm3Error("CM3応答の形式が不正です")
+        raise Cm3Error("予定の元の応答の形式が不正です")
     if raw.get("status") != "SUCCESS":
-        raise Cm3Error(f"CM3応答 status={raw.get('status')}")
+        raise Cm3Error(f"予定の元の応答 status={raw.get('status')}")
     entity = raw.get("entity") or {}
     if entity.get("error"):
-        raise Cm3Error(f"CM3エラー: {fix_text(entity.get('errorMessage')) or '詳細不明'}")
+        raise Cm3Error(f"予定の元のエラー: {fix_text(entity.get('errorMessage')) or '詳細不明'}")
 
     update_dt = _ts_to_dt(entity.get("updateTs"))
     base_year = (update_dt or datetime.now(JST)).year

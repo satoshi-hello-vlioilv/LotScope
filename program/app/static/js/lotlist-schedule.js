@@ -62,11 +62,11 @@
     const list = S.equips;
     if (list == null) { bar.innerHTML = '<span class="eq-lab">設備</span><span class="eq-wait">設備を読んでいます…</span>'; return; }
     const chips = list.map((e) => `<button type="button" role="tab" class="eq-chip${e.hot ? " sd-hotchip" : ""}" data-equip="${esc(e.key)}" aria-selected="${e.key === S.equip}"`
-      + ` tabindex="${e.key === S.equip ? 0 : -1}" title="${esc(e.hot ? `${meta.hot.equipments.join("・")} で前工程が ${meta.hot.prevValue} のロットを、完了予定の順にまとめた一覧` : `${e.name} の作業予定（CM3）`)}">`
+      + ` tabindex="${e.key === S.equip ? 0 : -1}" title="${esc(e.hot ? `${meta.hot.equipments.join("・")} で前工程が ${meta.hot.prevValue} のロットを、完了予定の順にまとめた一覧` : `${e.name} の作業予定（予定の元）`)}">`
       + (e.hot ? "" : `<i class="sd-eqdot" style="--eqc:${eqColor(e.key)}" aria-hidden="true"></i>`) + `${esc(e.name)}</button>`).join("");
     const cur = list.find((e) => e.key === S.equip);
-    const link = cur && cur.viewUrl ? `<a class="eq-manage sd-cm3" href="${esc(cur.viewUrl)}" target="_blank" rel="noopener" title="${esc(cur.name)} の CM3 の画面を、いつものブラウザで開きます">CM3 の画面を開く ↗</a>` : "";
-    const auto = meta ? `<span class="eq-hint sd-auto" title="この画面を開いている間、CM3 から取り直し、変わっていれば出し直します（データ元のスケジュールの「確かめる間隔」）">自動更新 ${meta.autoRefreshSec} 秒</span>` : "";
+    const link = cur && cur.viewUrl ? `<a class="eq-manage sd-cm3" href="${esc(cur.viewUrl)}" target="_blank" rel="noopener" title="${esc(cur.name)} の予定の元の画面を、いつものブラウザで開きます">予定の元の画面を開く ↗</a>` : "";
+    const auto = meta ? `<span class="eq-hint sd-auto" title="この画面を開いている間、予定の元から取り直し、変わっていれば出し直します（データ元のスケジュールの「確かめる間隔」）">自動更新 ${meta.autoRefreshSec} 秒</span>` : "";
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>${auto}${link}`;
   }
 
@@ -124,9 +124,9 @@
       + (extra.joined ? chip("miss", "仕掛に無い", miss, " k-miss", sel.kind === "miss", "仕掛（データ元「仕掛」）に同じロットが無い製造の行だけを出します") : "");
     box.innerHTML = `<div class="sd-row">${lead(m.count, `件 製造・ロット ${m.lots}`, "設備停止・点検を除いた製造の行の数（2 パス目も 1 件と数える）と、ロットの数")}`
       + `<span class="sd-klab">区分</span>${chips}`
-      + `<span class="sd-meta"${(() => { const t = [m.error ? `いまは CM3 に届きません（${m.error}）。前に取れた予定を出しています` : "", viaText(m.via)].filter(Boolean).join("\n");
+      + `<span class="sd-meta"${(() => { const t = [m.error ? `いまは予定の元に届きません（${m.error}）。前に取れた予定を出しています` : "", viaText(m.via)].filter(Boolean).join("\n");
         return t ? ` title="${esc(t)}"` : ""; })()}>完了予定 <b>${esc(m.first || "-")} ～ ${esc(m.last || "-")}</b>`
-      + `　CM3 の更新 <b>${esc((m.updateTime || "-").slice(5, 16))}</b>・取得 <b>${esc((m.fetchedAt || "-").slice(11, 16))}</b>${m.error ? ' <em class="sd-err">届きません</em>' : ""}</span></div>`;
+      + `　予定の元の更新 <b>${esc((m.updateTime || "-").slice(5, 16))}</b>・取得 <b>${esc((m.fetchedAt || "-").slice(11, 16))}</b>${m.error ? ' <em class="sd-err">届きません</em>' : ""}</span></div>`;
   }
 
   async function fetchHotAll(S) {
