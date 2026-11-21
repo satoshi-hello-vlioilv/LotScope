@@ -166,4 +166,4 @@ def cm3_reach(url, settings=None):
     """CM3 に届くか（決め 6）→ {ok, message}"""
     from .cm3_schedule import reach
     ok, why = reach(url, use_system_proxy(settings), 4)
-    return {"ok": ok, "message": "CM3 に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。" if ok else why}
+    return {"ok": ok, "message": "予定の元に届きました（設備ごとの予定は「スケジュール」のタブで確かめてください）。" if ok else why}

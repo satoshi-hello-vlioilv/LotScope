@@ -16,7 +16,7 @@ spec.loader.exec_module(bless)
 
 # 凍らせた Python の写し（program/tests/legacy/3.117.3。版 3.117.3。tools/freeze-legacy.py が 1 回だけ作った）の MANIFEST.json の sha256。
 # 写しのファイルの sha256 は MANIFEST.json が持ち、MANIFEST.json そのものの指紋をここに書く（写しと MANIFEST.json を一緒に書き換えても落ちる）
-LEGACY_MANIFEST_SHA = "6fef09de40f5de3ea02163cff084955d485a5859d023327998bc8c2d09a42aad"
+LEGACY_MANIFEST_SHA = "87e7503d7cdf71d9864c1a87c6410f3b6306f00ea23f806bcba9b4cc8ce0b3bc"
 
 # 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
 BOOKS_3117 = {"3.117.0": ["equipgroups", "lotdsp"], "3.117.1": ["schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}

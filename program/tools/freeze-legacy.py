@@ -2,7 +2,7 @@
 app を import しない（標準の部品だけ）。
 
     python tools/freeze-legacy.py           … program/tests/legacy/<版>/ に写し、MANIFEST.json（ファイルごとの sha256）を書く。
-                                              写しが既にあれば何もせずに止める（1 回だけ。git の印〈タグ・コミット〉では代えない:
+                                              写しが既にあれば何もせずに止める（この版の最後の形で 1 回だけ: 版の途中で app を変えたら、消して作り直し、試験に書いた sha256 も替える。git の印〈タグ・コミット〉では代えない:
                                               段 ④ で program/app を消した後も、取り出しだけで凍らせた Python が流れるように）
     python tools/freeze-legacy.py --check   … 写しの中身が MANIFEST.json と同じか（tests/test_baked_tables.py も見る。MANIFEST.json そのものの
                                               指紋は試験に書いてある）
