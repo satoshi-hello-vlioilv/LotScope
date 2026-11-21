@@ -510,7 +510,14 @@ fn no_resign(base: &Path, change: &Value, live: &mut common::Live, bad: &mut Vec
         };
         let st = state();
         if got.as_ref().map(|x| x.0) != Some(200) || !st["resigned"].is_null() || st["writer"] != "rs" || count(live) != n0 + 1 {
-            bad.push(format!("{} 窓が答えて降りない: {got:?}・resigned {}・書き手 {}・要求 {} → {}", tag(1), st["resigned"], st["writer"], n0, count(live)));
+            bad.push(format!(
+                "{} 窓が答えて降りない: {got:?}・resigned {}・書き手 {}・要求 {} → {}",
+                tag(1),
+                st["resigned"],
+                st["writer"],
+                n0,
+                count(live)
+            ));
         }
         let src = get("/api/src/sch/source", "GET");
         let err = src.as_ref().map(|x| x.1["reason"].as_str().unwrap_or("").to_string()).unwrap_or_default();
