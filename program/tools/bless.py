@@ -354,12 +354,17 @@ def measure_books(books_json=None):
     return sorted(b for b, v in data.items() if v["phase"] in PHASES and v.get("windows") != "table")
 
 
+def windows_notice(books_json=None):
+    """Windows の札の知らせ（落とさない。表ごとの知らせ notices とは別の欄）: 札が measure の本の数と名前（無ければ None）"""
+    left = measure_books(books_json)
+    if not left:
+        return None
+    return f"札が measure の本 {len(left)}（Windows の表だけの形でまだ比べていない。段 ④ の入口の条件 2 は 0 になるまで満たしていない）: " + " ".join(left)
+
+
 def notices(baked=None):
-    """知らせ（落とさない）: 印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）・札が measure の本"""
+    """知らせ（落とさない）: 表ごとの知らせ（表の名前: …）。印のある葉が答えの葉の STAMP_SHARE を超える本（そろえすぎで守りが薄い表）など"""
     out = []
-    left = measure_books()
-    if left:
-        out.append(f"札が measure の本 {len(left)}（Windows の表だけの形でまだ比べていない。段 ④ の入口の条件 2 は 0 になるまで満たしていない）: " + " ".join(left))
     for name, book in tables(baked).items():
         t = unpack_table(json.loads(((baked or BAKED) / f"{name}.json").read_text(encoding="utf-8")))
         far = [rel for rel, e in t.get("scene", {}).get("files", {}).items()
@@ -981,6 +986,8 @@ def main():
             sys.exit(1)
         for line in notices():
             print("  知らせ:", line)
+        if windows_notice():
+            print("  Windows の札:", windows_notice())
         print(f"焼いた表は古くありません（{sum(1 for b in BOOKS if baked(b))} 本・{len(tables())} ファイル）")
         return
     skip = []

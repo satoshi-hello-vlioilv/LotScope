@@ -293,13 +293,13 @@ class BakedTables(unittest.TestCase):
         left = bless.measure_books()
         want = sorted(b for b, v in bless.BOOKS.items() if v["phase"] in bless.PHASES and v.get("windows") != "table")
         self.assertEqual(left, want)
-        told = [x for x in bless.notices() if x.startswith("札が measure の本")]
+        told = bless.windows_notice()
         if left:
-            self.assertEqual(len(told), 1)
-            self.assertIn(f"札が measure の本 {len(left)}", told[0])
-            self.assertTrue(all(b in told[0] for b in left))
+            self.assertIn(f"札が measure の本 {len(left)}", told)
+            self.assertTrue(all(b in told for b in left))
         else:
-            self.assertEqual(told, [])
+            self.assertIsNone(told)
+        self.assertFalse(any(x.startswith("札が") for x in bless.notices()), "表ごとの知らせ（表の名前: …）とは別の欄")
 
     def test_the_frozen_python_copy_is_unchanged(self):
         """凍らせた Python の写し（版 3.117.3。段 ④ の入口の条件 3）: 中身が MANIFEST.json と同じ・MANIFEST.json の指紋が試験に書いた物と同じ・
