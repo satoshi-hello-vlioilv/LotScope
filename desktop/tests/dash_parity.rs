@@ -181,12 +181,13 @@ fn dashboard_answers_like_python() {
         total >= 60 && cells >= 35 && fails >= 12 && facets >= 4 && boards >= 4 && links >= 4,
         "組が足りません: {total} 通り・答え {cells}・失敗 {fails}・並べる {facets}・合わせた表 {boards}・合わせる {links}"
     );
-    // スケジュールは、Python に尋ねた設定（窓の束を組めない形。この試験の設定）では窓は答えず Python が答える（版 3.96.0 から窓の束の設定では
-    // 窓が係になって答える: tests/schedule_parity.rs のパネル・合わせた表・設備の木）
+    // スケジュールは、Python に尋ねた設定（窓の束を組めない形。この試験の設定: スケジュールの段 scheduleConf が無い）では、版 3.118.0（段 ④）の
+    // 作った後の採点の割れ 5 から窓が理由つきで断る（前は窓が答えず Python が答えた。窓の束の設定では窓が係: tests/schedule_parity.rs）
     for c in o["python"].as_array().unwrap() {
         let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
-        if lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_some() {
-            bad.push(format!("{}: 窓が答えた（Python へ回すはず）", c["name"]));
+        let got = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask);
+        if got.as_ref().map(|r| r.0) != Some(503) {
+            bad.push(format!("{}: 窓が理由つきの 503 で断らない（{got:?}）", c["name"]));
         }
     }
     // engine=python はその 1 回だけ Python
