@@ -1013,3 +1013,19 @@ fn every_baked_scene_of_a_table_book_is_made_on_windows() {
     }
     assert!(seen >= 20, "札が table の表 {seen}");
 }
+
+/// 写しの様子の比べる形（common::mirror_part）は、写し直したかだけで変わる 2 つの言葉だけをそろえ、ほかの理由はそのまま比べる（版 3.117.3）
+#[test]
+fn the_mirror_reason_settles_only_whether_this_call_copied() {
+    let m = |r: &str| common::mirror_part(&json!({"remote": "x", "stale": false, "unreachable": false, "reason": r}))["reason"].clone();
+    assert_eq!(m("写しを更新しました"), m("元ファイルは変わっていません"));
+    for other in [
+        "",
+        "写せませんでした: x",
+        "共有の元ファイルへ届かないため、前の写しを使い続けます（a: b）",
+        "書き手が公開している途中のため、写すのを見送りました（x）。少し空けて写し直します",
+    ] {
+        assert_eq!(m(other), json!(other), "{other}");
+        assert_ne!(m(other), m("写しを更新しました"), "{other}");
+    }
+}

@@ -1623,7 +1623,9 @@ impl Bake {
             fakes: None,
             measure: None,
             measure_done: false,
-            os: bake_os(),
+            // 試験の変異（with）は posix の形で始め、Windows の形は apply_os で選ぶ（版 3.117.3 の 1 回目の Windows の CI の直し: 前は
+            // bake_os にして、Windows では焼く決めを見る bake_selftest の 4 本が「Windows では焼きません」に当たった）。open_part は apply_os(bake_os())
+            os: "posix",
             nt: None,
             unmade: vec![],
             table_sha: String::new(),

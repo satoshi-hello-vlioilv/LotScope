@@ -454,5 +454,19 @@ pub fn seeds_files(root: &std::path::Path, run: &serde_json::Value) -> serde_jso
 /// reason も落とし、更新が止まった HOT の「古い」を窓のしきいを読み違えても表が素通りした
 pub fn mirror_part(v: &serde_json::Value) -> serde_json::Value {
     serde_json::json!({"remote": v["remote"], "interval_sec": v["interval_sec"], "staleHours": v["staleHours"], "mirrored": v["mirrored"],
-                       "stale": v["stale"], "unreachable": v["unreachable"], "reason": v["reason"]})
+                       "stale": v["stale"], "unreachable": v["unreachable"], "reason": mirror_reason(&v["reason"])})
+}
+
+/// 写しの様子の reason のうち「この問い合わせで写し直したか」だけで変わる言葉（版 3.117.3 の 1 回目の Windows の CI の直し）。
+/// 写しが元と同じ所に着いたことは同じで、写し直したか（「写しを更新しました」）・確かめて同じだったか（「元ファイルは変わっていません」）は、
+/// Python と窓のどちらが先に確かめたか・更新時刻の刻み（NTFS）で入れ替わる（PR #120 の Windows で ops_parity の「勤務体系が無い」3 歩が
+/// 「元ファイルは変わっていません / 写しを更新しました」で落ちた。Linux の ext4 と PR #119 の Windows では揃っていた）。この 2 つだけを
+/// 「@写しは元と同じ」にし、届かない・見送った・写せない理由はそのまま比べる（stale・unreachable も）
+pub const MIRROR_SAME: [&str; 2] = ["写しを更新しました", "元ファイルは変わっていません"];
+
+pub fn mirror_reason(r: &serde_json::Value) -> serde_json::Value {
+    match r.as_str() {
+        Some(s) if MIRROR_SAME.contains(&s) => serde_json::json!("@写しは元と同じ"),
+        _ => r.clone(),
+    }
 }

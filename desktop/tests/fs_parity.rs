@@ -57,6 +57,8 @@ fn folder_browse_matches_python() {
     let oracle = bk.oracle("fs_oracle.py", &[base.to_str().unwrap()]);
     let root = oracle["root"].as_str().unwrap().to_string();
     let esc = serde_json::to_string(&root).unwrap();
+    // 表だけの形か（Python と比べる形は、答え合わせ役の Python に渡したのと同じ宣言の字を窓にも渡す）
+    let table_form = !bk.python();
     let app_paths: Vec<(String, String, String)> = oracle["appPaths"]
         .as_array()
         .unwrap()
@@ -84,8 +86,9 @@ fn folder_browse_matches_python() {
         let body = st["body"].as_str().unwrap_or("");
         // Windows の表だけの形（版 3.117.3）: 宣言の「file://@ROOT」は posix の根（/ で始まる）の書き方。Windows の根（C:/…）では
         // 「file://C:/…」がサーバー名 C: になる（Windows の Python と比べる形も同じ答えで、場面の作り方の割れ）ので、Windows の file の URL の
-        // 書き方（file:///C:/…・file://localhost/C:/…）にする
-        let body = if cfg!(windows) {
+        // 書き方（file:///C:/…・file://localhost/C:/…）にする。Python と比べる形は書き直さない（版 3.117.3 の 1 回目の Windows の CI の直し:
+        // Python と比べる形でも書き直し、答え合わせ役の Python と窓に違う字を渡して [24][25][26] が食い違った）
+        let body = if cfg!(windows) && table_form {
             common::re(r"(?i)(file://(?:localhost)?)@ROOT").replace_all(body, "${1}/@ROOT").into_owned()
         } else {
             body.to_string()
