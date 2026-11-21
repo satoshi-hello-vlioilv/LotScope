@@ -324,6 +324,8 @@ def check(baked=None):
         for rel, e in scene.get("files", {}).items():
             if not e.get("fifo") and not e.get("made") and e.get("blob") not in scene.get("blobs", {}):
                 bad.append(f"{name}: 場面のファイル {rel} の中身が無い")
+        for k, where, n in outside_listings(t.get("answers") or {}):
+            bad.append(f"{name}: 歩 {k} の答えが場面の外の本物の道 {where} の中身 {n} 件を持つ（流す PC で決まる。流さない歩にして焼き直す）")
         if not isinstance(t.get("answers"), dict) or set(t.get("answers", {})) != set(t.get("routes", {})):
             bad.append(f"{name}: 答えと道の型の鍵が合わない")
         elif not t["answers"] and not name.endswith(".shared"):
@@ -655,6 +657,30 @@ Z_CHUNK = 2000
 WINDOWS = ("table", "measure")
 
 
+ABS_PATH = re.compile(r"^(?:[A-Za-z]:(?:[\\/]|$)|\\\\|/)")
+
+
+def outside_listings(answers):
+    """→ [(歩, 道, 中の数)]。場面の外の本物の道（@WORK・@HOME・@REPO などの印の付かない絶対の道・ドライブの根）の中身（entries）を持つ答え
+    （版 3.117.3 の 3 回目の Windows の CI: 「参照…」の C:\\ の歩が runner の C:\\ の中身 35 件と更新時刻を nt の表に持ち、次の runner で落ちた）。
+    流す PC で決まる中身なので、表に持たない（その歩は流さない歩にする）"""
+    out = []
+
+    def walk(v, key):
+        if isinstance(v, dict):
+            where = next((v[k] for k in ("path", "asked", "dir") if isinstance(v.get(k), str)), None)
+            if where and ABS_PATH.match(where) and isinstance(v.get("entries"), list) and v["entries"]:
+                out.append((key, where, len(v["entries"])))
+            for x in v.values():
+                walk(x, key)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, key)
+    for k, a in answers.items():
+        walk(a, k)
+    return out
+
+
 def nt_print(v):
     """上書きした posix の答えの指紋（sort_keys の JSON の sha256 の頭 12 字。Python だけが書いて確かめる）"""
     return hashlib.sha256(json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:12]
@@ -708,6 +734,8 @@ def check_nt(baked=None):
         posix = unpack_table(json.loads((base / f"{name}.json").read_text(encoding="utf-8"))).get("answers", {})
         if set(n["answers"]) != set(n["posix"]):
             bad.append(f"nt/{name}: answers と posix の歩が合わない")
+        for k, where, cnt in outside_listings(n["answers"]):
+            bad.append(f"nt/{name}: 歩 {k} の答えが場面の外の本物の道 {where} の中身 {cnt} 件を持つ（runner で決まる。流さない歩にして取り直す）")
         for k, v in n["answers"].items():
             want = nt_print(posix[k]) if k in posix else None
             if n["posix"].get(k) != want:

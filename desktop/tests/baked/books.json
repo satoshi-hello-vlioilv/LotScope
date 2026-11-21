@@ -200,7 +200,7 @@
   },
   "fs": {
    "phase": "3.115.0",
-   "windows": "table",
+   "windows": "measure",
    "tests": [
     "fs_parity"
    ],

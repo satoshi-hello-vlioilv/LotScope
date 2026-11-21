@@ -2964,8 +2964,9 @@ Python 無しで流れる）を満たした。
 ### 段 ④ の入口まで（小さい版 4 つ）の 4 つ目: Windows の切り替えと凍らせる写し — 版 3.117.3
 
 採点は `tools/ui-proposals/2026-11-stage3f.json`（first_fixes 4・16。作った形は built_plan の built_3117_3）。入口の条件 2（Windows の CI が Python 無しの形で
-焼いた表と比べる）は、PR 120 の 3 回の CI で 20 → 29 → **35 本（札 table。measure は 0）**にした（下の「CI は計 3 回」。札 measure の本が残れば
-`bless.py --check` が数と名前を知らせる）。条件 3（凍らせる写し）を満たした。
+焼いた表と比べる）は、PR 120 の CI で 20 → 29 → **34/35**（札 table 34・measure 1）。fs は 3 回目の CI で、取り込んだ nt の表が runner の本物の C:\ の
+中身を持っていたと分かり（下の「3 回目の CI」）、札を measure に戻した。**fs は 4 回目の CI の記録を 3.118.0 の PR で取り込む**（3.118.0 も schedule の取り直しで
+CI を 2 回流すので回は増えない）。札 measure が 0 になるまで条件 2 は満たしていない（`bless.py --check` が数と名前を知らせる）。条件 3（凍らせる写し）を満たした。
 
 #### 材料: 3.117.2 の Windows の測り（PR #119。35 本・41 表）を元ごとに分けた
 
@@ -3091,6 +3092,17 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
   2 回目（頭 b32297f）は windows-test・windows-exe とも緑（札 table の 29 本が本物の Windows で通り、1 回目の落ち 4 種が消えた）。その記録（measure-z の行 11＝8 表）を
   `bless.py --take-nt` で取り込み（取り込めない 0。上書き: builder 11 歩・fs 7 歩〈流さない歩 1・作れない物 1〉・schedule 10 歩・settings.bundle 1・settings.pages 1・settings_write 3・
   equipgroups と fs.tables は 0）、6 本の札を table にした。**札は table 35・measure 0**。3 回目の CI で 35 本を比べて落とす。
+  3 回目（頭 0099a22）は windows-test が赤（windows-exe・program・desktop は緑。Python と比べる形の cargo test も通った）。落ちは 3 つ:
+  (1) fs_parity の #28・#35（「C:」「\\?\C:\x」の届いた所 C:\）: 取り込んだ nt の表の答えが **runner の本物の C:\ の一覧**（actionarchivecache・actions-runner・Android…
+  WindowsAzure の 35 件と更新時刻）で、runner のイメージで中身も時刻も変わる。→ Windows ではドライブで始まり場面の中（@ROOT）でない道の歩を、「~名前」と同じく流す PC で
+  決まる歩にした（`fs_parity.rs`。表と比べない）。nt/fs.json を外し、fs の札を measure に戻した（**34/35**）。`bless.py --check` に見張り `outside_listings`
+  （場面の外の本物の絶対の道・ドライブの根の中身 entries を持つ答えを落とす。posix の表 41・nt の表を全部見て、当たったのは nt/fs の 2 歩だけ）。
+  (2) bundle_parity の「NaN の配った設定でも引っ越しの印は窓がたどる」: 試験の中の確かめ（覚えの置き場）が道を字のまま比べ、表の宣言から作った道〈「/」・RUNNER~1〉と
+  窓が書いた道〈「\」・長い名前〉を違うと言った（札 measure の間は落ちても続ける段で隠れていた）。→ `common::same_path`（書き方の候補が重なれば同じ置き場。
+  違う置き場は違う: `bake_selftest` の `same_path_is_the_same_place_not_the_same_spelling`）。ほかの試験で道を字のまま比べる確かめを探し、Python と比べる形だけの
+  1 か所（bundle_parity の覚えの置き場と Python の覚え。Windows の Python と同じ書き方で通っている）のほかは見つからなかった。
+  (3) 測る段（札 measure）が、札 measure の本 0 で `tests_of([])` が空になり、絞り無しの cargo test（全部）を流して 20 分で切られた。→ 流す本が 0 なら「流す本がありません」で
+  0 で終わる・cargo に試験 0 を渡すと断る（`tests/test_baked_tables.py` の `test_no_books_means_no_cargo`）。
 
 #### ⑥ 持ち越し（3.117.2 の carry_to_3117_3）の行き先
 

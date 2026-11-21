@@ -66,6 +66,14 @@ pub fn path_forms(p: &str) -> Vec<String> {
     out
 }
 
+/// 2 つの道の字が同じ置き場を指すか（版 3.117.3 の 3 回目の Windows の CI の直し: 試験の中の確かめが道を字のまま比べ、表の宣言から作った道
+/// 〈「/」・RUNNER~1〉と窓が書いた道〈「\」・長い名前〉が同じ置き場でも違うと言った）。どちらかの書き方の候補（path_forms）が重なれば同じ。
+/// Linux では字のまま比べる（path_forms は書いたままの字 1 つ）
+pub fn same_path(a: &str, b: &str) -> bool {
+    let fa = path_forms(a.trim_end_matches(['/', '\\']));
+    path_forms(b.trim_end_matches(['/', '\\'])).iter().any(|x| fa.contains(x))
+}
+
 /// JSON の字（本文）の中の場面のフォルダ from を to に（どの書き方も。JSON の字として逃がした形どうしで置き換える）
 pub fn swap_path_json(text: &str, from: &str, to: &str) -> String {
     let esc = |s: &str| {

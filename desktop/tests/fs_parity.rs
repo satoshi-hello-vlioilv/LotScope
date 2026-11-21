@@ -111,7 +111,13 @@ fn folder_browse_matches_python() {
         // Windows（版 3.117.3 の 1 回目の CI の取り込みで見つけた）: 「~名前」は Windows では C:\Users\名前 になり、届いた所として
         // その PC の C:\Users の中（runner の利用者のフォルダ）を答える。Linux の ~nobody と同じく流す PC で決まる歩なので表と比べない
         let body_text = st["body"].as_str().unwrap_or("");
-        let os_bound = ["\"/\"", "~nobody"].iter().any(|b| body_text.contains(b)) || (cfg!(windows) && body_text.contains("\"~"));
+        // 同じく Windows の本物のドライブの根（「C:」「\\\\?\\C:\\x」の届いた所 C:\\。版 3.117.3 の 3 回目の CI: runner の C:\\ の中身 35 件と
+        // 更新時刻を表に持ち、次の runner で落ちた）も流す PC で決まる。場面の中（@ROOT）でない、ドライブで始まる道の歩は表と比べない
+        let path_of =
+            serde_json::from_str::<Value>(body_text).ok().and_then(|b| b["path"].as_str().map(str::to_string)).unwrap_or_default();
+        let drive = common::re(r"^(?:\\\\\?\\)?[A-Za-z]:").is_match(&path_of) && !path_of.contains("@ROOT");
+        let os_bound =
+            ["\"/\"", "~nobody"].iter().any(|b| body_text.contains(b)) || (cfg!(windows) && (body_text.contains("\"~") || drive));
         if os_bound && !bk.python() {
             continue;
         }
