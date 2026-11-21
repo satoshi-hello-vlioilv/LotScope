@@ -310,7 +310,7 @@
   },
   "schedule": {
    "phase": "3.117.1",
-   "windows": "table",
+   "windows": "measure",
    "tests": [
     "schedule_parity"
    ],
