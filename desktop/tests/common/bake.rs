@@ -67,7 +67,9 @@ pub fn variant() -> &'static str {
 /// 表のどの OS の答えと比べるか（版 3.117.3）: "posix"（焼いた表の本の答え）か "nt"（Windows。本の答えに tests/baked/nt/<表>.json の
 /// 上書きを重ねる）。Windows でだけ "nt"
 pub fn bake_os() -> &'static str {
-    if cfg!(windows) {
+    // TPA_BAKE_OS=nt（試験だけ。版 3.117.3 の作った後の直し・割れ 2）: Linux の上で Windows の形を選ぶ（本番と同じ nt の表の読み方・札・
+    // 作れない物の数え方を通す。答えは Linux の窓の答えなので、比べて通るのは札が table の本だけ。check-all の段 nt-shape）
+    if cfg!(windows) || std::env::var("TPA_BAKE_OS").as_deref() == Ok("nt") {
         "nt"
     } else {
         "posix"
@@ -1146,20 +1148,75 @@ fn fid_unsub(s: &str, base: &Path) -> String {
     re.replace_all(s, |c: &regex::Captures| fid_of(&base.join(&c[1]))).into_owned()
 }
 
-/// 宣言から場面のフォルダを作る（snapshot の逆）。作れない物があれば落とす（Linux。Windows は作れない物を無いままにする: materialize_os）
+/// 宣言から場面のフォルダを作る（snapshot の逆）。宣言どおりに作れない物があれば落とす（版 3.117.3 の作った後の直し・割れ 4 (e): 前は
+/// Windows で作れない物を黙って捨てた。作り方は materialize_os の 1 つ）
 pub fn materialize(decl: &Value, base: &Path, ctx: &Ctx) {
-    let unmade = materialize_os(decl, base, ctx);
-    assert!(unmade.is_empty() || cfg!(windows), "場面を作れません: {unmade:?}");
+    let unmade = materialize_os(decl, base, ctx, bake_os());
+    assert!(unmade.is_empty(), "場面を宣言どおりに作れません（Windows で作れない物は nt の表の unmade に持つ）: {unmade:?}");
 }
 
-/// 宣言から場面のフォルダを作り、宣言どおりに作れなかった物を返す（版 3.117.3。Windows の表だけの形）。返す字は「種類 道」:
-/// file・dir（Windows で使えない名前〈改行の入った名前・最後が空白か「.」〉など、作るのが OS の誤りになった物）・link（記号リンクを作れない）・
-/// fifo（名前付きパイプは Windows に無い）・mode（権限の数は Windows に無い）。Linux ではどれも作れるので空（作れなければ OS の誤りの字）。
-/// 焼いた表の nt の側（tests/baked/nt/<表>.json の unmade）がこの並びを持ち、増えても減っても落とす（bake.rs の Bake::rebuild_inner）
-pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
-    let mut unmade: Vec<String> = vec![];
-    fn fail(unmade: &mut Vec<String>, kind: &str, rel: &str, e: std::io::Error) {
-        if cfg!(windows) {
+/// Windows で使えない名前の段か（制御文字・< > : " / \ | ? *・最後が空白か「.」・予約の名前 CON・PRN・AUX・NUL・COM0〜9・LPT0〜9〈拡張子つきも〉）
+pub fn windows_bad_name(seg: &str) -> bool {
+    let stem = seg.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem[3..].chars().all(|c| c.is_ascii_digit() || "¹²³".contains(c)));
+    seg.chars().any(|c| (c as u32) < 32 || "<>:\"/\\|?*".contains(c)) || seg.ends_with([' ', '.']) || reserved
+}
+
+/// 権限の数が Windows で表せない差か（版 3.117.3 の作った後の直し・割れ 1）: Windows の場面は権限を当てない（持ち主はいつも読み書きできる）ので、
+/// 持ち主が読めない・書けない（m & 0o600 != 0o600。読めないフォルダ 0o000・読むだけ 0o444・0o555 など）物だけが宣言と違う。
+/// 実行の印・組と他人の印（0o644・0o755・0o700・0o775 など）は Windows では意味が無く、答えも変わらないので数えない
+/// （前は権限の数のある物を全部数え、札が table の access の 41 件〈0o755〉で必ず落ちる形だった）
+pub fn windows_bad_mode(m: u64) -> bool {
+    m & 0o600 != 0o600
+}
+
+/// 宣言から決まる「Windows で宣言どおりに作れない物」（os が nt のとき。版 3.117.3）: 名前付きパイプ・使えない名前（その下の物も）・
+/// 表せない権限。cfg でなく os の値で選ぶので、Linux の上でも Windows の形の数え方を試せる（TPA_BAKE_OS=nt）。記号リンクを作れるかは
+/// 流す PC で決まる（作れなければ materialize_os が足す）
+pub fn predicted_unmade(decl: &Value, os: &str) -> Vec<String> {
+    let mut out = vec![];
+    if os != "nt" {
+        return out;
+    }
+    let bad_path = |rel: &str| rel.split('/').any(windows_bad_name);
+    for (rel, e) in decl["dirs"].as_object().into_iter().flatten() {
+        if bad_path(rel) {
+            out.push(format!("dir {rel}"));
+        } else if e["mode"].as_u64().is_some_and(windows_bad_mode) {
+            out.push(format!("mode {rel}"));
+        }
+    }
+    for (rel, e) in decl["files"].as_object().into_iter().flatten() {
+        if bad_path(rel) {
+            out.push(format!("file {rel}"));
+        } else if e["fifo"] == true {
+            out.push(format!("fifo {rel}"));
+        } else if e["mode"].as_u64().is_some_and(windows_bad_mode) {
+            out.push(format!("mode {rel}"));
+        }
+    }
+    for rel in decl["links"].as_object().into_iter().flatten().map(|(r, _)| r) {
+        if bad_path(rel) {
+            out.push(format!("link {rel}"));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// 宣言から場面のフォルダを作り、宣言どおりに作れなかった物を返す（版 3.117.3。os は bake_os。返す字は「種類 道」）:
+/// os が nt なら、宣言から決まる作れない物（predicted_unmade）は作らずに返し、そのほかに作るのが OS の誤りになった物・記号リンクを作れなかった物を足す
+/// （Windows の本物で。Linux の上の Windows の形〈TPA_BAKE_OS=nt〉では起きない）。os が posix なら、作れなければ OS の誤りの字で落とす。
+/// 焼いた表の nt の側（tests/baked/nt/<表>.json の unmade）がこの並びを持ち、増えても減っても落とす（Bake::rebuild_inner）
+pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx, os: &str) -> Vec<String> {
+    let nt = os == "nt";
+    let mut unmade: Vec<String> = predicted_unmade(decl, os);
+    let skipped = |kind: &str, rel: &str, unmade: &[String]| unmade.iter().any(|u| u == &format!("{kind} {rel}"));
+    fn fail(nt: bool, unmade: &mut Vec<String>, kind: &str, rel: &str, e: std::io::Error) {
+        if nt {
             unmade.push(format!("{kind} {rel}"));
         } else {
             panic!("場面の {kind} {rel} を作れません: {e}");
@@ -1168,17 +1225,23 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
     std::fs::create_dir_all(base).unwrap();
     let dirs = decl["dirs"].as_object().unwrap();
     for rel in dirs.keys() {
+        if skipped("dir", rel, &unmade) {
+            continue;
+        }
         if let Err(e) = std::fs::create_dir_all(base.join(rel)) {
-            fail(&mut unmade, "dir", rel, e);
+            fail(nt, &mut unmade, "dir", rel, e);
         }
     }
     // ファイルID を指す中身（@FID(道)）は、指すファイルを作った後に書く
     let mut fs: Vec<_> = decl["files"].as_object().unwrap().iter().collect();
     fs.sort_by_key(|(_, e)| decl["blobs"][e["blob"].as_str().unwrap_or("")]["text"].as_str().is_some_and(|t| t.contains("@FID(")));
     for (rel, e) in fs {
+        if skipped("file", rel, &unmade) || skipped("fifo", rel, &unmade) {
+            continue;
+        }
         let p = base.join(rel);
         if let Err(e) = std::fs::create_dir_all(p.parent().unwrap()) {
-            fail(&mut unmade, "file", rel, e);
+            fail(nt, &mut unmade, "file", rel, e);
             continue;
         }
         if e.get("made").is_some() {
@@ -1186,11 +1249,7 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
             continue;
         }
         if e["fifo"] == true {
-            if cfg!(windows) {
-                unmade.push(format!("fifo {rel}"));
-            } else {
-                let _ = std::process::Command::new("mkfifo").arg(&p).status();
-            }
+            let _ = std::process::Command::new("mkfifo").arg(&p).status();
             continue;
         }
         let blob = &decl["blobs"][e["blob"].as_str().unwrap()];
@@ -1199,7 +1258,7 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
             None => unb64(blob["b64"].as_str().unwrap()),
         };
         if let Err(e) = std::fs::write(&p, bytes) {
-            fail(&mut unmade, "file", rel, e);
+            fail(nt, &mut unmade, "file", rel, e);
             continue;
         }
         if let Some(t) = mtime_of_decl(&e["mtime"]) {
@@ -1207,6 +1266,9 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
         }
     }
     for (rel, t) in decl["links"].as_object().unwrap() {
+        if skipped("link", rel, &unmade) {
+            continue;
+        }
         let target = ctx.unsub(t.as_str().unwrap());
         #[cfg(unix)]
         {
@@ -1216,21 +1278,21 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
         {
             // Windows の記号リンク（版 3.117.3）: GitHub の runner は管理者なので作れる（Windows の Python の os.symlink も作る。3.117.1 の測りで、
             // Python と比べる形の fs は 18 件・表だけの形は 17 件だった）。区切りは「\」に（相対のリンクの「/」は Windows がたどらない）。
-            // 指す先がフォルダなら symlink_dir（宣言の dirs にある・作った後にフォルダ）、ほかは symlink_file（壊れたリンクも）
+            // 指す先がフォルダなら symlink_dir（作った後にフォルダ）、ほかは symlink_file（壊れたリンクも）
             let target = target.replace('/', "\\");
             let link = base.join(rel);
             let at = link.parent().map(|d| d.join(&target)).unwrap_or_else(|| PathBuf::from(&target));
-            let is_dir = std::path::Path::new(&target).is_absolute() && std::path::Path::new(&target).is_dir() || at.is_dir();
-            let r =
-                if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
+            let is_dir = (std::path::Path::new(&target).is_absolute() && std::path::Path::new(&target).is_dir()) || at.is_dir();
+            let r = if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
             if r.is_err() {
                 unmade.push(format!("link {rel}"));
             }
         }
         let _ = (rel, target);
     }
+    // 権限: Windows の形では当てない（表せない差は predicted_unmade が数えた）
     #[cfg(unix)]
-    {
+    if !nt {
         use std::os::unix::fs::PermissionsExt;
         for (rel, e) in decl["files"].as_object().unwrap() {
             if let Some(m) = e["mode"].as_u64() {
@@ -1238,27 +1300,22 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx) -> Vec<String> {
             }
         }
     }
-    #[cfg(not(unix))]
-    for (rel, e) in decl["files"].as_object().unwrap().iter().chain(dirs) {
-        if e["mode"].as_u64().is_some() {
-            unmade.push(format!("mode {rel}"));
-        }
-    }
     // 段の深い順に: 更新時刻を当ててから権限（読めないフォルダの中は先に作り終える）。Windows もフォルダの更新時刻を当てる（版 3.117.3:
     // 前は Linux だけで、表だけの形の fs の「参照…」の答えのフォルダの時刻が今の時刻になった）
-    let mut ds: Vec<_> = dirs.iter().collect();
+    let mut ds: Vec<_> = dirs.iter().filter(|(r, _)| !skipped("dir", r, &unmade)).collect();
     ds.sort_by_key(|(r, _)| std::cmp::Reverse(r.matches('/').count()));
     for (rel, e) in ds {
         if let Some(t) = mtime_of_decl(&e["mtime"]) {
             let _ = open_dir_for_times(&base.join(rel)).and_then(|f| f.set_modified(t));
         }
         #[cfg(unix)]
-        if let Some(m) = e["mode"].as_u64() {
+        if let (Some(m), false) = (e["mode"].as_u64(), nt) {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(base.join(rel), std::fs::Permissions::from_mode(m as u32));
         }
     }
     unmade.sort();
+    unmade.dedup();
     unmade
 }
 
@@ -1521,15 +1578,22 @@ impl Bake {
         bk.variant = variant();
         bk.measure = std::env::var("TPA_MEASURE").ok().filter(|s| !s.is_empty()).map(PathBuf::from);
         bk.table_sha = file_sha(&path);
-        if bk.os == "nt" {
-            // Windows（版 3.117.3）: 表だけの形は、札が table の本だけ焼いた表（nt の上書きを重ねた形）と比べて落とす。Python と比べる形は
-            // ④ まで Windows の Python と比べ、表とは比べない（測るだけ）。札が measure の本は表だけの形でも測るだけ
-            let nt = nt_dir().join(format!("{file}.json"));
-            bk.nt_sha = file_sha(&nt);
-            bk.nt = std::fs::read(&nt).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", nt.display())));
-            bk.check = mode == Mode::Baked && windows_status(book) == "table";
-        }
+        bk.apply_os(bake_os(), &nt_dir().join(format!("{file}.json")), windows_status(book));
         bk
+    }
+
+    /// 比べる OS の形を決める（本番の読み方の 1 か所。試験の変異も同じ口を通す。版 3.117.3 の作った後の直し・割れ 2）。
+    /// Windows の形（os が nt）: nt の表（nt_file。無ければ上書きなし）を読み、表だけの形は札（status）が table の本だけ焼いた表
+    /// （nt の上書きを重ねた形）と比べて落とす。Python と比べる形は ④ まで Windows の Python と比べ、表とは比べない（測るだけ）。
+    /// 札が measure の本は表だけの形でも測るだけ。posix の形は何も変えない
+    pub fn apply_os(&mut self, os: &'static str, nt_file: &Path, status: &str) {
+        self.os = os;
+        if os != "nt" {
+            return;
+        }
+        self.nt_sha = file_sha(nt_file);
+        self.nt = std::fs::read(nt_file).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", nt_file.display())));
+        self.check = self.mode == Mode::Baked && status == "table";
     }
 
     /// 流し方と表を決めて作る（試験の変異で使う。open_part は環境変数と tests/baked から決める）
@@ -1767,7 +1831,7 @@ impl Bake {
                 .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
             assert!(out.status.success(), "場面の台本 {script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
         }
-        self.unmade = materialize_os(&t["scene"], &self.base, &self.ctx);
+        self.unmade = materialize_os(&t["scene"], &self.base, &self.ctx, self.os);
         if self.os == "nt" && self.check {
             // Windows で作れない場面の物は nt の表の unmade と同じ並び（増えても減っても落とす。版 3.117.3）
             let want: Vec<String> = self.nt_list("unmade");
