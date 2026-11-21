@@ -3,7 +3,8 @@
 
     python verify.py update --exe <作った exe> [--work <作業フォルダ>] [--keep]
     python verify.py local --exe <作った exe> [--work <作業フォルダ>] [--keep]   作業場所の窓だけ・Python の無い PC（版 3.111.0。版 3.112.0 から
-                                                                              配った設定に NaN の形も）
+                                                                              配った設定に NaN の形も。版 3.118.1 から 3 窓目 admin-work:
+                                                                              作業実績 3 台・開発者の名乗り・共有のマスタを書かない）
     python verify.py rename --old-exe <前の版の exe> --old-repo <前の版のリポジトリ> --exe <作った exe> [--work …] [--keep]
 
 利用者の PC を真似る: 作業場所（TRANSFER_LOCAL_ROOT）はまっさら、配る形は共有を真似たフォルダ、更新の置き場は BOX を真似たフォルダ。
@@ -59,51 +60,30 @@ REPO = HERE.parents[1]
 # 続けて落ちた。待つ秒を延ばし、段ごとにかかった秒と空きを書く（際に近づいたら記録で分かる）。切れたら窓の記録を出し、窓を止めてから進む
 WAIT = 480
 
-# 窓だけの自己診断の項目（版 3.111.0。selftest.js の okw）。Python が居ない通し（local・4b）で、これが全部あって通り、ほかの項目は
-# 「中身（Python）を通す項目」の包みに数えて飛ばしたことを見る。selftest.js の okw と食い違えば local の通しが落ちる
-WINDOW_ONLY = [
-    "起動が終わる（設定と権限を読み終える）", "画面の題（窓が描いた HTML・アプリの名前）", "画面の JS が動いている（TPA の共通部品）",
-    "部品は Rust が返す（指紋付きは長く使い回す）", "指紋の無い部品は毎回確かめる（no-cache）", "大きな部品（three.js）も Rust が返す",
-    "画面は窓が描く（使い回さない・CSP の印）", "窓が答える誤り（画面の設定の控え）",
-    "心拍は窓が答える（中身の様子を添える。版 3.111.0 から中身が止まっていても 200）",
-    "安全な文脈（クリップボードへ写せる）", "localStorage が使える", "IndexedDB が使える", "保存: CSV が日本語の名前どおり・中身どおりに届く",
-    "一覧は Rust が答える", "データの時刻は Rust が答える（共有を見に行かない）", "配布の画面の係が答える（置き場に届くか・権限）",
-    "配布の画面: 覚えた答えをすぐ返す（cached=1）",
-    "権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない",
-    "出さないタブを出さない・権限の札とマスタ管理の入口は窓の名乗り（中身が止まっていても）",
-    "利用状況のいま使っている印に中身の様子（止まっていれば stopped・起きている・起こさない窓は無い）", "画面のエラーが無い",
-    "更新の係が答える（取り込めない理由が無い）", "中身（Python）を通す項目",
-]
-# 窓だけの項目のうち、試す形によって出ない物（版を置けない人だけ・例外のときだけ）
-WINDOW_MAYBE = {"版を置けない人は理由つきで断られる", "例外", "更新の係が答える"}
-
-
-# 1b（配った設定の lot_list が字・作業実績の古さが NaN）で落ちてよい自己診断の項目と理由（版 3.112.0 の作った後の採点の割れ 6c）。
-# どれも品質（lot_list）の節を使う道で、窓は「設定を組めません: 配った設定（…）の「lot_list」が表でない…」の 503 で断る
-NAN_EXPECTED = {
-    "データの時刻は Rust が答える（共有を見に行かない）": "品質のデータの時刻は lot_list の節を使う",
-    "集計表・グラフは窓が答え、Python と同じ答え（6 通り・カラムの札・作業日×直・失敗の答え）": "品質の集計表は lot_list の節を使う",
-    "ダッシュボードのパネルは窓が答え、Python と同じ答え（11 通り・数字・グラフ・合わせた表・別のデータ・稼働・ABC 分析・失敗の答え）":
-        "品質の元のパネル（kpi/lot・bar/lot・品質を合わせた表）は lot_list の節を使う。ほかの元のパネルは答える",
-    "組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）": "品質の元の札・当てる列は lot_list の節を使う",
-    "設備グループの一覧は、予定の元がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）":
-        "選べる設備は品質の元の設備の列も数える（lot_list の節）",
-    "設備グループを書く道も窓が受ける（無いグループを直すを Python と同じ言葉で断る。書けない人は門番が断る）": "同上（書く前に選べる設備を数える）",
-    "一覧は Rust が答える": "品質の一覧は lot_list の節を使う",
-    "日本語の問い合わせ文字（Python が JSON で答える）": "品質の一覧の検索は lot_list の節を使う",
-}
+# 自己診断の項目の名前（版 3.118.1。selftest.js の okw と part の名前の 1 か所: desktop/bundle/selftest_names.json。test_bundle.py が
+# selftest.js と過不足なく同じかを見る）。どれも窓だけの項目（版 3.118.1 から中身〈Python〉を通す項目は無い）
+NAMES = json.loads((HERE / "selftest_names.json").read_text(encoding="utf-8"))["items"]
+# 必ず出る項目（local・4b・prev 2 の窓は、これが全部あって通る）
+WINDOW_ONLY = [x["name"] for x in NAMES if "maybe" not in x]
+# 試す形によって出ない物（品質の元が無い PC だけ・版を置けない人だけ・例外のときだけ）
+WINDOW_MAYBE = {x["name"] for x in NAMES if "maybe" in x}
+# 1b（配った設定の lot_list が字・作業実績の古さが NaN）で落ちてよい項目と理由（版 3.112.0 の作った後の採点の割れ 6c。版 3.118.1 で
+# 書き直した項目を実物の 1b で流して合わせ直した）。どれも品質（lot_list）の節を使う道で、窓は「設定を組めません: …」の 503 で断る
+NAN_EXPECTED = {x["name"]: x["nan"] for x in NAMES if "nan" in x}
+# 数えない項目（試験の版は program の版だけを書き換えるので「窓の版と中身の版が同じ」は通らない）
+EXCEPT = {x["name"] for x in NAMES if "except" in x}
 
 
 def window_only_ok(r: dict, label: str) -> tuple[bool, str]:
-    """Python が居ない通しの自己診断: 窓だけの項目が全部あって通り、ほかは包みに数えた（飛ばした）か"""
+    """Python が居ない通しの自己診断: 必ず出る項目が全部あって通り、余分が無く、飛ばした項目が無い（版 3.118.1 から skipped は 0）"""
     res = r.get("results", [])
     names = [x["name"] for x in res]
     missing = [n for n in WINDOW_ONLY if n not in names]
     extra = [n for n in names if n not in WINDOW_ONLY and n not in WINDOW_MAYBE]
-    bad = [x["name"] for x in res if not x["ok"]]
+    bad = [x["name"] for x in res if not x["ok"] and x["name"] not in EXCEPT]
     # 版 3.118.0（段 ④）: 製品の窓は中身を起こさない（python absent。止まった stopped とは別の様子）
-    good = r.get("python") == "absent" and r.get("skipped", 0) > 0 and not missing and not extra and not bad
-    return good, f"python={r.get('python')} 飛ばした {r.get('skipped')}・無い {missing}・余分 {extra}・通らない {bad}"
+    good = r.get("python") == "absent" and r.get("skipped", 0) == 0 and not missing and not extra and not bad
+    return good, f"python={r.get('python')} 項目 {len(res)}・飛ばした {r.get('skipped')}・無い {missing}・余分 {extra}・通らない {bad}"
 
 
 def bump(v: str, n: int) -> str:
@@ -168,9 +148,9 @@ class Run:
             self.tell_timeout(label)
             return {"ok": False, "error": f"{WAIT} 秒たっても結果がありません（{label}）"}
         r = json.loads(out.read_text(encoding="utf-8"))
-        # 試験の版は program の版だけを書き換えた物（窓の exe は元の版のまま）なので、「窓の版と中身の版が同じ」は数えない。
+        # 試験の版は program の版だけを書き換えた物（窓の exe は元の版のまま）なので、「窓の版と中身の版が同じ」は数えない（EXCEPT）。
         # 本物の配る形では、窓と中身は同じ版で作る（bundle.py・test_version.py）
-        res = [x for x in r.get("results", []) if x["name"] != "窓の版と中身の版が同じ"]
+        res = [x for x in r.get("results", []) if x["name"] not in EXCEPT]
         for x in res:
             if not x["ok"]:
                 print(f"  [{label}] FAIL {x['name']} -- {x['info']}")
@@ -411,7 +391,7 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(rel.get("ok") is True, "1b. 配布の画面の係が答える（窓が置き場を読む）", rel.get("info"))
     # 版 3.112.0 の作った後の採点の割れ 6c: lot_list の節を使う項目だけが落ちてよい（窓が理由つきの 503 で断る。NAN_EXPECTED に理由）。
     # ほかの項目が落ちたら割れ（前は 1b の 2 項目しか見ず、断り過ぎ・Python の HTML の 500 を見逃した）
-    failed = [x for x in r.get("results", []) if not x["ok"]]
+    failed = [x for x in r.get("results", []) if not x["ok"] and x["name"] not in EXCEPT]
     unexpected = [f"{x['name']} -- {x['info'][:120]}" for x in failed if x["name"] not in NAN_EXPECTED]
     ok &= check(not unexpected, "1b. lot_list が字の PC で落ちるのは品質の節を使う項目だけ（理由つきの 503）", unexpected)
     ok &= check(all("503" in x["info"] or "設定を組めません" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503",
@@ -470,7 +450,7 @@ def update(exe: Path, work: Path) -> bool:
     info = r.get("info") or {}
     good, why = window_only_ok(r, "no-python")
     ok &= check(info.get("version") == v4, f"4b. Python の無い PC で {v4} に入れ替えて開く", info.get("version"))
-    ok &= check(good, "4b. 心拍 200・python absent・窓だけの自己診断の項目が通り、Python を通す項目は包みに数えた", why)
+    ok &= check(good, "4b. 心拍 200・python absent・自己診断の項目が全部あって通る（飛ばした項目が無い）", why)
     ok &= check(not (local / "update" / "applied.json").exists() and boot_log_has(local, "BOOT 入れ替えた版を確かめた"),
                 "4b. 確かめの印は画面の最初の心拍で消えた")
     fj = json.loads((local / "update" / "FAILED.json").read_text(encoding="utf-8"))
@@ -571,7 +551,7 @@ def local(exe: Path, work: Path) -> bool:
     r = Run(work, env).open(exe, "no-python")
     ok = check(r.get("ok") is True, "local. Python の無い PC でも窓は画面を開き、自己診断が通る", r.get("error", ""))
     good, why = window_only_ok(r, "no-python")
-    ok &= check(good, "local. 心拍 200・python absent・窓だけの項目が全部通り、Python を通す項目は包みに数えた", why)
+    ok &= check(good, "local. 心拍 200・python absent・自己診断の項目が全部あって通る（飛ばした項目が無い）", why)
     tabs = next((x for x in r.get("results", []) if x["name"].startswith("出さないタブを出さない")), {})
     ok &= check(tabs.get("ok") is True and '"calc"' in tabs.get("info", ""), "local. Python が居なくても出さないタブ（計算）を出さない", tabs.get("info"))
     ok &= check(boot_log_has(work / "local", "python=（段 ④: 起こさない）") and boot_log_has(work / "local", "OPEN 画面を開きます")
@@ -586,8 +566,57 @@ def local(exe: Path, work: Path) -> bool:
     r = Run(work, {**env, "TRANSFER_LOCAL_ROOT": str(work / "local-nan")}).open(exe, "no-python-nan")
     good, why = window_only_ok(r, "no-python-nan")
     ok &= check(r.get("ok") is True and good, "local. 配った設定に NaN・Infinity があっても、窓だけの項目が全部通る（窓は束を Python に尋ねない）", why)
+    ok &= admin_work(exe, work, env, conf)
     left = leftover_python(work)
     ok &= check(not left, "終わったあと Python が残らない", left)
+    return ok
+
+
+def masters_digest(share: Path) -> dict:
+    """共有のマスタのファイル（置き場の直下の *.json。利用状況の presence_tpa は窓が書くので除く）→ sha256"""
+    return {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(share.glob("*.json"))}
+
+
+def admin_work(exe: Path, work: Path, env: dict, conf: Path) -> bool:
+    """3 窓目 admin-work（版 3.118.1。採点の first_fixes 10）: 作業実績 3 台に届き、この PC の利用者が開発者・編集可の場面。
+    書く道の「無い行・知らない項目を窓の言葉で断る」の枝と、作業実績の一覧・集計・パネルの値が流れる（CI の自己診断の段は一般ユーザー・0 台）。
+    どれも書かずに確かめる道（id 987654321・selftest-none・名前が空の引っ越し）なので、流した後の共有のマスタは前と 1 バイトも同じ。
+    selftest_config.py・lotlist_fixture.py は変えない（verify prev の前の版の自己診断は今の場面のまま）"""
+    import getpass
+    admin = work / "admin"
+    folder = admin / "work"
+    folder.mkdir(parents=True)
+    equip = ["L-1", "TLV", "CR1"]
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); import lotlist_fixture as f\n"
+            "for e in sys.argv[3:]: f.make_work(f'{sys.argv[2]}/実績_{e}.sqlite3', e)")
+    subprocess.run([sys.executable, "-c", code, str(REPO / "program" / "tests"), str(folder), *equip], check=True)
+    share = admin / "masters"
+    shutil.copytree(work / "masters", share, ignore=shutil.ignore_patterns("presence_tpa"))
+    def rows(items):
+        return json.dumps({"schema": 1, "revision": 1, "rows": items}, ensure_ascii=False, indent=1)
+    (share / "access_permissions.json").write_text(rows([{"id": 1, "ログインID": getpass.getuser(), "PC名": "", "権限区分": "開発者",
+                                                          "マスタ編集": "編集可", "有効": "有", "備考": "verify の admin-work", "rev": 1}]), encoding="utf-8")
+    (share / "work_log_files.json").write_text(rows([{"id": i + 1, "キー": f"w{i + 1}", "設備名": e, "ファイル名": f"実績_{e}.sqlite3", "表示": "有",
+                                                      "表": "", "備考": "", "rev": 1} for i, e in enumerate(equip)]), encoding="utf-8")
+    s = json.loads(conf.read_text(encoding="utf-8"))
+    s["lot_list"]["page_size"] = 500
+    s.setdefault("presence", {}).pop("heartbeat_interval_seconds", None)
+    s["master_share"]["dir"] = str(share)
+    s.setdefault("work_log", {})["folder"] = str(folder)
+    aconf = admin / "appsettings.json"
+    aconf.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
+    before = masters_digest(share)
+    r = Run(work, {**env, "TRANSFER_APP_CONFIG": str(aconf), "TRANSFER_LOCAL_ROOT": str(work / "local-admin")}).open(exe, "admin-work")
+    good, why = window_only_ok(r, "admin-work")
+    ok = check(r.get("ok") is True and good, "local. 作業実績 3 台・開発者の名乗りでも、自己診断の項目が全部あって通る", why)
+    res = {x["name"]: x for x in r.get("results", [])}
+    wl = res.get("作業実績・データ元の一覧は窓が答え、答えの形と失敗の種類（8 通り・作業でまとめる・ページ・失敗の答え）", {})
+    gate = [n for n, x in res.items() if "門番 403" in x.get("info", "")]
+    ok &= check(wl.get("ok") is True and "設備 " in wl.get("info", "") and "設備なし" not in wl.get("info", "") and not gate,
+                "local. admin-work では作業実績の一覧が流れ、書く道は門番でなく窓の言葉で断る", f"{wl.get('info', '')[:80]}・門番 {gate}")
+    after = masters_digest(share)
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    ok &= check(not changed, "local. admin-work の自己診断は共有のマスタを書かない（流す前と後の sha256 が同じ）", changed)
     return ok
 
 
@@ -717,7 +746,7 @@ def prev(old_zip: Path, exe: Path, work: Path) -> bool:
     r = no_py.open(app / b["exe"], "new")
     info = r.get("info") or {}
     good, why = window_only_ok(r, "new")
-    ok &= check(info.get("version") == v_new and good, f"prev 2. 入れ替えて開き直すと {v_new}（python absent・窓だけの項目が通る）", why)
+    ok &= check(info.get("version") == v_new and good, f"prev 2. 入れ替えて開き直すと {v_new}（python absent・自己診断の項目が全部あって通る）", why)
     ok &= check(not (local / "update" / "applied.json").exists(), "prev 2. 確かめの印は画面の最初の心拍で消えた")
     started = python_started(local, before)
     ok &= check(not started, "prev 2. いまの窓は Python を 1 度も起こさない（python_attempts=0）", started)

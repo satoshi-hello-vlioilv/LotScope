@@ -58,6 +58,12 @@ pub fn unanswered() -> Option<Value> {
     (!m.is_empty()).then_some(Value::Object(m))
 }
 
+/// 窓が答えられなかった回数を、1 度も無いときも表で（版 3.118.1。/__desktop/info の unanswered。自己診断が画面の起動と自己診断の
+/// 全部の道のあとに読み、わざと叩く形のほかに無いかを見る）
+pub fn unanswered_map() -> Value {
+    unanswered().unwrap_or_else(|| json!({}))
+}
+
 /// まだ書いていない数を書く（使い終わりにも呼ぶ）
 pub fn flush() {
     let mut st = STATE.lock().unwrap_or_else(|e| e.into_inner());
@@ -121,6 +127,10 @@ mod tests {
         assert!(unanswered().is_none_or(|u| u.get("bundle_seed").is_none()), "窓が答えなかった数だけ");
         note("unanswered GET /api/x");
         assert!(unanswered().unwrap()["unanswered GET /api/x"].as_u64().unwrap() >= 1);
+        // /__desktop/info の形（版 3.118.1）: いつも表で、窓が答えなかった形の名前と回数だけ
+        let m = unanswered_map();
+        assert!(m.is_object() && m["unanswered GET /api/x"].as_u64().unwrap() >= 1, "{m}");
+        assert!(m.as_object().unwrap().keys().all(|k| k.starts_with("unanswered")), "{m}");
         let _ = std::fs::remove_dir_all(&d);
     }
 }
