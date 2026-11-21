@@ -289,6 +289,10 @@ fn remembered_me_expires() {
 /// 読む道は止めない形で続け（出さないタブ無し・書けない）、Python も断った道は同じ言葉の 503
 #[test]
 fn unreadable_permissions_answer_like_the_frozen_python() {
+    // Python 無しの形（TPA_NO_PYTHON=1）では、凍らせた写しを相手にするとき（TPA_FROZEN_PY=1）だけ流す
+    if !common::bake::frozen_python("access_parity の読めない権限の表（Python の道の答え）") {
+        return;
+    }
     let d = common::work("access-unreadable");
     let scene = d.join("scene");
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
