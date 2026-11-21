@@ -26,6 +26,7 @@
     python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す（読めなかった行の数も言う）
     python tools/bless.py --no-python --all --skip-test 試験,… … Python 無しの形で流すが、名前を挙げた試験は流さない（Windows の測り: route_reach は長い）
     python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
+    python tools/bless.py --nonbook-args … … 焼いた本の試験でない窓の試験を流す cargo test の引数（--lib --bins --test …。版 3.118.0。Windows の CI）
     python tools/bless.py --no-python --all --windows table|measure … … Windows の表だけの形で、books.json の windows の札が table の本だけ・
                                             measure の本だけを流す（版 3.117.3。desktop.yml は table の本を落とす段・measure の本を測るだけの段に分ける）
     python tools/bless.py --no-python --all --windows table --as-windows … … Linux の上で Windows の形（TPA_BAKE_OS=nt）で札が table の本を流す
@@ -407,6 +408,14 @@ def tests_of(books):
             if t not in out:
                 out.append(t)
     return out
+
+
+def nonbook_args():
+    """焼いた本の試験でない窓の試験を流す cargo test の引数（版 3.118.0。Windows の CI が表だけの形〈TPA_NO_PYTHON=1〉で、札が measure の本を
+    落とさずにほかの試験を流すため: --lib --bins と、本の試験でない desktop/tests/*.rs の --test）"""
+    books = set(tests_of(BOOKS))
+    rest = sorted(p.stem for p in (DESKTOP / "tests").glob("*.rs") if p.stem not in books)
+    return ["--lib", "--bins"] + [x for t in rest for x in ("--test", t)]
 
 
 def cargo(tests, env, filt=None):
@@ -1029,6 +1038,9 @@ def main():
         i = args.index("--skip-test")
         skip = [x for x in args[i + 1].split(",") if x]
         del args[i:i + 2]
+    if args[0] == "--nonbook-args":
+        print(" ".join(nonbook_args()))
+        return
     if args[0] == "--measured":
         measured([a for a in args[1:] if not a.startswith("--")] or [""], "--json" in args, skip)
         return

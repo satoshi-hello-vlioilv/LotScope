@@ -85,7 +85,10 @@ step fmt-clippy bash -c "cd desktop && cargo fmt --check && cargo clippy --all-t
 step py-tests bash -c "cd program && python -m unittest discover -s tests -t ."
 step bundle-tests python -m unittest discover -s desktop/bundle -t desktop/bundle
 # --no-fail-fast: 落ちた本で止めず、全部の本を流す（CI と同じ。落ちた本があれば終了コードは 0 でない）
+# Python と比べる形（CLAUDE.md の「push 前の確かめ」の命令そのまま。段 ⑤ まで残す）と、版 3.118.0（段 ④）からの表だけの形
+# （TPA_NO_PYTHON=1・凍らせた写しを相手にする TPA_FROZEN_PY=1）の両方を流す（ci.yml と同じ）
 step cargo-test bash -c "cd desktop && cargo test --locked --no-fail-fast"
+step cargo-test-table bash -c "cd desktop && TPA_NO_PYTHON=1 TPA_FROZEN_PY=1 cargo test --locked --no-fail-fast"
 # 4a) Linux の上の Windows の形（版 3.117.3。TPA_BAKE_OS=nt）: 札が table の本（books.json の windows）を、Windows の CI と同じ読み方
 #     （nt の表・札・Windows で作れない物の数え方）で表だけの形で流す。Windows の CI の 1 回目で初めて落ちる形（作れない物の数え違いなど）を先に見つける。
 #     答えは Linux の窓の答えなので、道の区切り・OS の誤りの字のような Windows の答えそのものはここでは守れない（それは Windows の CI）

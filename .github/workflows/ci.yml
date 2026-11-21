@@ -41,8 +41,9 @@ jobs:
   desktop:
     runs-on: ubuntu-latest
     # 版 3.111.0 で 60 → 90 分: 窓の通しに 4b〜4e と Python の無い PC の通しを足し、更新の通しが約 44 分（場面ごとに debug の窓の自己診断が 2〜4 分）になって、
-    # Rust の試験（約 11 分）・自己診断（約 3 分）と合わせて 60 分で切れた（PR #111。最後の段の Python の無い PC の通しは通った直後）。控えが効かないと組み立てで約 13 分増える
-    timeout-minutes: 90
+    # Rust の試験（約 11 分）・自己診断（約 3 分）と合わせて 60 分で切れた（PR #111。最後の段の Python の無い PC の通しは通った直後）。控えが効かないと組み立てで約 13 分増える。
+    # 版 3.118.0 で 90 → 120 分: Rust の試験を 2 つの形（Python と比べる・表だけ）で流す（約 11 分増える）
+    timeout-minutes: 120
     env:
       TPA_PYTHON: python
     steps:
@@ -72,8 +73,18 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       # --no-fail-fast: 落ちた本で止めず、全部の本を流す（落ちた所を 1 回の CI で全部見る。落ちた本があれば終了コードは 0 でない。
       # 版 3.115.0 の PR #115 は、最初に落ちた本で止まるので落ちる所が 1 回に 1 つずつしか分からず、4 往復になった）
-      - name: test（Rust）
+      # Python と比べる形（環境変数なし。CLAUDE.md の「push 前の確かめ」の命令そのまま。段 ⑤ まで残す）
+      - name: test（Rust・Python と比べる形）
         working-directory: desktop
+        run: cargo test --locked --no-fail-fast
+      # 版 3.118.0（段 ④。採点の first_fixes 9）: 表だけの形も流す（TPA_NO_PYTHON=1: 焼いた本は表の宣言から場面を作り焼いた答えと比べる・
+      # TPA_FROZEN_PY=1: 凍らせた Python を相手にする試験は凍らせた写し program/tests/legacy/3.117.3 を相手に流す）。check-all.sh も両方
+      - name: test（Rust・表だけの形）
+        if: ${{ !cancelled() }}
+        working-directory: desktop
+        env:
+          TPA_NO_PYTHON: "1"
+          TPA_FROZEN_PY: "1"
         run: cargo test --locked --no-fail-fast
       # 異常ロット一覧を Rust と Python で引き比べるため、試験用の品質データ（3000 行）を参照先にした設定で起こす
       - name: 自己診断（本物の窓・WebKitGTK）
@@ -83,7 +94,13 @@ jobs:
           export TRANSFER_APP_CONFIG="$RUNNER_TEMP/appsettings.json"
           export TRANSFER_LOCAL_ROOT="$RUNNER_TEMP/root" TPA_SELFTEST="$RUNNER_TEMP/selftest.json"
           exe="$(python -c "import json;print(json.load(open('program/app/brand.json',encoding='utf-8'))['exe'][:-4])")"
+          # 版 3.118.0（段 ④）: PATH に Python がある形のまま開く（窓は Python を探さない。起こそうとしたかは窓の記録で見る）
           cd "$RUNNER_TEMP" && timeout 240 xvfb-run -a "$GITHUB_WORKSPACE/desktop/target/debug/$exe" || true
+          # 起こした印（採点の割れ 3）: 窓を閉じた記録の python_attempts が 0・中身を起こすと必ず作られる sidecar_stderr.log が無い
+          grep "python_attempts=" "$RUNNER_TEMP/root/logs/desktop.log" || { echo "窓を閉じた記録（python_attempts）がありません"; exit 4; }
+          if grep "python_attempts=" "$RUNNER_TEMP/root/logs/desktop.log" | grep -v "python_attempts=0" || [ -e "$RUNNER_TEMP/root/logs/sidecar_stderr.log" ]; then
+            echo "Python を起こそうとしました（段 ④ の窓は起こさない）"; exit 4
+          fi
           python - <<'PY'
           import json, os, sys
           path = os.environ["TPA_SELFTEST"]
@@ -94,12 +111,15 @@ jobs:
               print("PASS" if x["ok"] else "FAIL", x["name"], "--", x["info"])
           if r.get("error"):
               print("ERROR:", r["error"])
+          if r.get("python") != "absent":
+              sys.exit(f"中身の様子が absent でありません（段 ④）: {r.get('python')}")
           sys.exit(0 if r.get("ok") else 1)
           PY
       # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
       - name: 更新の通し（本物の窓・WebKitGTK）
         run: xvfb-run -a python desktop/bundle/verify.py update --exe desktop/target/debug/$(python desktop/bundle/bundle.py brand exe | sed 's/\.exe$//') --work "$RUNNER_TEMP/verify"
-      # Python の無い PC（版 3.111.0）: 作業場所の窓だけを、TPA_PYTHON を無い道・PATH から Python を外して開く → 画面を開き、窓だけの自己診断の項目が通る
+      # Python の無い PC（版 3.111.0）: 作業場所の窓だけを、TPA_PYTHON を無い道・PATH から Python を外して開く → 画面を開き、窓だけの自己診断の項目が通る。
+      # 版 3.118.0 から更新の通し（update）も窓を Python の無い PATH で開き、窓の記録に中身を起こした印が 1 度も無いことを見る
       - name: Python の無い PC の通し（本物の窓・WebKitGTK）
         run: xvfb-run -a python desktop/bundle/verify.py local --exe desktop/target/debug/$(python desktop/bundle/bundle.py brand exe | sed 's/\.exe$//') --work "$RUNNER_TEMP/verify-local"
       - name: 記録

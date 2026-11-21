@@ -50,7 +50,7 @@
   {
    "name": "Python が 120 秒を超える（起こしている最中）: 画面は開いて心拍が来た",
    "revert": false,
-   "why": "遅いだけで戻さない（前は start_wait 120 秒で切れて戻した。採点者の測り slowfresh）。画面は Python を待たない。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4c。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
+   "why": "遅いだけで戻さない（前は start_wait 120 秒で切れて戻した。採点者の測り slowfresh）。画面は Python を待たない。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4b。版 3.118.0 から窓は中身を起こさないので、前の 4c〈Python が遅い版〉は外し、Python の無い PC で入れ替えて心拍が来る 4b で見る）",
    "setup": [],
    "installed": true,
    "applied": true,
@@ -62,7 +62,7 @@
     "maintain",
     "cleanup"
    ],
-   "verify": "update 4c"
+   "verify": "update 4b"
   },
   {
    "name": "Python が 120 秒を超えて起こせなかった（Sidecar の start_wait で切れた）",

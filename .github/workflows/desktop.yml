@@ -69,11 +69,17 @@ jobs:
           $c = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Thumbprint -eq $tp }
           if (-not $c) { throw "Root に作り物の CA（$tp）が見えません" }
           Write-Host "入れた CA: $($c.Thumbprint) $($c.Subject)"
-      - name: test（Rust・Windows）
+      # 版 3.118.0（段 ④。採点の first_fixes 9）: Python と比べる形の cargo test と、その形の測りは外した。窓の試験は表だけの形
+      # （TPA_NO_PYTHON=1・凍らせた Python の写しを相手にする TPA_FROZEN_PY=1）が標準。焼いた本の試験は下の 2 段（札が table の本は表と比べて落とす・
+      # measure の本は測るだけ）、それ以外の試験（--lib --bins と本でない tests/*.rs。bless.py --nonbook-args）はこの段で落とす
+      - name: test（Rust・Windows・表だけの形。焼いた本でない試験）
         working-directory: desktop
         env:
-          TPA_MEASURE: ${{ runner.temp }}\bake-measure
-        run: cargo test --locked --no-fail-fast
+          TPA_NO_PYTHON: "1"
+          TPA_FROZEN_PY: "1"
+        run: |
+          $a = (python ..\program\tools\bless.py --nonbook-args) -split ' '
+          cargo test --locked --no-fail-fast @a
       # 表だけの形（版 3.117.0 から測り、版 3.117.3 から比べる）: 焼いた本の試験だけを TPA_NO_PYTHON=1（段 ④ の後の形。Python を呼ばず、
       # 表の宣言から場面を作って焼いた答えと比べる）でもう 1 回流す。上の形は Windows の Python が場面を作るので、④ の後に残る形で
       # Windows が通るかは、この 2 段でしか分からない。本は books.json の windows の札で 2 つに分ける:
@@ -85,19 +91,19 @@ jobs:
         # 手で取り消したときは流さない（版 3.117.3 の作った後の直し・割れ 4 (d)。上の cargo test が落ちても流す）
         if: ${{ !cancelled() }}
         timeout-minutes: 20
-        run: python program/tools/bless.py --no-python --all --windows table --skip-test route_reach
+        run: python program/tools/bless.py --no-python --frozen --all --windows table --skip-test route_reach
       - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（札が measure の本。測るだけ・落ちても続ける）
         if: always()
         continue-on-error: true
         timeout-minutes: 20
         env:
           TPA_MEASURE: ${{ runner.temp }}\bake-measure-table
-        run: python program/tools/bless.py --no-python --all --windows measure --skip-test route_reach
+        run: python program/tools/bless.py --no-python --frozen --all --windows measure --skip-test route_reach
       # 2 つの形の数を別の行で出す（記録そのものは仕事の終わりの段が詰めた行で出す）
       - name: 焼いた表（posix）と Windows の窓の答えの違いを数える（測るだけ・落とさない）
         if: always()
         continue-on-error: true
-        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure" "$env:RUNNER_TEMP\bake-measure-table"
+        run: python program/tools/bless.py --measured "$env:RUNNER_TEMP\bake-measure-table"
       # 版 3.117.1（段 ③-6）: Windows の本物の設定で、窓のプロキシの読み手（src/sysproxy.rs のレジストリの読み）と Windows の Python の
       # urllib.request.getproxies・proxy_bypass が同じ答えか。HKCU の Internet Settings の ProxyEnable・ProxyServer・ProxyOverride・AutoConfigURL を
       # 書いて比べ、終わったら必ず元に戻す（finally と下の always の段）。落ちたときは期待した値と来た値を記録に出す（手元では流せない段）。
@@ -185,7 +191,6 @@ jobs:
         with:
           name: desktop-windows-measure
           path: |
-            ${{ runner.temp }}/bake-measure/
             ${{ runner.temp }}/bake-measure-table/
           if-no-files-found: warn
       # 表だけの形の測りの記録そのもの（版 3.117.3）を、仕事の記録の終わりに詰めた行（「measure-z| 」。zlib・base64 を 2,000 字ずつ）で出す。
@@ -236,23 +241,56 @@ jobs:
           $env:TRANSFER_APP_CONFIG = "$env:RUNNER_TEMP\appsettings.json"
           $env:TRANSFER_LOCAL_ROOT = "$env:RUNNER_TEMP\root"
           $env:TPA_SELFTEST = "$env:RUNNER_TEMP\selftest.json"
+          # 版 3.118.0（段 ④。採点の first_fixes 9）: 窓を起こすときだけ PATH から Python を外し、TPA_PYTHON を無い道にする（道具の Python は残す）
+          $keepPath = $env:PATH
+          $env:PATH = (python desktop\bundle\verify.py --no-python-path)
+          $env:TPA_PYTHON = "$env:RUNNER_TEMP\どこにも無い\python.exe"
+          $before = @(Get-Process python, py -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
           Start-Process -FilePath "desktop\target\release\$env:EXE" -WorkingDirectory $env:RUNNER_TEMP
+          $started = @()
           $deadline = (Get-Date).AddSeconds(240)
-          while (-not (Test-Path $env:TPA_SELFTEST) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+          while (-not (Test-Path $env:TPA_SELFTEST) -and (Get-Date) -lt $deadline) {
+            $started += @(Get-Process python, py -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | ForEach-Object { "$($_.Id) $($_.Path)" })
+            Start-Sleep -Seconds 2
+          }
           Wait-Process -Name ([IO.Path]::GetFileNameWithoutExtension($env:EXE)) -Timeout 30 -ErrorAction SilentlyContinue
+          $env:PATH = $keepPath
+          Remove-Item env:TPA_PYTHON
           Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 25 -Encoding utf8 }
-          # 起動の時間（版 3.86.0）: 画面を開いた時刻（OPEN ms）と中身の準備（READY spawn_ms）。Windows の WebView2 と同梱でない Python での数を残す
+          # 起動の時間（版 3.86.0）: 画面を開いた時刻（OPEN ms）。版 3.118.0 から中身の準備（READY）は無い
           Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern "START program|OPEN |READY |BACKEND " | ForEach-Object { Write-Host "TIMING $($_.Line)" }
+          # Python が 1 度も起きていない（版 3.118.0。採点の割れ 3）: 窓を閉じた記録の python_attempts が 0・sidecar_stderr.log が無い・
+          # 走っている間に新しい Python のプロセスが無い
+          $ex = @(Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern "python_attempts=")
+          $bad = @($ex | Where-Object { $_.Line -notmatch "python_attempts=0" })
+          if (-not $ex) { Write-Host "窓を閉じた記録（python_attempts）がありません"; exit 4 }
+          if ($bad -or (Test-Path "$env:TRANSFER_LOCAL_ROOT\logs\sidecar_stderr.log") -or $started) {
+            Write-Host "Python を起こそうとしました（段 ④ の窓は起こさない）: $($bad.Line) $($started -join ' / ')"; exit 4
+          }
           if (-not (Test-Path $env:TPA_SELFTEST)) { Write-Host "結果のファイルがありません"; exit 2 }
           $r = Get-Content $env:TPA_SELFTEST -Raw -Encoding utf8 | ConvertFrom-Json
           $r.results | ForEach-Object { Write-Host ("{0}: {1} -- {2}" -f ($(if ($_.ok) { "PASS" } else { "FAIL" })), $_.name, $_.info) }
           if ($r.error) { Write-Host "ERROR: $($r.error)" }
           Start-Sleep -Seconds 3
-          if (Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*hostedtoolcache*" }) { Write-Host "Python が残っています（窓を閉じても中身が終わっていない）"; exit 4 }
           if (-not $r.ok) { exit 1 }
+          if ($r.python -ne "absent") { Write-Host "中身の様子が absent でありません: $($r.python)"; exit 5 }
       # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
       - name: 更新の通し（本物の WebView2）
         run: python desktop\bundle\verify.py update --exe "desktop\target\release\$env:EXE" --work "$env:RUNNER_TEMP\verify"
+      # 前の版と新しい版の境（版 3.118.0。採点の first_fixes 10・14）: GitHub の Releases のいちばん新しい札（v3.117.x。Python を起こす前の版）の
+      # 配る ZIP を取り、その本物の窓で始めた PC が、いまの版を取り込み・入れ替え・開き直す（Python の無い PATH）、配る版を前の版へ戻すと前の版で開く
+      - name: 前の版の窓から取り込む・前の版へ戻す（本物の WebView2）
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = gh release list --limit 20 --json tagName --jq '[.[] | .tagName | select(startswith("v3.117."))][0]'
+          if (-not $tag) { Write-Host "::error::Releases に v3.117.x がありません"; exit 1 }
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\prev-zip" | Out-Null
+          gh release download $tag --pattern "*-windows.zip" --dir "$env:RUNNER_TEMP\prev-zip"
+          $zip = (Get-ChildItem "$env:RUNNER_TEMP\prev-zip\*-windows.zip" | Select-Object -First 1).FullName
+          Write-Host "前の版: $tag $zip"
+          python desktop\bundle\verify.py prev --old-zip "$zip" --exe "desktop\target\release\$env:EXE" --work "$env:RUNNER_TEMP\verify-prev"
       - name: 配る ZIP を作る
         run: python desktop\bundle\bundle.py build --exe "desktop\target\release\$env:EXE" --out "$env:RUNNER_TEMP\release"
       - name: 成果物をまとめる

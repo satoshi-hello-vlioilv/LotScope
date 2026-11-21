@@ -323,9 +323,8 @@ fn schedule_matches_python() {
         bad.push(format!("同時に 4 本: 答え {answers:?}・CM3 への要求 {n} 本・{took:.2} 秒（1 本・2.2 秒未満のはず）"));
     }
 
-    // 2 つのプロセス（窓と受け身の Python）と、降りる → Python が取る → 窓が戻る は、受け身の Python（app）を相手にする（段 ④ の配布の間だけ。
-    // Python 無しの形では流さない: bake::frozen_python）
-    if common::bake::frozen_python("schedule_parity の 2 つのプロセスと降りて戻る（受け身の Python）") {
+    // 2 つのプロセス（窓と受け身の Python）は、受け身の Python（app）を相手にする（段 ④ の配布の間だけ。Python 無しの形では流さない: bake::frozen_python）
+    if common::bake::frozen_python("schedule_parity の 2 つのプロセス（受け身の Python）") {
         // 2 つのプロセス（窓と受け身の Python）: 再現した順で取り直しても、相手の今の世代が消えない・Python は世代を置かない・CM3 へ 1 回ずつ
         let change = scenarios.iter().find(|s| s["scene"] == "change").unwrap();
         for (k, order) in ["rrprrp", "prrrpp"].iter().enumerate() {
@@ -388,9 +387,10 @@ fn schedule_matches_python() {
             }
             assert_eq!(seen, 6);
         }
-        // 降りる → Python が取る → 窓が戻る（版 3.96.0 の作った後の採点の割れ 1・2）
-        back_after_resign(&base, change, &mut live, &mut bad);
     }
+    // 段 ④（版 3.118.0）: 降りない（前の「降りる → Python が取る → 窓が戻る」。Python を使わないので、Python 無しの形でも流す）
+    let change = scenarios.iter().find(|s| s["scene"] == "change").unwrap();
+    no_resign(&base, change, &mut live, &mut bad);
     drop(live);
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     bk.finish(&bad);
@@ -477,35 +477,20 @@ fn set_schedule(env: &Value, text: &str, more: &Value) {
     std::fs::write(env["config"].as_str().unwrap(), serde_json::to_string_pretty(&v).unwrap()).unwrap();
 }
 
-/// 窓が係を降りた後に受け身の Python が取り、窓が係に戻る 2 つの形（2 回目だけ i64 に入らない整数の答えで 1 回だけ降りる〈版 3.115.0 まで NaN〉・戻り道の設定〈fetch_engine が python〉で降りて戻す）。
-/// 戻った窓の一覧・データの札（/source）が状態のファイル〈Python がいちばん新しく取った答え。カードもここを読む〉と同じで、CM3 へ取り直さない
-/// （Python だけの形でも、取ったばかりの答えを使う）。戻った窓が 2 回置き直すと、Python の世代は残らず、置き場は今の世代と 1 つ前の 2 つ
-/// （Python だけの形と同じ）。1 回目の置き直しでは、Python の今の世代は「1 つ前」として残る（読んでいる途中の問い合わせが開ける）
-fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: &mut Vec<String>) {
+/// 段 ④（版 3.118.0）: 窓は係を降りない 2 つの形（2 回目だけ i64 に入らない整数の答え・戻り道の設定〈fetch_engine が python〉）。
+/// 前（版 3.117.x）は降りて受け身の Python が取り、窓が戻った。いまは i64 に入らない整数は理由つきで断り（前の答えを残し、データの札に理由）、
+/// fetch_engine の python は見ずに窓が取る。状態の resigned はいつも null・書き手は rs・Python の世代（.py.）は置かれない
+fn no_resign(base: &Path, change: &Value, live: &mut common::Live, bad: &mut Vec<String>) {
     let code = "L-1";
     let mut steps = 0;
     for (runner, scene, how) in [("f0", "flip", "big"), ("f1", "change", "engine")] {
         let (_root, env, text) = own_root(base, change, runner, scene);
         let lot = lot_for(&env);
-        let url = serde_json::from_str::<Value>(&text).unwrap()["schedule"]["cm3_base_url"].as_str().unwrap().to_string();
         let sroot = PathBuf::from(env["local"].as_str().unwrap()).join("db_cache").join("schedule");
-        let extra = if how == "engine" { json!({"fetch_engine": "python"}) } else { json!({}) };
-        let (mut py, _) = common::Live::start("schedule_oracle.py", &["passive", sroot.to_str().unwrap(), &url, &extra.to_string()]);
-        let tag = |i: usize| format!("降りて戻る（{how}）[{i}]");
+        let tag = |i: usize| format!("降りない（{how}）[{i}]");
         let count = |live: &mut common::Live| live.ask(&format!("count {runner} {scene}")).as_i64().unwrap();
         let state = || -> Value {
             serde_json::from_slice(&std::fs::read(sroot.join(format!("{}.state.json", da_core::schedule::safe(code)))).unwrap()).unwrap()
-        };
-        let gens = || -> Vec<String> {
-            let head = format!("{}.g", da_core::schedule::safe(code));
-            let mut v: Vec<String> = std::fs::read_dir(&sroot)
-                .unwrap()
-                .flatten()
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .filter(|n| n.starts_with(&head) && n.ends_with(".sqlite3"))
-                .collect();
-            v.sort();
-            v
         };
         let get = |path: &str, method: &str| lot.handle_body_with(method, path, "equip=L-1", b"", &no_python);
         // 0: 窓が係（1 回目の答え）
@@ -514,90 +499,42 @@ fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: 
         if list0.as_ref().map(|x| x.0) != Some(200) || first.as_ref().map(|x| x.0) != Some(200) {
             bad.push(format!("{} 窓の最初の答え {first:?}", tag(0)));
         }
-        // 1: 窓が降りる（i64 に入らない整数の答え・窓の取れない設定）
-        let down = if how == "big" {
+        let n0 = count(live);
+        // 1: 前は降りた形（i64 に入らない整数の答え・窓の取れない設定）。窓が答え、降りない
+        let got = if how == "big" {
             get("/api/src/sch/refresh", "POST")
         } else {
             set_schedule(&env, &text, &json!({"fetch_engine": "python"}));
             lot.invalidate();
-            get("/api/src/sch", "GET")
+            get("/api/src/sch/refresh", "POST")
         };
         let st = state();
-        if down.is_some() || !st["resigned"].is_object() {
-            bad.push(format!("{} 窓が降りない: {down:?}・状態の resigned {}", tag(1), st["resigned"]));
-        }
-        // 2: 受け身の Python が取って置く（書き手 py）
-        py.send("p");
-        let v = loop {
-            let v = py.read();
-            if v["event"] == "schedule" {
-                lot.notice(&v);
-            } else {
-                break v;
-            }
-        };
-        let st = state();
-        let py_path = st["path"].as_str().unwrap_or("").to_string();
-        if v["result"]["error"].as_str().is_some_and(|s| !s.is_empty()) || st["writer"] != "py" || !py_path.contains(".py.") {
-            bad.push(format!("{} Python が取らない: {v}・書き手 {}・世代 {py_path}", tag(2), st["writer"]));
-        }
-        let n_py = count(live);
-        // 3: 窓が戻る。すぐ答える一覧・データの札は、状態のファイル（Python の今の答え）と同じ。CM3 へは取り直さない
-        if how == "engine" {
-            set_schedule(&env, &text, &json!({}));
-            lot.invalidate();
-        }
-        let want_src = {
-            let sec: Value = serde_json::from_str(&std::fs::read_to_string(env["config"].as_str().unwrap()).unwrap()).unwrap();
-            let cfg = da_core::schedule::Cfg::from_section(Some(&sec["schedule"])).unwrap();
-            da_core::schedule::source_info(&cfg, &da_core::schedule::st_of(&state()), code)
-        };
-        let src = get("/api/src/sch/source", "GET");
-        let list = get("/api/src/sch", "GET");
-        let rows_in = |p: &str| -> i64 {
-            let c = rusqlite::Connection::open(p).unwrap();
-            c.query_row(&format!("SELECT COUNT(*) FROM \"{}\"", da_core::schedule::TABLE), [], |r| r.get(0)).unwrap()
-        };
-        let total = list.as_ref().and_then(|x| x.1["count"].as_i64());
-        if src.as_ref().map(|x| x.0) != Some(200)
-            || common::diff(&norm(&want_src, "", ""), &norm(&src.as_ref().unwrap().1, "", ""), "").is_some()
-            || total != Some(rows_in(&py_path))
-            || src == first
-        {
+        if got.as_ref().map(|x| x.0) != Some(200) || !st["resigned"].is_null() || st["writer"] != "rs" || count(live) != n0 + 1 {
             bad.push(format!(
-                "{} 戻った窓の答えが状態のファイルと違う: データの札 {:?}・一覧の行 {total:?} / Python の世代 {}",
-                tag(3),
-                src.as_ref().map(|x| common::diff(&norm(&want_src, "", ""), &norm(&x.1, "", ""), "")),
-                rows_in(&py_path)
+                "{} 窓が答えて降りない: {got:?}・resigned {}・書き手 {}・要求 {} → {}",
+                tag(1),
+                st["resigned"],
+                st["writer"],
+                n0,
+                count(live)
             ));
         }
-        if count(live) != n_py {
-            bad.push(format!("{} 戻った窓が取り直した（{} 本 → {} 本）", tag(3), n_py, count(live)));
+        let src = get("/api/src/sch/source", "GET");
+        let err = src.as_ref().map(|x| x.1["reason"].as_str().unwrap_or("").to_string()).unwrap_or_default();
+        let want_err = if how == "big" { da_core::schedule::BIG_OR_DEEP } else { "" };
+        if src.as_ref().map(|x| x.0) != Some(200) || !err.contains(want_err) || (how == "big") == err.is_empty() {
+            bad.push(format!("{} データの札の理由: {err:?}（{want_err:?} のはず）", tag(2)));
         }
-        // 4・5: 窓が 2 回置き直す。1 回目は Python の今の世代を 1 つ前として残し、2 回目で Python の世代は残らない
-        for i in [4, 5] {
-            let got = get("/api/src/sch/refresh", "POST");
-            let st = state();
-            let g = gens();
-            let py_left: Vec<&String> = g.iter().filter(|n| n.contains(".py.")).collect();
-            let want_py: Vec<String> =
-                if i == 4 { vec![Path::new(&py_path).file_name().unwrap().to_string_lossy().into_owned()] } else { vec![] };
-            if got.as_ref().map(|x| x.0) != Some(200)
-                || st["writer"] != "rs"
-                || py_left.iter().map(|s| s.to_string()).collect::<Vec<_>>() != want_py
-                || g.len() != 2
-                || !Path::new(st["path"].as_str().unwrap_or("")).exists()
-            {
-                bad.push(format!(
-                    "{} 窓の置き直し {:?}・書き手 {}・置き場 {g:?}（Python の世代は {want_py:?}、全部で 2 つのはず）",
-                    tag(i),
-                    got.map(|x| x.0),
-                    st["writer"]
-                ));
-            }
+        let py_gens: Vec<String> = std::fs::read_dir(&sroot)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(".py."))
+            .collect();
+        if !py_gens.is_empty() {
+            bad.push(format!("{} Python の世代がある: {py_gens:?}", tag(3)));
         }
-        steps += 6;
-        drop(py);
+        steps += 4;
     }
-    eprintln!("降りて戻る: 2 形・{steps} 歩");
+    eprintln!("降りない: 2 形・{steps} 歩");
 }

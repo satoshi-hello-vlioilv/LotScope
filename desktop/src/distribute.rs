@@ -83,7 +83,8 @@ pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &st
     let _ = std::fs::remove_dir_all(&tmp);
     let checked = (|| {
         extract_zip(zip, &tmp)?;
-        let root = dist_root(&tmp).ok_or("ZIP に program\\sidecar.py がありません（配る ZIP ではありません）")?;
+        let root = dist_root(&tmp)
+            .ok_or("ZIP に program フォルダ（program\\app\\version.py・brand.json）がありません（配る ZIP ではありません）")?;
         let b = dist_brand(&root)?;
         if b["app_id"].as_str() != Some(app_id) {
             return Err("このアプリの ZIP ではありません（目印 app_id が違います）".to_string());
@@ -138,8 +139,9 @@ fn extract_exe(zip: &Path, exe: &str, to: &Path) -> Result<(), String> {
     let f = std::fs::File::open(zip).map_err(|e| e.to_string())?;
     let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
     let names: Vec<String> = z.file_names().map(|n| n.map(|n| n.into_owned()).map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
-    // 配る形の根（program/sidecar.py の隣）の exe
-    let root = names.iter().find_map(|n| n.strip_suffix("program/sidecar.py")).ok_or("ZIP に program/sidecar.py がありません")?.to_string();
+    // 配る形の根（program フォルダの隣。update::is_dist と同じ 2 つの形）の exe
+    let root =
+        crate::update::dist_root_in_names(&names).ok_or("ZIP に program フォルダ（program/app/version.py・brand.json）がありません")?;
     let mut e = z.by_name(&format!("{root}{exe}")).map_err(|_| format!("ZIP に {exe} がありません"))?;
     let mut buf = Vec::new();
     e.read_to_end(&mut buf).map_err(|e| e.to_string())?;

@@ -10,16 +10,15 @@
 //!   <設備>.state.json             … 状態（書き手・seq〈済むたびに 1 増える〉・path・sig・gen・時刻・error・整えた答え data・resigned）。
 //!                                    一時ファイルから置き換える
 //!
-//! 窓が取れない設定（https・システムのプロキシ・数でない timeout など）のあいだは、窓は状態の resigned に「係を降りた」と書き
-//! （for: その設定、once: false）、受け身の Python が自分で取りに行って置く（書き手 py）。窓が同じに整えられない答え（窓の持たない
-//! charset・Python が落ちる形）は、その 1 回だけ降りる（once: true。Python が取り終えたら消す）。降りたことのある設備では、答える前に
-//! 状態のファイルを読み、Python が取って置いていればその答えと世代を覚えにする（adopt。戻った窓が古い予定を答えない）。
+//! 段 ④（版 3.118.0）から窓は係を降りない（中身〈Python〉は起こさないので任せる先が無い）: 窓が取れない・同じに整えられない答え
+//! （窓の持たない形・i64 に入らない整数・入れ子の深い JSON・置き場に書けない）は窓の言葉の失敗（cm3::windowed。前の答えがあればそれ）。
+//! 配った設定の fetch_engine は見ない（"python" が残っていても窓が取る）。状態の resigned はいつも null（版 3.117.x の受け身の Python は降りていないと読む）。
 //!
 //! 錠を待っていた問い合わせは、待っている間に済んだ取り直しの結果を失敗も含めて使う（同じ設備の問い合わせが重なっても、
 //! 届かない CM3 を 1 本ずつ timeout 秒待ち直さない。Python も同じ）。窓を起こし直したときは前の状態を読まない（今の答えのまま。
 //! 状態のファイルと自分の書いた世代は最初に使うときに片付ける）。
 
-use crate::cm3::{self, Cell, Fail, R};
+use crate::cm3::{self, windowed, Cell, Fail, R};
 use crate::jsontree::Tree;
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -32,6 +31,9 @@ pub const TABLE: &str = "予定";
 pub const HOT_TABLE: &str = "HOT";
 /// 窓の書き手の印（世代の名前・状態のファイル）
 pub const WRITER: &str = "rs";
+/// 予定の元の答えに i64 に入らない整数・入れ子の深い JSON があるとき（版 3.118.0。利用者の決め ask_user 5: 理由つきで断る。前の答えがあればそれ。
+/// 現場で起きたら次の版で桁のまま読む〈pyfmt::PyInt の型〉）
+pub const BIG_OR_DEEP: &str = "予定の元の応答を窓が読めません（i64 に入らない整数か、入れ子の深い JSON があります）";
 
 // ------------------------------------------------------------------ 設定（schedule.config）
 #[derive(Debug, Clone)]
@@ -215,7 +217,8 @@ impl Cfg {
     }
 
     /// 窓が取りに行ける設定か（取りに行く前に分かる物）。版 3.117.1 から https とシステムのプロキシも窓が取る（段 ③-6）。
-    /// 配った設定の schedule.fetch_engine が "python" のときだけ係を降りる（戻り道。段 ④ まで残す）
+    /// 配った設定の schedule.fetch_engine は段 ④（版 3.118.0。利用者の決め）から見ない（"python" が残っていても窓が取る。起動の記録に 1 行:
+    /// bundle::retired_settings）。窓が使えない URL は窓の言葉の失敗（前は Python に任せた）
     pub fn fetch_plan(&self) -> R<(String, String, Duration)> {
         let base_v = &self.m["cm3_base_url"];
         let base = if truthy(base_v) { cm3::py_str(&Tree::from_value(base_v))? } else { String::new() };
@@ -223,20 +226,12 @@ impl Cfg {
         if base.is_empty() {
             return Err(Fail::Cm3("予定の元の場所（参照先の「予定の元の URL」）が決まっていません".into()));
         }
-        if self.python_engine() {
-            return Err(Fail::Python("配った設定の schedule.fetch_engine が python（前の道: Python が予定の元を取る）"));
-        }
         let iv = &self.m["init_path"];
         let init = if truthy(iv) { cm3::py_str(&Tree::from_value(iv))? } else { String::new() };
         let secs = timeout_secs(&self.m["timeout_sec"]);
         let url = format!("{base}{init}");
-        crate::cm3_http::target_with(&url, true)?;
+        crate::cm3_http::target_with(&url, true).map_err(|f| windowed(f, cm3::Unread::Url))?;
         Ok((url, base, Duration::from_secs_f64(secs)))
-    }
-
-    /// 戻り道（fetch_engine が "python"。字の前後の空白と大文字小文字は見ない）
-    pub fn python_engine(&self) -> bool {
-        pstr(&self.m["fetch_engine"]).is_some_and(|s| crate::pyfmt::strip(&s).eq_ignore_ascii_case("python"))
     }
 
     /// 問い合わせの仕方（use_system_proxy が真ならこの PC の環境変数・Windows の設定のプロキシ）
@@ -403,10 +398,6 @@ struct Inner {
     seq: HashMap<String, u64>,
     locks: HashMap<String, Arc<Mutex<()>>>,
     bg: HashSet<String>,
-    /// その 1 回だけ Python に任せた設備（Python が取り終えて状態の resigned を消すまで）
-    py_once: HashSet<String>,
-    /// 係を降りたことのある設備（降りていた間に Python が状態と世代を置いたかもしれない。答える前に状態のファイルを確かめる）
-    foreign: HashSet<String>,
     cleaned: bool,
 }
 
@@ -452,11 +443,6 @@ impl Schedules {
     pub fn shared(&self, code: &str) -> St {
         self.clean_once();
         st_of(&self.read_state(code))
-    }
-
-    /// その設備の係を降りているか（窓の取れない設定・1 回だけ任せた答え）
-    pub fn resigned(&self, cfg: &Cfg, code: &str) -> bool {
-        matches!(cfg.fetch_plan(), Err(Fail::Python(_))) || self.python_keeps(code)
     }
 
     /// 状態の seq だけを 1 つ進める（中身はそのまま。知らせを待つ Python を起こす）
@@ -530,81 +516,16 @@ impl Schedules {
         *self.inner.lock().unwrap().seq.entry(code.into()).or_insert(0) += 1;
     }
 
-    /// 係を降りる（状態の resigned に書く）。once は答えを窓が整えられなかったその 1 回だけ
-    fn resign(&self, cfg: &Cfg, code: &str, why: &str, once: bool) {
-        let want = json!({"for": cfg.fetch_conf(), "why": why, "once": once});
-        self.inner.lock().unwrap().foreign.insert(code.into());
-        let had = self.read_state(code);
-        if once {
-            self.inner.lock().unwrap().py_once.insert(code.into());
-        } else if had["resigned"]["for"] == want["for"] && had["resigned"]["once"] == json!(false) {
-            return; // もう降りている（Python が係）
-        }
-        self.done(code);
-        if had["writer"] == "py" {
-            // Python が係の状態を、印だけ替えて書き直す（中身は Python の物のまま）
-            let mut v = had;
-            v["resigned"] = want;
-            v["seq"] = json!(v["seq"].as_u64().unwrap_or(0) + 1);
-            let tmp = self.root.join(format!("{}.state.{}.r.tmp", safe(code), std::process::id()));
-            if std::fs::write(&tmp, serde_json::to_vec(&v).unwrap_or_default()).is_ok() {
-                let _ = replace(&tmp, &self.state_path(code));
-            }
-            return;
-        }
-        self.write_state(code, Some(want));
-    }
-
-    /// その設備は Python が係か（1 回だけ任せた答えを Python がまだ取り終えていない）
-    fn python_keeps(&self, code: &str) -> bool {
-        if !self.inner.lock().unwrap().py_once.contains(code) {
-            return false;
-        }
-        let st = self.read_state(code);
-        if st["resigned"]["once"] == json!(true) {
-            return true;
-        }
-        self.inner.lock().unwrap().py_once.remove(code);
-        false
-    }
-
-    /// 係を降りていた間に Python が取って置いた（状態の書き手が py）なら、その世代・答え・時刻を覚えにする（版 3.96.0 の作った後の採点の割れ 1:
-    /// 戻った窓が自分の覚えの古い予定を答え、カード〈状態のファイル〉と食い違った）。Python だけの形と同じく、いちばん新しく取った答えを使う
-    fn adopt(&self, code: &str) {
-        if !self.inner.lock().unwrap().foreign.contains(code) {
-            return;
-        }
-        let v = self.read_state(code);
-        if v["writer"] != "py" {
-            return;
-        }
-        let f = st_of(&v);
-        let mut g = self.inner.lock().unwrap();
-        let cur = g.state.entry(code.into()).or_default();
-        if cur.path != f.path || cur.sig != f.sig || cur.gen != f.gen || cur.checked_at != f.checked_at || cur.error != f.error {
-            *cur = St { info: cur.info.take(), ..f };
-        }
-    }
-
     /// 設備 code の予定を、max_age 秒より古ければ取り直して表に置く → 覚え。
-    /// 取れなければ前の答えがあればそれ（error に理由）、一度も取れていなければ Cm3。窓が取れない・整えられない形は Python
+    /// 取れなければ前の答えがあればそれ（error に理由）、一度も取れていなければ Cm3。段 ④（版 3.118.0）から窓が取れない・整えられない形も
+    /// 窓の言葉の失敗（Cm3。前は係を降りて Python に任せた）: いつも Fail::Cm3 か答え
     pub fn ensure(&self, cfg: &Cfg, code: &str, max_age: f64, force: bool) -> R<St> {
         self.clean_once();
         let Some(e) = cfg.equip(code).cloned() else { return Err(Fail::Cm3(format!("未登録の設備です: {code}"))) };
-        if self.python_keeps(code) {
-            return Err(Fail::Python("この答えは Python が取る（1 回だけ任せた）"));
-        }
-        let plan = match cfg.fetch_plan() {
-            Err(Fail::Python(why)) => {
-                self.resign(cfg, code, why, false);
-                return Err(Fail::Python(why));
-            }
-            x => x,
-        };
+        let plan = cfg.fetch_plan();
         let seq0 = self.seq(code);
         let lk = self.eq_lock(code);
         let _one = lk.lock().unwrap_or_else(|x| x.into_inner());
-        self.adopt(code);
         let st = self.peek(code);
         if self.seq(code) != seq0 {
             // 錠を待っている間に先の取り直しが済んだ: その結果を使う（失敗も）
@@ -623,11 +544,16 @@ impl Schedules {
         let got = plan.and_then(|(url, base, timeout)| self.fetch(cfg, &e, &url, &base, timeout));
         let got = got.and_then(|mut data| {
             data["fetchedAt"] = json!(local_text(t));
-            let rows = cm3::table_rows(&data)?;
+            let rows = cm3::table_rows(&data).map_err(|f| windowed(f, cm3::Unread::Table))?;
             Ok((data, rows))
         });
+        // 置き場に書けない（作業場所の db_cache\schedule）: 前の答えがあればそれ・無ければ失敗（前は Python に任せた。Python の _store は OSError で落ちる）
+        let got = got.and_then(|(data, rows)| {
+            self.store(code, data, rows, t).map_err(|e| Fail::Cm3(format!("取った予定をこの PC の作業場所に置けません（{e}）")))
+        });
         match got {
-            Err(Fail::Cm3(msg)) => {
+            Err(f) => {
+                let msg = windowed(f, cm3::Unread::Answer).text();
                 let st = {
                     let mut g = self.inner.lock().unwrap();
                     let cur = g.state.entry(code.into()).or_default();
@@ -642,17 +568,7 @@ impl Schedules {
                 }
                 Ok(st)
             }
-            Err(Fail::Python(why)) => {
-                self.resign(cfg, code, why, true);
-                Err(Fail::Python(why))
-            }
-            Ok((data, rows)) => {
-                if let Err(e) = self.store(code, data, rows, t) {
-                    // 置けない（置き場に書けない）: Python の _store は OSError で落ちる
-                    let _ = e;
-                    self.done(code);
-                    return Err(Fail::Python("世代のファイルを置けない"));
-                }
+            Ok(()) => {
                 self.done(code);
                 self.write_state(code, None);
                 Ok(self.peek(code))
@@ -682,18 +598,20 @@ impl Schedules {
         ]);
         let body = payload.dumps(", ", ": ");
         let (r, via) = crate::cm3_http::post_cm3(url, base, body.as_bytes(), timeout, &cfg.net());
-        let r = r?;
-        let text = cm3::decode_body(&r.body, r.header("Content-Type"))?;
+        let r = r.map_err(|f| windowed(f, cm3::Unread::Answer))?;
+        let text = cm3::decode_body(&r.body, r.header("Content-Type")).map_err(|f| windowed(f, cm3::Unread::Text))?;
         let first = text.trim_start_matches([' ', '\t', '\n', '\r']).chars().next();
         // JSON の NaN・Infinity は読めない答え（版 3.115.0。Python も json.loads の parse_constant で断る）
         if json_constant(&text) {
             return Err(Fail::Cm3("予定の元の応答がJSONではありません".into()));
         }
+        // 大きな整数・深い入れ子（版 3.118.0。利用者の決め ask_user 5: 窓は理由つきで断る。前の答えがあればそれ。前は Python に任せた）
         if first.is_some_and(|c| "{[\"-0123456789tfnNI".contains(c)) && crate::master_rows::text_split(&text) {
-            return Err(Fail::Python("JSON の読みが Python と割れる（NaN・大きな整数・深い入れ子）"));
+            crate::delegate::note("unanswered schedule big");
+            return Err(Fail::Cm3(BIG_OR_DEEP.into()));
         }
         let Some(raw) = Tree::parse(&text) else { return Err(Fail::Cm3("予定の元の応答がJSONではありません".into())) };
-        let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect)?;
+        let mut data = cm3::normalize(&raw, &e.code, &cfg.inspect).map_err(|f| windowed(f, cm3::Unread::Shape))?;
         // 取った道（版 3.117.1: 取った係・https か・直かプロキシ越しか。スケジュールのタブのデータの時刻の title に出す）
         if let Some(v) = via {
             data["via"] = json!({"engine": "rs", "tls": v.tls, "proxy": v.proxy});
@@ -777,7 +695,7 @@ impl Schedules {
                 })
                 .collect();
             for (i, h) in hs {
-                out[i] = Some(h.join().unwrap_or(Err(Fail::Python("取りに行く糸が落ちた"))));
+                out[i] = Some(h.join().unwrap_or(Err(Fail::Cm3("予定の元へ取りに行く糸が落ちました（もう一度お試しください）".into()))));
             }
         }
         codes.iter().cloned().zip(out.into_iter().map(Option::unwrap)).collect()
@@ -787,7 +705,6 @@ impl Schedules {
     pub fn refresh_later(self: &Arc<Self>, cfg: &Cfg, codes: &[String]) {
         let ttl = cfg.auto_refresh();
         for c in codes {
-            self.adopt(c);
             let st = self.peek(c);
             let due = st.checked_at.is_none_or(|t| now() - t >= ttl);
             if !due || !self.inner.lock().unwrap().bg.insert(c.clone()) {

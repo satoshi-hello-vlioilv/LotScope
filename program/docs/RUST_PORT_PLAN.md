@@ -2641,7 +2641,10 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
 
 **段 ④ の後の順**（利用者の決め 2026-11-21「片付けを先にして」。前の順は ④ → JSON の列の展開 → ⑤ → 残りの改良）:
 
-1. **④ 版 3.118.0**: Python を外す（窓が全部の道を答える。凍らせた Python の写しは、この版の間だけ、凍らせた試験 10 本と keep の本の相手に使う）
+1. **④ 版 3.118.0〜3.118.2**: Python を外す（窓が全部の道を答える。凍らせた Python の写しは、④ の間だけ、凍らせた試験 10 本と keep の本の相手に使う）。
+   ④ は小さい版 3 つに割る（採点 `tools/ui-proposals/2026-11-stage4.json` の built_plan。下の「段 ④」の節）: **3.118.0** 製品が Python を起こさない・
+   **3.118.1** 自己診断の Python と比べる項目を窓だけの確かめに・**3.118.2** 撮る・採点する道具が窓を相手にする開発用サーバー。
+   ④ では Python のファイル（program/app・program/sidecar.py・sidecar.rs・比べる口・Fail::Python の型）を**消さない**（消すのは ⑤。利用者に尋ねてから）
 2. **⑤ 不要になったファイルの片付け**（④ の次の版。ここで片付ける物の一覧はこの 1 か所）:
    - program/app（画面の static・templates は desktop/ui へ移してから消す）
    - 窓の sidecar（Python を起こす係）と、Python に任せる道（任せる歩の口・delegates の予算・route_reach の中身へ回す当たり）
@@ -2655,6 +2658,56 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
      試験と文書（CLAUDE.md・RUST_PORT_PLAN.md）も一緒に直す。版 3.117.3 では消さない（3.117.3 の採点のファイルは今までどおり置く）
    - CLAUDE.md を短くする（消した物の評価関数の行を外す）
 3. **改良 7 件**（⑤ の後。最初は JSON の列の展開）
+
+### 段 ④ 版 3.118.0: 製品が Python を起こさない
+
+案は 8 つ（採点は `tools/ui-proposals/2026-11-stage4.json`。決まり 2026-11-06 で 1 回だけ。1 位は案 B「止めてから消す」66.2 点）。合格点に届かないので、
+採点の指摘 first_fixes の 15 を入れた形で作る（作った形はファイルの `built_plan` の `built_3118_0`）。B の後半（消す物）は ⑤ へ送った。
+
+- **起こさない形**: 窓は中身の係を `sidecar::ABSENT` の理由で作る（`Supervisor::new` の py。係の型と起こす関数は呼ぶ所が残るので dead_code にならない）。
+  PC の Python も探さない（`locate::python` を起動で呼ばない）。起動画面の「Python を探す」の段を外した。試験: `sidecar::tests::an_absent_supervisor_never_spawns`（起こそうとした回数 0）
+- **第 3 の様子 absent**: 心拍・/api/health・/__desktop/info の python は `absent`。窓の決め（画面の既定の形・心拍の 503）は止まった `stopped` と同じ（`presence::without_python`）。
+  利用状況のいま使っている印には書かない（版 3.117.x の配布の画面・画面は「書かない＝起きている」と読む。書けば新しい版の PC を「中身の起きない PC」と数える）。
+  画面の帯（app.js の setPython）は知らない字を ready に読むので出ない（画面の JS は替えない）。試験: `lot::tests::the_window_without_python_is_not_counted_as_a_stopped_pc`・
+  配った設定が JSON でない／変換表が読めない形で画面を描く（`the_window_draws_the_page_without_python` の absent の歩）
+- **落ち先は 1 か所の窓の答え**: 中身へ回していた道は振り分け（router.rs の `window_unanswered`）が 503 `{kind: window_unanswered, route: 道の型, why}`、
+  戻したキーに / がある道（`/api/sources/a%2Fb/columns`）は道なしの 404。回数は形の名前ごと（`unanswered …`）に数え、利用状況のいま使っている印の `unanswered` に載せる
+  （⑤ に進む前の材料: 現場で 0 か）。突き合わせの試験の任せる歩（delegates_budget.json）は「窓の係が答えない歩」として数え続ける（製品ではこの 503 になる）
+- **中身がある印**: `update::is_dist` の 1 か所（program/sidecar.py か、app/version.py ＋ app/brand.json）。⑤ で sidecar.py を消しても 3.118.0 以上の窓は取り込める。
+  **⑤ で sidecar.py を消すのは、配布の画面の「要更新」が 0 台（3.118.0 より前の PC が無い）になってから**（前の版の窓は sidecar.py の無い ZIP を断る）
+- **戻す設定**: `desktop.lotlist_engine`・`schedule.fetch_engine` の python は効かない（`bundle::engine_of` はいつも rust。残っていれば起動の記録に 1 行）。
+  スケジュールは係を降りない（resign・adopt を外した）。窓が同じに読めない形は `cm3::windowed` で窓の言葉の失敗にし、前の答えを残す。
+  i64 に入らない整数・入れ子の深い JSON は理由つきで断る（利用者の決め ask_user 5 の既定。`schedule::BIG_OR_DEEP`）
+- **CI**: 窓の試験は表だけの形（`TPA_NO_PYTHON=1 TPA_FROZEN_PY=1`）も流す（ci.yml・check-all.sh・desktop.yml。Windows は本でない試験を `bless.py --nonbook-args` で）。
+  **Python と比べる形（環境変数なしの `cargo test --locked --no-fail-fast`）は ⑤ まで check-all と Linux の CI に残す**（CLAUDE.md の「push 前の確かめ」の命令そのまま。
+  決まりの節を書き直すのは ⑤ の片付けで、利用者に尋ねてから。Windows の CI は表だけの形）。
+  自己診断と窓の通しは窓を起こすときだけ PATH から Python を外し、記録に中身を起こした印（READY・PID）が無いこと・走っている間に Python が起きないことを見る。
+  verify.py の 4b は「Python の無い PC で入れ替える」に、4c（Python が遅い版）は外した。前の版の窓から取り込む／前の版へ戻す通し `verify.py prev` は
+  Windows の CI（Releases の v3.117.x の ZIP）で流す（前の版の Linux の exe は Releases に無いので、Linux は前の版の窓の形 stage_by_old_window で代える）
+- **前の版へ戻したとき**: 前の版（3.117.x）は Python を起こすので、PC の Python は ⑤ まで消さない（README）。更新の途中に前の版の Python が残った形は、
+  3.118.0 は起こさないので次の起動で入れ替えられる（rename_patiently。今と同じ）
+- **Windows の記録の取り直し（schedule と fs）**: schedule は 3.118.0 で焼き直し（戻り道の歩・30x の 3 場面）、fs は stage3i の直し（PR #120）で札を measure に
+  戻したので、どちらも Windows の表だけの形の答え（nt の表）が古い。手順: ① 3.118.0 の PR の 1 回目の Windows の CI（windows-test）の記録か成果物
+  `desktop-windows-measure` を取る → ② `python program/tools/bless.py --take-nt 記録か測りのフォルダ`（今の表〈tableSha〉で取った・終わりまで流れた記録だけを
+  取り込み、本の表のどれもが取り込めた本の `books.json` の windows の札を table にする）→ ③ `python program/tools/bless.py --check` の「札が measure の本」が 0 →
+  ④ 2 回目の CI で比べる（札が table の本は落とす）。fs は PR #120 の 4 回目の CI の記録で取り込む（主が渡す）
+  **取り込んだ結果**: fs は PR #120 の 4 回目の記録で（上書き 5 歩・流さない歩 3・作れない場面の物 1）。schedule は PR #121 の 1 回目の CI（頭 689aa4e。windows-test・
+  windows-exe とも緑）の記録で（歩 427・表と違う歩 0・答えない歩 0。上書き 10 歩は前の nt の表と同じ中身）。**札は table 35・measure 0**（段 ④ の入口の条件 2。
+  2 回目の CI で 35 本を比べて落とす）。同じ 1 回目の CI で、前の版 v3.117.3 の本物の窓から 3.118.0 を取り込む・入れ替えて開く・前の版へ戻す通し（`verify.py prev` の
+  1〜3）と、「PATH に Python がある PC でも窓は中身を起こさない（python_attempts=0）」が Windows の本物で通った。自己診断の記録に、WebView2 が尋ねる
+  `GET /favicon.ico` が窓の答えない道として 1 回数えられていた（3.118.1 で扱う）
+- **作った後の採点の割れの直し**（`tools/ui-proposals/2026-11-stage4-built.json` の built_fixed。決まり 2026-11-06 で採点は 1 回）:
+  権限の表が共有・写しとも読めない PC で、読む道は 3.117.3 の Python と同じく続ける（出さないタブ無し・書けない。`lot.rs` の `viewer_me`・`me_read`）、
+  Python も断った読む道（/api/access/me・/api/masters/access・/api/ui-defaults・/api/masters/tabaccess・/api/presence）と書く道は理由つきの 503
+  （master_unreadable。`me_strict`）／スケジュールの読めない形の言葉を利用者の言葉に（`cm3::Unread`・`windowed`。事例の表 cm3_net_cases.json の unread）、
+  30x の相対の行き先・. と .. の段・空白と ASCII でない字は urllib と同じに組み（`cm3_http::join_location`。表の joins・schedule_parity の 3 場面）、
+  [IPv6] の名前も読む・断った回数を unanswered に／「Python が 1 度も起きていない」は窓を閉じた記録の `python_attempts=0` と sidecar_stderr.log の有無で見る
+  （verify の 1 段目は Python のある PATH）／画面の接続の言葉から Python を外した（app.js・ui-eval-pydown の ①'）／HOT の表を置けない・束にスケジュールの段が無いは理由つき
+- **3.118.1 へ送った物**: 自己診断の Python と比べる項目（ok）35 を窓だけの確かめ（okw）に書き直す（いまは「中身（Python）を通す項目」の包みに数えて飛ばす）
+- **3.118.2 へ送った物（⑤ の前の穴）**: 撮る・採点する道具 73 本（ui-eval-*・ui-check・ui-variants・shot-*）は `ui-harness.mjs` から Python の開発用サーバー
+  `tools/ui_server.py`（app を import する）を起こす。⑤ で program/app を消すと起きなくなるので、窓（Lot と静的ファイル）を HTTP で出す開発用サーバーを先に作る
+- **⑤ に送った物**: sidecar.rs・frame.rs・locate::python・?engine=python の口・delegates の予算・route_reach の中身へ回す当たり・Fail::Python の型・boot の Facts.python・
+  画面の #pyBar／#pyPill の部品・program/app の .py・program/sidecar.py（上の条件で）
 
 #### ① Windows の仕事を 2 つに割った（`.github/workflows/desktop.yml`）
 
@@ -3054,8 +3107,8 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
   tests/ と置き場を流す（標準の部品だけの台本〈-I〉は program のまま）。`bake::frozen_python` は `TPA_NO_PYTHON=1` でも `TPA_FROZEN_PY=1` なら流す。
   `bless.py --no-python --frozen` がこの形。**確かめ**: `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で凍らせた 10 試験（appsettings_cases 1・masters_parity 1・
   mirror_parity 2・place_parity 1・schedule_parity 2・seeds_parity 3）が全部通った。写しの master_store.py に 1 行足すと seeds_parity の凍らせた試験が落ちた。
-- **④ での使い方**: program/app を消す版（3.118.0）で、CI の Rust の試験を `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で流す（凍らせた試験と keep の本は写しを相手に、ほかは表と比べる）。
-  写しを使うのは ④ の版 3.118.0 の間だけで、次の ⑤ の版（片付け。利用者の決め 2026-11-21 で改良より先）で、凍らせた試験・keep の本・写しを一緒に消す
+- **④ での使い方**: ④ の最初の版（3.118.0。製品が Python を起こさない。program/app を消すのは ⑤）から、CI の Rust の試験を `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1` で流す
+  （凍らせた試験と keep の本は写しを相手に、ほかは表と比べる）。写しを使うのは ④（3.118.0〜3.118.2）の間だけで、次の ⑤ の版（片付け。利用者の決め 2026-11-21 で改良より先）で、凍らせた試験・keep の本・写しを一緒に消す
   （前は「配布が終わった版で消す」だった）。写しの app が読む設定・マスタの既定は写しの config・data
   （program の今の物ではない）。
 - lint とほかの確かめとの関わり: ruff は写しを範囲から外した（`program/ruff.toml` の `extend-exclude`。理由: 書き換えない写しなので、ruff の版が上がって

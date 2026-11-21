@@ -39,6 +39,11 @@ fn error(status: u16, message: &str, kind: Option<&str>, extra: &[(&str, Value)]
     (status, v)
 }
 
+/// 予定の元の更新時刻（updateTs）を窓が読めない（版 3.118.0。前は Python に任せた。Python も時刻の変換で落ちる形）
+fn ts_unreadable(code: &str) -> Fail {
+    error(502, &format!("{code} の予定の元の更新時刻（updateTs）を窓が読めません（範囲の外の数・数でない値）"), Some("cm3"), &[])
+}
+
 /// Python の真偽（JSON の値）
 fn truthy(v: &Value) -> bool {
     match v {
@@ -780,21 +785,29 @@ impl Lists {
                     &[],
                 ))
             }
-            None => return Ok(None),
+            // 束にスケジュールの設定が無い（窓の束の組み違い）: 理由つきで断る（版 3.118.0 の作った後の採点の割れ 5。前は中身へ回した）
+            None => {
+                return Err(error(
+                    503,
+                    "スケジュールの設定を組めません（設定の束にスケジュールの段がありません）。アプリを開き直しても続くときは、配る人に知らせてください",
+                    Some("settings"),
+                    &[],
+                ))
+            }
         };
         let code = Self::sch_equip(&cfg, equip)?;
         if code == HOT_KEY {
             return self.hot_plan(conf, q, s, cfg, force);
         }
+        // 段 ④（版 3.118.0）: ensure はいつも窓の言葉の失敗（Cm3）か答え（係を降りない。採点の first_fixes 7）
         let st = match self.sched.ensure(&cfg, &code, cfg.auto_refresh(), force) {
             Ok(st) => st,
-            Err(crate::cm3::Fail::Cm3(e)) => {
-                return Err(error(502, &format!("{code} の予定を予定の元から取れません: {e}"), Some("cm3"), &[]));
+            Err(f) => {
+                return Err(error(502, &format!("{code} の予定を予定の元から取れません: {}", f.text()), Some("cm3"), &[]));
             }
-            Err(crate::cm3::Fail::Python(_)) => return Ok(None),
         };
         if schedule::source_info_falls(&st) {
-            return Ok(None);
+            return Err(ts_unreadable(&code));
         }
         let plan = Plan {
             mirror: None,
@@ -853,9 +866,6 @@ impl Lists {
     /// HOT コイル作業順（Python の hot_plan）
     fn hot_plan(&self, conf: &Conf, q: &Quality, s: &Value, cfg: Cfg, force: bool) -> Result<Option<Plan>, Fail> {
         let got = self.sched.ensure_many(&cfg, &cfg.hot.equipments, cfg.auto_refresh(), force);
-        if got.iter().any(|(_, r)| matches!(r, Err(crate::cm3::Fail::Python(_)))) {
-            return Ok(None);
-        }
         let rs = self.sch_resolved(conf, q, s);
         if Join::list(&rs["joins"]).is_empty() {
             return Err(error(
@@ -869,14 +879,13 @@ impl Lists {
         for (code, r) in got {
             let st = match r {
                 Ok(st) => st,
-                Err(crate::cm3::Fail::Cm3(e)) => {
-                    errors.push(format!("{code}: {e}"));
+                Err(f) => {
+                    errors.push(format!("{code}: {}", f.text()));
                     continue;
                 }
-                Err(crate::cm3::Fail::Python(_)) => return Ok(None),
             };
             if schedule::source_info_falls(&st) {
-                return Ok(None);
+                return Err(ts_unreadable(&code));
             }
             let base = Plan {
                 mirror: None,
@@ -898,7 +907,16 @@ impl Lists {
             let msg = if errors.is_empty() { "HOT の設備の予定を取れません。".to_string() } else { errors.join(" / ") };
             return Err(error(502, &msg, Some("cm3"), &[]));
         }
-        let Ok((path, info)) = self.sched.build_hot(&cfg, &parts, &errors) else { return Ok(None) };
+        // HOT の表を置けない（この PC の作業場所の db_cache\schedule に書けない・空きが無い）: 理由つきで答える（版 3.118.0 の作った後の採点の割れ 5。
+        // 前は窓が答えず中身へ回した）
+        let (path, info) = self.sched.build_hot(&cfg, &parts, &errors).map_err(|e| {
+            error(
+                502,
+                &format!("HOT コイル作業順の表をこの PC の作業場所に置けません（{e}）。作業場所の空きと書き込みの権限を確かめてください。"),
+                Some("cm3"),
+                &[],
+            )
+        })?;
         let hot = self.sched.peek(HOT_KEY);
         let ats: Vec<f64> =
             states.iter().filter_map(|(k, st)| schedule::source_info(&cfg, st, k)["at"].as_f64()).filter(|x| *x != 0.0).collect();
@@ -945,19 +963,35 @@ impl Lists {
     /// データの時刻（GET /api/src/<スケジュール>/source。Python の schedule_source）: 古くなった設備は裏で取り直す（答えは待たない）。
     /// 窓が答えない形（設定を組めない・係を降りた設備がある）は None
     pub fn sch_source(&self, conf: &Conf, equip: &str) -> Option<(u16, Value)> {
-        let Ok(cfg) = conf.sched_cfg()? else { return None };
+        // 版 3.118.0 の作った後の採点の割れ 5: 組めない形も理由つきで答える（前は中身へ回した）
+        let cfg = match conf.sched_cfg() {
+            Some(Ok(c)) => c,
+            Some(Err(why)) => {
+                return Some(error(
+                    503,
+                    &format!("スケジュールの設定を組めません（{why}）。全員の設定ファイルの「schedule」を直してください"),
+                    Some("settings"),
+                    &[],
+                ))
+            }
+            None => {
+                return Some(error(
+                    503,
+                    "スケジュールの設定を組めません（設定の束にスケジュールの段がありません）。アプリを開き直しても続くときは、配る人に知らせてください",
+                    Some("settings"),
+                    &[],
+                ))
+            }
+        };
         let code = match Self::sch_equip(&cfg, equip) {
             Ok(c) => c,
             Err(f) => return Some(f),
         };
         let codes: Vec<String> = if code == HOT_KEY { cfg.hot.equipments.clone() } else { vec![code.clone()] };
-        if codes.iter().any(|c| self.sched.resigned(&cfg, c)) {
-            return None;
-        }
         self.sched.refresh_later(&cfg, &codes);
         let sts: Vec<St> = codes.iter().map(|c| self.sched.shared(c)).collect();
-        if sts.iter().any(schedule::source_info_falls) {
-            return None;
+        if let Some((c, _)) = codes.iter().zip(&sts).find(|(_, st)| schedule::source_info_falls(st)) {
+            return Some(ts_unreadable(c));
         }
         let infos: Vec<Value> = codes.iter().zip(&sts).map(|(k, st)| schedule::source_info(&cfg, st, k)).collect();
         if code != HOT_KEY {
@@ -1027,6 +1061,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn schedule_settings_that_cannot_be_built_are_answered_with_a_reason() {
+        // 版 3.118.0 の作った後の採点の割れ 5: 束にスケジュールの段が無い・組めないデータの時刻は、窓が理由つきで答える（前は None で中身へ回した）
+        let dir = std::env::temp_dir().join(format!("da-lists-schconf-{}", std::process::id()));
+        let lists = Lists::new(&dir);
+        let none = json!({});
+        let (st, v) = lists.sch_source(&Conf { v: &none }, "L-1").expect("段が無くても窓が答える");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("settings")), "{v}");
+        assert!(
+            v["error"].as_str().unwrap().contains("スケジュールの設定を組めません") && !v["error"].as_str().unwrap().contains("Python"),
+            "{v}"
+        );
+        let bad = json!({"scheduleConf": {"auto_refresh_sec": "x"}});
+        let (st, v) = lists.sch_source(&Conf { v: &bad }, "L-1").expect("組めなくても窓が答える");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("settings")), "{v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn folder_rules_like_python() {

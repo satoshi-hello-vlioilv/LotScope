@@ -127,8 +127,10 @@ fn routes_answer_like_python() {
     }
     assert!(total >= 40 && filled >= 16 && forbidden >= 5, "問い合わせの組が足りません: {total} 通り・中身 {filled}・権限 {forbidden}");
     let ask = || Ok(phases[0]["settings"].clone());
-    // スケジュール（CM3）は、Python に尋ねた設定（窓の束の設定が無い形）では Python が答える（窓が答える形は tests/schedule_parity.rs）
-    assert!(lot.handle_with("GET", o["python"].as_str().unwrap(), "", &ask).is_none(), "スケジュールは Python へ回す");
+    // スケジュールは、Python に尋ねた設定（窓の束の設定が無い形）では、版 3.118.0 の作った後の採点の割れ 5 から窓が理由つきの 503 で断る
+    // （前は Python へ回した。窓が答える形は tests/schedule_parity.rs）
+    let got = lot.handle_with("GET", o["python"].as_str().unwrap(), "", &ask);
+    assert_eq!(got.as_ref().map(|r| (r.0, r.1["kind"].clone())), Some((503, json!("settings"))), "スケジュールの段が無い: {got:?}");
     // 作業実績の写しは窓の置き場（db_cache/work_log）・結合の答えは db_cache/joins（Python と同じ名前の決まり）
     assert!(work.join("db_cache").join("work_log").join("_mirror.json").exists(), "作業実績の写しの台帳");
     assert!(std::fs::read_dir(work.join("db_cache").join("joins")).map(|d| d.count()).unwrap_or(0) >= 2, "結合の答えのファイル");

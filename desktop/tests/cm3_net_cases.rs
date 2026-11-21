@@ -77,3 +77,77 @@ fn words_like_the_table() {
     }
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// 予定の元の答えを窓が読めない形の言葉（版 3.118.0 の作った後の採点の割れ 2）: cm3.rs・cm3_http.rs の py の字が全部、表の unread にあり、
+/// 頭（cm3::Unread の種類）をつけた言葉が表と同じ。理由にも言葉にも作り手向けの名前（Python・urllib・http.client・sqlite3 など）が無い
+#[test]
+fn unread_words_like_the_table() {
+    use da_core::cm3::{windowed, Fail, Unread};
+    let t = cases();
+    let rows = t["unread"].as_array().expect("unread の節");
+    let src = |f: &str| std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(f)).unwrap();
+    let mut whys: Vec<String> = vec![];
+    for f in ["cm3.rs", "cm3_http.rs"] {
+        let text = src(f);
+        for part in text.split("py(\"").skip(1) {
+            let w = part.split('"').next().unwrap().to_string();
+            if !whys.contains(&w) {
+                whys.push(w);
+            }
+        }
+    }
+    let mut bad = vec![];
+    let dev = ["Python", "urllib", "http.client", "sqlite3", "Error", "urljoin", "int()", "OverflowError", "ValueError", "窓が"];
+    for w in &whys {
+        if !rows.iter().any(|r| r["why"] == w.as_str()) {
+            bad.push(format!("表に無い理由: {w}"));
+        }
+    }
+    for r in rows {
+        let why: &'static str = Box::leak(r["why"].as_str().unwrap().to_string().into_boxed_str());
+        let kind = match r["kind"].as_str().unwrap() {
+            "url" => Unread::Url,
+            "answer" => Unread::Answer,
+            "text" => Unread::Text,
+            "shape" => Unread::Shape,
+            "table" => Unread::Table,
+            k => panic!("知らない種類 {k}"),
+        };
+        let got = windowed(Fail::Python(why), kind).text();
+        if got != r["want"].as_str().unwrap() {
+            bad.push(format!("{why}: 表 {} / 窓 {got}", r["want"]));
+        }
+        if let Some(d) = dev.iter().find(|d| got.contains(**d)) {
+            bad.push(format!("{why}: 作り手向けの名前「{d}」"));
+        }
+        if !whys.iter().any(|w| w == why) {
+            bad.push(format!("表にあるが窓の字に無い理由: {why}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let n = da_core::delegate::counts();
+    assert!(n.as_object().unwrap().keys().any(|k| k.starts_with("unanswered schedule ")), "断った回数を数える: {n}");
+}
+
+/// 30x の行き先の組み方（版 3.118.0 の作った後の採点の割れ 2）: 表の joins（Python 3.13 の urllib の手順の答え）と窓の cm3_http::join_location が同じ。
+/// [IPv6] の名前の URL も分けられる
+#[test]
+fn joins_like_urllib() {
+    let t = cases();
+    let mut bad = vec![];
+    for c in t["joins"].as_array().expect("joins の節") {
+        let (base, loc, want) = (c["base"].as_str().unwrap(), c["loc"].as_str().unwrap(), c["want"].as_str().unwrap());
+        let got = da_core::cm3_http::join_location(base, loc);
+        if got.as_deref() != Some(want) {
+            bad.push(format!("{base} + {loc:?}: Python {want} / 窓 {got:?}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let t6 = da_core::cm3_http::target_with("http://[::1]:9085/a?b=1", true).expect("[IPv6] の名前");
+    assert_eq!((t6.host.as_str(), t6.port, t6.netloc.as_str(), t6.selector.as_str()), ("::1", 9085, "[::1]:9085", "/a?b=1"));
+    let t6 = da_core::cm3_http::target_with("http://[fe80::1]/", true).unwrap();
+    assert_eq!((t6.host.as_str(), t6.port), ("fe80::1", 80));
+    for bad in ["http://[::1/", "http://[zz]/", "http://[::1]x/", "http://[::1]:99999/"] {
+        assert!(da_core::cm3_http::target_with(bad, true).is_err(), "{bad}");
+    }
+}

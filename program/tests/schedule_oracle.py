@@ -116,6 +116,10 @@ def scenes(urls):
         ("JSON でない", {**base, "cm3_base_url": u("nojson")}, ONE[:1], None),
         ("302 → GET の JSON", {**base, "cm3_base_url": u("r302json")}, ONE, None),
         ("302 → HTML", {**base, "cm3_base_url": u("r302html")}, ONE[:1], None),
+        # 版 3.118.0 の作った後の採点の割れ 2: 相対の行き先・. と .. の段・空白と ASCII でない字の行き先（前は窓が Python に任せた形）
+        ("302 の相対の行き先", {**base, "cm3_base_url": u("rrel")}, ONE[:1], None),
+        ("302 の . と .. の段", {**base, "cm3_base_url": u("rdots")}, ONE[:1], None),
+        ("302 の行き先に空白と日本語", {**base, "cm3_base_url": u("rjp")}, ONE[:1], None),
         ("301 の絶対の URL・chunked", {**base, "cm3_base_url": u("r301abs")}, ONE[:1], None),
         ("303 → 307（GET はたどる）", {**base, "cm3_base_url": u("r303then307")}, ONE[:1], None),
         ("307（POST はたどらない）", {**base, "cm3_base_url": u("r307")}, ONE[:1], None),
@@ -192,10 +196,10 @@ def scenes(urls):
         ("30x の行き先の種類のプロキシが socks", {**base, **P, "cm3_base_url": u("rtls")}, ONE[:1], None,
          {"https_proxy": "socks4://127.0.0.1:1"}),
         ("30x の行き先の種類のプロキシが読めない", {**base, **P, "cm3_base_url": u("rtls")}, ONE[:1], None, {"https_proxy": "http:/x"}),
-        # 戻り道（版 3.117.1。配った設定の schedule.fetch_engine が "python"）: 窓は答えず、状態に「係を降りた」を書く（受け身の Python が取る）。
-        # 段 ④ まで残す（任せる歩の予算の envExtra に数える）
+        # 戻り道（版 3.117.1。配った設定の schedule.fetch_engine が "python"）: 段 ④（版 3.118.0。利用者の決め）から効かない。窓が取って答える
+        # （前は窓が答えず、状態に「係を降りた」を書いた。任せる歩の予算の envExtra 2 を 0 に）
         ("戻り道（fetch_engine が python）", {**base, "fetch_engine": "python", "cm3_base_url": u("engine")},
-         [S(SCH, "equip=L-1", delegate=True), S(f"{SCH}/source", "equip=L-1", delegate=True)], None),
+         [S(SCH, "equip=L-1"), S(f"{SCH}/source", "equip=L-1")], None),
         # 場面の名前を分ける（版 3.115.0。CM3 が受けた要求は場面ごとに比べる。「ok」はシステムのプロキシの場面〈Python だけが取る〉と共にする）
         ("数でない timeout", {**base, "timeout_sec": "abc", "cm3_base_url": u("timeout")}, [S(SCH, "equip=__HOT__")], None),
         # 版 3.115.0 の作った後の直し: timeout の数の端（0・"0"・負・nan・inf・1 ミリ秒未満・1 日を超える数）は 15 秒（cm3_schedule.timeout_of）。

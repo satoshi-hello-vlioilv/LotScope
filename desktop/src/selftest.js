@@ -4,7 +4,8 @@
    日本語の問い合わせ文字・40 本同時・安全な文脈・保存領域・保存（ダウンロード）・窓の情報・品質異常（Rust と Python の突き合わせ）・
    画面のエラーが無い・速さ。
    版 3.111.0: 中身（Python）が起きていなければ、Python を通す項目（ok）は「中身（Python）を通す項目」の包みに数えて飛ばし、窓だけの項目（okw）を流す
-   （名前の一覧は desktop/bundle/verify.py の WINDOW_ONLY）。 */
+   （名前の一覧は desktop/bundle/verify.py の WINDOW_ONLY）。版 3.118.0（段 ④）から製品の窓は中身を起こさない（python は absent）ので、
+   いつも窓だけの項目を流す（Python を通す項目を窓だけの確かめに書き直すのは版 3.118.1）。 */
 (async () => {
   const res = [];
   const t0 = performance.now();
@@ -503,7 +504,7 @@
       let rv = null, pv = null;
       try { rv = JSON.parse(rs.text); pv = JSON.parse(py.text); } catch (_) { rv = rv || null; }
       const good = rs.by === "shell" && rs.r.status === 200 && rv && rv.status === "ok" && rv.by === "window"
-        && ["ready", "starting", "stopped"].includes(rv.python) && py.by === "python" && py.r.status === 200 && pv && pv.status === "ok";
+        && ["ready", "starting", "stopped", "absent"].includes(rv.python) && py.by === "python" && py.r.status === 200 && pv && pv.status === "ok";
       ok("生きているかは窓が答え、Python の様子を添える（?engine=python は Python の印）", good,
         `${good ? "" : "食い違い・"}窓 ${rs.r.status} ${rs.by} ${rs.text.slice(0, 80)} / Python ${py.r.status} ${py.by} ${py.text.slice(0, 40)}`);
     }
@@ -736,12 +737,12 @@
         if (!pr.r.ok) break;
         let pj = {}; try { pj = JSON.parse(pr.text); } catch (_) { /* 下で言う */ }
         mine = ((pj.fleet || {}).items || []).find((x) => x.key === pj.me) || null;
-        const want = pyUp ? null : python;
+        const want = pyUp || python === "absent" ? null : python;   // 起こさない窓（版 3.118.0）は印に書かない
         if (mine && ((mine.python && mine.python.state) || null) === want) break;
         await sleep(500);
       }
-      okw("利用状況のいま使っている印に中身の様子（起きていなければ stopped・起きていれば無い）",
-          st === 403 || (mine && ((mine.python && mine.python.state) || null) === (pyUp ? null : python)),
+      okw("利用状況のいま使っている印に中身の様子（止まっていれば stopped・起きている・起こさない窓は無い）",
+          st === 403 || (mine && ((mine.python && mine.python.state) || null) === (pyUp || python === "absent" ? null : python)),
           st === 403 ? "この PC の区分は利用状況を見られない（見ない）" : `${st} ${JSON.stringify(mine && mine.python)}`);
     }
 

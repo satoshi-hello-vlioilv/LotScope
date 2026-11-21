@@ -905,7 +905,8 @@ pub fn me(conf: &Value, revoked: Option<Value>) -> Result<Value, String> {
     let who = conf.get("who").and_then(Value::as_object).ok_or("名乗りがありません")?;
     let place = Place::from_json(&conf["place"]);
     let (login, pc) = (who.get("login").and_then(Value::as_str).unwrap_or(""), who.get("pc").and_then(Value::as_str).unwrap_or(""));
-    let rows = perm_rows(place.rows("access_permissions")?)?;
+    // 読めない理由は Python の MasterUnreadable と同じ言葉（版 3.118.0 の作った後の採点の割れ 1: 読む道・書く道が理由つきの 503 で言う）
+    let rows = perm_rows(place.rows_told("access_permissions")?)?;
     let mut f = flags(&rows, login, pc);
     let row = (!f["matchedId"].is_null()).then(|| rows.iter().find(|r| r.get("id") == Some(&f["matchedId"]))).flatten();
     // タブの権限を読めないときは出す（止めない。マスタの共有に届かないときと同じ）
