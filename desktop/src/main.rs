@@ -213,6 +213,10 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
             da_core::small_reads::reply(method, path, req.query, &program).map(|(headers, body)| Reply { status: 200, headers, body })
         }
+        // 窓の絵（版 3.118.1）: WebView2 が自分で尋ねる。版 3.117.3 の Python と同じ 404 の画面で答える（窓が答えなかった数に入れない）
+        (method @ ("GET" | "HEAD"), "/favicon.ico") => {
+            da_core::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
+        }
         // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
         ("GET", "/api/health") if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") => {
             Some(json_reply(&da_core::small_reads::health(backend.python_now().state)))
@@ -222,6 +226,8 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let mut v = info.clone();
             v["backend"] = backend.ready();
             v["python_state"] = json!(backend.python_now().state);
+            // 窓が答えなかった問い合わせの形と回数（版 3.118.1。読むだけの自己診断の口: selftest.js の「窓が答えない道が無い」が読む）
+            v["unanswered"] = da_core::delegate::unanswered_map();
             Some(json_reply(&v))
         }
         // 更新の係（updater.rs）
