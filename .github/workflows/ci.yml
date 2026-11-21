@@ -113,6 +113,16 @@ jobs:
               print("ERROR:", r["error"])
           if r.get("python") != "absent":
               sys.exit(f"中身の様子が absent でありません（段 ④）: {r.get('python')}")
+          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）より少なければ落とす
+          names = json.load(open(os.path.join(os.environ["GITHUB_WORKSPACE"], "desktop/bundle/selftest_names.json"), encoding="utf-8"))["items"]
+          need = [x["name"] for x in names if "maybe" not in x]
+          got = {x["name"] for x in r.get("results", [])}
+          una = (r.get("info") or {}).get("unanswered")
+          print(f"SELFTEST n={len(r.get('results', []))} need={len(need)} skipped={r.get('skipped')} unanswered={json.dumps(una, ensure_ascii=False)}")
+          lack = [n for n in need if n not in got]
+          if lack or r.get("skipped") != 0:
+              print("無い項目:", lack)
+              sys.exit(6)
           sys.exit(0 if r.get("ok") else 1)
           PY
       # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す

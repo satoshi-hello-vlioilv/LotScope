@@ -271,6 +271,13 @@ jobs:
           $r = Get-Content $env:TPA_SELFTEST -Raw -Encoding utf8 | ConvertFrom-Json
           $r.results | ForEach-Object { Write-Host ("{0}: {1} -- {2}" -f ($(if ($_.ok) { "PASS" } else { "FAIL" })), $_.name, $_.info) }
           if ($r.error) { Write-Host "ERROR: $($r.error)" }
+          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）より少なければ落とす
+          $need = @((Get-Content desktop\bundle\selftest_names.json -Raw -Encoding utf8 | ConvertFrom-Json).items | Where-Object { -not $_.PSObject.Properties["maybe"] } | ForEach-Object { $_.name })
+          $got = @($r.results | ForEach-Object { $_.name })
+          $lack = @($need | Where-Object { $got -notcontains $_ })
+          $una = if ($r.info -and $r.info.unanswered) { $r.info.unanswered | ConvertTo-Json -Compress } else { "{}" }
+          Write-Host "SELFTEST n=$($got.Count) need=$($need.Count) skipped=$($r.skipped) unanswered=$una"
+          if ($lack.Count -gt 0 -or $r.skipped -ne 0) { Write-Host "無い項目: $($lack -join ' / ')"; exit 6 }
           Start-Sleep -Seconds 3
           if (-not $r.ok) { exit 1 }
           if ($r.python -ne "absent") { Write-Host "中身の様子が absent でありません: $($r.python)"; exit 5 }
