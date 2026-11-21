@@ -2657,6 +2657,12 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
      採点の道具（ui_score.py・ui-variants.mjs・ui-check.mjs など）と置き場そのものは、これからの改良で使うので残す。消すときは、記録を名指ししている
      試験と文書（CLAUDE.md・RUST_PORT_PLAN.md）も一緒に直す。版 3.117.3 では消さない（3.117.3 の採点のファイルは今までどおり置く）
    - CLAUDE.md を短くする（消した物の評価関数の行を外す）
+   - **残す**（版 3.118.1 の採点の割れ 4。自己診断と窓の通しの場面。どれも app を import しない）: program/tests/lotlist_fixture.py・program/tests/selftest_config.py・
+     program/config/appsettings.example.json（selftest_config.py が読む場面の見本）
+   - **移す**: verify.py の place が書き換える program/app/version.py・templates/index.html・static/js/app.js の道（画面を desktop/ui へ移すなら verify.py の道も一緒に）
+   - **直す**: /__desktop/info の protocol・serves（sidecar の定数。自己診断は版 3.118.1 から見ない）・待っているパネルの段 python の言葉（progress.rs。窓が答えないパネルも段が
+     python のまま残る: lot.rs の progress.begin の後）・ci.yml と desktop.yml の python==absent の見方・道に当たらない問い合わせの 503 を 404 にするか（利用者に尋ねる。
+     利用状況の unanswered の数を見てから）
 3. **改良 7 件**（⑤ の後。最初は JSON の列の展開）
 
 ### 段 ④ 版 3.118.0: 製品が Python を起こさない
@@ -2698,7 +2704,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
   30x の相対の行き先・. と .. の段・空白と ASCII でない字は urllib と同じに組み（`cm3_http::join_location`。表の joins・schedule_parity の 3 場面）、
   [IPv6] の名前も読む・断った回数を unanswered に／「Python が 1 度も起きていない」は窓を閉じた記録の `python_attempts=0` と sidecar_stderr.log の有無で見る
   （verify の 1 段目は Python のある PATH）／画面の接続の言葉から Python を外した（app.js・ui-eval-pydown の ①'）／HOT の表を置けない・束にスケジュールの段が無いは理由つき
-- **3.118.1 へ送った物**: 自己診断の Python と比べる項目（ok）35 を窓だけの確かめ（okw）に書き直す（いまは「中身（Python）を通す項目」の包みに数えて飛ばす）
+- **3.118.1 へ送った物**: 自己診断の Python と比べる項目（ok）40（前に 35 と書いたのは古い数）を窓だけの確かめ（okw）に書き直す（いまは「中身（Python）を通す項目」の包みに数えて飛ばす。下の「段 ④ 版 3.118.1」の節）
 - **3.118.2 へ送った物（⑤ の前の穴）**: 撮る・採点する道具 73 本（ui-eval-*・ui-check・ui-variants・shot-*）は `ui-harness.mjs` から Python の開発用サーバー
   `tools/ui_server.py`（app を import する）を起こす。⑤ で program/app を消すと起きなくなるので、窓（Lot と静的ファイル）を HTTP で出す開発用サーバーを先に作る
 - **⑤ に送った物**: sidecar.rs・frame.rs・locate::python・?engine=python の口・delegates の予算・route_reach の中身へ回す当たり・Fail::Python の型・boot の Facts.python・
@@ -3171,6 +3177,76 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
 - **手元で確かめられない物**（この版の 1 回目の Windows の CI で分かる）: 札が table の 20 本がこの版の直しの後も Windows の表だけの形で通るか・記号リンクとフォルダの時刻が
   Windows で当たるか（fs の 17 歩が消えるか）・@ROOT と rs/py の書き方の 47 歩が消えるか・release_place の場面が作れない物を除いて作れ、残りの歩が終わりまで流れるか・
   詰めた行の大きさが記録の末尾に入るか。
+
+### 段 ④ 版 3.118.1: 自己診断の Python と比べる項目を、窓だけの確かめに
+
+案は 8 つ（採点は `tools/ui-proposals/2026-11-stage4b.json`。決まり 2026-11-06 で 1 回だけ。1 位は案 A「1 対 1 で窓の答えの性質に書き直す」61.8 点）。
+合格点に届かないので、採点の指摘 first_fixes の 14 を入れた形で作る（作った形はファイルの `built_plan` の `built_3118_1`）。**製品の答えは替えない**
+（例外は /favicon.ico の 1 つ。下）。
+
+- **名前の 1 か所**: `desktop/bundle/selftest_names.json`（名前・maybe〈出ない形の理由〉・nan〈1b で落ちてよい理由〉・except〈verify が数えない理由〉・part）。
+  selftest.js の okw の名前は固定の字（テンプレートの字・場面で替わる名前をやめた）。verify.py の WINDOW_ONLY・WINDOW_MAYBE・NAN_EXPECTED・EXCEPT はこのファイルから読む。
+  `desktop/bundle/test_bundle.py` の SelftestNames が、selftest.js の okw と part の名前と過不足なく同じ・verify.py が名前で探す所が一覧にある・必ず出る数が 62 以上を見る
+- **項目の数**: 前（3.117.3）は ok 40（流れる 39）＋ okw 25（いつも 22）＋ 包み 1。後は okw 66 種（必ず 62・maybe 3〈元ファイルが無い PC・版を置けない人・更新の係の例外〉）
+  ＋ 節の例外 22 種（maybe）。CI の場面（一般ユーザー）で流れるのは 63（版を置けない人の 1 を足す）。skipped はいつも 0・包みと 130 秒の中身待ち・pyUp・pyWait は外した
+- **節の守り**: 本体を 22 の節（`part("節の名前", …)`）に分けた。節の中の例外は「例外: 節の名前」の 1 項目になり、後ろの節は流れる
+- **窓が答えない道が無い**: /__desktop/info に `unanswered`（`delegate::unanswered_map`。いつも表）。自己診断の最後に読み、わざと叩く 2 形（GET /api/no-such-route・
+  畳んだ static の外 GET /templates/index.html。試験の版は GET /api/changelog も）のほかが無いことを見る（新しい項目）。PR 121 の Windows の CI で WebView2 が
+  `GET /favicon.ico` を尋ねて 1 回数えた → 窓が版 3.117.3 の Python と同じ 404 の画面（app/web.py の NotFound。`small_reads::NOT_FOUND_HTML`）で答え、数えない
+  （`program/tests/test_favicon_answer.py` が凍らせた写しの web.py の字と 1 バイトずつ比べる）
+- **場面**: CI の自己診断の段・verify の update は今のまま（selftest_config.py・lotlist_fixture.py は変えない＝ verify prev の前の版の自己診断に効かない）。
+  verify local に 3 窓目 admin-work（作業実績 3 台に届き、この PC の利用者が開発者・編集可）を足した。書く道の「窓の言葉で断る」枝と作業実績の一覧・集計・パネルが流れ、
+  流した後の共有のマスタ（直下の *.json）の sha256 が前と同じ
+- **CI**: ci.yml・desktop.yml の自己診断の段は `SELFTEST n=… need=… skipped=… unanswered=…` を 1 行に出し、必ず出る項目が欠ける・skipped が 0 でないと exit 6
+
+#### 書き直した 40 項目（守る物の分担: 本物の窓で見る物 ／ 値を持つ cargo の試験）
+
+日付に頼る問い合わせ（90 日以内）は、lotlist_fixture.py の TODAY（2026-10-02）からの範囲 `date_range 2026-07-04..2026-10-02` にした（年をまたいでも形が変わらない）。
+info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答え]）を書き、名乗りに頼る項目は流れた枝（門番 403／窓の言葉 400・404）を書く。
+
+| 前の行 | 項目（短く） | 本物の窓で見る物 | 値を持つ cargo の試験・焼いた本 |
+|---|---|---|---|
+| 82 | 画面の字の形 | 型の字が無い・指紋・目印・VER の版・inline の script は CSP の印・部品 57 本が窓から 200 | page_parity・settings.pages |
+| 85 | static の外へは出ない | 畳んだ道は 503 window_unanswered か static の 404・型の字を返さない | router::tests |
+| 90 | /api/build | 窓が答え、版＝info.program_version | small_reads::tests・route_reach |
+| 92 | 大きな答え（更新履歴） | 50 万字・157 版が欠けずに JSON（試験の版は窓が答えない形） | small_reads::tests・test_version.py |
+| 97 | 版と更新履歴の版の字 | build・更新履歴・先頭・info の版がそろう | test_version.py |
+| 100 | 道に当たらない問い合わせ | 503 window_unanswered・route「GET /api/no-such-route」 | router::tests |
+| 104 | 誤りの答え | 計算に空の本文 → 400「計算するロット（lot）がありません。」 | calc_parity・calc_error_cases |
+| 117 | 約 460KB の日本語の本文 | 窓の ui-state へ書いて読み戻す | presence_parity |
+| 119 | 控えを窓が読み直す | 心拍の後にも同じ控え | presence_parity |
+| 129 | 計算 | 決めた入力に決めた答え（実 3・元 1・予測 10.5064…・合致 28.5538…。版 3.118.0 の Python の答えを 1 度控えた） | calc_parity・calc_cases・焼いた本 calc |
+| 135 | 日本語の問い合わせ文字 | 窓が JSON（列・件数） | lotlist_parity・焼いた本 lotlist |
+| 140 | 40 本同時 | 窓の道 3 種 40 本が 1 本ずつ引いた答えと同じ | — |
+| 164 | 窓の情報 | app_id・作業場所・窓と中身の版の字（protocol・serves は見ない） | — |
+| 166 | 窓の版と中身の版 | 同じ（verify は数えない: except） | test_version.py |
+| 192 | 一覧 8 通り | 件数＝集計表の総計・検索の字・3 ページ目 50 行・絞り込みの件数＝同じ絞り込みの集計表・まとめの数＝ロット数・0 件の手がかり・計算列の並び（重量＋板幅×1000）・まとめの計算列の並び | lotlist_parity・routes_parity・焼いた本 lotlist・lists |
+| 195 | 写しは 1 つ | 写した台帳（mirrored・元の時刻が一覧と同じ） | mirror の試験・routes_parity |
+| 198 | 元ファイルが無い | （maybe） | — |
+| 215 | データ元の並び | 答えの画面に出す元＝見出しのタブ | page_parity・sources_write_parity |
+| 242 | 参照先の項目 | 品質の場所＝一覧の元・マスタの置き場＝置き場の答え | page_parity・settings_write_parity |
+| 248・262・299・331・361 | 書く道 5 つ | 門番 403 か窓の言葉（admin-work で流れる） | settings_write・sources_write・worklog_write・conversions_write・equipgroups_write の parity |
+| 272 | 作業実績の設備 | 理由つきの空か設備 | worklog_write_parity |
+| 291 | 作業実績の登録の一覧 | フォルダ・決まり・誤り・設備のキーが設備の問い合わせと同じ | worklog_write_parity |
+| 324 | 変換表 | 一覧の標準の表は書き出しにもある | conversions_write_parity |
+| 356 | 設備グループ | 品質の設備の値が全部選べ、件数＝集計表の設備ごとの件数 | equipgroups_write_parity |
+| 383 | 更新の置き場とだれが | 名乗り＝配布の画面の係・マスタの置き場＝置き場の答え・進み具合 idle | page_parity・release_parity |
+| 415 | スケジュール | 設備のタブの数＝データ元の行の設備の数・届かない言葉に Python・urllib の名前が無い | schedule_parity・cm3_net_cases |
+| 443 | LotDsp の 9 本 | 決めた答え（?engine=python の歩を外した） | lotdsp_parity・lotdsp_cases |
+| 496 | 組む所の読み 7 本 | 札の列 ⊇ 一覧の列・結合の欄の行の数＝一覧の件数・確かめるの決めた言葉・試すは門番 | builder_parity・builder_cases |
+| 508 | 生きているか | status ok・by window・python absent | small_reads::tests |
+| 593 | 置き場と設定の 8 本 | 置き場の字がそろう・届くかは真偽か null・参照… は答えるか門番・引っ越しは 400／403 | place_parity・fs_parity・builder_parity・access_write_parity |
+| 622 | 作業実績・データ元の一覧 8 通り | 行と件数とページの大きさ、か言葉と種類・登録の無い設備は 404 unknown | routes_parity・lists_parity |
+| 641 | 集計表 6 通り | カラムの札 ⊇ 一覧の列・総計＝一覧の件数とロット数・無い列は断る | routes_parity・pivot_parity |
+| 666 | ダッシュボード 11 枚 | 数字のロット数＝集計表のロット数・棒の計＝一覧の件数・失敗の形 | dash_parity・ops_parity |
+| 677 | 待っているパネルの段 | 印 2 つの済み・経過・前回の鍵（engine=python の歩を外した: 比べる口を叩かない） | progress の lib 試験 |
+| 714 | タブの権限と偽の見出し | 窓の道で偽の X-TPA-Me が効かない（中身へ渡す枝は ⑤ まで router の試験） | access_parity・router の試験 |
+| 757 | 速さ（参考） | 窓の道 30 回の平均が 300ms 未満 | — |
+
+#### 確かめ
+
+- 変異（手で 1 回ずつ。結果は採点のファイルの built_3118_1）: selftest.js の名前を 1 字変える・一覧に無い nan を足す・verify.py が探す名前を 1 字変える → test_bundle.py が落ちる／
+  NOT_FOUND_HTML を 1 字変える → test_favicon_answer.py が落ちる／ほかは built_3118_1 の mutations
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

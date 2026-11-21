@@ -1,0 +1,775 @@
+{
+ "title": "版 3.118.1（Rust 化の段 ④ の 2 つ目: 自己診断の Python と比べる項目を、窓だけの確かめに）の進め方 — 案出し 1 回目（採点 1 回: 決まり 2026-11-06）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（自己診断と通しの道具）。決まり 2026-11-06: 案 5 つ以上・別の係の採点 1 回。製品の答えは替えない（built_plan の 3.118.1 の ship『製品の答えは替わらない（自己診断だけ）』）。画面に出る所は無い（案 G は自己診断のときだけ画面を動かす）",
+ "evidence": {
+  "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s41/evidence.md（ファイル:行 と数・ok の 40 か所の一覧表）。作業フォルダ stage4（頭 689aa4e）は読むだけ・cargo も node も verify も動かしていない",
+  "counts": "ok の呼び出し 40 か所（流れるのは 39。:198 は品質データが無いときだけ）・okw 25 か所（常に出る 22）・?engine=python の字 49・pyWait 13 か所。3.118.0 の通しの記録で『飛ばした 39』（b3118/check1/12-verify-local.log）",
+  "kinds": "A 条件に Python を使わない 8（:198・:248・:262・:272・:299・:331・:361・:443）／B Python を確かめること自体か okw と重なる 8（:97・:104・:119・:164・:166・:195・:508・:757）／C 窓の答えを Python の答えと比べる 15（:82・:129・:192・:215・:242・:291・:324・:356・:383・:415・:496・:593・:622・:641・:666）／D 枠の往復を Python を運び手に見る 9（:85・:90・:92・:100・:117・:135・:140・:677・:714）",
+  "verify": "WINDOW_ONLY 23 名（okw 22 ＋ 包み『中身（Python）を通す項目』）・WINDOW_MAYBE 3・NAN_EXPECTED 8（うち 6 は ok の名前で、今は飛ばすので照らされていない）。window_only_ok は skipped>0 を求める（verify.py:105）→ ok を全部 okw にすると local・4b・prev の new が落ちる",
+  "ci": "ci.yml:90〜117（Linux・debug・xvfb）と desktop.yml:237〜276（Windows・release・WebView2）の自己診断の段は名前を見ない（ok・python==absent・python_attempts=0）。verify の窓は update 10 回・local 2 回・prev 3 回前後",
+  "time": "1 回開いて結果まで: 3.117.2 は 133〜141 秒（Python の起動待ち 130 秒と往復）→ 3.118.0 は 4〜15 秒。verify update 全体 2245 秒 → 771〜804 秒（Linux の手元）。Windows の 3.118.0 は PR 121 の CI 待ちで未測",
+  "scene": "CI と手元の通しの名乗りは一般ユーザー・部分的編集可（root@vm。selftest3101/selftest.json）→ 管理のマスタの書く道は門番の 403 の枝だけが流れる。品質 3000 行（種 固定・TODAY 2026-10-02。ただし自己診断は today を渡さず『90 日以内』は流した日で変わる）。作業実績は見本の \\\\Nlmsrvngy03 に届かず 0 台（作業実績の一覧・集計・パネルは失敗の答えどうしを比べていた）。CM3 は見本の元があるが届かず 502。仕掛は届かない",
+  "no_python_answers": "中身へ回す形・?engine=python・/api/no-such-route・WebView が畳んだ /templates/index.html はどれも 503 window_unanswered（router.rs:144・163）。自己診断がこの口を叩くたびに delegate の unanswered が増える（利用状況の印 presence.rs:742）。LotDsp の 9 本は ?engine=python も窓が答える（lot.rs:1651）",
+  "names_static": "selftest.js の名前と verify.py の WINDOW_ONLY・NAN_EXPECTED の食い違いを見る静的な試験は無い（本物の窓を開く verify でだけ分かる）"
+ },
+ "axes": {
+  "about": "案の方向（何で解くか）。列は 比べる相手／項目の置き場／範囲／verify と CI の分担／画面の DOM",
+  "A": "窓の答えの性質と道どうしの食い違い／selftest.js に直に／全部（約 62）／今のまま／なし",
+  "B": "なし（cargo に任せる）／selftest.js／絞る（約 40〜45）／今のまま／なし",
+  "C": "cargo で同じ場面に当てて焼いた答え（新しい本）／表 selftest_cases.json＋焼いた表／全部（約 62）／今のまま／なし",
+  "D": "同じ時点の窓の直の答え（口を通さない Lot）／selftest.js／全部（約 62）／今のまま／なし",
+  "E": "台本の場面と標準の Python の独立の答え／selftest.js＋台本／全部（約 62）・場面を広げる／CI と verify に台本の段／なし",
+  "F": "性質（表の言葉）＋任意で焼いた指紋／表 selftest_cases.json を selftest.js・verify・cargo が読む／全部（約 62）／今のまま／なし",
+  "G": "性質＋画面の DOM と画面が受けた答え／selftest.js／全部＋DOM（約 70〜75）／今のまま（H と組める）／あり",
+  "H": "案 A を full の組に＋『窓が答えない道 0』／selftest.js＋/__desktop/info／full 約 63・smoke 24／verify は smoke・CI の 1 回は full／なし",
+  "spread": "比べる相手: 性質 3（A・F・G）・焼いた答え 1（C）・直の答え 1（D）・独立の答え 1（E）・なし 1（B）・分担 1（H）。置き場: JS 5・表 2（C・F）。範囲: 絞る 1（B）・広げる 2（E・G）。分担を変える 1（H）。画面の DOM 1（G）。偏りは『全部を残す』に寄るが、比べる相手の軸は 5 通りに分けた。A・F・H は組み合わせられる（F の表に A の性質、H の full に A）"
+ },
+ "visible": [
+  "どの案も製品の画面は替わらない（自己診断のときだけ）",
+  "案 G は自己診断のときにタブ・面を開く（本物の窓の記録に画面の動きが残る）",
+  "案 D・H は自己診断のときだけ答える窓の口を足す（/__desktop/selftest/direct・/__desktop/info の unanswered）"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良（画像なし。測った数は evidence.md）",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと: (1) 作業フォルダ stage4 は読むだけ（git も cargo も node も動かしていない）。(2) ok・okw の数は selftest.js を数えるだけの python3 で出し、3.118.0 の通しの記録の『飛ばした 39』と合うことを見た。(3) 場面のデータ（名乗り・届かない作業実績と CM3）は 3.101.0 の Python ありの結果のファイル（selftest3101/selftest.json の 59 項目）で確かめた。(4) Python 無しの答え（503 window_unanswered）は router.rs を読んで推した（流していない）。(5) 案ごとに比べる相手の軸を並べ、5 通りに分けた。(6) 自分の案に点も順位も付けていない",
+   "proposals": {
+    "A 1 対 1 で窓の答えの性質に書き直す": {
+     "id": "A",
+     "name": "1 対 1 で窓の答えの性質に書き直す",
+     "direction": "比べる相手: 窓の答えそのものの性質（形・状態・by・道どうしの食い違い）。置き場: selftest.js に直に書く。範囲: 40 か所を全部残す",
+     "what": [
+      "desktop/src/selftest.js: ok を全部 okw に。A の 8 は ok → okw だけ。B の 8 は窓の残り（/api/build の版＝info.program_version・/api/health の by window・速さは窓の道 30 回・mirrored）に。C の 15 は Python の答えとの比べを、答えの性質と道どうしの食い違い（一覧の count＝集計表の count の総計＝kpi/lot の数・カラムの札の列＝一覧の columns・設備グループの選べる設備＝一覧の設備の値・/api/update/settings の me＝/__desktop/release の me・page_size 50 は 50 行・並べ替えの順・倍＝重量×2+1）に。D の 9 は運び手を窓の道に（460KB は窓の /api/ui-state・40 本は窓の道だけ・偽の見出しは窓の /api/masters/tabaccess と /api/masters/access）",
+      "selftest.js: ?engine=python の 49 か所・pyUp・pyWait（13 か所）・130 秒の中身待ち・包み（:777）を外す。結果の python（absent）は残す（CI が見る）",
+      "desktop/bundle/verify.py: WINDOW_ONLY を新しい名前の一覧に・包みと skipped>0 の条件を外す（skipped==0 を求める）・NAN_EXPECTED を 1b を流して合わせ直す・:173 の除外の名前",
+      "ci.yml・desktop.yml は変えない（ok と python と python_attempts を見るだけ）"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物（first_fix_candidates）",
+      "(2) A・B・D を書き直す（小さい）",
+      "(3) C の 15 を性質に",
+      "(4) verify の名前の一覧と 1b の NAN_EXPECTED",
+      "(5) verify local・update を Linux で、Windows は CI"
+     ],
+     "count": {
+      "before": "ok 40（流れるのは 39。3.118.0 では全部飛ばす）・okw 25",
+      "after": "okw 約 62〜65（A 8・B の残り 5 前後・C 15・D 9 と今の 25）。3.117.3 の ok＋okw（約 61〜62）以上"
+     },
+     "gains": [
+      "本物の WebView2 で、Python を外した今の窓の道の約 40 か所を毎回通す（3.118.0 では 0）",
+      "道どうしの食い違い（一覧と集計表とパネルの数）は cargo の *_parity に無い確かめ（同じ場面の 3 つの道を本物の口で並べる）"
+     ],
+     "losses": [
+      "値そのものの正しさは見ない（数が 1 ずれても、3 つの道が同じにずれれば通る）",
+      "失敗の答えしか流れない場面（作業実績 0 台・CM3 届かない・一般ユーザーの 403）では性質が薄い（形と kind だけ）"
+     ],
+     "mutations": [
+      "一覧の計算列の式の実装を壊す → 倍＝重量×2+1 の性質で落ちる",
+      "router が本文を切る・字を化けさせる → 460KB・40 本で落ちる",
+      "門番が X-TPA-Me を捨て忘れる → 偽の見出しで落ちる（ただし一般ユーザーで canEdit が false の場面では見分けられない。今と同じ穴）",
+      "集計表と一覧で同じ数え違い → 落ちない"
+     ],
+     "windows_ci_time": "自己診断 1 回あたり +数秒（窓の道だけ。Python 待ちの 130 秒は戻らない）。verify の約 15 回の窓で +1〜3 分の見込み（Linux の 3.118.0 は 1 回 4〜15 秒）。Windows は未測",
+     "risks": [
+      "性質の作りが 15 か所で別々の JS になり、selftest.js が 783 行からさらに増える（読み手の負担）",
+      "性質の選び方しだいで弱い確かめ（形だけ）になる所が出る",
+      "今日の日付に頼る 90 日以内の問い合わせは性質なら日付によらず通るが、件数を見る性質は日付で変わる（絶対の範囲に替える）"
+     ],
+     "checks": [
+      "verify.py local・update（Linux・xvfb）で WINDOW_ONLY が全部・skipped 0・落ちなし",
+      "変異: selftest.js の性質ごとに窓の答えを 1 か所壊す（cargo の部品を変えた debug の exe を作る）か、自己診断の答えを差し替える台本で落ちることを見る",
+      "Windows の windows-exe の自己診断の PASS 行の数が 3.117.3 以上"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 6,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 A の count.after「okw 約 62〜65」: 自分で数えると、CI の場面（品質 3000 行あり）で流れる ok は A 7（:198 は :192・:195 と排他）・B 8・C 15・D 9 の 39。B を『窓の残り 5 前後』にまとめると 7＋5＋15＋9＋okw 22（＋:694 の 1）＝ 58〜59 で、built_plan の 3.118.1 の確かめ『項目の数が 3.117.3 の ok＋okw（39＋22〜23 ＝ 61〜62）と同じか多い』に届かない。さらに CI と verify の場面は一般ユーザー・作業実績 0 台・CM3 と仕掛に届かない（selftest3101/selftest.json の info で自分で確かめた）ので、C の 15 のうち :291・:415・:622 と :641・:666 の作業実績の部分は失敗の答えの形しか見ない。A はこの薄さを記録に出す手を持たない"
+      }
+     ],
+     "seen": "自分で確かめた: selftest.js（783 行）の ok( の呼び出しは 40 行（:82〜:757）・okw( は 25 行、?engine=python の字 49・pyWait 13（定義 1＋呼び出し 12）。:27 の ok は pyUp が偽なら skipped に積むだけで、3.118.0 の通しの記録（b3118/check1・2 の 12/13-verify-local.log）は『飛ばした 39』。A の 8（:248・:262・:272・:299・:331・:361・:443・:198）は条件に Python を使っていない（読んで確かめた。:443 は ?engine=python の道を 1 本含むが lot.rs:1651 で窓が答える）。良い所: 今の okw の型のまま 1 対 1 で書き直すので、作る係がそのまま進められ、本物の WebView2 で窓の道を毎回通す形が戻る。道どうしの食い違い（一覧の count・集計表の総計・kpi の数）は cargo の *_parity に無い確かめ。弱い所: 値の正しさは見ない（3 つの道が同じにずれれば通る）・項目の数が B の畳み方しだいで 3.117.3 を下回る（減点）・1 つの try（:40〜:757）に約 40 項目が増えるので、1 か所の例外で後ろが全部流れない（今の『例外』の項目の形）。verify の update の 10 窓と local の 2 窓は全項目の ok を求める（verify.py:180・390〜532・572・588）ので、書き直した項目は 1b 以外のどの場面（共有の exe・入れ替え直後・戻した後・js-broken の後）でも通る形にしないと落ちる。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "B 重なる項目を外し、本物の窓でしか見られない物に絞る": {
+     "id": "B",
+     "name": "重なる項目を外し、本物の窓でしか見られない物に絞る",
+     "direction": "比べる相手: なし（cargo の *_parity に任せる）。範囲: 絞る。本物の WebView・口・場所でしか見られない点だけを窓だけの項目にする",
+     "what": [
+      "selftest.js: C の 15 のうち、答えの値の正しさだけを見ていた物（182〜666 行の Python との比べ）は消し、道ごとに『窓が 200 か理由つきの答えで答える（by shell・JSON・window_unanswered でない）』の 1 項目にまとめる（道の一覧の 1 つの輪）",
+      "B の 8 は外す（:97・:104・:119・:195・:164 の backend・:508 の Python・:757 の Python）",
+      "D の 9 と A の 8 は okw に（枠の確かめは残す）",
+      "verify.py の WINDOW_ONLY・NAN_EXPECTED を合わせる",
+      "cargo の *_parity が自己診断の代わりに見ている事を、計画書の 1 か所に表で書く（どの項目を消してどの試験が持つか）"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) 消す項目と持つ試験の表",
+      "(3) 道の一覧の輪（『窓が答える』）",
+      "(4) verify の名前"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 40〜45（A 8・D 9・道の一覧の輪 1〜3・今の 25）。3.117.3 の ok＋okw（約 61〜62）より少ない"
+     },
+     "gains": [
+      "自己診断が短く読みやすい。答えの値は cargo（焼いた表・凍らせた Python）の 1 か所が持つ（重ねて持たない）",
+      "『画面が呼ぶ道で窓が答えない』を 1 つの輪で全部の道に当てられる"
+     ],
+     "losses": [
+      "本物の場所（Windows の道の字・本物の共有の届き方・本物の名前の引き）で窓の答えの値を見る所が消える。3.101.0 と 3.115.0 の Windows の CI で見つかった食い違い（更新の通しの 4e の status・place の欄）は、この形では見つからない",
+      "built_plan の 3.118.1 の確かめ『項目の数が 3.117.3 の ok＋okw と同じか多い』に合わない（決めの書き換えが要る）"
+     ],
+     "mutations": [
+      "Windows だけの道の字の割れ（\\ と /）→ 落ちない（cargo の nt の表が拾うかしだい）",
+      "router の振り分けで道が中身へ回る → 道の一覧の輪で落ちる",
+      "答えの値の 1 ずれ → 落ちない"
+     ],
+     "windows_ci_time": "自己診断 1 回あたり今と同じかそれ以下（数秒）",
+     "risks": [
+      "守りが減ることを利用者に言う要る（④ は『窓だけの守りを戻す』版の約束）",
+      "消した項目の場面（本物の場所）を cargo が持たないことがある（nt の表は Windows の runner の場面で焼くが、本物の配った設定の見本ではない）"
+     ],
+     "checks": [
+      "verify.py local・update",
+      "cargo の試験の表と消した項目の突き合わせ（計画書）",
+      "変異: router に中身へ回す道を 1 つ戻す → 道の一覧の輪で落ちる"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 4,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案 B の what 1・losses 1: C の 15 の値の確かめを『窓が 200 か理由つきで答える』の輪 1 つに畳む。本物の WebView2・本物の場所（RUNNER_TEMP の道の字・Windows の \\・本物の名前の引き）で窓の答えの値・形を見る確かめが消える。built_plan の 3.118.1 の確かめ『項目の数が 3.117.3 の ok＋okw と同じか多い』（2026-11-stage4.json の built_plan）にも合わない（約 40〜45）"
+      }
+     ],
+     "seen": "cargo の *_parity・焼いた表が値を持つのは正しい（evidence の表の『重なる cargo の試験』の列を、page_parity・lotlist_parity・calc_parity などの名前で自分でも当たった）。ただ自己診断の値打ちは本物の口と場所で、3.101.0 と 3.115.0 の Windows の CI で見つかった割れは verify の窓の自己診断から出た型（案の losses 1 のとおり）。『画面が呼ぶ道で窓が答えない』を 1 つの輪で見る考えは良く、1 位に持ち込む（H の unanswered と合わせる）。短く読みやすくなる得はあるが、④ の約束（窓だけの守りを戻す）に対して守りを減らす向きで、利用者に断る要がある。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "C 答えを焼いた表から持ち込む（自己診断の本）": {
+     "id": "C",
+     "name": "答えを焼いた表から持ち込む（自己診断の本）",
+     "direction": "比べる相手: 窓の答えを cargo の試験で同じ場面に当てて焼いた表（1 か所の答え）。置き場: 新しい本 desktop/tests/baked/selftest.json。範囲: C の 15 と D の値のある物",
+     "what": [
+      "新しい cargo の試験 desktop/tests/selftest_answers.rs: 自己診断の場面（lotlist_fixture 3000 行・selftest_config.py の出力・空の共有・一般ユーザーの名乗り・届かない作業実績と CM3）を作り、selftest.js が投げる問い合わせの一覧（下の表と同じ）を Lot へ直に当て、そろえる決まり（作業場所の道 @ROOT・時刻・ageHours・ms・写しの様子・nonce・名前）でそろえた答えを焼く（bake.rs の 1 つの係・bless.py に本 selftest を足す）",
+      "問い合わせの一覧と焼いた答えは 1 つのファイル desktop/src/selftest_cases.json（include_str で exe に入れるのは自己診断のときに読む所だけ。大きさは 1 本 1 MB 未満の見込み）",
+      "selftest.js: C の 15 は fetch の答えを同じそろえ方でそろえ、焼いた答えと比べる（違えば最初の違う鍵の道を info に。今の diffAt を使う）",
+      "日付に頼る問い合わせ（90 日以内・0 日以内・前日・14 日）は絶対の範囲（between）か、今日を渡さない形をやめる（焼いた答えが流した日で変わらない形に）",
+      "名乗りの段ごとの答え（一般ユーザー・書ける人）は variants で持つ（root で焼いた表と CI の一般ユーザー）",
+      "verify.py の名前の一覧・NAN_EXPECTED（1b の場面は焼かない: 答えは窓の理由つきの 503 なので形で見る）"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) 日付に頼る問い合わせを絶対の範囲に",
+      "(3) selftest_cases.json と selftest_answers.rs（場面を作る・焼く・比べる）",
+      "(4) selftest.js が表を読んで比べる",
+      "(5) bless.py に本を足す・Windows の nt の表（道の字）"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 62（C の 15 は値まで比べる形で残す・A・B・D は案 A と同じ）"
+     },
+     "gains": [
+      "値まで比べる（Python と比べていた強さに近い）。cargo で同じ表を Lot に当てるので、表が古ければ cargo が先に落ちる（CI の WebView で初めて知る形が減る）",
+      "本物の WebView の答えと、口を通さない Lot の答えが 1 字まで同じ（枠の往復の忠実さ）"
+     ],
+     "losses": [
+      "場面を cargo と CI の自己診断で 1 字までそろえる重さ（作業場所の道・PC の名前・利用者・配った設定のファイルの道・Windows の道の字）。そろえる決まりが広いほど弱くなる",
+      "焼いた答えは窓自身の答え（Python と違って独立でない）。窓の答えの誤りは cargo の *_parity・人の事例の表が持つ"
+     ],
+     "mutations": [
+      "窓の一覧の並べ替えを壊す → cargo の selftest_answers と自己診断の両方で落ちる（cargo が先）",
+      "WebView の口だけで本文が変わる（字の化け・切れ）→ 自己診断だけで落ちる",
+      "Windows だけの道の字の違い → nt の表が無ければ Windows の自己診断で落ちる（測りが要る）"
+     ],
+     "windows_ci_time": "自己診断 1 回 +数秒。cargo の試験が 1 本増える（場面は 3000 行の SQLite と小さな共有。数十秒の見込み）。Windows の windows-test に 1 本",
+     "risks": [
+      "場面の材料（selftest_config.py・lotlist_fixture.py）を変えると verify prev 1（前の版の exe の自己診断）が通らなくなるかもしれない → 材料は変えず、問い合わせ側だけ絶対の範囲にする",
+      "焼く本が 1 本増え、bless・nt の取り込みの手順が 1 往復増える（3.117.x の Windows の取り込みの往復の重さ）",
+      "CI の名乗り（一般ユーザー・部分的編集可）は access の初期値（最初の管理者の種）しだいで変わりうる"
+     ],
+     "checks": [
+      "cargo test --test selftest_answers（Python と比べる形と TPA_NO_PYTHON=1 の両方）",
+      "verify.py local・update（場面の答えが焼いた表と同じ）",
+      "変異: selftest_cases.json の答えを 1 字変える → 自己診断と cargo が落ちる／TPA_SETTLE_DROP で決まりを外す → 落ちる",
+      "bless.py --check に本 selftest"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案 C の steps 3・5・risks 2: 新しい本 selftest（cargo の場面・bless.py・settle の決まり）と Windows の nt の表の取り込みの往復（3.117.3 の型: Windows の CI を 2 回）が増え、selftest.js の問い合わせを 1 つ変えるたびに焼き直しと取り込みが要る"
+      }
+     ],
+     "seen": "値まで比べる強さは Python と比べていた形に最も近い。ただ自分で読んだ場面の字（selftest_config.py は配った設定の見本〈program/config/appsettings.example.json〉に品質の元と共有の道を重ねる・作業実績は \\\\Nlmsrvngy03 の見本の道・名乗りは OS の利用者）と、CI の場面（RUNNER_TEMP・runner の利用者・Windows の道の字）を 1 字までそろえる決まりは、3.115.0〜3.117.3 で 4 版かけた settle.json と同じ重さになる。焼いた答えは窓自身の答えで独立でなく（案の losses 2）、値の誤りは結局 cargo の *_parity が持つ。日付に頼る問い合わせ（:179 の within_days 90・:648 の yesterday と days 14。lotlist_fixture の TODAY 2026-10-02、自己診断は today を渡さない）を絶対の範囲に替える F6 は C では必ず要る。verify prev 1 は前の版の exe の selftest.js を今の selftest_config.py の場面で流す（verify.py:700〜712）ので、材料を変えない手（risks 1）は正しい。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "D 同じ時点の窓の直の答えと比べる（Python の口を窓の直の口に替える）": {
+     "id": "D",
+     "name": "同じ時点の窓の直の答えと比べる（Python の口を窓の直の口に替える）",
+     "direction": "比べる相手: 同じ窓の Lot を口（WebView・URI の口・router）を通さずに呼んだ答え。今の『窓の答え ＝ engine=python の答え』の比べ方の JS をほぼそのまま使い、相手だけを替える",
+     "what": [
+      "窓（main.rs の native）: 自己診断のとき（TPA_SELFTEST）だけ答える口 POST /__desktop/selftest/direct {method, path, query, body} を足す。中で router の門番と同じ me を決め、Lot::handle を直に呼び、答えを {status, headers, body(base64)} で返す（router・URI の口の後ろの処理を通らない）",
+      "selftest.js: ?engine=python で引いていた所（C の 15・D の 9）を direct に替える。比べるそろえ方（canon・dropB・dropP など）は今のまま",
+      "B の 8 は案 A と同じく窓の残りに。verify.py の名前の一覧"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) 直の口（自己診断のときだけ）と lot::tests の 1 歩",
+      "(3) selftest.js の相手を替える",
+      "(4) verify の名前"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 62（項目と名前の数は今の ok と 1 対 1）"
+     },
+     "gains": [
+      "今の selftest.js の比べる輪（同じ時点になるまで読み直す・最初の違い）をそのまま使える。書き直す量が最も少ない",
+      "日付・場所・名乗りに頼らない（同じ時点の同じ窓）。焼く表が要らない"
+     ],
+     "losses": [
+      "比べるのは同じ Lot の 2 回の答え: 窓の部品の誤りは見ない（口と router と WebView の忠実さだけ）。値の正しさは cargo の *_parity に任せる",
+      "製品の exe に自己診断のときだけの口が増える（engine=python と同じ『比べる口』の形。⑤ で消す物が 1 つ増える）"
+     ],
+     "mutations": [
+      "router の門番を外す・本文を切る・見出しを捨て忘れる → 落ちる",
+      "Lot の集計の誤り → 落ちない（同じ誤り）",
+      "直の口が me を router と違う形で決める → 書く道の答えが割れる（落とし穴にもなる）"
+     ],
+     "windows_ci_time": "自己診断 1 回 +数秒（窓の道を 2 回ずつ）。Windows は未測",
+     "risks": [
+      "直の口が router と別の me・別の束を使うと、偽の割れ（直の口の誤り）が出る。直の口は router の Router::handle の『native の後・static の後』の 1 か所を呼ぶ形にして、URI の口だけを外す要",
+      "TPA_SELFTEST が付いた製品の窓は口が開く（現場の PC で TPA_SELFTEST を付ける人はいないが、口の見張りの試験が要る）",
+      "『窓どうしを比べる』と書くと守りが強く見える。何を守り何を守らないかを結果の名前に出す要"
+     ],
+     "checks": [
+      "lot::tests か main の試験: 直の口が自己診断のときだけ答え、ほかは 404",
+      "verify.py local・update",
+      "変異: router の to_response で本文の最後の 1 バイトを落とす → 自己診断の比べで落ちる／Lot の一覧の並べ替えを壊す → 落ちないことを記録（守らない物の確かめ）"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 8,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 6,
+      "place": 4,
+      "layout": 6,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 D の losses 1・mutations 2: 比べる相手が同じ Lot の 2 回目の答えなので、Lot の数え違いは両方が同じにずれて通る。項目の名前が『窓の答えが直の答えと同じ』だと守りが強く見え、何を守らないかが記録に出ない（案の risks 3 は名前に出す要と書くが、形を決めていない）"
+      }
+     ],
+     "seen": "今の比べる輪（canon・diffAt・midway の読み直し）をそのまま使えるので書き直しは最も少ない。ただ ⑤ で消す『比べる口』（?engine=python。RUST_PORT_PLAN.md:2704 の ⑤ に送った物）と同じ型の口 /__desktop/selftest/direct を、④ の 2 つ目で製品の exe に足す向きで、計画書の流れ（口を減らす）と逆。直の口は router.rs:119〜160 の native → static → 門番（X-TPA-Me を捨てる・me を載せる）の順のどこから呼ぶかで偽の割れも偽の一致も出る（案の risks 1 のとおり）。main.rs:83 で TPA_SELFTEST のときだけ流れるので現場の害は小さいが、口の見張りの試験が要る。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "E 台本の場面と独立の答え（app を import しない台本が自己診断の答えを作る）": {
+     "id": "E",
+     "name": "台本の場面と独立の答え（app を import しない台本が自己診断の答えを作る）",
+     "direction": "比べる相手: 標準の Python（sqlite3・json だけ）の独立の答え。場面: 台本で作る（tests/ui_scene.py と同じ型）",
+     "what": [
+      "新しい台本 program/tests/selftest_scene.py（app を import しない）: 今の lotlist_fixture 3000 行と selftest_config の出力に加え、作業実績 3 台（lotlist_fixture.make_work）・仕掛・データ元の結合 1 つを作る（届く場面を増やす）",
+      "新しい独立の答え program/tools/selftest-truth.py: 場面の SQLite を sqlite3 で読み、件数・まとめの数・設備ごとの数・重量の計・列の名前（日付の読み方に頼らない物だけ）を expect.json に書く",
+      "ci.yml・desktop.yml の自己診断の段と verify.py の場面（4 か所で selftest_config を呼ぶ所）が台本と答えを作り、TPA_SELFTEST_EXPECT で窓に渡す（窓は /__desktop/selftest/expect で画面へ）",
+      "selftest.js: C の 15 を expect.json の数と比べる（作業実績・データ元の一覧・集計・パネルは届く場面の値）"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) 台本と独立の答え・tests/test_selftest_truth.py",
+      "(3) CI と verify の 4 か所",
+      "(4) selftest.js の比べ"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 62（C の 15 は独立の数で比べる。作業実績が届く場面になるので、失敗の答えどうしでしか比べていなかった 4 項目が値で見る形に）"
+     },
+     "gains": [
+      "窓の答えの誤りも本物の窓で見つかる（窓と独立）",
+      "作業実績・データ元の一覧・ダッシュボードの作業実績のパネルが、今の場面（届かない）では一度も値で通っていない穴を塞ぐ"
+     ],
+     "losses": [
+      "独立の答えが出せるのは単純な数だけ（日付の 9 つの書き方の読み・作業日と直・計算列は窓の決めの写しになり独立でなくなる）",
+      "CI の段と verify の 4 か所に台本の段が増える（Windows の PowerShell にも）"
+     ],
+     "mutations": [
+      "窓の数え違い（まとめの数・設備ごとの数）→ 落ちる",
+      "日付の読み方の誤り → 独立の答えが日付を読まないので落ちない",
+      "枠の往復の誤り → 落ちる"
+     ],
+     "windows_ci_time": "場面を作る段 +10〜30 秒（作業実績 3 台の SQLite）。自己診断は写し待ち（503 copying の輪 60 秒まで）が実際に流れる分 +数十秒の見込み。verify の約 15 回では +5〜10 分になりうる（未測）",
+     "risks": [
+      "場面を変えると verify prev 1（前の版 3.117.x の自己診断）が今の場面で通る保証が無い（前の版は作業実績が届く場面で Python と比べる → 前の版どうしの比べなので通る見込みだが未確かめ）",
+      "独立の答えの台本が窓の決めを写し始めると第 2 の線でなくなる（tools/*-truth.py の決まり）",
+      "作業実績の写しが CI の遅い disk で 60 秒を超える"
+     ],
+     "checks": [
+      "python program/tools/selftest-truth.py の単体の試験（人の事例）",
+      "verify.py local・update・prev",
+      "変異: 窓のまとめの数え方を壊す → 自己診断で落ちる"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案 E の what 3・losses 2: 場面を作る段が ci.yml（:92〜93）・desktop.yml（:239〜240 の PowerShell）・verify.py の場面の 3 か所（update・local・prev〈:701〜705〉）に増え、TPA_SELFTEST_EXPECT を窓から画面へ渡す口も足す"
+      }
+     ],
+     "seen": "窓と独立の答えは第 2 の線として最も強く、作業実績・データ元が届く場面にすれば、今は失敗の答えどうししか比べていない :622・:641・:666 の作業実績の部分（selftest3101 の info『設備なし（失敗の答えを比べた）』を自分で確かめた）を値で見られる。ただ独立の答えに出せるのは日付と式に頼らない数だけで、日付の 9 つの書き方・作業日と直・計算列は窓の決めの写しになる（案の losses 1）。selftest_config.py を変えると verify prev 1（前の版 3.117.x の exe が今の場面で Python と比べる）を通るかが分からない（F7）。場面を広げる考えは、selftest_config.py を変えずに verify local の自分の場面だけを広げる形（local は既に conf を書き換える: verify.py:580〜585）なら 1 位に持ち込める。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "F 項目を表で持ち、selftest.js は回すだけ。同じ表を cargo でも Lot に当てる": {
+     "id": "F",
+     "name": "項目を表で持ち、selftest.js は回すだけ。同じ表を cargo でも Lot に当てる",
+     "direction": "置き場の軸: 項目（道・本文・求める状態・by・kind・性質の名前・場面の条件・1b で落ちてよいか）を 1 つの JSON に。比べる相手は性質（案 A）を基本に、表の『答えの指紋』欄で焼いた答え（案 C）を入れられる形",
+     "what": [
+      "新しい表 desktop/src/selftest_cases.json（名前・道・本文・求める物・性質の名前〈rows_le_count・sorted_by・formula_x2p1 など、selftest.js にある小さな関数の名前〉・nan: 理由・window_maybe）",
+      "selftest.js: HTTP の確かめは表を回す 1 つの輪に（DOM・保存・IndexedDB・心拍・権限の札など JS でしか書けない 20 前後は今の書き方）",
+      "verify.py: WINDOW_ONLY・WINDOW_MAYBE・NAN_EXPECTED を表から読む（名前の二重持ちをやめる）",
+      "新しい cargo の試験 desktop/tests/selftest_cases.rs: 同じ表を自己診断の場面の Lot に当て、求める状態と性質が成り立つか（WebView の前に cargo で落ちる）",
+      "desktop/bundle/test_bundle.py に、表と selftest.js の性質の名前が全部あるかの静的な見張り"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) 表の形と性質の関数",
+      "(3) selftest.js の輪・verify の読み",
+      "(4) selftest_cases.rs"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 62（表 40 前後 ＋ JS の 22）"
+     },
+     "gains": [
+      "名前の二重持ち（selftest.js・WINDOW_ONLY・NAN_EXPECTED）が無くなり、名前を替えても verify が黙って食い違わない",
+      "表の確かめが cargo で先に流れる（本物の窓を開く前に分かる）"
+     ],
+     "losses": [
+      "表の性質の言葉が小さな言語になる（読み手が JS と表の 2 つを読む）",
+      "性質の強さは案 A と同じ（値は見ない。答えの指紋を入れれば案 C と同じ重さ）"
+     ],
+     "mutations": [
+      "性質の関数を壊す → selftest_cases.rs と自己診断で落ちる",
+      "表の名前を替えて NAN_EXPECTED を直し忘れる → 表から読むので起きない"
+     ],
+     "windows_ci_time": "案 A と同じ。cargo の試験 1 本（数十秒）",
+     "risks": [
+      "表に移すと、今の項目の『同じ時点になるまで読み直す』輪（midway・copying）の決めを表の言葉に持たせる要",
+      "selftest_cases.rs の場面（Lot を直に）と本物の窓の場面のずれ（場所・名乗り）が、案 C ほどではないが残る"
+     ],
+     "checks": [
+      "cargo test --test selftest_cases",
+      "python -m unittest discover -s desktop/bundle（静的な見張り）",
+      "verify.py local・update"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案 F の what 4・checks 1: 同じ表を Lot に当てる cargo の試験 selftest_cases.rs が 1 本増え、自己診断の場面（3000 行の SQLite・共有・名乗り）を cargo 側にも作る（案 C の場面合わせの軽い版）。Windows の windows-test の時間にも乗る"
+      }
+     ],
+     "seen": "名前の二重持ちは本当にある: verify.py:64〜80 の WINDOW_ONLY 23 名・:82 の WINDOW_MAYBE 3・:83〜94 の NAN_EXPECTED 8（うち 6 は ok の名前で、今は飛ばすので照らされていない）・:173 の除外の名前・:410・:479・:501・:575 の名前の頭で項目を探す 4 か所。名前に件数の字を混ぜる項目が 4（:192・:622・:641・:666 のテンプレートの字）と、場面で名前が替わる項目が 1（:356 の sch ? … : …）あり、静的に名前を取り出せない。表に移すと二重持ちは消えるが、HTTP の確かめを表を回す 1 つの輪にする書き換えは大きく、midway・copying の読み直しを表の言葉に持たせる（案の risks 1）。A に F2（静的な見張り）を足す形でほぼ同じ得が取れるので、F の差は cargo で先に流れる点だけになる。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "G 画面の DOM を通して見る（画面の JS が窓の答えで描けたか）": {
+     "id": "G",
+     "name": "画面の DOM を通して見る（画面の JS が窓の答えで描けたか）",
+     "direction": "見せ方の軸: 道を fetch で叩くのでなく、本物の画面を動かし（タブを押す・面を開く）、画面の JS が受け取った答え（fetch を包んで記録）と DOM（件数の行・行の数・パネルの数字・エラーの帯）を並べて見る。3.118.2 まで撮る・採点する道具（ui-eval-*）は Python の開発用サーバーを相手にするので、本物の窓で画面の JS と窓の答えが出会うのは自己診断だけ",
+     "what": [
+      "selftest.js に DOM の段を足す: 品質のタブ（件数の行の数＝/api/lotlist の count・表の行がある）・品質の集計（集計表の総計）・ダッシュボード（パネルの数字・『読めない』の帯が無い）・データ元のタブ・マスタ管理の各タブを開いて閉じる（書かない）・スケジュールのタブ（届かない言葉が利用者の言葉）",
+      "fetch を包み、画面が呼んだ道の答えのうち window_unanswered・5xx（場面で決めた届かない物を除く）が 0 を見る",
+      "C の 15 の値の確かめは案 A の性質で（DOM と答えの数が同じ、が値の確かめを兼ねる）",
+      "verify.py の名前の一覧"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) DOM の段（タブごと）",
+      "(3) 画面が呼んだ道の見張り",
+      "(4) verify の名前"
+     ],
+     "count": {
+      "before": "ok 40・okw 25",
+      "after": "okw 約 70〜75（案 A の約 62 ＋ DOM の段 8〜12）"
+     },
+     "gains": [
+      "画面の JS ＋ 窓の答え ＋ 本物の WebView の 3 つが揃う唯一の確かめになる（現場で利用者が見る形）",
+      "『画面が呼ぶのに窓が答えない道』を、画面の実際の呼び方で見つける"
+     ],
+     "losses": [
+      "画面の部品の名前（id・class）に頼り、画面を直すたびに自己診断が落ちうる（ui-eval と同じ重さ）",
+      "画面の描き終わりを待つ時間で揺れる（Windows の WebView2 は遅い）"
+     ],
+     "mutations": [
+      "窓の答えの欄の名前を替える（画面が読めなくなる）→ DOM の件数が出ず落ちる（fetch の性質だけでは落ちない）",
+      "画面の JS の誤り → 落ちる"
+     ],
+     "windows_ci_time": "自己診断 1 回 +20〜60 秒（タブを開いて描き終わりを待つ）。verify の約 15 回で +5〜15 分（未測）。verify では DOM の段を流さない形（案 H）と組めば +1 分前後",
+     "risks": [
+      "画面が落ち着くまでの待ちの決めが揺れの元（版 3.99.0 の時間切れの型）",
+      "マスタ管理を開くと共有に種をまく・写しを作るなど副作用がある道がある（書かない面だけにする要）",
+      "項目が増えるほど、1 つの面の失敗で後ろの段が流れない（今の try の 1 つの塊）"
+     ],
+     "checks": [
+      "verify.py local・update で DOM の段が 3 回続けて通る（揺れの確かめ）",
+      "変異: 一覧の答えの count の名前を替えた debug の exe → DOM の段で落ちる",
+      "desktop.yml の自己診断の時間を記録で見る"
+     ],
+     "score": {
+      "order": 5,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案 G の windows_ci_time・risks 1: 自己診断 1 回 +20〜60 秒・verify の約 12 窓で +5〜15 分（案の見込み）。描き終わりを待つ決めが揺れの元（版 3.99.0 の時間切れの型）"
+      }
+     ],
+     "seen": "画面の JS ＋ 窓の答え ＋ 本物の WebView の 3 つが揃うのは自己診断だけ、という指摘は 3.118.1 の時点では正しい。ただ 3.118.2（built_plan: ui-harness.mjs の起こす先を窓の開発用サーバーに）で ui-eval-* 73 本が画面の JS と窓の答え（Lot）を合わせて見る形になり、G の得の多く（DOM の件数＝答えの数）が 1 版後に重なる。WebView2 だけの違いは保存・IndexedDB・クリップボードなど今の okw が既に持つ。マスタ管理の面を開くと種をまく・写しを作る道がある（案の risks 2）。良い所の『画面が実際に呼ぶ道で窓が答えない物を見つける』は、fetch を包まなくても窓の数え（delegate::unanswered）で取れるので、H の形で 1 位に持ち込む。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    },
+    "H 分担を変える: 重い確かめは CI の 1 回だけ、verify の窓は軽い組＋『窓が答えない道 0』": {
+     "id": "H",
+     "name": "分担を変える: 重い確かめは CI の 1 回だけ、verify の窓は軽い組＋『窓が答えない道 0』",
+     "direction": "分担の軸: 自己診断を 2 つの組に（TPA_SELFTEST_LEVEL=full｜smoke）。CI の自己診断の段（ci.yml・desktop.yml の各 1 回）は full（案 A か C の書き直しの組）、verify の約 15 回の窓は smoke（今の窓だけの 22 ＋ 道の一覧の輪 1）。どちらの組も最後に、窓を開いてから答えなかった道（window_unanswered）の数が 0 を見る",
+     "what": [
+      "main.rs: /__desktop/info に delegate::unanswered（窓が答えなかった形と回数）を載せる（一般ユーザーでも読める窓の口。/api/presence は区分で 403 のことがある）",
+      "selftest.js: 組の切り替え（環境変数を /__desktop/info で画面へ）・最後に unanswered が空（自己診断がわざと叩く形が無い前提: ?engine=python・/api/no-such-route をやめる）",
+      "full の組の中身は案 A（性質）を基本にし、値の比べは採点の結果しだいで案 C・D を入れる",
+      "verify.py: 各段は smoke（WINDOW_ONLY は smoke の名前）、local の 1 回だけ full（Python の無い PC の本物の形）",
+      "ci.yml・desktop.yml: 自己診断の段に TPA_SELFTEST_LEVEL=full"
+     ],
+     "steps": [
+      "(1) 共通の最初に直す物",
+      "(2) /__desktop/info の unanswered と自己診断の最後の確かめ",
+      "(3) 組の切り替え",
+      "(4) full の組（案 A）",
+      "(5) verify の段ごとの組"
+     ],
+     "count": {
+      "before": "ok 40・okw 25（verify の各段も同じ組）",
+      "after": "full: okw 約 62＋1・smoke: 23＋1"
+     },
+     "gains": [
+      "『窓が答えない道 0』は ④ の約束（窓が全部の道を答える）を本物の窓で直に見る確かめ。どの案にも足せる",
+      "verify の時間を今のまま保てる"
+     ],
+     "losses": [
+      "verify の更新の後の窓（入れ替えた直後・戻した後）でデータの道の値を見なくなる。3.115.0 の Windows の CI の 4e の status・place の食い違いは verify の窓の自己診断で見つかった型",
+      "組が 2 つになり、どちらで何を見るかを覚える要"
+     ],
+     "mutations": [
+      "画面が呼ぶ道を窓が答えなくなる（router が中身へ回す）→ unanswered で落ちる（今は 503 の答えが画面に出るだけで、自己診断は落ちない道がある）",
+      "更新の後だけ起きる束の読み違い → smoke の組では落ちない"
+     ],
+     "windows_ci_time": "verify の窓は今と同じ。CI の自己診断の段（各 1 回）だけ +数秒〜十数秒",
+     "risks": [
+      "unanswered を数える delegate は窓の起動から通しで数える（ほかの糸・画面の JS の起動が叩いた形も入る）→ 0 を求めると、画面の起動が叩く比べる口（無いはず）や種まきの印が混ざる。数える前の数を控えて差を見る形が要る",
+      "smoke と full の名前の一覧を verify と CI でそろえる"
+     ],
+     "checks": [
+      "verify.py local（full）・update（smoke）",
+      "変異: router の window_unanswered の手前で 1 つの道を中身へ回す（absent の枝を外す）→ unanswered で落ちる",
+      "desktop.yml の段の時間"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 H の what 4・losses 1: verify の update の 10 窓（入れ替え直後・戻した後・js-broken の後など）を smoke にすると、どの窓でどの確かめが流れたかが組の名前でしか分からず、built_plan の 3.118.1 の確かめ『verify.py local・update で飛ばした項目 0』とも食い違う。分ける理由の時間は、3.118.0 で 1 窓 4〜15 秒（自分で b3118 の記録を読んだ: share 7〜15・app 4〜5・closed-new 10・js-broken 71〜72 秒）なので、約 40 項目を足しても分けるほどではない"
+      }
+     ],
+     "seen": "『窓が答えない道 0』は ④ の約束を本物の窓で直に見る、どの案にも足せる確かめで、8 案の中で最も効く 1 点（router.rs:144・163〜186 を読み、中身へ回す形は全部 503 window_unanswered で delegate::note に『unanswered 道の型』を数える・presence.rs:742 で利用状況の印に載ることを確かめた。今の自己診断・verify・CI のどれもこの数を見ていない: grep で 0 か所）。ただし数は窓の起動から通しなので、:85（%2e%2e を畳んだ /templates/index.html）と :100（/api/no-such-route）のようにわざと叩く形を除く要がある（案の risks 1）。今の /__desktop/info（main.rs:221〜226）に unanswered は無い。smoke と full の 2 組に分ける所は要らない（時間が足りている）。（どの案も first_fix_candidates F1〜F11 を入れた形で比べた。F は共通の土台なので、案ごとの差に数えていない）"
+    }
+   }
+  }
+ ],
+ "first_fix_candidates": [
+  {
+   "id": "F1",
+   "what": "verify.py の window_only_ok の『skipped>0』をやめ、skipped==0（包みが無い）を求める。WINDOW_ONLY から包み『中身（Python）を通す項目』を外す",
+   "why": "ok を okw に替えると skipped が 0 になり、local・4b・prev の new の 3 か所が全部落ちる（verify.py:105）",
+   "where": "desktop/bundle/verify.py:64〜106・471・573・587・719"
+  },
+  {
+   "id": "F2",
+   "what": "名前の一覧を 1 か所に: selftest.js が結果に項目の一覧（名前・window・maybe・nan の理由）を出すか、表から読む。少なくとも desktop/bundle/test_bundle.py に、selftest.js の okw の名前と WINDOW_ONLY・WINDOW_MAYBE・NAN_EXPECTED と verify.py:173 の除外の名前が食い違わない静的な見張り（件数の字『6 通り』『11 通り』を含む名前も）",
+   "why": "今は名前を替えると本物の窓を開く verify で初めて分かる。NAN_EXPECTED の 6 名は ok の名前で、件数の字まで入っている",
+   "where": "desktop/bundle/verify.py:64〜94・173・desktop/src/selftest.js"
+  },
+  {
+   "id": "F3",
+   "what": "1b（配った設定の lot_list が字）の NAN_EXPECTED を、書き直した項目を実際に流して合わせ直す",
+   "why": "今は ok が飛ばされるので NAN_EXPECTED の ok の名前は照らされていない。書き直すと品質の節を使う項目が 1b で 503 で落ち、名前が合わなければ update の 1b が落ちる",
+   "where": "verify.py:83〜94・405〜420"
+  },
+  {
+   "id": "F4",
+   "what": "自己診断から ?engine=python の 49 か所・中身の起動待ち（130 秒）・pyUp・pyWait（13 か所）・包みを外す。結果の python（absent）は残す（ci.yml・desktop.yml が見る）",
+   "why": "?engine=python は 503 window_unanswered を返し、叩くたびに unanswered の数が増える。読み直しの輪は absent では 1 回だけで意味が無い",
+   "where": "desktop/src/selftest.js:16〜27・777・各輪"
+  },
+  {
+   "id": "F5",
+   "what": "道に当たらない形（/api/no-such-route・畳んだ /templates/index.html）の答えを決める: 製品の答えを替えない（3.118.1 の ship）なら 503 window_unanswered（kind・route の字）を求め、unanswered の数え方からは除く。404 にするなら製品の振り分けを替える版の決め（⑤ か別の版）",
+   "why": ":85『static の外へは出ない』・:100『無いところは 404』は Python の 404 を求めていた。今の窓は 503 で答える",
+   "where": "router.rs:144・163〜186・selftest.js:83〜100"
+  },
+  {
+   "id": "F6",
+   "what": "今日の日付に頼る問い合わせ（一覧の 90 日以内・0 日以内、パネルの前日・14 日）を、値を比べる案では絶対の範囲（場面の TODAY 2026-10-02 からの between）にするか、性質だけで見る",
+   "why": "自己診断は today を渡さない。2026-12-31 を過ぎると 90 日以内は 0 件の形になり、焼いた答え・独立の答えが流した日で変わる",
+   "where": "selftest.js:179・181・648〜652・program/tests/lotlist_fixture.py:19"
+  },
+  {
+   "id": "F7",
+   "what": "場面の材料（selftest_config.py・lotlist_fixture.py）を変える案は、verify prev 1（前の版 3.117.x の exe の自己診断。Python を起こして比べる）が今の材料で通ることを先に確かめる。材料を変えずに問い合わせ側で直すのを先にする",
+   "why": "prev 1 は前の版の selftest.js が今の selftest_config.py の場面で全部通ることを求め、落ちると windows-exe と release が止まる（continue-on-error なし）",
+   "where": "verify.py:669〜735・desktop.yml:285〜293"
+  },
+  {
+   "id": "F8",
+   "what": "結果の記録を Python 無しの形に: 各項目の info に『何と比べたか（性質・焼いた答え・直の答え）』を書き、違えば最初の違う鍵の道（今の diffAt・firstDiff・diffP の 3 つを 1 つの関数に）。desktop.yml の PASS/FAIL 行の数と、項目の数が 3.117.3 の ok＋okw 以上かを記録に出す",
+   "why": "built_plan の 3.118.1 の確かめ『Windows と Linux の自己診断で飛ばした項目 0・項目の数が 3.117.3 の ok＋okw と同じか多い』を記録で見られるように。info は 300 字で切れる",
+   "where": "selftest.js:26〜28・226〜232・462〜471・532〜541・desktop.yml:271〜275"
+  },
+  {
+   "id": "F9",
+   "what": "名乗りの段に頼る項目（書く道の 403／400・404・タブの権限の偽の見出し）は、CI の一般ユーザー・部分的編集可で何が流れ何が流れないかを info に出す（今の :714 の『見分けられない』と同じ書き方を書く道にも）",
+   "why": "CI と手元の通しはどちらも一般ユーザーで、管理のマスタの書く道は門番の 403 の枝しか流れていない。『Python と同じ言葉で断る』の枝は一度も本物の窓で流れていない",
+   "where": "selftest.js:248・262・299・331・361・714"
+  },
+  {
+   "id": "F10",
+   "what": "待っているパネルの段（:677）から engine=python の段 python を外し、窓の 2 本の段（plan → done・prevMs）だけを見る。progress.rs の python の段は ⑤ で消す物の一覧へ",
+   "why": "absent では ?engine=python のパネルは 503 で、段 python が残らない（読んで推した）",
+   "where": "selftest.js:668〜679・desktop/src/progress.rs:174〜199"
+  },
+  {
+   "id": "F11",
+   "what": "窓の版と中身の版（:166）は shell_version＝program_version で残し、verify.py:173 の除外の名前を新しい名前に",
+   "why": "試験の版は program の版だけを書き換えるので、verify では数えない決め（今の名前で除いている）",
+   "where": "verify.py:171〜173・selftest.js:166"
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-21。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分でコードと過去の通しの記録を読み、grep・wc・小さい python3 で数えた数で採点した。作業フォルダ stage4（689aa4e。版 3.118.0）は読むだけ（ファイルを変えていない・git の書く操作をしていない・cargo・check-all・verify・node は流していない）。物差しの読み替えは 2026-11-stage4.json と同じ: 順序＝作る順と確かめの流れ・チャンク＝版と書き換えの切り方（止まっても入る大きさか）・階層化＝狙いが 1 つか・視覚化＝何を守り何を守らないかが記録に数で見えるか・ステップ数＝作る手間と往復（Windows の CI の回数も）・考えさせない＝落とし穴の少なさ・直感的＝今までの型（okw・verify・事例の表・焼いた表）に沿うか・形と色／言葉と置き場＝名前と答えの元が 1 か所か・整列＝範囲の釣り合い（守りを減らしすぎない・広げすぎない）・色と文字の調子＝項目の名前と記録の言葉が守る物を正直に言うか。first_fix_candidates F1〜F11 はどの案にも入る共通の土台として扱い、案ごとの差には数えていない。",
+ "evaluation": {
+  "verified_claims": [
+   "ok 40・okw 25: 正しい。grep で ok( の呼び出し 40 行（:82 85 90 92 97 100 104 117 119 129 135 140 164 166 192 195 198 215 242 248 262 272 291 299 324 331 356 361 383 415 443 496 508 593 622 641 666 677 714 757）・okw( 25 行。?engine=python の字 49。pyWait は 13（定義 1＋呼び出し 12）。3.118.0 の通しの記録で『飛ばした 39』（:198 は llCount>0 のとき流れない）。計画書 RUST_PORT_PLAN.md:2701 の『ok 35』は古い数で、40 が正しい",
+   "分類 A 8・B 8・C 15・D 9: 読んだ範囲（:82〜:198・:200〜:300・:425〜:445・:540〜:595・:596〜:680・:680〜:760。:300〜:420・:470〜:512 は Python を使う所の grep だけ）で食い違いは無い。:443 は A だが ?engine=python の道を 1 本含む（lot.rs:1651〜1652 で LotDsp の 9 本は engine=python も窓が答える）",
+   "F1 window_only_ok の skipped>0: 正しい（verify.py:105）。呼ぶ所は :471（4b）・:573（local）・:587（local-nan）・:719（prev 2 の new）の 4 か所（evidence は local を 1 つに数えて 3 か所）",
+   "F2・F3 NAN_EXPECTED: 正しい。8 名のうち okw は『データの時刻は Rust が答える』『一覧は Rust が答える』の 2 つだけで、ほかの 6 は ok の名前（今は飛ばすので 1b で照らされていない）。1b は落ちた項目の info に『503』か『設定を組めません』を求める（verify.py:417〜418）ので、書き直した項目の info にも状態の数を入れる要がある",
+   "道に当たらない形は 503 window_unanswered: 正しい（router.rs:139〜144 の absent の枝・:163〜186）。ただし static の下の取り損ね（/static/js/無い.js）は static_file の 404（router.rs:222〜239）、戻したキーに / がある道は 404。画面の JS が kind で読み直すのは copying だけで、window_unanswered を読み直す所は無い（app.js・lotlist.js・dashboard*.js を grep）。製品の答えとして 503 のままで画面は困らない",
+   "作業実績 0 台で失敗の答えどうし: 正しい（selftest3101/selftest.json の info『設備なし（失敗の答えを比べた）』・名乗り『root@vm 一般ユーザー・部分的編集可』・書く道は shell 403 を自分で読んだ）。配った設定の見本 program/config/appsettings.example.json の work_log.folder は \\\\Nlmsrvngy03\\Read\\【New】実績",
+   "F6 90 日以内: 正しい。selftest.js の within_days 90・0（一覧）、yesterday・days 14（パネル）。lotlist_fixture.py:19 の TODAY は 2026-10-02、品質の行は TODAY−0〜900 日（:176）。2027-01-01 から 90 日以内は 0 件になる",
+   "F7 verify prev: 正しい。prev 1（verify.py:710〜712）は前の版の ZIP の exe（自分の selftest.js と前の program）を、今の lotlist_fixture.py（300 行）と selftest_config.py の場面で開き r.ok を求める。prev 3（:728〜730）も同じ",
+   "時間: 正しい。b3118 の記録で 1 窓 4〜15 秒（js-broken 71〜72 秒）、b31172 で 133〜141 秒（nan-config 263・js-broken 201）。verify update の窓は 10（share・nan-config・app・closed-new・revert・no-python・badconf・js-broken・distribute-down・entry）、local は 2",
+   "CI の段は名前を見ない: 正しい（ci.yml:90〜117・desktop.yml:237〜276 は ok・python==absent・python_attempts=0 だけ）。名前を見るのは verify.py の :173・:410・:415・:479・:501・:575 と WINDOW_ONLY・NAN_EXPECTED"
+  ],
+  "discrepancies": [
+   "1 案 A・D・F・H の count.after『約 62』: B を窓の残り 5 前後に畳むと、CI の場面で流れる項目は 7＋5＋15＋9＋okw 22（＋:694）＝ 58〜59 で、3.117.3 の 61〜62 を下回る。40 の ok を 1 対 1 で別々の okw にし（B も畳まない）、新しい項目（窓が答えない道 0 など）を足して初めて『同じか多い』になる",
+   "2 F10『absent では段 python が残らない』は違う: lot.rs:1776〜1783 は progress.begin で印を覚えてから engine=python なら g.python() を呼んで None を返すので、窓が 503 window_unanswered で答えた後も段は python のまま残る（progress.rs:174〜199 の Drop は python なら済みにしない）。:677 は今でも通る条件のはず。書き直しで engine=python の歩を外すのは良いが、理由は『比べる口を叩かない（unanswered を増やさない）』。窓が答えないパネル（r.is_none()）でも段が python のまま残るのは製品の形として ⑤ で直す物（言葉が『Python』）",
+   "3 :164 の書き直し『protocol・app_id・local_root だけ』: /__desktop/info の protocol と serves は sidecar::PROTOCOL・sidecar::SERVES（main.rs:679〜680）で、⑤ で sidecar.rs を消すと無くなる。3.118.1 の項目は protocol に頼らず app_id・local_root・program_version・shell_version で見る（⑤ で書き直さなくて済む）",
+   "4 自己診断が ⑤ で消す物に頼る所が evidence に無い: 場面の台本 program/tests/lotlist_fixture.py・selftest_config.py（app を import しない。⑤ の一覧の『app を import する試験』には入らないが、名指しで残すと書いていない）・program/config/appsettings.example.json（selftest_config.py が読む）・verify.place が書き換える program/app/version.py・templates/index.html・static/js/app.js（⑤ で desktop/ui へ移す）。⑤ の一覧に『自己診断の場面の台本と見本は残す・道を移す』を足す要",
+   "5 1 つの try（selftest.js:40〜:757）: 約 40 項目を流すようにすると、書き直した 1 項目の例外（JSON.parse の失敗など）で後ろの全部が『例外』の 1 項目になり、verify の全部の窓で原因が見えにくい。案のどれも節ごとの守りを書いていない",
+   "6 名前の取り出し: テンプレートの字の名前 4（:192・:622・:641・:666）と、場面で替わる名前 1（:356）があり、F2 の静的な見張りは今の字のままでは名前を取り出せない。書き直すときに名前を固定の字にする要"
+  ],
+  "rank": [
+   {
+    "proposal": "A 1 対 1 で窓の答えの性質に書き直す",
+    "total": 61.8,
+    "why": "今の okw の型のまま 40 を書き直し、本物の WebView2 で窓の道を毎回通す形を最も少ない新しい仕組みで戻す。値は cargo の *_parity・焼いた表が持つ、という分担に沿う"
+   },
+   {
+    "proposal": "F 項目を表で持ち、selftest.js は回すだけ。同じ表を cargo でも Lot に当てる",
+    "total": 61.0,
+    "why": "名前の二重持ちを消す得は大きいが、A＋F2（静的な見張り）でほぼ取れ、表の言葉と cargo の場面が増える"
+   },
+   {
+    "proposal": "D 同じ時点の窓の直の答えと比べる",
+    "total": 54.2,
+    "why": "書き直しは最も少ないが、⑤ で消す比べる口と同じ型の口を足し、比べる相手が同じ Lot"
+   },
+   {
+    "proposal": "H 分担を変える: 重い確かめは CI の 1 回だけ、verify の窓は軽い組＋『窓が答えない道 0』",
+    "total": 54.1,
+    "why": "『窓が答えない道 0』は最も効く 1 点だが、時間が足りている今、組を分ける所は要らない"
+   },
+   {
+    "proposal": "C 答えを焼いた表から持ち込む（自己診断の本）",
+    "total": 52.5,
+    "why": "値まで比べるが、場面を CI と cargo で 1 字までそろえる重さと Windows の取り込みの往復"
+   },
+   {
+    "proposal": "E 台本の場面と独立の答え",
+    "total": 52.2,
+    "why": "独立で強いが、場面の段が 3 か所に増え、verify prev の前の版の自己診断が今の場面で通るか分からない"
+   },
+   {
+    "proposal": "B 重なる項目を外し、本物の窓でしか見られない物に絞る",
+    "total": 47.5,
+    "why": "短いが、本物の場所で値を見る確かめが消え、built_plan の項目の数の確かめに合わない"
+   },
+   {
+    "proposal": "G 画面の DOM を通して見る",
+    "total": 43.2,
+    "why": "得の多くが 3.118.2 の窓の開発用サーバーの ui-eval と重なり、揺れと時間が増える"
+   }
+  ],
+  "note": "1 位は A（61.8 点）で合格点 80 に届かない。決まり 2026-11-06 のとおり案出しはやり直さず、A に first_fixes を入れた形で作る。ほかの案から持ち込む物: H の『窓が答えない道 0』（組は分けない）・F の名前の 1 か所（表ではなく、名前の一覧のファイルと静的な見張り）・E の届く場面（selftest_config.py は変えず、verify local の 3 窓目だけを作業実績の届く場面と書ける名乗りにする）・B の『守らない物を書く』（項目の info と計画書の表）。足りない 18.2 点の主な所: 値の正しさは本物の窓では見ない（視覚化・色と文字の調子）・CI と verify の場面が一般ユーザーで作業実績 0 台のまま（考えさせない）・40 項目が 1 つの try（チャンク）。採点者の確かめは読みと数えだけで、cargo・verify・node は流していない",
+  "first_fixes": [
+   "1 名前は 1 対 1・固定の字（項目の数を守る）: selftest.js の ok 40 か所を、それぞれ 1 つの okw にする（畳まない。:198 と :192／:195 の排他はそのまま）。名前の中のテンプレートの字（:192 の ${qs.length}・:622 の ${asks.length}・:641 の ${pv.length}・:666 の ${panels.length}）は固定の字（今の数 8・8・6・11）に、:356 の sch ? … : … は 1 つの名前に（スケジュールの元の有無は info へ）。名前から『Python と同じ』を外す（例: 『一覧: 窓の答えの形と道どうしの数が合う（8 通り…）』）。見る物: 下の 2 の見張り。数: CI の場面で流れる項目 ≥ 62（3.117.3 の 39＋22＋:694）＋ 新しい項目（8 の窓が答えない道 0）",
+   "2 名前の一覧を 1 か所に: desktop/bundle/selftest_names.json（名前・必ず出るか maybe・1b で落ちてよい理由 nan・verify が数えない except）を新しく置き、verify.py の WINDOW_ONLY・WINDOW_MAYBE・NAN_EXPECTED・:173 の除外をこのファイルから読む。desktop/bundle/test_bundle.py に静的な見張り: selftest.js から okw(\"…\" の字を正規表現で取り出し、selftest_names.json と過不足なく同じ・テンプレートの字の名前が 0・verify.py の :410・:479・:501・:575 が探す名前（頭）が一覧にある。変異: selftest.js の名前を 1 字変える → test_bundle.py が落ちる／NAN_EXPECTED に無い名前を足す → 落ちる",
+   "3 verify.py: window_only_ok（:97〜106）は python==absent・skipped==0（キーが無い）・一覧の必ず出る名前が全部・余分なし・落ちなしを求める。包み『中身（Python）を通す項目』を一覧から外す（:471・:573・:587・:719 の 4 か所の文言も）。selftest.js の pyUp・pyWait・skipped・ok の定義（:16〜27）・包み（:777）・130 秒の待ちの輪（:17〜21）を外す。結果の python（absent）と skipped: 0 は残す（ci.yml:115・desktop.yml:275 が python を見る）",
+   "4 節ごとの守り: selftest.js の本体（:40〜:757 の 1 つの try）を、節ごとに `await part(\"節の名前\", async () => {…})` で包み、例外はその節の名前つきの失敗 1 つ（『例外: 節の名前』。名前は一覧の maybe）にして次の節へ進む。変異: 1 つの節の中で throw → その節だけが落ち、後ろの節の項目は全部出る（verify local で手で 1 回）",
+   "5 比べる相手の書き直し（C の 15）: どの項目も (a) by==shell・状態の数・kind と (b) 道どうしの食い違い（一覧 /api/lotlist の count ＝ 集計表 rows=@なし count の総計 ＝ kpi/lot の数・カラムの札の列 ⊇ 一覧の columns・設備グループの選べる設備 ⊇ 一覧の設備の値・/api/update/settings の me ＝ /__desktop/release の me・/api/sources の items の key ＝ 見出しのタブの data-screen の src:）と (c) 場面の決まった値（selftest_config.py が書いた lot_list.source・master_share.dir が /api/settings の値と同じ・page_size=50 は 50 行・並べ替えの順・倍 ＝ 重量×2+1・calc は selftest.js に書いた決めた答え 1 件〈今の Python の答えを今のうちに 1 度だけ控える〉）で見る。日付に頼る問い合わせ（within_days 90・0・yesterday・days 14）は件数を求めず形だけを見るか、between 2026-07-04〜2026-10-02（lotlist_fixture の TODAY からの範囲）にする（F6）。info に何と比べたかを書き（F8）、違えば最初の違う鍵（diffAt・firstDiff・diffP を 1 つの関数に）",
+   "6 D の 9 の運び手を窓の道に: :90・:92 は /api/build・/api/changelog（shell）と info.program_version・entries>10。:117 は窓の /api/ui-state に 460KB を書いて読み戻す。:135 は /api/lotlist?search=日本語 が JSON で columns と count。:140 は 40 本を /api/build・/api/lotlist?page=n・/static/js/shared.js?v=… に混ぜ、1 本ずつ引いた答えと同じ。:714 は窓が答える /api/masters/tabaccess と /api/access/me に偽の X-TPA-Me（native は見出しを読まない形の確かめ。router が捨てる枝は ⑤ まで cargo の router の試験）。:677 は ?engine=python の歩を外し、a・b の 2 本（plan → done・prevMs）だけ（F10。理由は discrepancies 2）。:85・:100 は 503 window_unanswered・kind・route の字と、テンプレートの字が返らないこと（F5。製品の答えは替えない）",
+   "7 B の 8 は畳まずに窓の残りで 1 つずつ: :97 は /api/build と /api/changelog の版が info.program_version と同じ（試験の版では changelog の先頭が違う形を今の chv で見る）・:104 は窓の別の道の 400（/api/calculate に形の違う本文）・:119 は ui-state を書いた後に心拍の後でも読める（同じファイルを窓が 2 回読む）・:164 は app_id・local_root・shell_version・program_version（protocol・serves は ⑤ で消える sidecar の定数なので見ない。discrepancies 3）・:166 は shell_version＝program_version（verify は数えない。一覧の except）・:195 は /api/lotlist/source の mirrored と at・:508 は /api/health の status ok・by shell・python absent・:757 は窓の道 30 回の平均（上限 300ms の参考）",
+   "8 窓が答えない道 0（H から）: main.rs の /__desktop/info（:221〜226）に unanswered（da_core::delegate::unanswered() の形と回数）を足す（読むだけの窓の口。一般ユーザーでも読める）。selftest.js の最初（画面の JS が起動で呼んだ後）と最後に読み、最後の鍵が {unanswered GET /api/no-such-route・:85 の畳んだ道の形} の 2 つだけ（自己診断がわざと叩く形。ほかの比べる口は 3・6 で叩かなくなる）なら通す新しい項目『窓が答えない道が無い（画面の起動と自己診断の全部の道）』。info に余分の形の名前。Windows の WebView2 が /favicon.ico を尋ねるなら、ここで余分に出る（Linux の WebKitGTK は尋ねない見込み・未確かめ）→ ask_user 2。変異: router.rs の absent の枝の前で 1 つの読む道（例: GET /api/build）を native から外した debug の exe → この項目で落ちる。lot::tests に /__desktop/info の unanswered の形の 1 歩",
+   "9 1b（nan-config）の合わせ直し（F3）: 書き直した後、手元の Linux で verify.py update を 1 回流し、1b で落ちた名前を selftest_names.json の nan に理由つきで入れる（今の 6＋2 から増えるはず: データ元の並び・参照先の項目・変換表など lot_list の節を使う物を実際に見て決める。推して足さない）。落ちた項目の info に状態の数（503）を入れる（verify.py:417〜418 が求める）。local-nan（page_size NaN・心拍の間隔 Infinity）でも全項目が通ることを同じ回で見る（page_size を問い合わせに書かない項目は、窓の既定 500〈lists.rs の num(…, 500.0)〉で読む形）",
+   "10 場面を広げるのは verify local の 3 窓目だけ（E と F9 から。selftest_config.py・lotlist_fixture.py は変えない＝ verify prev の前の版の自己診断は今の場面のまま: F7）: local の no-python-nan の後に 3 窓目『admin-work』を足す。conf の work_log.folder を lotlist_fixture.make_work で作った 3 台のフォルダにし、共有の masters/access_permissions.json に OS の利用者のログインID を 開発者・編集可 で 1 行置く（tab_access.json は置かない: 1 窓目の『計算を出さない』とぶつかるため）。この窓では書く道の『無い行・知らない項目を窓の言葉で断る』の枝（:248・:262・:299・:331・:361）と、作業実績の一覧・集計・パネルの値（:622・:641・:666 の作業実績の部分）が流れる。どれも書かずに確かめる道（id 987654321・selftest-none・名前が空の引っ越し）で、置き場は書き換えない（流した後に masters の中身が前と同じかを verify が sha256 で見る）。CI の自己診断の段（一般ユーザー・0 台）はそのまま",
+   "11 守らない物を書く（B・D から）: 計画書 RUST_PORT_PLAN.md の 3.118.1 の節に、書き直した 40 項目ごとに『本物の窓で見る物／値を持つ cargo の試験（*_parity・焼いた本の名前）』の表を 1 つ。項目の info の頭に比べた物（形・道どうし・場面の値・決めた答え）を書く（F8）。名乗りに頼る項目は、流れた枝（門番の 403／窓の言葉の 400・404）を info に出す（F9）",
+   "12 ⑤ で消す物に自己診断が頼らない・⑤ の一覧を直す: 計画書の ⑤ の一覧（RUST_PORT_PLAN.md:2648〜2659）に『残す: program/tests/lotlist_fixture.py・selftest_config.py（自己診断と verify の場面。app を import しない）・program/config/appsettings.example.json（場面の見本）』『移す: verify.place が書き換える app/version.py・templates/index.html・static/js/app.js の道（desktop/ui へ移すなら verify.py も）』『直す: /__desktop/info の protocol・serves（sidecar の定数）・progress の段 python の言葉・ci.yml と desktop.yml の python==absent の見方』を足す",
+   "13 Windows の CI で見る物: desktop.yml の自己診断の段（:237〜276）の最後に、結果の項目の数・skipped・unanswered を 1 行で出し（`SELFTEST n=… skipped=0 unanswered={…}`）、n が selftest_names.json の必ず出る名前の数より少なければ exit 6。ci.yml（:104〜116）の Python の小さい台本にも同じ確かめ。verify の update・prev（desktop.yml:279・293）は一覧で見る",
+   "14 作る順（止まってもそこまで入る）: ① 2・3・4（名前の一覧・verify・節の守り。項目はまだ ok のまま飛ばす形でも通る）→ ② A の 8・B の 8・D の 9 を okw に（小さい）→ ③ 8（窓が答えない道 0）→ ④ C の 15 を 5 の形に（節ごと）→ ⑤ 9（1b の名前を実物で合わせる）→ ⑥ 10（local の 3 窓目）→ ⑦ 11・12・13（文書と CI）。各段で verify.py local を手元の Linux で流す（1 回 約 15 秒＋組み立て）"
+  ],
+  "ask_user": [
+   {
+    "q": "道に当たらない形（/api/no-such-route・%2e%2e を畳んだ /templates/index.html）は、今の製品の答えの 503 window_unanswered のままでよいか（自己診断はそれを求める形に書き直す）。404 にするのは振り分けを変える製品の直しになる",
+    "default": "503 のまま（3.118.1 は製品の答えを替えない: built_plan の ship）。404 に直すかは ⑤ の片付けで、利用状況の unanswered の数を見てから決める"
+   },
+   {
+    "q": "Windows の WebView2 が /favicon.ico などを自分で尋ねて『窓が答えない道』に数えられていたとき、窓に小さな答え（404・数えない）を足してよいか（製品の答えが 1 つ替わる）",
+    "default": "足してよい（現場の利用状況の unanswered を、⑤ に進む前の材料として汚さないため）。3.118.1 の Windows の CI の 1 回目で出たときだけ足し、出なければ何もしない"
+   }
+  ],
+  "unverified": [
+   "cargo build・test、check-all、verify、node の画面の道具は流していない（依頼のとおり）。書き直した項目が verify の 12 窓（update 10・local 2）と 1b で実際に通るかは、作る係が手元の Linux で流して確かめる要がある",
+   "Windows の 3.118.0 の自己診断と更新の通しの時間（PR 121 の CI 待ち）",
+   "WebView2 が独自の道（app の scheme）で /favicon.ico を尋ねるか（ask_user 2 の前提）。Linux の WebKitGTK は尋ねない見込み",
+   "selftest.js の :300〜:420・:470〜:512 は Python を使う所を grep しただけで、1 行ずつは読んでいない（分類は evidence と食い違わなかった）",
+   "admin-work の 3 窓目（first_fixes 10）で、書く道の確かめが本当に置き場を書かないか（id 987654321・selftest-none・名前が空の引っ越しは読んだ範囲では書かない）。verify が masters の sha256 で前後を比べて確かめる形にした",
+   "3.117.3 の Windows の自己診断の PASS 行の実数（記録を見つけられなかった。39＋22〜23 は selftest.js の読みから）"
+  ]
+ },
+ "built_plan": {
+  "about": "作る形（1 位 A に first_fixes 1〜14 を入れ、H の窓が答えない道 0・F の名前の 1 か所・E の届く場面〈verify local だけ〉・B の守らない物の表を持ち込んだ）。版は 3.118.1 の 1 つ。first_fixes 14 の順で作れば、途中で止まってもそこまでが main に入る",
+  "versions": [
+   {
+    "version": "3.118.1",
+    "aim": "自己診断の Python と比べる項目を窓だけの確かめに（本物の WebView2 で窓の道を毎回通す形を戻す）",
+    "adds": [
+     "desktop/bundle/selftest_names.json（名前の 1 か所）",
+     "desktop/bundle/test_bundle.py の静的な見張り",
+     "/__desktop/info の unanswered（main.rs）",
+     "selftest.js の節の守り part()",
+     "verify.py local の 3 窓目 admin-work"
+    ],
+    "removes_from_selftest": [
+     "pyUp・pyWait・skipped・ok の定義",
+     "130 秒の中身待ち",
+     "包み『中身（Python）を通す項目』",
+     "?engine=python の 49 か所（自己診断の中だけ。窓の口そのものは ⑤）"
+    ],
+    "count": {
+     "before": "ok 40（流れる 39。3.118.0 ではすべて飛ばす）・okw 25（いつも出る 22）・包み 1",
+     "after": "okw 66（40 を 1 対 1 ＋ 今の 25 ＋ 窓が答えない道 0 の 1。いつも出るのは 62＋maybe）・包み 0・skipped 0。CI の場面で流れる数 ≥ 62（3.117.3 の 39＋22＋:694 の 1）＋1"
+    },
+    "checks": [
+     "python -m unittest discover -s desktop/bundle -t desktop/bundle（静的な見張り: 名前の過不足・テンプレートの字 0・verify が探す名前）",
+     "bash program/tools/js-check.sh（selftest.js の構文）",
+     "lot::tests: /__desktop/info に unanswered（窓が答えない道を 1 つ叩いた後に形と回数）",
+     "verify.py local（3 窓: no-python・no-python-nan・admin-work。skipped 0・一覧の全部・余分なし・落ちなし・admin-work の後の masters の sha256 が前と同じ）",
+     "verify.py update（10 窓で全項目・1b は selftest_names.json の nan の名前だけが 503 で落ちる）",
+     "変異（手で 1 回ずつ、記録を PR に）: selftest.js の名前を 1 字変える → test_bundle.py が落ちる／1 つの節で throw → その節だけ落ちる／router.rs で読む道 1 つを native から外した debug の exe → 『窓が答えない道が無い』で落ちる／一覧の計算列の式（formula.rs の + を -）を壊した debug の exe → 一覧の『倍 ＝ 重量×2+1』で落ちる",
+     "CLAUDE.md の push 前の確かめの 8 つ（check-all.sh --verify）"
+    ],
+    "windows_ci": [
+     "windows-exe の自己診断（desktop.yml:237〜276）: 項目の数 n・skipped 0・unanswered を 1 行で出し、n が一覧の必ず出る数より少なければ落とす。favicon などの余分の形が出たら ask_user 2",
+     "windows-exe の verify.py update と prev: prev 1・3 の前の版の exe は今の場面（selftest_config.py は変えない）で通る・prev 2 の new は skipped 0 の window_only_ok",
+     "時間: 1 窓あたり 3.118.0 の 4〜15 秒から +数秒の見込み。PR の 1 回目の CI で段の秒を記録で見る"
+    ],
+    "ship": "製品の答えは替わらない（自己診断・verify・CI だけ。/__desktop/info に読むだけの鍵 unanswered が増える）。ask_user 2 で favicon の答えを足すときだけ製品の答えが 1 つ替わる。配らなくてよい（次の版と一緒に）",
+    "next": "3.118.2 で native を lib へ出すとき（ui-harness の窓の開発用サーバー）、/__desktop/info の unanswered と selftest_names.json の置き場も一緒に運ぶ。⑤ の一覧の直し（first_fixes 12）は 3.118.1 の計画書の直しで入れる"
+   }
+  ]
+ }
+}

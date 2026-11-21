@@ -15,7 +15,7 @@
   const okw = (name, cond, info = "") => res.push({ name, ok: !!cond, info: String(info).slice(0, 300), window: true });
   // 節の守り（版 3.118.1）: 節の中の例外は、その節の名前つきの失敗 1 つにして次の節へ進む
   const part = async (name, fn) => {
-    try { await fn(); } catch (e) { okw("例外: " + name, false, e && (e.stack || e.message || e)); }
+    try { await fn(); } catch (e) { okw("例外: " + name, false, `${(e && e.message) || e}・${(e && e.stack) || ""}`); }
   };
   const get = async (url, opt) => { const r = await fetch(url, opt); return { r, by: r.headers.get("X-TPA-By"), text: await r.text() }; };
   const json = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
