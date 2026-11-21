@@ -2998,8 +2998,8 @@ Python 無しで流れる）を満たした。
 ### 段 ④ の入口まで（小さい版 4 つ）の 4 つ目: Windows の切り替えと凍らせる写し — 版 3.117.3
 
 採点は `tools/ui-proposals/2026-11-stage3f.json`（first_fixes 4・16。作った形は built_plan の built_3117_3）。入口の条件 2（Windows の CI が Python 無しの形で
-焼いた表と比べる）は 20 本（札 table）まで。残る 15 本（札 measure）は取り込む口を作ったが、**札 measure が 0 になるまで条件 2 は満たしていない**
-（`bless.py --check` が札 measure の本の数と名前を知らせる）。条件 3（凍らせる写し）を満たした。
+焼いた表と比べる）は、PR 120 の 3 回の CI で 20 → 29 → **35 本（札 table。measure は 0）**にした（下の「CI は計 3 回」。札 measure の本が残れば
+`bless.py --check` が数と名前を知らせる）。条件 3（凍らせる写し）を満たした。
 
 #### 材料: 3.117.2 の Windows の測り（PR #119。35 本・41 表）を元ごとに分けた
 
@@ -3122,6 +3122,9 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
 - **Linux の上の Windows の形**（nt-shape）は、nt の答えと流さない歩を当てない（窓の答えは Linux の答え）。場面は Linux の形で作り、作れない物は Windows の決めで数えて nt の
   unmade と比べる。守れるのは nt の表の読み方・札・作れない物の数え方で、Windows の答えそのものは Windows の CI が守る。札 table の 29 本が通った。
 - **CI は計 3 回**: 1 回目（済）→ 2 回目で measure の 6 本の記録を取り直す（札 table の 29 本は比べて落とす）→ 取り込んで 3 回目で 35 本が比べる形（入口の条件 2）。
+  2 回目（頭 b32297f）は windows-test・windows-exe とも緑（札 table の 29 本が本物の Windows で通り、1 回目の落ち 4 種が消えた）。その記録（measure-z の行 11＝8 表）を
+  `bless.py --take-nt` で取り込み（取り込めない 0。上書き: builder 11 歩・fs 7 歩〈流さない歩 1・作れない物 1〉・schedule 10 歩・settings.bundle 1・settings.pages 1・settings_write 3・
+  equipgroups と fs.tables は 0）、6 本の札を table にした。**札は table 35・measure 0**。3 回目の CI で 35 本を比べて落とす。
 
 #### ⑥ 持ち越し（3.117.2 の carry_to_3117_3）の行き先
 

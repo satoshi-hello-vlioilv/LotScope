@@ -52,7 +52,7 @@
   },
   "builder": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "builder_parity"
    ],
@@ -69,7 +69,7 @@
   },
   "settings_write": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "settings_write_parity"
    ],
@@ -200,7 +200,7 @@
   },
   "fs": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "fs_parity"
    ],
@@ -259,7 +259,7 @@
   },
   "equipgroups": {
    "phase": "3.117.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "equipgroups_write_parity"
    ],
@@ -310,7 +310,7 @@
   },
   "schedule": {
    "phase": "3.117.1",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "schedule_parity"
    ],
@@ -394,7 +394,7 @@
   },
   "settings": {
    "phase": "3.116.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "bundle_parity",
     "page_parity",
