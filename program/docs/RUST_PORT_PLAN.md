@@ -2691,6 +2691,11 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
   `desktop-windows-measure` を取る → ② `python program/tools/bless.py --take-nt 記録か測りのフォルダ`（今の表〈tableSha〉で取った・終わりまで流れた記録だけを
   取り込み、本の表のどれもが取り込めた本の `books.json` の windows の札を table にする）→ ③ `python program/tools/bless.py --check` の「札が measure の本」が 0 →
   ④ 2 回目の CI で比べる（札が table の本は落とす）。fs は PR #120 の 4 回目の CI の記録で取り込む（主が渡す）
+  **取り込んだ結果**: fs は PR #120 の 4 回目の記録で（上書き 5 歩・流さない歩 3・作れない場面の物 1）。schedule は PR #121 の 1 回目の CI（頭 689aa4e。windows-test・
+  windows-exe とも緑）の記録で（歩 427・表と違う歩 0・答えない歩 0。上書き 10 歩は前の nt の表と同じ中身）。**札は table 35・measure 0**（段 ④ の入口の条件 2。
+  2 回目の CI で 35 本を比べて落とす）。同じ 1 回目の CI で、前の版 v3.117.3 の本物の窓から 3.118.0 を取り込む・入れ替えて開く・前の版へ戻す通し（`verify.py prev` の
+  1〜3）と、「PATH に Python がある PC でも窓は中身を起こさない（python_attempts=0）」が Windows の本物で通った。自己診断の記録に、WebView2 が尋ねる
+  `GET /favicon.ico` が窓の答えない道として 1 回数えられていた（3.118.1 で扱う）
 - **作った後の採点の割れの直し**（`tools/ui-proposals/2026-11-stage4-built.json` の built_fixed。決まり 2026-11-06 で採点は 1 回）:
   権限の表が共有・写しとも読めない PC で、読む道は 3.117.3 の Python と同じく続ける（出さないタブ無し・書けない。`lot.rs` の `viewer_me`・`me_read`）、
   Python も断った読む道（/api/access/me・/api/masters/access・/api/ui-defaults・/api/masters/tabaccess・/api/presence）と書く道は理由つきの 503
