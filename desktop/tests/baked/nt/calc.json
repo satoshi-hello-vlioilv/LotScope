@@ -1,0 +1,6056 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 calc の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "calc",
+ "file": "calc",
+ "answers": {
+  "同一工程の名前・旧い列名・全部の設定 / 乱数 29": {
+   "json": {
+    "actual_transfer_distance_m": 1390.46,
+    "density": 2.73,
+    "density_source": "lot",
+    "found_thickness_mm": 0.537,
+    "inputs": {
+     "found_equipment": "10:X",
+     "found_pitch_mm": 610,
+     "soil_a_m": 1591.48,
+     "soil_b_m": 201.02,
+     "tolerance_percent": 2
+    },
+    "likely_origin_no": 1,
+    "lot": {
+     "density": 2.73,
+     "lot_no": "L6183D0",
+     "processes": [
+      {
+       "design_split": 1,
+       "equipment": "HOT",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 595.4,
+       "no": 1,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 36.338,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 6.845,
+       "thickness": 7.305,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 2,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 31.143,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 12.9,
+       "thickness": 3.916,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 3,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 1.6,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 28.31,
+       "thickness": 2.24,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 425.38,
+       "no": 4,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 18.35,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 37.04,
+       "thickness": 1.314,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 5,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 26.6,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 11.4,
+       "thickness": 0.855,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6149.7,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 6,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 2.857,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 32.1,
+       "thickness": 0.546,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6031.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "CAL",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 7,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 15.5,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 9.6,
+       "thickness": 0.526,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5854.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "TLV",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 8,
+       "off_back_m": 121,
+       "off_back_thickness_mm": 37.4,
+       "off_front_m": 85,
+       "off_front_thickness_mm": 10.995,
+       "thickness": 0.503,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5511.5,
+       "width": 1179.8
+      },
+      {
+       "design_split": 69,
+       "equipment": "LS4",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 9,
+       "off_back_m": 68,
+       "off_back_thickness_mm": 29.63,
+       "off_front_m": 60,
+       "off_front_thickness_mm": 11.01,
+       "thickness": 0.482,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5121.3,
+       "width": 49.87
+      },
+      {
+       "design_split": 69,
+       "equipment": "KEN",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 509.98,
+       "no": 10,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 35.3,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 11.5,
+       "thickness": 0.537,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 4935,
+       "width": 49.9
+      }
+     ]
+    },
+    "origins": {
+     "1": {
+      "actual_m": 1390.46,
+      "agreement_percent": 3.3351758931592506,
+      "circumference_m": 3.409033808459943,
+      "equipment": "HOT",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 595.4,
+      "inner_length_m": 88.48541290905803,
+      "inner_thickness_mm": 244.86458178378945,
+      "match": false,
+      "no": 1,
+      "predicted_m": 46.37428672402212,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 259.66124528752863,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "HOT",
+        "inner_diameter_mm": 595.4,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 88.48541290905803,
+          "inner_length_m": 88.48541290905803,
+          "wall_mm": 244.86458178378945
+         },
+         {
+          "from_head_m": 91.89444671751798,
+          "inner_length_m": 91.89444671751798,
+          "wall_mm": 252.12105629566378
+         }
+        ],
+        "no": 1,
+        "off_back_m": 9.872512087881805,
+        "off_back_source": "input",
+        "off_front_m": 1.7728676195949153,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.409033808459943,
+        "thickness": 7.305,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 484.37829336705744,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 300.89906913246966,
+          "inner_length_m": 300.89906913246966,
+          "wall_mm": 393.9874778358044
+         },
+         {
+          "from_head_m": 294.53977598364435,
+          "inner_length_m": 294.53977598364435,
+          "wall_mm": 388.07216759803134
+         }
+        ],
+        "no": 2,
+        "off_back_m": 14.71934068156066,
+        "off_back_source": "input",
+        "off_front_m": 5.9082238693957825,
+        "ratio_to_origin": 1.8654239019407557,
+        "spacing_m": 6.3592931488253015,
+        "thickness": 3.916,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 846.7970521541948,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 331.08984231035674,
+          "inner_length_m": 331.08984231035674,
+          "wall_mm": 281.2791633196957
+         },
+         {
+          "from_head_m": 342.20724944017815,
+          "inner_length_m": 342.20724944017815,
+          "wall_mm": 288.30909510608
+         }
+        ],
+        "no": 3,
+        "off_back_m": 1.2557394635349128,
+        "off_back_source": "input",
+        "off_front_m": 23.27925219323198,
+        "ratio_to_origin": 3.261160714285714,
+        "spacing_m": 11.117407129821375,
+        "thickness": 2.24,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1443.550530308521,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 425.38,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 876.9948962343069,
+          "inner_length_m": 876.9948962343069,
+          "wall_mm": 429.219815646869
+         },
+         {
+          "from_head_m": 858.0428475502887,
+          "inner_length_m": 858.0428475502887,
+          "wall_mm": 423.0153900069875
+         }
+        ],
+        "no": 4,
+        "off_back_m": 19.467463443725475,
+        "off_back_source": "input",
+        "off_front_m": 40.95077213188403,
+        "ratio_to_origin": 5.559360730593607,
+        "spacing_m": 18.952048684018173,
+        "thickness": 1.314,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2195.5529850266694,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 910.6851732482089,
+          "inner_length_m": 910.6851732482089,
+          "wall_mm": 304.89487404899955
+         },
+         {
+          "from_head_m": 939.8114796468053,
+          "inner_length_m": 939.8114796468053,
+          "wall_mm": 311.94200124934036
+         }
+        ],
+        "no": 5,
+        "off_back_m": 52.2509690145055,
+        "off_back_source": "input",
+        "off_front_m": 21.756576323660475,
+        "ratio_to_origin": 8.543859649122806,
+        "spacing_m": 29.126306398596352,
+        "thickness": 0.855,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1884.5868289237758,
+          "inner_length_m": 1884.5868289237758,
+          "wall_mm": 372.1404874179086
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 13.379120879120876,
+        "spacing_m": 45.60987540439538,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1545.041930014019,
+          "inner_length_m": 1545.041930014019,
+          "wall_mm": 301.1111234833926
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 13.88783269961977,
+        "spacing_m": 47.344091199239315,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1881.8917585024153,
+          "inner_length_m": 1881.8917585024153,
+          "wall_mm": 336.0693267162211
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 14.52286282306163,
+        "spacing_m": 49.508930359443106,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -703.1735368553773,
+          "inner_length_m": -703.1735368553773,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 15.155601659751037,
+        "spacing_m": 51.66595844564291,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1580.1898733792013,
+          "inner_length_m": 1580.1898733792013,
+          "wall_mm": 323.91030371868726
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 13.603351955307259,
+        "spacing_m": 46.37428672402212,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 7.305
+     },
+     "2": {
+      "actual_m": 1390.46,
+      "agreement_percent": 2.2176691212315838,
+      "circumference_m": 4.228505032653774,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 300.89906913246966,
+      "inner_thickness_mm": 393.9874778358044,
+      "match": false,
+      "no": 2,
+      "predicted_m": 30.835802063076677,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 484.37829336705744,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 300.89906913246966,
+          "inner_length_m": 300.89906913246966,
+          "wall_mm": 393.9874778358044
+         },
+         {
+          "from_head_m": 305.12757416512346,
+          "inner_length_m": 305.12757416512346,
+          "wall_mm": 397.89215038306304
+         }
+        ],
+        "no": 2,
+        "off_back_m": 14.71934068156066,
+        "off_back_source": "input",
+        "off_front_m": 5.9082238693957825,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.228505032653774,
+        "thickness": 3.916,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 846.7970521541948,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 331.08984231035674,
+          "inner_length_m": 331.08984231035674,
+          "wall_mm": 281.2791633196957
+         },
+         {
+          "from_head_m": 323.6975094050566,
+          "inner_length_m": 323.6975094050566,
+          "wall_mm": 276.5554904092013
+         }
+        ],
+        "no": 3,
+        "off_back_m": 1.2557394635349128,
+        "off_back_source": "input",
+        "off_front_m": 23.27925219323198,
+        "ratio_to_origin": 1.7482142857142853,
+        "spacing_m": 7.392332905300078,
+        "thickness": 2.24,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1443.550530308521,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 425.38,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 876.9948962343069,
+          "inner_length_m": 876.9948962343069,
+          "wall_mm": 429.219815646869
+         },
+         {
+          "from_head_m": 889.5967422829159,
+          "inner_length_m": 889.5967422829159,
+          "wall_mm": 433.3123601738677
+         }
+        ],
+        "no": 4,
+        "off_back_m": 19.467463443725475,
+        "off_back_source": "input",
+        "off_front_m": 40.95077213188403,
+        "ratio_to_origin": 2.98021308980213,
+        "spacing_m": 12.601846048608962,
+        "thickness": 1.314,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2195.5529850266694,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 910.6851732482089,
+          "inner_length_m": 910.6851732482089,
+          "wall_mm": 304.89487404899955
+         },
+         {
+          "from_head_m": 891.3181256366624,
+          "inner_length_m": 891.3181256366624,
+          "wall_mm": 300.15940153699194
+         }
+        ],
+        "no": 5,
+        "off_back_m": 52.2509690145055,
+        "off_back_source": "input",
+        "off_front_m": 21.756576323660475,
+        "ratio_to_origin": 4.580116959064327,
+        "spacing_m": 19.367047611546408,
+        "thickness": 0.855,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1960.5242239396587,
+          "inner_length_m": 1960.5242239396587,
+          "wall_mm": 382.5921900637859
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 7.172161172161171,
+        "spacing_m": 30.327519611487503,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1466.2171815754791,
+          "inner_length_m": 1466.2171815754791,
+          "wall_mm": 289.6222024533449
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 7.44486692015209,
+        "spacing_m": 31.480657239300715,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1964.320819493811,
+          "inner_length_m": 1964.320819493811,
+          "wall_mm": 346.6847804598236
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 7.785288270377732,
+        "spacing_m": 32.92013063195264,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -789.1939054833276,
+          "inner_length_m": -789.1939054833276,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 8.12448132780083,
+        "spacing_m": 34.354410182307426,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1657.3999621663002,
+          "inner_length_m": 1657.3999621663002,
+          "wall_mm": 335.19917993458625
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 7.292364990689012,
+        "spacing_m": 30.835802063076677,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 3.916
+     },
+     "3": {
+      "actual_m": 1390.46,
+      "agreement_percent": 1.0560866982931618,
+      "circumference_m": 3.520337806889184,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 331.08984231035674,
+      "inner_thickness_mm": 281.2791633196957,
+      "match": false,
+      "no": 3,
+      "predicted_m": 14.684463105087099,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 846.7970521541948,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 331.08984231035674,
+          "inner_length_m": 331.08984231035674,
+          "wall_mm": 281.2791633196957
+         },
+         {
+          "from_head_m": 334.61018011724593,
+          "inner_length_m": 334.61018011724593,
+          "wall_mm": 283.51470336506804
+         }
+        ],
+        "no": 3,
+        "off_back_m": 1.2557394635349128,
+        "off_back_source": "input",
+        "off_front_m": 23.27925219323198,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.520337806889184,
+        "thickness": 2.24,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1443.550530308521,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 425.38,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 876.9948962343069,
+          "inner_length_m": 876.9948962343069,
+          "wall_mm": 429.219815646869
+         },
+         {
+          "from_head_m": 870.9937115406755,
+          "inner_length_m": 870.9937115406755,
+          "wall_mm": 427.26168627961687
+         }
+        ],
+        "no": 4,
+        "off_back_m": 19.467463443725475,
+        "off_back_source": "input",
+        "off_front_m": 40.95077213188403,
+        "ratio_to_origin": 1.7047184170471843,
+        "spacing_m": 6.001184693631486,
+        "thickness": 1.314,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2195.5529850266694,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 910.6851732482089,
+          "inner_length_m": 910.6851732482089,
+          "wall_mm": 304.89487404899955
+         },
+         {
+          "from_head_m": 919.9080465668426,
+          "inner_length_m": 919.9080465668426,
+          "wall_mm": 307.13592906703036
+         }
+        ],
+        "no": 5,
+        "off_back_m": 52.2509690145055,
+        "off_back_source": "input",
+        "off_front_m": 21.756576323660475,
+        "ratio_to_origin": 2.619883040935673,
+        "spacing_m": 9.222873318633653,
+        "thickness": 0.855,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1915.7542928127284,
+          "inner_length_m": 1915.7542928127284,
+          "wall_mm": 376.4512097475308
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 4.102564102564103,
+        "spacing_m": 14.442411515442807,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1512.6893914524828,
+          "inner_length_m": 1512.6893914524828,
+          "wall_mm": 296.42340732800835
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 4.258555133079848,
+        "spacing_m": 14.99155263770299,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1915.7236377934057,
+          "inner_length_m": 1915.7236377934057,
+          "wall_mm": 340.448260326324
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 4.453280318091452,
+        "spacing_m": 15.67705106845283,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -738.4794191860165,
+          "inner_length_m": -738.4794191860165,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 4.647302904564316,
+        "spacing_m": 16.36007611500368,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1611.8796969981363,
+          "inner_length_m": 1611.8796969981363,
+          "wall_mm": 328.5700907651046
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 4.171322160148976,
+        "spacing_m": 14.684463105087099,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 2.24
+     },
+     "4": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0.7097680809005865,
+      "circumference_m": 4.033238322206764,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 425.38,
+      "inner_length_m": 876.9948962343069,
+      "inner_thickness_mm": 429.219815646869,
+      "match": false,
+      "no": 4,
+      "predicted_m": 9.869041257690295,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 1443.550530308521,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 425.38,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 876.9948962343069,
+          "inner_length_m": 876.9948962343069,
+          "wall_mm": 429.219815646869
+         },
+         {
+          "from_head_m": 881.0281345565137,
+          "inner_length_m": 881.0281345565137,
+          "wall_mm": 430.53247350299984
+         }
+        ],
+        "no": 4,
+        "off_back_m": 19.467463443725475,
+        "off_back_source": "input",
+        "off_front_m": 40.95077213188403,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.033238322206764,
+        "thickness": 1.314,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2195.5529850266694,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 910.6851732482089,
+          "inner_length_m": 910.6851732482089,
+          "wall_mm": 304.89487404899955
+         },
+         {
+          "from_head_m": 904.4867227740806,
+          "inner_length_m": 904.4867227740806,
+          "wall_mm": 303.3836571363813
+         }
+        ],
+        "no": 5,
+        "off_back_m": 52.2509690145055,
+        "off_back_source": "input",
+        "off_front_m": 21.756576323660475,
+        "ratio_to_origin": 1.536842105263158,
+        "spacing_m": 6.198450474128291,
+        "thickness": 0.855,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1939.9030690816137,
+          "inner_length_m": 1939.9030690816137,
+          "wall_mm": 379.77102925214035
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 2.4065934065934065,
+        "spacing_m": 9.706364753442651,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1487.6224107627272,
+          "inner_length_m": 1487.6224107627272,
+          "wall_mm": 292.7649062803547
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 2.498098859315589,
+        "spacing_m": 10.075428052052638,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1941.9368223715596,
+          "inner_length_m": 1941.9368223715596,
+          "wall_mm": 343.8199640419472
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 2.612326043737575,
+        "spacing_m": 10.53613350970117,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -765.8346719719325,
+          "inner_length_m": -765.8346719719325,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 2.7261410788381744,
+        "spacing_m": 10.995176670912217,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1636.4332013609137,
+          "inner_length_m": 1636.4332013609137,
+          "wall_mm": 332.15510061906286
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 2.446927374301676,
+        "spacing_m": 9.869041257690295,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 1.314
+     },
+     "5": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0.4021085652340919,
+      "circumference_m": 3.5116400608826592,
+      "equipment": "L-2",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 508.0,
+      "inner_length_m": 910.6851732482089,
+      "inner_thickness_mm": 304.89487404899955,
+      "match": false,
+      "no": 5,
+      "predicted_m": 5.591158756153954,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 2195.5529850266694,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 910.6851732482089,
+          "inner_length_m": 910.6851732482089,
+          "wall_mm": 304.89487404899955
+         },
+         {
+          "from_head_m": 914.1968133090916,
+          "inner_length_m": 914.1968133090916,
+          "wall_mm": 305.74922105606447
+         }
+        ],
+        "no": 5,
+        "off_back_m": 52.2509690145055,
+        "off_back_source": "input",
+        "off_front_m": 21.756576323660475,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.5116400608826592,
+        "thickness": 0.855,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1924.6977075295363,
+          "inner_length_m": 1924.6977075295363,
+          "wall_mm": 377.6827275532976
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 1.5659340659340657,
+        "spacing_m": 5.498996798634932,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1503.4059229441611,
+          "inner_length_m": 1503.4059229441611,
+          "wall_mm": 295.07121272881
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 1.6254752851711025,
+        "spacing_m": 5.7080841293815086,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1925.4315988975352,
+          "inner_length_m": 1925.4315988975352,
+          "wall_mm": 341.69909019080774
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 1.6998011928429422,
+        "spacing_m": 5.969089964323406,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -748.6103412511143,
+          "inner_length_m": -748.6103412511143,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 1.7738589211618256,
+        "spacing_m": 6.229154049905961,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1620.9730013470696,
+          "inner_length_m": 1620.9730013470696,
+          "wall_mm": 329.9003486559046
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 1.5921787709497204,
+        "spacing_m": 5.591158756153954,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 0.855
+     },
+     "6": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0.29057496919041276,
+      "circumference_m": 3.973729891606029,
+      "equipment": "L-2",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 508.0,
+      "inner_length_m": 1930.196704328171,
+      "inner_thickness_mm": 378.438754761121,
+      "match": false,
+      "no": 6,
+      "predicted_m": 4.040328716605013,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 3372.2331799254875,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 508.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 1930.196704328171,
+          "inner_length_m": 1930.196704328171,
+          "wall_mm": 378.438754761121
+         },
+         {
+          "from_head_m": 1934.1704342197772,
+          "inner_length_m": 1934.1704342197772,
+          "wall_mm": 378.9845192767327
+         }
+        ],
+        "no": 6,
+        "off_back_m": 8.397824976478388,
+        "off_back_source": "input",
+        "off_front_m": 99.75540580539105,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.973729891606029,
+        "thickness": 0.546,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1493.573016531858,
+          "inner_length_m": 1493.573016531858,
+          "wall_mm": 293.63550704536624
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 1.038022813688213,
+        "spacing_m": 4.124822282921848,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1935.7141213088105,
+          "inner_length_m": 1935.7141213088105,
+          "wall_mm": 343.0212123498055
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 1.0854870775347913,
+        "spacing_m": 4.3134324469520715,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -759.3408573774038,
+          "inner_length_m": -759.3408573774038,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 1.132780082987552,
+        "spacing_m": 4.501362076383594,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1630.6044888198285,
+          "inner_length_m": 1630.6044888198285,
+          "wall_mm": 331.30604578715065
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 1.016759776536313,
+        "spacing_m": 4.040328716605013,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 0.546
+     },
+     "7": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0.25372774474820603,
+      "circumference_m": 3.601761907602873,
+      "equipment": "CAL",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 1497.6978388147797,
+      "inner_thickness_mm": 294.23821143509167,
+      "match": false,
+      "no": 7,
+      "predicted_m": 3.5279827996259057,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 3397.737665798502,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 1497.6978388147797,
+          "inner_length_m": 1497.6978388147797,
+          "wall_mm": 294.23821143509167
+         },
+         {
+          "from_head_m": 1501.2996007223826,
+          "inner_length_m": 1501.2996007223826,
+          "wall_mm": 294.7639703290305
+         }
+        ],
+        "no": 7,
+        "off_back_m": 53.092019954226366,
+        "off_back_source": "input",
+        "off_front_m": 32.54451084734726,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.601761907602873,
+        "thickness": 0.526,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1927.6342340638482,
+          "inner_length_m": 1927.6342340638482,
+          "wall_mm": 341.98254047451394
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 1.0457256461232605,
+        "spacing_m": 3.766454798010162,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -750.9089418499848,
+          "inner_length_m": -750.9089418499848,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 1.091286307053942,
+        "spacing_m": 3.930553451035501,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1623.0361773035975,
+          "inner_length_m": 1623.0361773035975,
+          "wall_mm": 330.20174941810285
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 0.9795158286778399,
+        "spacing_m": 3.5279827996259057,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 0.526
+     },
+     "8": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0.26357592813922653,
+      "circumference_m": 3.9126458959588835,
+      "equipment": "TLV",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 560.5,
+      "inner_length_m": 1931.4006888618585,
+      "inner_thickness_mm": 342.466934910074,
+      "match": false,
+      "no": 8,
+      "predicted_m": 3.6649178504046893,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 3401.972415152194,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "TLV",
+        "inner_diameter_mm": 560.5,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 1931.4006888618585,
+          "inner_length_m": 1931.4006888618585,
+          "wall_mm": 342.466934910074
+         },
+         {
+          "from_head_m": 1935.3133347578173,
+          "inner_length_m": 1935.3133347578173,
+          "wall_mm": 342.9697319247176
+         }
+        ],
+        "no": 8,
+        "off_back_m": 260.6632176134035,
+        "off_back_source": "input",
+        "off_front_m": 124.24547198156759,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.9126458959588835,
+        "thickness": 0.503,
+        "width": 1179.8
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 564.965,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -758.9226091716992,
+          "inner_length_m": -758.9226091716992,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 1.0435684647302903,
+        "spacing_m": 4.0831138706790835,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1630.2290779536281,
+          "inner_length_m": 1630.2290779536281,
+          "wall_mm": 331.2513184192743
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 0.9366852886405957,
+        "spacing_m": 3.6649178504046893,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 0.503
+     },
+     "9": {
+      "actual_m": 1390.46,
+      "agreement_percent": 0,
+      "circumference_m": 0.0,
+      "equipment": "LS4",
+      "found_thickness_mm": 0.537,
+      "inner_diameter_mm": 0.0,
+      "inner_length_m": -754.8394953010202,
+      "inner_thickness_mm": 0.0,
+      "match": false,
+      "no": 9,
+      "predicted_m": 0.0,
+      "soil_a_m": 1591.48,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 1131.0506999080803,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "LS4",
+        "inner_diameter_mm": 0.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         },
+         {
+          "from_head_m": -754.8394953010202,
+          "inner_length_m": -754.8394953010202,
+          "wall_mm": 0.0
+         }
+        ],
+        "no": 9,
+        "off_back_m": 73.72224090322696,
+        "off_back_source": "input",
+        "off_front_m": 60.790091650679294,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 0.0,
+        "thickness": 0.482,
+        "width": 49.87
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 977.6886824642768,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "KEN",
+        "inner_diameter_mm": 509.98,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         },
+         {
+          "from_head_m": 1626.5641601032235,
+          "inner_length_m": 1626.5641601032235,
+          "wall_mm": 330.71677833319416
+         }
+        ],
+        "no": 10,
+        "off_back_m": 112.60815971671389,
+        "off_back_source": "input",
+        "off_front_m": 35.08416010322355,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 0.0,
+        "thickness": 0.537,
+        "width": 49.9
+       }
+      ],
+      "thickness": 0.482
+     }
+    },
+    "processes": [
+     {
+      "after_length_m": 259.66124528752863,
+      "agreement_percent": 3.3351758931592506,
+      "auto_inner_diameter_mm": 610.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 0,
+      "diameter_out_mm": 14.27361662111216,
+      "equipment": "HOT",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 595.4,
+      "inner_diameter_source": "input",
+      "inner_length_m": 88.48541290905803,
+      "inner_thickness_mm": 244.86458178378945,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 1,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 36.338,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 6.845,
+      "pitch_in_mm": 0,
+      "pitch_out_mm": 44.841889117043124,
+      "position_from_a_m": 171.1758323784706,
+      "position_from_b_m": 88.48541290905803,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 7.305,
+      "total_off_back_m": 9.872512087881805,
+      "total_off_front_m": 1.7728676195949153,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.409033808459943,
+       "off_m": 9.872512087881805,
+       "off_side": "尾",
+       "prev_pos_m": 300.89906913246966,
+       "ratio": 0.5360711841204654
+      },
+      "transfer_distance_m": 46.37428672402212,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 484.37829336705744,
+      "agreement_percent": 2.2176691212315838,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 14.27361662111216,
+      "diameter_out_mm": 26.62634561216147,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 300.89906913246966,
+      "inner_thickness_mm": 393.9874778358044,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 2,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 31.143,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 12.9,
+      "pitch_in_mm": 44.841889117043124,
+      "pitch_out_mm": 83.6491317671093,
+      "position_from_a_m": 300.89906913246966,
+      "position_from_b_m": 183.47922423458778,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 3.916,
+      "total_off_back_m": 14.71934068156066,
+      "total_off_front_m": 5.9082238693957825,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.228505032653774,
+       "off_m": 5.9082238693957825,
+       "off_side": "頭",
+       "prev_pos_m": 515.7072098438381,
+       "ratio": 0.5720122574055159
+      },
+      "transfer_distance_m": 30.835802063076677,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 846.7970521541948,
+      "agreement_percent": 1.0560866982931618,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 26.62634561216147,
+      "diameter_out_mm": 46.54855777554657,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 331.08984231035674,
+      "inner_thickness_mm": 281.2791633196957,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 3,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 1.6,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 28.31,
+      "pitch_in_mm": 83.6491317671093,
+      "pitch_out_mm": 146.23660714285714,
+      "position_from_a_m": 515.7072098438381,
+      "position_from_b_m": 331.08984231035674,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 2.24,
+      "total_off_back_m": 1.2557394635349128,
+      "total_off_front_m": 23.27925219323198,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.520337806889184,
+       "off_m": 1.2557394635349128,
+       "off_side": "尾",
+       "prev_pos_m": 876.9948962343069,
+       "ratio": 0.5866071428571428
+      },
+      "transfer_distance_m": 14.684463105087099,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 1443.550530308521,
+      "agreement_percent": 0.7097680809005865,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 46.54855777554657,
+      "diameter_out_mm": 79.35218372695914,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 425.38,
+      "inner_diameter_source": "input",
+      "inner_length_m": 876.9948962343069,
+      "inner_thickness_mm": 429.219815646869,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 4,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 18.35,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 37.04,
+      "pitch_in_mm": 146.23660714285714,
+      "pitch_out_mm": 249.29223744292236,
+      "position_from_a_m": 876.9948962343069,
+      "position_from_b_m": 566.5556340742141,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 1.314,
+      "total_off_back_m": 19.467463443725475,
+      "total_off_front_m": 40.95077213188403,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.033238322206764,
+       "off_m": 40.95077213188403,
+       "off_side": "頭",
+       "prev_pos_m": 1284.8678117784605,
+       "ratio": 0.6506849315068493
+      },
+      "transfer_distance_m": 9.869041257690295,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 2195.5529850266694,
+      "agreement_percent": 0.4021085652340919,
+      "auto_inner_diameter_mm": 508.0,
+      "auto_off_back_m": 22.95625102642653,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 79.35218372695914,
+      "diameter_out_mm": 121.95177709616878,
+      "equipment": "L-2",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 508.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 910.6851732482089,
+      "inner_thickness_mm": 304.89487404899955,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 5,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 26.6,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 11.4,
+      "pitch_in_mm": 249.29223744292236,
+      "pitch_out_mm": 383.12280701754383,
+      "position_from_a_m": 1284.8678117784605,
+      "position_from_b_m": 910.6851732482089,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.855,
+      "total_off_back_m": 52.2509690145055,
+      "total_off_front_m": 21.756576323660475,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.5116400608826592,
+       "off_m": 52.2509690145055,
+       "off_side": "尾",
+       "prev_pos_m": 1930.196704328171,
+       "ratio": 0.6385964912280703
+      },
+      "transfer_distance_m": 5.591158756153954,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6149.7,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3372.2331799254875,
+      "agreement_percent": 0.29057496919041276,
+      "auto_inner_diameter_mm": 508.0,
+      "auto_off_back_m": 65.85803289100002,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 121.95177709616878,
+      "diameter_out_mm": 190.96844215608846,
+      "equipment": "L-2",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 508.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 1930.196704328171,
+      "inner_thickness_mm": 378.438754761121,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 6,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 2.857,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 32.1,
+      "pitch_in_mm": 383.12280701754383,
+      "pitch_out_mm": 599.9450549450548,
+      "position_from_a_m": 1930.196704328171,
+      "position_from_b_m": 1442.0364755973164,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.546,
+      "total_off_back_m": 8.397824976478388,
+      "total_off_front_m": 99.75540580539105,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.973729891606029,
+       "off_m": 99.75540580539105,
+       "off_side": "頭",
+       "prev_pos_m": 1900.0398269837222,
+       "ratio": 0.9633699633699634
+      },
+      "transfer_distance_m": 4.040328716605013,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6031.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3397.737665798502,
+      "agreement_percent": 0.25372774474820603,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 190.96844215608846,
+      "diameter_out_mm": 198.2295996525177,
+      "equipment": "CAL",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 1497.6978388147797,
+      "inner_thickness_mm": 294.23821143509167,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 7,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 15.5,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 9.6,
+      "pitch_in_mm": 599.9450549450548,
+      "pitch_out_mm": 622.7566539923954,
+      "position_from_a_m": 1900.0398269837222,
+      "position_from_b_m": 1497.6978388147797,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "プレパレーション下ピンチロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "プレパレーション上ピンチロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "入側下デフレクターロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽入側上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽入側下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽出側上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽出側下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "#3デフ下パスロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "TLVパスロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "オイラー上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "オイラー下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "出側上デフレクターロール",
+        "reference": ""
+       }
+      ],
+      "side_state": 0,
+      "thickness": 0.526,
+      "total_off_back_m": 53.092019954226366,
+      "total_off_front_m": 32.54451084734726,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.601761907602873,
+       "off_m": 53.092019954226366,
+       "off_side": "尾",
+       "prev_pos_m": 1931.4006888618585,
+       "ratio": 0.9562737642585551
+      },
+      "transfer_distance_m": 3.5279827996259057,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5854.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3401.972415152194,
+      "agreement_percent": 0.26357592813922653,
+      "auto_inner_diameter_mm": 560.5,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 198.2295996525177,
+      "diameter_out_mm": 207.29377617738433,
+      "equipment": "TLV",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 560.5,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 1931.4006888618585,
+      "inner_thickness_mm": 342.466934910074,
+      "length_loss_kg": 343.39999999999964,
+      "length_loss_m": 211.96359019563857,
+      "line_direction": "→",
+      "no": 8,
+      "off_back_m": 121.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 37.4,
+      "off_front_m": 85,
+      "off_front_thickness_mm": 10.995,
+      "pitch_in_mm": 622.7566539923954,
+      "pitch_out_mm": 651.2326043737575,
+      "position_from_a_m": 1931.4006888618585,
+      "position_from_b_m": 1470.5717262903356,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 1,
+      "thickness": 0.503,
+      "total_off_back_m": 260.6632176134035,
+      "total_off_front_m": 124.24547198156759,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.9126458959588835,
+       "off_m": 124.24547198156759,
+       "off_side": "頭",
+       "prev_pos_m": 1885.8901952091005,
+       "ratio": 0.9582504970178926
+      },
+      "transfer_distance_m": 3.6649178504046893,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5511.5,
+      "width": 1179.8,
+      "width_loss_kg": 94.36540091540961
+     },
+     {
+      "after_length_m": 1131.0506999080803,
+      "agreement_percent": 0,
+      "auto_inner_diameter_mm": 0.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "上",
+      "design_split": 69,
+      "diameter_in_mm": 207.29377617738433,
+      "diameter_out_mm": 216.32524775357743,
+      "equipment": "LS4",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 0.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": -754.8394953010202,
+      "inner_thickness_mm": 0.0,
+      "length_loss_kg": 390.1999999999998,
+      "length_loss_m": 5946.1821869808755,
+      "line_direction": "→",
+      "no": 9,
+      "off_back_m": 68.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 29.63,
+      "off_front_m": 60,
+      "off_front_thickness_mm": 11.01,
+      "pitch_in_mm": 651.2326043737575,
+      "pitch_out_mm": 679.6058091286308,
+      "position_from_a_m": 1885.8901952091005,
+      "position_from_b_m": -754.8394953010202,
+      "rewind_master": "上",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 1,
+      "thickness": 0.482,
+      "total_off_back_m": 73.72224090322696,
+      "total_off_front_m": 60.790091650679294,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 0.0,
+       "off_m": 73.72224090322696,
+       "off_side": "尾",
+       "prev_pos_m": 1626.5641601032235,
+       "ratio": 1.1141078838174274
+      },
+      "transfer_distance_m": 0.0,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5121.3,
+      "width": 49.87,
+      "width_loss_kg": 1681.679761292404
+     },
+     {
+      "after_length_m": 977.6886824642768,
+      "agreement_percent": 100.0,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "-",
+      "design_split": 69,
+      "diameter_in_mm": 216.32524775357743,
+      "diameter_out_mm": 194.16903057211232,
+      "equipment": "KEN",
+      "equipment_flag": 2,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 509.98,
+      "inner_diameter_source": "input",
+      "inner_length_m": 1626.5641601032235,
+      "inner_thickness_mm": 330.71677833319416,
+      "length_loss_kg": 186.30000000000018,
+      "length_loss_m": 2546.6858574414496,
+      "line_direction": "-",
+      "no": 10,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 35.3,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 11.5,
+      "pitch_in_mm": 679.6058091286308,
+      "pitch_out_mm": 610.0,
+      "position_from_a_m": 1626.5641601032235,
+      "position_from_b_m": -648.8754776389467,
+      "rewind_master": "-",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.537,
+      "total_off_back_m": 112.60815971671389,
+      "total_off_front_m": 35.08416010322355,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.6801042239386166,
+       "off_m": 35.08416010322355,
+       "off_side": "頭",
+       "prev_pos_m": 1591.48,
+       "ratio": 1.0
+      },
+      "transfer_distance_m": 1390.46,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 4935,
+      "width": 49.9,
+      "width_loss_kg": -0.04299904156138526
+     }
+    ],
+    "soil_a_ready": true,
+    "soil_positions_ready": true,
+    "trace_ratio": "adjacent"
+   },
+   "status": 200
+  },
+  "設備マスタ（正しいデータ）・設定なし / 乱数 2": {
+   "json": {
+    "actual_transfer_distance_m": 224.47,
+    "density": 2.73,
+    "density_source": "lot",
+    "found_thickness_mm": 0.514,
+    "inputs": {
+     "found_equipment": "8:X",
+     "found_pitch_mm": 610,
+     "soil_a_m": 195.58,
+     "soil_b_m": 420.05,
+     "tolerance_percent": 2
+    },
+    "likely_origin_no": 1,
+    "lot": {
+     "density": 2.73,
+     "lot_no": "L6183D0",
+     "processes": [
+      {
+       "design_split": 1,
+       "equipment": "HOT",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 420.92,
+       "no": 1,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 37.014,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 1.9,
+       "thickness": 6.539,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 2,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 25.5,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 26.7,
+       "thickness": 3.552,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 514.36,
+       "no": 3,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 38.868,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 29.5,
+       "thickness": 2.216,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 4,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 12.758,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 36.84,
+       "thickness": 1.369,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 557.74,
+       "no": 5,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 34.31,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 11.12,
+       "thickness": 0.764,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6149.7,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 663.23,
+       "no": 6,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 15.93,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 11.898,
+       "thickness": 0.481,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6031.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "CAL",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 544.06,
+       "no": 7,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 12.3,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 19.62,
+       "thickness": 0.498,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5854.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "TLV",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 543.39,
+       "no": 8,
+       "off_back_m": 121,
+       "off_back_thickness_mm": 7.423,
+       "off_front_m": 85,
+       "off_front_thickness_mm": 27.31,
+       "thickness": 0.514,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5511.5,
+       "width": 1179.8
+      },
+      {
+       "design_split": 69,
+       "equipment": "LS4",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 698.86,
+       "no": 9,
+       "off_back_m": 68,
+       "off_back_thickness_mm": 8.243,
+       "off_front_m": 60,
+       "off_front_thickness_mm": 26.21,
+       "thickness": 0.536,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5121.3,
+       "width": 49.87
+      },
+      {
+       "design_split": 69,
+       "equipment": "KEN",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 10,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 32.054,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 19.0,
+       "thickness": 0.457,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 4935,
+       "width": 49.9
+      }
+     ]
+    },
+    "origins": {
+     "1": {
+      "actual_m": 224.47,
+      "agreement_percent": 24.553027809156333,
+      "circumference_m": 4.3322662949887745,
+      "equipment": "HOT",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 420.92,
+      "inner_length_m": 207.12653388537748,
+      "inner_thickness_mm": 479.0415956378747,
+      "match": false,
+      "no": 1,
+      "predicted_m": 55.11418152321322,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 290.0788189058567,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "HOT",
+        "inner_diameter_mm": 420.92,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 207.12653388537748,
+          "inner_length_m": 207.12653388537748,
+          "wall_mm": 479.0415956378747
+         },
+         {
+          "from_head_m": 211.45880018036627,
+          "inner_length_m": 211.45880018036627,
+          "wall_mm": 485.54987942336527
+         }
+        ],
+        "no": 1,
+        "off_back_m": 8.143431461650982,
+        "off_back_source": "input",
+        "off_front_m": 0.3859647638786649,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.3322662949887745,
+        "thickness": 6.539,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 534.016159016159,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 137.71821323794416,
+          "inner_length_m": 137.71821323794416,
+          "wall_mm": 204.27038840678023
+         },
+         {
+          "from_head_m": 129.7427939522089,
+          "inner_length_m": 129.7427939522089,
+          "wall_mm": 194.84909669966464
+         }
+        ],
+        "no": 2,
+        "off_back_m": 13.16006263821113,
+        "off_back_source": "input",
+        "off_front_m": 13.807697718353179,
+        "ratio_to_origin": 1.8409346846846844,
+        "spacing_m": 7.975419285735246,
+        "thickness": 3.552,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 855.9681393616411,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 514.36,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 657.3534502255458,
+          "inner_length_m": 657.3534502255458,
+          "wall_mm": 470.7087622866391
+         },
+         {
+          "from_head_m": 670.1371547846304,
+          "inner_length_m": 670.1371547846304,
+          "wall_mm": 476.8767771847948
+         }
+        ],
+        "no": 3,
+        "off_back_m": 30.484316586251285,
+        "off_back_source": "input",
+        "off_front_m": 22.74517334257658,
+        "ratio_to_origin": 2.9508122743682303,
+        "spacing_m": 12.783704559084653,
+        "thickness": 2.216,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1385.5554396094938,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 272.15259720266937,
+          "inner_length_m": 272.15259720266937,
+          "wall_mm": 164.21091187699818
+         },
+         {
+          "from_head_m": 251.45961743427523,
+          "inner_length_m": 251.45961743427523,
+          "wall_mm": 153.91871123698053
+         }
+        ],
+        "no": 4,
+        "off_back_m": 16.71017622007495,
+        "off_back_source": "input",
+        "off_front_m": 50.28821391119088,
+        "ratio_to_origin": 4.7764791818845875,
+        "spacing_m": 20.692979768394153,
+        "thickness": 1.369,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2457.0651861227775,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 557.74,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 2059.5097663243037,
+          "inner_length_m": 2059.5097663243037,
+          "wall_mm": 481.79950041079223
+         },
+         {
+          "from_head_m": 2096.589202584685,
+          "inner_length_m": 2096.589202584685,
+          "wall_mm": 487.7037999194574
+         }
+        ],
+        "no": 5,
+        "off_back_m": 83.52867986575835,
+        "off_back_source": "input",
+        "off_front_m": 26.011577923772897,
+        "ratio_to_origin": 8.55890052356021,
+        "spacing_m": 37.07943626038167,
+        "thickness": 0.764,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 439.891351363125,
+          "inner_length_m": 439.891351363125,
+          "wall_mm": 89.4775998685896
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 13.594594594594593,
+        "spacing_m": 58.89540395619874,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3214.573611473713,
+          "inner_length_m": 3214.573611473713,
+          "wall_mm": 491.88697191384097
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 13.13052208835341,
+        "spacing_m": 56.8849182789791,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 320.72707954175735,
+          "inner_length_m": 320.72707954175735,
+          "wall_mm": 83.68190065631467
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 12.721789883268482,
+        "spacing_m": 55.11418152321322,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 6.539
+     },
+     "2": {
+      "actual_m": 224.47,
+      "agreement_percent": 9.34806202245954,
+      "circumference_m": 3.0364774038324533,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 137.71821323794416,
+      "inner_thickness_mm": 204.27038840678023,
+      "match": false,
+      "no": 2,
+      "predicted_m": 20.98359482181493,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 534.016159016159,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 137.71821323794416,
+          "inner_length_m": 137.71821323794416,
+          "wall_mm": 204.27038840678023
+         },
+         {
+          "from_head_m": 140.75469064177662,
+          "inner_length_m": 140.75469064177662,
+          "wall_mm": 207.80943001351363
+         }
+        ],
+        "no": 2,
+        "off_back_m": 13.16006263821113,
+        "off_back_source": "input",
+        "off_front_m": 13.807697718353179,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.0364774038324533,
+        "thickness": 3.552,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 855.9681393616411,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 514.36,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 657.3534502255458,
+          "inner_length_m": 657.3534502255458,
+          "wall_mm": 470.7087622866391
+         },
+         {
+          "from_head_m": 652.4863167695833,
+          "inner_length_m": 652.4863167695833,
+          "wall_mm": 468.346634537929
+         }
+        ],
+        "no": 3,
+        "off_back_m": 30.484316586251285,
+        "off_back_source": "input",
+        "off_front_m": 22.74517334257658,
+        "ratio_to_origin": 1.6028880866425992,
+        "spacing_m": 4.867133455962488,
+        "thickness": 2.216,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1385.5554396094938,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 272.15259720266937,
+          "inner_length_m": 272.15259720266937,
+          "wall_mm": 164.21091187699818
+         },
+         {
+          "from_head_m": 280.0310250612617,
+          "inner_length_m": 280.0310250612617,
+          "wall_mm": 168.06718202758077
+         }
+        ],
+        "no": 4,
+        "off_back_m": 16.71017622007495,
+        "off_back_source": "input",
+        "off_front_m": 50.28821391119088,
+        "ratio_to_origin": 2.5945945945945947,
+        "spacing_m": 7.878427858592311,
+        "thickness": 1.369,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2457.0651861227775,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 557.74,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 2059.5097663243037,
+          "inner_length_m": 2059.5097663243037,
+          "wall_mm": 481.79950041079223
+         },
+         {
+          "from_head_m": 2045.392531064601,
+          "inner_length_m": 2045.392531064601,
+          "wall_mm": 479.53947779940245
+         }
+        ],
+        "no": 5,
+        "off_back_m": 83.52867986575835,
+        "off_back_source": "input",
+        "off_front_m": 26.011577923772897,
+        "ratio_to_origin": 4.649214659685864,
+        "spacing_m": 14.117235259702715,
+        "thickness": 0.764,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 521.2099730707018,
+          "inner_length_m": 521.2099730707018,
+          "wall_mm": 104.0103348590759
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 7.384615384615385,
+        "spacing_m": 22.423217751378118,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3136.0309266517356,
+          "inner_length_m": 3136.0309266517356,
+          "wall_mm": 483.6939477951047
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 7.132530120481928,
+        "spacing_m": 21.657766542997738,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 396.8248558867855,
+          "inner_length_m": 396.8248558867855,
+          "wall_mm": 100.78747774503705
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 6.910505836575875,
+        "spacing_m": 20.98359482181493,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 3.552
+     },
+     "3": {
+      "actual_m": 224.47,
+      "agreement_percent": 8.784017924311264,
+      "circumference_m": 4.573459976460546,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 514.36,
+      "inner_length_m": 657.3534502255458,
+      "inner_thickness_mm": 470.7087622866391,
+      "match": false,
+      "no": 3,
+      "predicted_m": 19.717485034701497,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 855.9681393616411,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 514.36,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 657.3534502255458,
+          "inner_length_m": 657.3534502255458,
+          "wall_mm": 470.7087622866391
+         },
+         {
+          "from_head_m": 661.9269102020064,
+          "inner_length_m": 661.9269102020064,
+          "wall_mm": 472.9213992985014
+         }
+        ],
+        "no": 3,
+        "off_back_m": 30.484316586251285,
+        "off_back_source": "input",
+        "off_front_m": 22.74517334257658,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.573459976460546,
+        "thickness": 2.216,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1385.5554396094938,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 272.15259720266937,
+          "inner_length_m": 272.15259720266937,
+          "wall_mm": 164.21091187699818
+         },
+         {
+          "from_head_m": 264.7495385409918,
+          "inner_length_m": 264.7495385409918,
+          "wall_mm": 160.55649171908027
+         }
+        ],
+        "no": 4,
+        "off_back_m": 16.71017622007495,
+        "off_back_source": "input",
+        "off_front_m": 50.28821391119088,
+        "ratio_to_origin": 1.618699780861943,
+        "spacing_m": 7.403058661677552,
+        "thickness": 1.369,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2457.0651861227775,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 557.74,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 2059.5097663243037,
+          "inner_length_m": 2059.5097663243037,
+          "wall_mm": 481.79950041079223
+         },
+         {
+          "from_head_m": 2072.7751947377023,
+          "inner_length_m": 2072.7751947377023,
+          "wall_mm": 483.91705537630787
+         }
+        ],
+        "no": 5,
+        "off_back_m": 83.52867986575835,
+        "off_back_source": "input",
+        "off_front_m": 26.011577923772897,
+        "ratio_to_origin": 2.9005235602094244,
+        "spacing_m": 13.265428413398652,
+        "thickness": 0.764,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 477.7165114360876,
+          "inner_length_m": 477.7165114360876,
+          "wall_mm": 96.29886579238803
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 4.607068607068608,
+        "spacing_m": 21.070243883236113,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3178.0396717245258,
+          "inner_length_m": 3178.0396717245258,
+          "wall_mm": 488.0869917221389
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 4.449799196787148,
+        "spacing_m": 20.350978529792307,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 356.1237760302691,
+          "inner_length_m": 356.1237760302691,
+          "wall_mm": 91.73868087367174
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 4.311284046692607,
+        "spacing_m": 19.717485034701497,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 2.216
+     },
+     "4": {
+      "actual_m": 224.47,
+      "agreement_percent": 3.3042457124755136,
+      "circumference_m": 2.7847762894872212,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 272.15259720266937,
+      "inner_thickness_mm": 164.21091187699818,
+      "match": false,
+      "no": 4,
+      "predicted_m": 7.417040350793785,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 1385.5554396094938,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 272.15259720266937,
+          "inner_length_m": 272.15259720266937,
+          "wall_mm": 164.21091187699818
+         },
+         {
+          "from_head_m": 274.9373734921566,
+          "inner_length_m": 274.9373734921566,
+          "wall_mm": 165.57780408333417
+         }
+        ],
+        "no": 4,
+        "off_back_m": 16.71017622007495,
+        "off_back_source": "input",
+        "off_front_m": 50.28821391119088,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 2.7847762894872212,
+        "thickness": 1.369,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2457.0651861227775,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 557.74,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 2059.5097663243037,
+          "inner_length_m": 2059.5097663243037,
+          "wall_mm": 481.79950041079223
+         },
+         {
+          "from_head_m": 2054.519767973115,
+          "inner_length_m": 2054.519767973115,
+          "wall_mm": 481.00142160926464
+         }
+        ],
+        "no": 5,
+        "off_back_m": 83.52867986575835,
+        "off_back_source": "input",
+        "off_front_m": 26.011577923772897,
+        "ratio_to_origin": 1.7918848167539265,
+        "spacing_m": 4.989998351188489,
+        "thickness": 0.764,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 506.71265706632585,
+          "inner_length_m": 506.71265706632585,
+          "wall_mm": 101.4551917802234
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 2.8461538461538463,
+        "spacing_m": 7.925901747002091,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3150.0333543587735,
+          "inner_length_m": 3150.0333543587735,
+          "wall_mm": 485.1610766996271
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 2.748995983935743,
+        "spacing_m": 7.655338835959851,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 383.2583014157644,
+          "inner_length_m": 383.2583014157644,
+          "wall_mm": 97.795940165736
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 2.6634241245136185,
+        "spacing_m": 7.417040350793785,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 1.369
+     },
+     "5": {
+      "actual_m": 224.47,
+      "agreement_percent": 3.1648111838114086,
+      "circumference_m": 4.779427428600726,
+      "equipment": "L-2",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 557.74,
+      "inner_length_m": 2059.5097663243037,
+      "inner_thickness_mm": 481.79950041079223,
+      "match": false,
+      "no": 5,
+      "predicted_m": 7.104051664301468,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 2457.0651861227775,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 557.74,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 2059.5097663243037,
+          "inner_length_m": 2059.5097663243037,
+          "wall_mm": 481.79950041079223
+         },
+         {
+          "from_head_m": 2064.2891937529043,
+          "inner_length_m": 2064.2891937529043,
+          "wall_mm": 482.5631171231206
+         }
+        ],
+        "no": 5,
+        "off_back_m": 83.52867986575835,
+        "off_back_source": "input",
+        "off_front_m": 26.011577923772897,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.779427428600726,
+        "thickness": 0.764,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 491.1953154951014,
+          "inner_length_m": 491.1953154951014,
+          "wall_mm": 98.70345944046204
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 1.5883575883575884,
+        "spacing_m": 7.591439824222359,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3165.020987482788,
+          "inner_length_m": 3165.020987482788,
+          "wall_mm": 486.7282889872687
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 1.534136546184739,
+        "spacing_m": 7.3322942880541255,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 368.7372094006691,
+          "inner_length_m": 368.7372094006691,
+          "wall_mm": 94.56684675886265
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 1.4863813229571985,
+        "spacing_m": 7.104051664301468,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 0.764
+     },
+     "6": {
+      "actual_m": 224.47,
+      "agreement_percent": 1.1307125932820212,
+      "circumference_m": 2.7122428833348,
+      "equipment": "L-2",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 663.23,
+      "inner_length_m": 498.78675531932373,
+      "inner_thickness_mm": 100.05186174854822,
+      "match": false,
+      "no": 6,
+      "predicted_m": 2.538110558140153,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 3827.940366401905,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 663.23,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 498.78675531932373,
+          "inner_length_m": 498.78675531932373,
+          "wall_mm": 100.05186174854822
+         },
+         {
+          "from_head_m": 501.4989982026585,
+          "inner_length_m": 501.4989982026585,
+          "wall_mm": 100.53259406115217
+         }
+        ],
+        "no": 6,
+        "off_back_m": 70.66309767386667,
+        "off_back_source": "input",
+        "off_front_m": 52.46442060199566,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 2.7122428833348,
+        "thickness": 0.481,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3155.06903691585,
+          "inner_length_m": 3155.06903691585,
+          "wall_mm": 485.68800466219477
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 0.965863453815261,
+        "spacing_m": 2.6196562788836117,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 378.3793716231107,
+          "inner_length_m": 378.3793716231107,
+          "wall_mm": 96.71415692860074
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 0.9357976653696497,
+        "spacing_m": 2.538110558140153,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 0.481
+     },
+     "7": {
+      "actual_m": 224.47,
+      "agreement_percent": 2.055665251605904,
+      "circumference_m": 4.762604056634144,
+      "equipment": "CAL",
+      "found_thickness_mm": 0.514,
+      "inner_diameter_mm": 544.06,
+      "inner_length_m": 3157.688693194734,
+      "inner_thickness_mm": 485.9619776028371,
+      "match": false,
+      "no": 7,
+      "predicted_m": 4.614351790279773,
+      "soil_a_m": 195.58,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 3588.775124919703,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "CAL",
+        "inner_diameter_mm": 544.06,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 3157.688693194734,
+          "inner_length_m": 3157.688693194734,
+          "wall_mm": 485.9619776028371
+         },
+         {
+          "from_head_m": 3162.4512972513676,
+          "inner_length_m": 3162.4512972513676,
+          "wall_mm": 486.4598141174688
+         }
+        ],
+        "no": 7,
+        "off_back_m": 43.169949420963825,
+        "off_back_source": "input",
+        "off_front_m": 69.76733899529958,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.762604056634144,
+        "thickness": 0.498,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3329.167558018587,
+        "annealing": false,
+        "edge_trim_mm": 10.100000000000023,
+        "equipment": "TLV",
+        "inner_diameter_mm": 543.39,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 375.8412610649706,
+          "inner_length_m": 375.8412610649706,
+          "wall_mm": 96.15013506072125
+         },
+         {
+          "from_head_m": 371.2269092746908,
+          "inner_length_m": 371.2269092746908,
+          "wall_mm": 95.12250691338033
+         }
+        ],
+        "no": 8,
+        "off_back_m": 145.99023821311658,
+        "off_back_source": "input",
+        "off_front_m": 180.2612610649706,
+        "ratio_to_origin": 0.9688715953307392,
+        "spacing_m": 4.614351790279773,
+        "thickness": 0.514,
+        "width": 1179.8
+       }
+      ],
+      "thickness": 0.498
+     }
+    },
+    "processes": [
+     {
+      "after_length_m": 290.0788189058567,
+      "agreement_percent": 24.553027809156333,
+      "auto_inner_diameter_mm": 610.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 0,
+      "diameter_out_mm": 15.26271321518057,
+      "equipment": "HOT",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 420.92,
+      "inner_diameter_source": "input",
+      "inner_length_m": 207.12653388537748,
+      "inner_thickness_mm": 479.0415956378747,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 1,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 37.014,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 1.9,
+      "pitch_in_mm": 0,
+      "pitch_out_mm": 47.94922771065913,
+      "position_from_a_m": 82.9522850204792,
+      "position_from_b_m": 207.12653388537748,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 6.539,
+      "total_off_back_m": 8.143431461650982,
+      "total_off_front_m": 0.3859647638786649,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.3322662949887745,
+       "off_m": 8.143431461650982,
+       "off_side": "尾",
+       "prev_pos_m": 137.71821323794416,
+       "ratio": 0.5432023245144518
+      },
+      "transfer_distance_m": 55.11418152321322,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 534.016159016159,
+      "agreement_percent": 9.34806202245954,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 15.26271321518057,
+      "diameter_out_mm": 28.09765814022121,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 137.71821323794416,
+      "inner_thickness_mm": 204.27038840678023,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 2,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 25.5,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 26.7,
+      "pitch_in_mm": 47.94922771065913,
+      "pitch_out_mm": 88.2713963963964,
+      "position_from_a_m": 137.71821323794416,
+      "position_from_b_m": 396.29794577821485,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 3.552,
+      "total_off_back_m": 13.16006263821113,
+      "total_off_front_m": 13.807697718353179,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.0364774038324533,
+       "off_m": 13.807697718353179,
+       "off_side": "頭",
+       "prev_pos_m": 198.61468913609528,
+       "ratio": 0.6238738738738739
+      },
+      "transfer_distance_m": 20.98359482181493,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 855.9681393616411,
+      "agreement_percent": 8.784017924311264,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 28.09765814022121,
+      "diameter_out_mm": 45.037401495517024,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 514.36,
+      "inner_diameter_source": "input",
+      "inner_length_m": 657.3534502255458,
+      "inner_thickness_mm": 470.7087622866391,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 3,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 38.868,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 29.5,
+      "pitch_in_mm": 88.2713963963964,
+      "pitch_out_mm": 141.48916967509024,
+      "position_from_a_m": 198.61468913609528,
+      "position_from_b_m": 657.3534502255458,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 2.216,
+      "total_off_back_m": 30.484316586251285,
+      "total_off_front_m": 22.74517334257658,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.573459976460546,
+       "off_m": 30.484316586251285,
+       "off_side": "尾",
+       "prev_pos_m": 272.15259720266937,
+       "ratio": 0.6177797833935017
+      },
+      "transfer_distance_m": 19.717485034701497,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 1385.5554396094938,
+      "agreement_percent": 3.3042457124755136,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 45.037401495517024,
+      "diameter_out_mm": 72.90203193138477,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 272.15259720266937,
+      "inner_thickness_mm": 164.21091187699818,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 4,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 12.758,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 36.84,
+      "pitch_in_mm": 141.48916967509024,
+      "pitch_out_mm": 229.0284879474069,
+      "position_from_a_m": 272.15259720266937,
+      "position_from_b_m": 1113.4028424068244,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 1.369,
+      "total_off_back_m": 16.71017622007495,
+      "total_off_front_m": 50.28821391119088,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 2.7847762894872212,
+       "off_m": 50.28821391119088,
+       "off_side": "頭",
+       "prev_pos_m": 397.5554197984739,
+       "ratio": 0.5580715850986121
+      },
+      "transfer_distance_m": 7.417040350793785,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 2457.0651861227775,
+      "agreement_percent": 3.1648111838114086,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": 25.690568884286233,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 72.90203193138477,
+      "diameter_out_mm": 130.6320441283583,
+      "equipment": "L-2",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 557.74,
+      "inner_diameter_source": "input",
+      "inner_length_m": 2059.5097663243037,
+      "inner_thickness_mm": 481.79950041079223,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 5,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 34.31,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 11.12,
+      "pitch_in_mm": 229.0284879474069,
+      "pitch_out_mm": 410.3926701570681,
+      "position_from_a_m": 397.5554197984739,
+      "position_from_b_m": 2059.5097663243037,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.764,
+      "total_off_back_m": 83.52867986575835,
+      "total_off_front_m": 26.011577923772897,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.779427428600726,
+       "off_m": 83.52867986575835,
+       "off_side": "尾",
+       "prev_pos_m": 498.78675531932373,
+       "ratio": 0.6295811518324607
+      },
+      "transfer_distance_m": 7.104051664301468,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6149.7,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3827.940366401905,
+      "agreement_percent": 1.1307125932820212,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": 74.75776706545949,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 130.6320441283583,
+      "diameter_out_mm": 207.49039857394123,
+      "equipment": "L-2",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 663.23,
+      "inner_diameter_source": "input",
+      "inner_length_m": 498.78675531932373,
+      "inner_thickness_mm": 100.05186174854822,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 6,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 15.93,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 11.898,
+      "pitch_in_mm": 410.3926701570681,
+      "pitch_out_mm": 651.8503118503119,
+      "position_from_a_m": 498.78675531932373,
+      "position_from_b_m": 3329.1536110825814,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [
+       {
+        "condition": "",
+        "diameter_max_mm": 130.0,
+        "diameter_min_mm": 0,
+        "location": "入側",
+        "name": "入側アイドルロール",
+        "reference": ""
+       }
+      ],
+      "side_state": 0,
+      "thickness": 0.481,
+      "total_off_back_m": 70.66309767386667,
+      "total_off_front_m": 52.46442060199566,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 2.7122428833348,
+       "off_m": 52.46442060199566,
+       "off_side": "頭",
+       "prev_pos_m": 431.08643172496954,
+       "ratio": 1.0353430353430353
+      },
+      "transfer_distance_m": 2.538110558140153,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6031.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3588.775124919703,
+      "agreement_percent": 2.055665251605904,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 207.49039857394123,
+      "diameter_out_mm": 200.407393000132,
+      "equipment": "CAL",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 544.06,
+      "inner_diameter_source": "input",
+      "inner_length_m": 3157.688693194734,
+      "inner_thickness_mm": 485.9619776028371,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 7,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 12.3,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 19.62,
+      "pitch_in_mm": 651.8503118503119,
+      "pitch_out_mm": 629.5983935742972,
+      "position_from_a_m": 431.08643172496954,
+      "position_from_b_m": 3157.688693194734,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "プレパレーション下ピンチロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "プレパレーション上ピンチロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "入側下デフレクターロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽入側上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽入側下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽出側上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "洗浄槽出側下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "#3デフ下パスロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "TLVパスロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "オイラー上ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "オイラー下ロール",
+        "reference": ""
+       },
+       {
+        "condition": "",
+        "diameter_max_mm": 200.0,
+        "diameter_min_mm": 0,
+        "location": "ー",
+        "name": "出側上デフレクターロール",
+        "reference": ""
+       }
+      ],
+      "side_state": 0,
+      "thickness": 0.498,
+      "total_off_back_m": 43.169949420963825,
+      "total_off_front_m": 69.76733899529958,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.762604056634144,
+       "off_m": 43.169949420963825,
+       "off_side": "尾",
+       "prev_pos_m": 375.8412610649706,
+       "ratio": 1.0321285140562249
+      },
+      "transfer_distance_m": 4.614351790279773,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5854.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3329.167558018587,
+      "agreement_percent": 100.0,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "上",
+      "design_split": 1,
+      "diameter_in_mm": 200.407393000132,
+      "diameter_out_mm": 194.16903057211232,
+      "equipment": "TLV",
+      "equipment_flag": 2,
+      "face_state": 0,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 543.39,
+      "inner_diameter_source": "input",
+      "inner_length_m": 375.8412610649706,
+      "inner_thickness_mm": 96.15013506072125,
+      "length_loss_kg": 343.39999999999964,
+      "length_loss_m": 207.42740441324167,
+      "line_direction": "←",
+      "no": 8,
+      "off_back_m": 121.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 7.423,
+      "off_front_m": 85,
+      "off_front_thickness_mm": 27.31,
+      "pitch_in_mm": 629.5983935742972,
+      "pitch_out_mm": 610.0,
+      "position_from_a_m": 375.8412610649706,
+      "position_from_b_m": 2953.3262969536163,
+      "rewind_master": "上",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.514,
+      "total_off_back_m": 145.99023821311658,
+      "total_off_front_m": 180.2612610649706,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 2.311239147931014,
+       "off_m": 180.2612610649706,
+       "off_side": "頭",
+       "prev_pos_m": 195.58,
+       "ratio": 1.0
+      },
+      "transfer_distance_m": 224.47,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5511.5,
+      "width": 1179.8,
+      "width_loss_kg": 94.36540091540961
+     },
+     {
+      "after_length_m": 1017.1015622307735,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "上",
+      "design_split": 69,
+      "diameter_in_mm": 194.16903057211232,
+      "diameter_out_mm": 186.19940618295846,
+      "equipment": "LS4",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 698.86,
+      "inner_diameter_source": "input",
+      "length_loss_kg": 390.1999999999998,
+      "length_loss_m": 5347.126518889518,
+      "line_direction": "→",
+      "no": 9,
+      "off_back_m": 68.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 8.243,
+      "off_front_m": 60,
+      "off_front_thickness_mm": 26.21,
+      "pitch_in_mm": 610.0,
+      "pitch_out_mm": 584.9626865671642,
+      "rewind_master": "上",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 1,
+      "thickness": 0.536,
+      "total_off_back_m": 102.16276886464985,
+      "total_off_front_m": 171.38636731663829,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5121.3,
+      "width": 49.87,
+      "width_loss_kg": 1681.6797612924038
+     },
+     {
+      "after_length_m": 1148.8376859591174,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "-",
+      "design_split": 69,
+      "diameter_in_mm": 186.19940618295846,
+      "diameter_out_mm": 218.38704970255085,
+      "equipment": "KEN",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "length_loss_kg": 186.30000000000018,
+      "length_loss_m": 2992.4951979126004,
+      "line_direction": "-",
+      "no": 10,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 32.054,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 19.0,
+      "pitch_in_mm": 584.9626865671642,
+      "pitch_out_mm": 686.0831509846828,
+      "rewind_master": "-",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.457,
+      "total_off_back_m": 130.0192522422499,
+      "total_off_front_m": 75.36385177528425,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 4935,
+      "width": 49.9,
+      "width_loss_kg": -0.04299904156138526
+     }
+    ],
+    "soil_a_ready": true,
+    "soil_positions_ready": true,
+    "trace_ratio": "adjacent"
+   },
+   "status": 200
+  },
+  "設備マスタ（正しいデータ）・設定なし / 乱数 24": {
+   "json": {
+    "actual_transfer_distance_m": 1691.02,
+    "density": 2.73,
+    "density_source": "lot",
+    "found_thickness_mm": 0.557,
+    "inputs": {
+     "found_equipment": "6:X",
+     "found_pitch_mm": 610,
+     "soil_a_m": 1707.7,
+     "soil_b_m": 16.68,
+     "tolerance_percent": 2
+    },
+    "likely_origin_no": 1,
+    "lot": {
+     "density": 2.73,
+     "lot_no": "L6183D0",
+     "processes": [
+      {
+       "design_split": 1,
+       "equipment": "HOT",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 1,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 36.151,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 36.14,
+       "thickness": 6.471,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 611.03,
+       "no": 2,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 20.923,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 17.5,
+       "thickness": 3.561,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 3,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 29.2,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 20.19,
+       "thickness": 2.349,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-1",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 4,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 22.31,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 32.613,
+       "thickness": 1.285,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6214,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 5,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 23.5,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 0.0,
+       "thickness": 0.73,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6149.7,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "L-2",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 6,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 31.771,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 33.7,
+       "thickness": 0.557,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 6031.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "CAL",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 7,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 23.755,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 21.121,
+       "thickness": 0.465,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5854.9,
+       "width": 1200
+      },
+      {
+       "design_split": 1,
+       "equipment": "TLV",
+       "horizontal_split": 1,
+       "inner_diameter_mm": 445.35,
+       "no": 8,
+       "off_back_m": 121,
+       "off_back_thickness_mm": 4.79,
+       "off_front_m": 85,
+       "off_front_thickness_mm": 9.4,
+       "thickness": 0.511,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5511.5,
+       "width": 1179.8
+      },
+      {
+       "design_split": 69,
+       "equipment": "LS4",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 9,
+       "off_back_m": 68,
+       "off_back_thickness_mm": 8.8,
+       "off_front_m": 60,
+       "off_front_thickness_mm": 39.4,
+       "thickness": 0.511,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 5121.3,
+       "width": 49.87
+      },
+      {
+       "design_split": 69,
+       "equipment": "KEN",
+       "horizontal_split": 1,
+       "inner_diameter_mm": null,
+       "no": 10,
+       "off_back_m": 0,
+       "off_back_thickness_mm": 27.36,
+       "off_front_m": 0,
+       "off_front_thickness_mm": 18.19,
+       "thickness": 0.539,
+       "unwind": "上",
+       "vertical_split": 1,
+       "weight": 4935,
+       "width": 49.9
+      }
+     ]
+    },
+    "origins": {
+     "1": {
+      "actual_m": 1691.02,
+      "agreement_percent": 2.323221593129062,
+      "circumference_m": 3.3816073209335507,
+      "equipment": "HOT",
+      "found_thickness_mm": 0.557,
+      "inner_diameter_mm": 610.0,
+      "inner_length_m": 95.46330754111659,
+      "inner_thickness_mm": 233.19952072231592,
+      "match": false,
+      "no": 1,
+      "predicted_m": 39.28614178413107,
+      "soil_a_m": 1707.7,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 293.12708960367746,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "HOT",
+        "inner_diameter_mm": 610.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 95.46330754111659,
+          "inner_length_m": 95.46330754111659,
+          "wall_mm": 233.19952072231592
+         },
+         {
+          "from_head_m": 98.84491486205013,
+          "inner_length_m": 98.84491486205013,
+          "wall_mm": 239.63207975928003
+         }
+        ],
+        "no": 1,
+        "off_back_m": 11.340515821046255,
+        "off_back_source": "input",
+        "off_front_m": 11.336872136248642,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.3816073209335507,
+        "thickness": 6.471,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 532.666497283178,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 611.03,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 338.58406510779025,
+          "inner_length_m": 338.58406510779025,
+          "wall_mm": 385.22732713240123
+         },
+         {
+          "from_head_m": 332.43905500563886,
+          "inner_length_m": 332.43905500563886,
+          "wall_mm": 380.16683897132407
+         }
+        ],
+        "no": 2,
+        "off_back_m": 11.665050786583588,
+        "off_back_source": "input",
+        "off_front_m": 9.703802733730384,
+        "ratio_to_origin": 1.8171861836562764,
+        "spacing_m": 6.145010102151364,
+        "thickness": 3.561,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 807.503361781778,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 308.9326447472838,
+          "inner_length_m": 308.9326447472838,
+          "wall_mm": 276.7274546994513
+         },
+         {
+          "from_head_m": 318.2482603172119,
+          "inner_length_m": 318.2482603172119,
+          "wall_mm": 282.95941321764406
+         }
+        ],
+        "no": 3,
+        "off_back_m": 22.931673742310526,
+        "off_back_source": "input",
+        "off_front_m": 15.612546719580099,
+        "ratio_to_origin": 2.754789272030651,
+        "spacing_m": 9.315615569928056,
+        "thickness": 2.349,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1476.1287134827992,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 869.4755740804201,
+          "inner_length_m": 869.4755740804201,
+          "wall_mm": 379.392764440258
+         },
+         {
+          "from_head_m": 852.446483828466,
+          "inner_length_m": 852.446483828466,
+          "wall_mm": 374.08165957259644
+         }
+        ],
+        "no": 4,
+        "off_back_m": 31.65237991274141,
+        "off_back_source": "input",
+        "off_front_m": 47.09128024079515,
+        "ratio_to_origin": 5.03579766536965,
+        "spacing_m": 17.02909025195409,
+        "thickness": 1.285,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2571.5038386271262,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1123.8821707039508,
+          "inner_length_m": 1123.8821707039508,
+          "wall_mm": 303.23126699255795
+         },
+         {
+          "from_head_m": 1153.8580350515685,
+          "inner_length_m": 1153.8580350515685,
+          "wall_mm": 309.1824771794443
+         }
+        ],
+        "no": 5,
+        "off_back_m": 58.80910823214783,
+        "off_back_source": "input",
+        "off_front_m": 0.0,
+        "ratio_to_origin": 8.864383561643836,
+        "spacing_m": 29.975864347617815,
+        "thickness": 0.73,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3305.6361153309085,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1820.167268535817,
+          "inner_length_m": 1820.167268535817,
+          "wall_mm": 353.8934511418846
+         },
+         {
+          "from_head_m": 1780.8811267516858,
+          "inner_length_m": 1780.8811267516858,
+          "wall_mm": 348.3665135318404
+         }
+        ],
+        "no": 6,
+        "off_back_m": 105.68393514119148,
+        "off_back_source": "input",
+        "off_front_m": 112.46726853581687,
+        "ratio_to_origin": 11.617594254937163,
+        "spacing_m": 39.28614178413107,
+        "thickness": 0.557,
+        "width": 1200.0
+       }
+      ],
+      "thickness": 6.471
+     },
+     "2": {
+      "actual_m": 1691.02,
+      "agreement_percent": 1.6408314520711005,
+      "circumference_m": 4.340062040885338,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.557,
+      "inner_diameter_mm": 611.03,
+      "inner_length_m": 338.58406510779025,
+      "inner_thickness_mm": 385.22732713240123,
+      "match": false,
+      "no": 2,
+      "predicted_m": 27.746788020812723,
+      "soil_a_m": 1707.7,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 532.666497283178,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 611.03,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 338.58406510779025,
+          "inner_length_m": 338.58406510779025,
+          "wall_mm": 385.22732713240123
+         },
+         {
+          "from_head_m": 342.9241271486756,
+          "inner_length_m": 342.9241271486756,
+          "wall_mm": 388.77919509752644
+         }
+        ],
+        "no": 2,
+        "off_back_m": 11.665050786583588,
+        "off_back_source": "input",
+        "off_front_m": 9.703802733730384,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.340062040885338,
+        "thickness": 3.561,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 807.503361781778,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 308.9326447472838,
+          "inner_length_m": 308.9326447472838,
+          "wall_mm": 276.7274546994513
+         },
+         {
+          "from_head_m": 302.35326589347676,
+          "inner_length_m": 302.35326589347676,
+          "wall_mm": 272.2835359893253
+         }
+        ],
+        "no": 3,
+        "off_back_m": 22.931673742310526,
+        "off_back_source": "input",
+        "off_front_m": 15.612546719580099,
+        "ratio_to_origin": 1.515964240102171,
+        "spacing_m": 6.579378853807019,
+        "thickness": 2.349,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1476.1287134827992,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 869.4755740804201,
+          "inner_length_m": 869.4755740804201,
+          "wall_mm": 379.392764440258
+         },
+         {
+          "from_head_m": 881.502781027963,
+          "inner_length_m": 881.502781027963,
+          "wall_mm": 383.11819120238795
+         }
+        ],
+        "no": 4,
+        "off_back_m": 31.65237991274141,
+        "off_back_source": "input",
+        "off_front_m": 47.09128024079515,
+        "ratio_to_origin": 2.7712062256809338,
+        "spacing_m": 12.027206947542949,
+        "thickness": 1.285,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2571.5038386271262,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1123.8821707039508,
+          "inner_length_m": 1123.8821707039508,
+          "wall_mm": 303.23126699255795
+         },
+         {
+          "from_head_m": 1102.7109913510842,
+          "inner_length_m": 1102.7109913510842,
+          "wall_mm": 298.9911603216111
+         }
+        ],
+        "no": 5,
+        "off_back_m": 58.80910823214783,
+        "off_back_source": "input",
+        "off_front_m": 0.0,
+        "ratio_to_origin": 4.8780821917808215,
+        "spacing_m": 21.171179352866698,
+        "thickness": 0.73,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3305.6361153309085,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1820.167268535817,
+          "inner_length_m": 1820.167268535817,
+          "wall_mm": 353.8934511418846
+         },
+         {
+          "from_head_m": 1847.9140565566297,
+          "inner_length_m": 1847.9140565566297,
+          "wall_mm": 357.76807972143365
+         }
+        ],
+        "no": 6,
+        "off_back_m": 105.68393514119148,
+        "off_back_source": "input",
+        "off_front_m": 112.46726853581687,
+        "ratio_to_origin": 6.393177737881507,
+        "spacing_m": 27.746788020812723,
+        "thickness": 0.557,
+        "width": 1200.0
+       }
+      ],
+      "thickness": 3.561
+     },
+     "3": {
+      "actual_m": 1691.02,
+      "agreement_percent": 0.870804768773299,
+      "circumference_m": 3.4917385781639014,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.557,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 308.9326447472838,
+      "inner_thickness_mm": 276.7274546994513,
+      "match": false,
+      "no": 3,
+      "predicted_m": 14.72548280091024,
+      "soil_a_m": 1707.7,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 807.503361781778,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 308.9326447472838,
+          "inner_length_m": 308.9326447472838,
+          "wall_mm": 276.7274546994513
+         },
+         {
+          "from_head_m": 312.4243833254477,
+          "inner_length_m": 312.4243833254477,
+          "wall_mm": 279.07151108877497
+         }
+        ],
+        "no": 3,
+        "off_back_m": 22.931673742310526,
+        "off_back_source": "input",
+        "off_front_m": 15.612546719580099,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.4917385781639014,
+        "thickness": 2.349,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 1476.1287134827992,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 869.4755740804201,
+          "inner_length_m": 869.4755740804201,
+          "wall_mm": 379.392764440258
+         },
+         {
+          "from_head_m": 863.0926216134108,
+          "inner_length_m": 863.0926216134108,
+          "wall_mm": 377.4070571566907
+         }
+        ],
+        "no": 4,
+        "off_back_m": 31.65237991274141,
+        "off_back_source": "input",
+        "off_front_m": 47.09128024079515,
+        "ratio_to_origin": 1.8280155642023348,
+        "spacing_m": 6.382952467009343,
+        "thickness": 1.285,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2571.5038386271262,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1123.8821707039508,
+          "inner_length_m": 1123.8821707039508,
+          "wall_mm": 303.23126699255795
+         },
+         {
+          "from_head_m": 1135.1179157999877,
+          "inner_length_m": 1135.1179157999877,
+          "wall_mm": 305.46903754256937
+         }
+        ],
+        "no": 5,
+        "off_back_m": 58.80910823214783,
+        "off_back_source": "input",
+        "off_front_m": 0.0,
+        "ratio_to_origin": 3.2178082191780826,
+        "spacing_m": 11.235745096036993,
+        "thickness": 0.73,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3305.6361153309085,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1820.167268535817,
+          "inner_length_m": 1820.167268535817,
+          "wall_mm": 353.8934511418846
+         },
+         {
+          "from_head_m": 1805.4417857349067,
+          "inner_length_m": 1805.4417857349067,
+          "wall_mm": 351.8274826892905
+         }
+        ],
+        "no": 6,
+        "off_back_m": 105.68393514119148,
+        "off_back_source": "input",
+        "off_front_m": 112.46726853581687,
+        "ratio_to_origin": 4.217235188509874,
+        "spacing_m": 14.72548280091024,
+        "thickness": 0.557,
+        "width": 1200.0
+       }
+      ],
+      "thickness": 2.349
+     },
+     "4": {
+      "actual_m": 1691.02,
+      "agreement_percent": 0.5643702418704666,
+      "circumference_m": 4.136803743884379,
+      "equipment": "L-1",
+      "found_thickness_mm": 0.557,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 869.4755740804201,
+      "inner_thickness_mm": 379.392764440258,
+      "match": false,
+      "no": 4,
+      "predicted_m": 9.543613664077965,
+      "soil_a_m": 1707.7,
+      "steps": [
+       {
+        "a_end": "頭",
+        "after_length_m": 1476.1287134827992,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-1",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 869.4755740804201,
+          "inner_length_m": 869.4755740804201,
+          "wall_mm": 379.392764440258
+         },
+         {
+          "from_head_m": 873.6123778243044,
+          "inner_length_m": 873.6123778243044,
+          "wall_mm": 380.67651289999446
+         }
+        ],
+        "no": 4,
+        "off_back_m": 31.65237991274141,
+        "off_back_source": "input",
+        "off_front_m": 47.09128024079515,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 4.136803743884379,
+        "thickness": 1.285,
+        "width": 1200.0
+       },
+       {
+        "a_end": "尾",
+        "after_length_m": 2571.5038386271262,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1123.8821707039508,
+          "inner_length_m": 1123.8821707039508,
+          "wall_mm": 303.23126699255795
+         },
+         {
+          "from_head_m": 1116.6002627438256,
+          "inner_length_m": 1116.6002627438256,
+          "wall_mm": 301.776358729544
+         }
+        ],
+        "no": 5,
+        "off_back_m": 58.80910823214783,
+        "off_back_source": "input",
+        "off_front_m": 0.0,
+        "ratio_to_origin": 1.7602739726027397,
+        "spacing_m": 7.281907960125243,
+        "thickness": 0.73,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3305.6361153309085,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1820.167268535817,
+          "inner_length_m": 1820.167268535817,
+          "wall_mm": 353.8934511418846
+         },
+         {
+          "from_head_m": 1829.710882199895,
+          "inner_length_m": 1829.710882199895,
+          "wall_mm": 355.2288150998003
+         }
+        ],
+        "no": 6,
+        "off_back_m": 105.68393514119148,
+        "off_back_source": "input",
+        "off_front_m": 112.46726853581687,
+        "ratio_to_origin": 2.307001795332136,
+        "spacing_m": 9.543613664077965,
+        "thickness": 0.557,
+        "width": 1200.0
+       }
+      ],
+      "thickness": 1.285
+     },
+     "5": {
+      "actual_m": 1691.02,
+      "agreement_percent": 0.2835269286940287,
+      "circumference_m": 3.6582669421481953,
+      "equipment": "L-2",
+      "found_thickness_mm": 0.557,
+      "inner_diameter_mm": 558.0,
+      "inner_length_m": 1123.8821707039508,
+      "inner_thickness_mm": 303.23126699255795,
+      "match": false,
+      "no": 5,
+      "predicted_m": 4.794497069601763,
+      "soil_a_m": 1707.7,
+      "steps": [
+       {
+        "a_end": "尾",
+        "after_length_m": 2571.5038386271262,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": false,
+        "is_origin": true,
+        "marks": [
+         {
+          "from_head_m": 1123.8821707039508,
+          "inner_length_m": 1123.8821707039508,
+          "wall_mm": 303.23126699255795
+         },
+         {
+          "from_head_m": 1127.540437646099,
+          "inner_length_m": 1127.540437646099,
+          "wall_mm": 303.9608099294227
+         }
+        ],
+        "no": 5,
+        "off_back_m": 58.80910823214783,
+        "off_back_source": "input",
+        "off_front_m": 0.0,
+        "ratio_to_origin": 1.0,
+        "spacing_m": 3.6582669421481953,
+        "thickness": 0.73,
+        "width": 1200.0
+       },
+       {
+        "a_end": "頭",
+        "after_length_m": 3305.6361153309085,
+        "annealing": false,
+        "edge_trim_mm": 0.0,
+        "equipment": "L-2",
+        "inner_diameter_mm": 558.0,
+        "inner_end": "頭",
+        "is_found": true,
+        "is_origin": false,
+        "marks": [
+         {
+          "from_head_m": 1820.167268535817,
+          "inner_length_m": 1820.167268535817,
+          "wall_mm": 353.8934511418846
+         },
+         {
+          "from_head_m": 1815.3727714662152,
+          "inner_length_m": 1815.3727714662152,
+          "wall_mm": 353.2215298836919
+         }
+        ],
+        "no": 6,
+        "off_back_m": 105.68393514119148,
+        "off_back_source": "input",
+        "off_front_m": 112.46726853581687,
+        "ratio_to_origin": 1.3105924596050267,
+        "spacing_m": 4.794497069601763,
+        "thickness": 0.557,
+        "width": 1200.0
+       }
+      ],
+      "thickness": 0.73
+     }
+    },
+    "processes": [
+     {
+      "after_length_m": 293.12708960367746,
+      "agreement_percent": 2.323221593129062,
+      "auto_inner_diameter_mm": 610.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 0,
+      "diameter_out_mm": 16.713359608818816,
+      "equipment": "HOT",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 610.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 95.46330754111659,
+      "inner_thickness_mm": 233.19952072231592,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 1,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 36.151,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 36.14,
+      "pitch_in_mm": 0,
+      "pitch_out_mm": 52.506567763869576,
+      "position_from_a_m": 197.66378206256087,
+      "position_from_b_m": 95.46330754111659,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 6.471,
+      "total_off_back_m": 11.340515821046255,
+      "total_off_front_m": 11.336872136248642,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.3816073209335507,
+       "off_m": 11.340515821046255,
+       "off_side": "尾",
+       "prev_pos_m": 338.58406510779025,
+       "ratio": 0.550301344459898
+      },
+      "transfer_distance_m": 39.28614178413107,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 532.666497283178,
+      "agreement_percent": 1.6408314520711005,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 16.713359608818816,
+      "diameter_out_mm": 30.371286163624426,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 611.03,
+      "inner_diameter_source": "input",
+      "inner_length_m": 338.58406510779025,
+      "inner_thickness_mm": 385.22732713240123,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 2,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 20.923,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 17.5,
+      "pitch_in_mm": 52.506567763869576,
+      "pitch_out_mm": 95.41420949171582,
+      "position_from_a_m": 338.58406510779025,
+      "position_from_b_m": 194.0824321753878,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 3.561,
+      "total_off_back_m": 11.665050786583588,
+      "total_off_front_m": 9.703802733730384,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.340062040885338,
+       "off_m": 9.703802733730384,
+       "off_side": "頭",
+       "prev_pos_m": 498.57071703449424,
+       "ratio": 0.6596461668070768
+      },
+      "transfer_distance_m": 27.746788020812723,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 807.503361781778,
+      "agreement_percent": 0.870804768773299,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 30.371286163624426,
+      "diameter_out_mm": 46.04178374996447,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 308.9326447472838,
+      "inner_thickness_mm": 276.7274546994513,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 3,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 29.2,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 20.19,
+      "pitch_in_mm": 95.41420949171582,
+      "pitch_out_mm": 144.64452958705832,
+      "position_from_a_m": 498.57071703449424,
+      "position_from_b_m": 308.9326447472838,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 2.349,
+      "total_off_back_m": 22.931673742310526,
+      "total_off_front_m": 15.612546719580099,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.4917385781639014,
+       "off_m": 22.931673742310526,
+       "off_side": "尾",
+       "prev_pos_m": 869.4755740804201,
+       "ratio": 0.5470412941677308
+      },
+      "transfer_distance_m": 14.72548280091024,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 1476.1287134827992,
+      "agreement_percent": 0.5643702418704666,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 46.04178374996447,
+      "diameter_out_mm": 84.16509729857322,
+      "equipment": "L-1",
+      "equipment_flag": 0,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 869.4755740804201,
+      "inner_thickness_mm": 379.392764440258,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 4,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 22.31,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 32.613,
+      "pitch_in_mm": 144.64452958705832,
+      "pitch_out_mm": 264.41245136186774,
+      "position_from_a_m": 869.4755740804201,
+      "position_from_b_m": 606.6531394023791,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 1.285,
+      "total_off_back_m": 31.65237991274141,
+      "total_off_front_m": 47.09128024079515,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 4.136803743884379,
+       "off_m": 47.09128024079515,
+       "off_side": "頭",
+       "prev_pos_m": 1447.6216679231754,
+       "ratio": 0.5680933852140078
+      },
+      "transfer_distance_m": 9.543613664077965,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6214,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 2571.5038386271262,
+      "agreement_percent": 0.2835269286940287,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": 26.887115928211895,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 84.16509729857322,
+      "diameter_out_mm": 148.15363017625558,
+      "equipment": "L-2",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "head_tail": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 1123.8821707039508,
+      "inner_thickness_mm": 303.23126699255795,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 5,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 23.5,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 0.0,
+      "pitch_in_mm": 264.41245136186774,
+      "pitch_out_mm": 465.4383561643836,
+      "position_from_a_m": 1447.6216679231754,
+      "position_from_b_m": 1123.8821707039508,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [
+       {
+        "condition": "",
+        "diameter_max_mm": 151.0,
+        "diameter_min_mm": 0,
+        "location": "出側",
+        "name": "テールキャッチャー",
+        "reference": ""
+       }
+      ],
+      "side_state": 0,
+      "thickness": 0.73,
+      "total_off_back_m": 58.80910823214783,
+      "total_off_front_m": 0.0,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.6582669421481953,
+       "off_m": 58.80910823214783,
+       "off_side": "尾",
+       "prev_pos_m": 1820.167268535817,
+       "ratio": 0.7630136986301371
+      },
+      "transfer_distance_m": 4.794497069601763,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6149.7,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3305.6361153309085,
+      "agreement_percent": 100.0,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": 64.55742541918494,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 148.15363017625558,
+      "diameter_out_mm": 194.16903057211232,
+      "equipment": "L-2",
+      "equipment_flag": 2,
+      "face_state": 1,
+      "head_tail": 1,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "inner_length_m": 1820.167268535817,
+      "inner_thickness_mm": 353.8934511418846,
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 6,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 31.771,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 33.7,
+      "pitch_in_mm": 465.4383561643836,
+      "pitch_out_mm": 610.0,
+      "position_from_a_m": 1820.167268535817,
+      "position_from_b_m": 1485.4688467950916,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.557,
+      "total_off_back_m": 105.68393514119148,
+      "total_off_front_m": 112.46726853581687,
+      "trace": {
+       "an_skip": false,
+       "circumference_m": 3.9765868332248706,
+       "off_m": 112.46726853581687,
+       "off_side": "頭",
+       "prev_pos_m": 1707.7,
+       "ratio": 1.0
+      },
+      "transfer_distance_m": 1691.02,
+      "transfer_match": false,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 6031.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3843.462391849489,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "下",
+      "design_split": 1,
+      "diameter_in_mm": 194.16903057211232,
+      "diameter_out_mm": 232.58526887885284,
+      "equipment": "CAL",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "length_loss_kg": "",
+      "length_loss_m": "",
+      "line_direction": "←",
+      "no": 7,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 23.755,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 21.121,
+      "pitch_in_mm": 610.0,
+      "pitch_out_mm": 730.6881720430108,
+      "rewind_master": "下",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.465,
+      "total_off_back_m": 93.36671504981241,
+      "total_off_front_m": 82.63817354345576,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5854.9,
+      "width": 1200,
+      "width_loss_kg": ""
+     },
+     {
+      "after_length_m": 3348.7125730363086,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "上",
+      "design_split": 1,
+      "diameter_in_mm": 232.58526887885284,
+      "diameter_out_mm": 211.64804310893652,
+      "equipment": "TLV",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 445.35,
+      "inner_diameter_source": "input",
+      "length_loss_kg": 343.39999999999964,
+      "length_loss_m": 208.6451778246697,
+      "line_direction": "←",
+      "no": 8,
+      "off_back_m": 121.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 4.79,
+      "off_front_m": 85,
+      "off_front_thickness_mm": 9.4,
+      "pitch_in_mm": 730.6881720430108,
+      "pitch_out_mm": 664.9119373776908,
+      "rewind_master": "上",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.511,
+      "total_off_back_m": 134.25598770420018,
+      "total_off_front_m": 111.28025251794054,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5511.5,
+      "width": 1179.8,
+      "width_loss_kg": 94.36540091540961
+     },
+     {
+      "after_length_m": 1066.8619126334534,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "上",
+      "design_split": 69,
+      "diameter_in_mm": 211.64804310893652,
+      "diameter_out_mm": 211.64804310893652,
+      "equipment": "LS4",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "length_loss_kg": 390.1999999999998,
+      "length_loss_m": 5608.727620596442,
+      "line_direction": "→",
+      "no": 9,
+      "off_back_m": 68.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 8.8,
+      "off_front_m": 60,
+      "off_front_thickness_mm": 39.4,
+      "pitch_in_mm": 664.9119373776908,
+      "pitch_out_mm": 664.9119373776908,
+      "rewind_master": "上",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 1,
+      "thickness": 0.511,
+      "total_off_back_m": 98.66489530583434,
+      "total_off_front_m": 204.70729076209182,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 5121.3,
+      "width": 49.87,
+      "width_loss_kg": 1681.6797612924038
+     },
+     {
+      "after_length_m": 974.0608951452998,
+      "auto_inner_diameter_mm": 558.0,
+      "auto_off_back_m": null,
+      "auto_rewind_master": "-",
+      "design_split": 69,
+      "diameter_in_mm": 211.64804310893652,
+      "diameter_out_mm": 200.65333957080995,
+      "equipment": "KEN",
+      "equipment_flag": 0,
+      "face_state": 0,
+      "horizontal_split": 1,
+      "inner_diameter_mm": 558.0,
+      "inner_diameter_source": "auto",
+      "length_loss_kg": 186.30000000000018,
+      "length_loss_m": 2537.2361882116106,
+      "line_direction": "-",
+      "no": 10,
+      "off_back_m": 0.0,
+      "off_back_source": "input",
+      "off_back_thickness_mm": 27.36,
+      "off_front_m": 0,
+      "off_front_thickness_mm": 18.19,
+      "pitch_in_mm": 664.9119373776908,
+      "pitch_out_mm": 630.3710575139147,
+      "rewind_master": "-",
+      "rewind_source": "auto",
+      "roll_candidates": [],
+      "side_state": 0,
+      "thickness": 0.539,
+      "total_off_back_m": 93.34697366845569,
+      "total_off_front_m": 61.088508702779045,
+      "unwind": "上",
+      "vertical_split": 1,
+      "weight": 4935,
+      "width": 49.9,
+      "width_loss_kg": -0.04299904156138526
+     }
+    ],
+    "soil_a_ready": true,
+    "soil_positions_ready": true,
+    "trace_ratio": "adjacent"
+   },
+   "status": 200
+  }
+ },
+ "posix": {
+  "同一工程の名前・旧い列名・全部の設定 / 乱数 29": "be7ac9869c84",
+  "設備マスタ（正しいデータ）・設定なし / 乱数 2": "ffd00be0fed9",
+  "設備マスタ（正しいデータ）・設定なし / 乱数 24": "b97fe2b1a905"
+ },
+ "skip": [],
+ "unmade": []
+}

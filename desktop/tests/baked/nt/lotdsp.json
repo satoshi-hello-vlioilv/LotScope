@@ -1,0 +1,173 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 lotdsp の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "lotdsp",
+ "file": "lotdsp",
+ "answers": {
+  "見えない Edge / LotDsp の窓 ログインを待ちきれない": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / LotDsp の窓でログインを待つ": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / すぐ終わる 2 つ目の起動": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / ページの誤り": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / ログインが要る": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 大きな枠・分けた枠・ping": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 実行できないブラウザ": {
+   "left": null,
+   "log": null,
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 時間切れ": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 理由なしの誤り": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 画面が入れ替わる": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 知らない理由": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 移る途中は評価できない": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 該当なし": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 読める": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 起動が遅い": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  },
+  "見えない Edge / 閉じてを無視する": {
+   "left": 0,
+   "log": [],
+   "result": {
+    "error": "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）",
+    "kind": "no_browser",
+    "ok": false
+   }
+  }
+ },
+ "posix": {
+  "見えない Edge / LotDsp の窓 ログインを待ちきれない": "6b2980c1ce3c",
+  "見えない Edge / LotDsp の窓でログインを待つ": "749f76a973d0",
+  "見えない Edge / すぐ終わる 2 つ目の起動": "09a29bd44b7d",
+  "見えない Edge / ページの誤り": "b3e6fd167704",
+  "見えない Edge / ログインが要る": "e8fc2923603c",
+  "見えない Edge / 大きな枠・分けた枠・ping": "c7db413bdf52",
+  "見えない Edge / 実行できないブラウザ": "d94d89866df1",
+  "見えない Edge / 時間切れ": "60bb7f98facc",
+  "見えない Edge / 理由なしの誤り": "eb51805d1883",
+  "見えない Edge / 画面が入れ替わる": "1f7816bb628f",
+  "見えない Edge / 知らない理由": "8eb40f354fb9",
+  "見えない Edge / 移る途中は評価できない": "4e112659ff3a",
+  "見えない Edge / 該当なし": "acc77785fb36",
+  "見えない Edge / 読める": "d47a9bbea8ce",
+  "見えない Edge / 起動が遅い": "1ec3507ae55c",
+  "見えない Edge / 閉じてを無視する": "e6e59260f2e4"
+ },
+ "skip": [
+  "見えない Edge / 見張りで閉じる（差し替えた時計）"
+ ],
+ "unmade": []
+}

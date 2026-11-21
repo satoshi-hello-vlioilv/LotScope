@@ -349,8 +349,9 @@ def check(baked=None):
 
 
 def measure_books(books_json=None):
-    """札が measure の本（Windows の表だけの形でまだ比べていない本。版 3.117.3 の作った後の直し・割れ 3）"""
-    data = json.loads(Path(books_json).read_text(encoding="utf-8"))["books"] if books_json else BOOKS
+    """札が measure の本（Windows の表だけの形でまだ比べていない本。版 3.117.3 の作った後の直し・割れ 3）。books.json はいつも読み直す
+    （--take-nt が札を替えた後も今の札で数える）"""
+    data = json.loads(Path(books_json or BAKED / "books.json").read_text(encoding="utf-8"))["books"]
     return sorted(b for b, v in data.items() if v["phase"] in PHASES and v.get("windows") != "table")
 
 
@@ -643,7 +644,9 @@ def _bless_user(books):
 
 
 NT = BAKED / "nt"
-WIN_MARKS = re.compile(r"(?i)[a-z]:\\\\(?:users|windows\\\\temp)\\\\|RUNNER~1|runneradmin|[a-z]:\\\\a\\\\_temp|\\\\AppData\\\\Local\\\\Temp")
+# Windows の runner の字（版 3.117.3。1 回目の CI の取り込みで狭めた: 前は「C:\Users\」も止め、Windows の ~名前 の答え「C:\Users\無い名前\x」
+# 〈どの Windows でも同じ字〉まで断った）。止めるのは runner の利用者の名前・8.3 の短い名前・一時フォルダだけ
+WIN_MARKS = re.compile(r"(?i)RUNNER~1|runneradmin|[a-z]:\\\\a\\\\_temp|\\\\AppData\\\\Local\\\\Temp|[a-z]:\\\\windows\\\\temp\\\\")
 JSON_Z = "measure-z| "     # 測りの記録を zlib で詰めて base64 にし、行に割った形（版 3.117.3。仕事の記録の末尾に入る大きさにする）
 Z_CHUNK = 2000
 WINDOWS = ("table", "measure")

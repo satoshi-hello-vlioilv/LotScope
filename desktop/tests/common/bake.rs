@@ -193,7 +193,16 @@ pub fn spellings(p: &Path) -> Vec<String> {
 
 impl Ctx {
     pub fn new(base: &Path) -> Ctx {
-        Ctx::with_home(base, std::env::var("HOME").ok().as_deref())
+        // 家は HOME、無ければ USERPROFILE（Windows。版 3.117.3 の 1 回目の CI の取り込みで見つけた: Windows の「参照…」のよく使う場所の
+        // ホーム・デスクトップ・ドキュメントが runner の利用者のフォルダの字のまま答えに残った）
+        let home = std::env::var("HOME").ok().filter(|h| !h.is_empty()).or_else(|| {
+            if cfg!(windows) {
+                std::env::var("USERPROFILE").ok()
+            } else {
+                None
+            }
+        });
+        Ctx::with_home(base, home.as_deref())
     }
 
     /// 家を決めて作る（試験: リポジトリが家の下にある PC〈CI〉と同じ形を作る）
@@ -220,7 +229,9 @@ impl Ctx {
         }
         if let Some(h) = home {
             let h = h.trim_end_matches(['/', '\\']).to_string();
-            if h.len() > 3 && Path::new(&h).is_dir() && !base.starts_with(&h) {
+            // Windows の一時フォルダ（作業フォルダ）は家の下にある（C:\Users\<利用者>\AppData\Local\Temp）。置き換えは長い字から当てるので、
+            // 作業フォルダは家より先に @WORK になる（版 3.117.3）
+            if h.len() > 3 && Path::new(&h).is_dir() && (!base.starts_with(&h) || cfg!(windows)) {
                 subs.extend(spellings(Path::new(&h)).into_iter().map(|v| (v, "@HOME".into())));
             }
         }

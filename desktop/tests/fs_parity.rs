@@ -108,7 +108,10 @@ fn folder_browse_matches_python() {
     let (mut steps, mut delegated) = (0, 0);
     for (i, st) in oracle["steps"].as_array().unwrap().iter().enumerate() {
         // その場の OS で決まる歩（/ の中身・~nobody の家）は焼かない（事例の表 ospath_cases が見る）。Python と比べるときだけ見る
-        let os_bound = ["\"/\"", "~nobody"].iter().any(|b| st["body"].as_str().unwrap_or("").contains(b));
+        // Windows（版 3.117.3 の 1 回目の CI の取り込みで見つけた）: 「~名前」は Windows では C:\Users\名前 になり、届いた所として
+        // その PC の C:\Users の中（runner の利用者のフォルダ）を答える。Linux の ~nobody と同じく流す PC で決まる歩なので表と比べない
+        let body_text = st["body"].as_str().unwrap_or("");
+        let os_bound = ["\"/\"", "~nobody"].iter().any(|b| body_text.contains(b)) || (cfg!(windows) && body_text.contains("\"~"));
         if os_bound && !bk.python() {
             continue;
         }

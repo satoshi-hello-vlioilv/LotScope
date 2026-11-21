@@ -41,7 +41,7 @@
   },
   "mirror": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "mirror_parity"
    ],
@@ -102,7 +102,7 @@
   },
   "sources_write": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "sources_write_parity"
    ],
@@ -168,7 +168,7 @@
   },
   "worklog_write": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "worklog_write_parity"
    ],
@@ -212,7 +212,7 @@
   },
   "release_place": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "release_parity"
    ],
@@ -224,7 +224,7 @@
   },
   "place": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "place_parity"
    ],
@@ -236,7 +236,7 @@
   },
   "masters": {
    "phase": "3.115.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "masters_parity"
    ],
@@ -327,7 +327,7 @@
   },
   "conversions": {
    "phase": "3.116.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "conversions_write_parity"
    ],
@@ -410,7 +410,7 @@
   },
   "calc": {
    "phase": "3.116.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "calc_parity"
    ],
@@ -451,7 +451,7 @@
   },
   "lotdsp": {
    "phase": "3.117.0",
-   "windows": "measure",
+   "windows": "table",
    "tests": [
     "lotdsp_parity"
    ],
