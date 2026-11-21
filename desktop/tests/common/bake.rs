@@ -1852,7 +1852,13 @@ impl Bake {
                 .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
             assert!(out.status.success(), "場面の台本 {script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
         }
-        self.unmade = materialize_os(&t["scene"], &self.base, &self.ctx, self.os);
+        self.unmade = if self.os == "nt" && !self.nt_answers {
+            // Linux の上の Windows の形: 場面は Linux の形で作り（答えを posix の表と比べられる）、作れない物は Windows の決めで数える
+            let _ = materialize_os(&t["scene"], &self.base, &self.ctx, "posix");
+            predicted_unmade(&t["scene"], "nt")
+        } else {
+            materialize_os(&t["scene"], &self.base, &self.ctx, self.os)
+        };
         if self.os == "nt" && self.check {
             // Windows で作れない場面の物は nt の表の unmade と同じ並び（増えても減っても落とす。版 3.117.3）
             let want: Vec<String> = self.nt_list("unmade");
