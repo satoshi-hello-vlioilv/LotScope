@@ -1495,6 +1495,8 @@ pub struct Bake {
     pub os: &'static str,
     /// Windows の上書きの表（nt_dir の <表>.json。os が nt のときだけ読む）
     pub nt: Option<Value>,
+    /// nt の表の answers と skip を当てるか（Windows の本物と、試験の変異の apply_os。Linux の上の Windows の形〈TPA_BAKE_OS=nt〉では当てない）
+    pub nt_answers: bool,
     /// 場面を宣言どおりに作れなかった物（materialize_os。Windows の表だけの形）
     unmade: Vec<String>,
     /// 測りの記録に書く、比べた表のファイルの指紋（tools/bless.py --take-nt が、取り込む記録が今の表で取った物かを見る）
@@ -1591,6 +1593,9 @@ impl Bake {
         bk.measure = std::env::var("TPA_MEASURE").ok().filter(|s| !s.is_empty()).map(PathBuf::from);
         bk.table_sha = file_sha(&path);
         bk.apply_os(bake_os(), &nt_dir().join(format!("{file}.json")), windows_status(book));
+        // Linux の上の Windows の形（TPA_BAKE_OS=nt）: 窓の答えは Linux の答えなので、nt の答え（answers）と流さない歩（skip）は当てない。
+        // 当てるのは nt の表の読み方・札・作れない場面の物（unmade）だけ（Windows の答えそのものは Windows の CI が守る）
+        bk.nt_answers = cfg!(windows);
         bk
     }
 
@@ -1603,6 +1608,7 @@ impl Bake {
         if os != "nt" {
             return;
         }
+        self.nt_answers = true;
         self.nt_sha = file_sha(nt_file);
         self.nt = std::fs::read(nt_file).ok().map(|b| super::json_keep(&b).unwrap_or_else(|| panic!("{} が読めません", nt_file.display())));
         self.check = self.mode == Mode::Baked && status == "table";
@@ -1638,6 +1644,7 @@ impl Bake {
             // bake_os にして、Windows では焼く決めを見る bake_selftest の 4 本が「Windows では焼きません」に当たった）。open_part は apply_os(bake_os())
             os: "posix",
             nt: None,
+            nt_answers: false,
             unmade: vec![],
             table_sha: String::new(),
             nt_sha: String::new(),
@@ -1900,7 +1907,7 @@ impl Bake {
     fn table_keys(&self) -> Vec<String> {
         let mut keys: Vec<String> =
             self.table.as_ref().and_then(|t| t["answers"].as_object()).map(|o| o.keys().cloned().collect()).unwrap_or_default();
-        if self.os == "nt" {
+        if self.os == "nt" && self.nt_answers {
             for k in self.nt.as_ref().and_then(|n| n["answers"].as_object()).into_iter().flat_map(|o| o.keys()) {
                 if !keys.contains(k) {
                     keys.push(k.clone());
@@ -1913,7 +1920,7 @@ impl Bake {
     /// 表の答え。Windows（os が nt）は nt の表の上書きを先に見る（posix と違う歩の Windows の答え。読む所はここ 1 か所）
     fn table_answer(&self, key: &str) -> Option<Value> {
         let t = self.table.as_ref()?;
-        if self.os == "nt" {
+        if self.os == "nt" && self.nt_answers {
             if let Some(v) = self.nt.as_ref().and_then(|n| n["answers"].get(key)) {
                 return Some(v.clone());
             }
@@ -1965,7 +1972,7 @@ impl Bake {
                 self.measured.push(json!({"key": key, "route": route, "diff": cut(&d), "got": g}));
             }
         }
-        if self.os == "nt" && self.check && self.nt_list("skip").contains(&key) {
+        if self.os == "nt" && self.nt_answers && self.check && self.nt_list("skip").contains(&key) {
             self.bad.push(format!("Windows では流さない歩（tests/baked/nt/{}.json の skip）を窓が答えた: {key}", self.file));
         }
         if self.check && self.table.is_some() && self.mode != Mode::BlessScope {
@@ -2012,7 +2019,7 @@ impl Bake {
         }
         if let Some(t) = &self.table {
             if self.check && self.mode != Mode::BlessScope {
-                let skip = if self.os == "nt" { self.nt_list("skip") } else { vec![] };
+                let skip = if self.os == "nt" && self.nt_answers { self.nt_list("skip") } else { vec![] };
                 let mut missing: Vec<String> =
                     self.table_keys().into_iter().filter(|k| !self.answers.contains_key(k) && !skip.contains(k)).collect();
                 missing.truncate(5);
