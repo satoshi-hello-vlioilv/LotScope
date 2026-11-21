@@ -770,6 +770,72 @@
     "ship": "製品の答えは替わらない（自己診断・verify・CI だけ。/__desktop/info に読むだけの鍵 unanswered が増える）。ask_user 2 で favicon の答えを足すときだけ製品の答えが 1 つ替わる。配らなくてよい（次の版と一緒に）",
     "next": "3.118.2 で native を lib へ出すとき（ui-harness の窓の開発用サーバー）、/__desktop/info の unanswered と selftest_names.json の置き場も一緒に運ぶ。⑤ の一覧の直し（first_fixes 12）は 3.118.1 の計画書の直しで入れる"
    }
-  ]
+  ],
+  "built_3118_1": {
+   "about": "作った形（版 3.118.1。作る係が first_fixes 1〜14 の順で作った。決まり 2026-11-06 の作った後の採点は主が頼む）",
+   "first_fixes": {
+    "1": "済み: ok 40 を 1 対 1 で okw に（畳まない）。名前は固定の字（8・8・6・11 通り。:356 の場面で替わる名前は 1 つに）。名前から「Python と同じ」を外した",
+    "2": "済み: desktop/bundle/selftest_names.json（name・maybe・nan・except・part）。verify.py の WINDOW_ONLY・WINDOW_MAYBE・NAN_EXPECTED・EXCEPT はここから読む。test_bundle.py の SelftestNames",
+    "3": "済み: window_only_ok は skipped==0・必ず出る名前が全部・余分なし・落ちなし（EXCEPT は数えない）。包み・pyUp・pyWait・130 秒の待ちを外した。結果の python と skipped: 0 は残す",
+    "4": "済み: 22 の節を part() で守る（例外は「例外: 節の名前」＝ maybe）",
+    "5": "済み: 15 項目を形・道どうし・場面の値・決めた答えに。日付は date_range 2026-07-04..2026-10-02。info の頭に [形]・[道どうし]・[場面]・[決めた答え]。一覧の行は計算列の値を持たないので、計算列は並びで確かめる（鍵 ＝ 重量＋板幅×1000）。/api/lotlist/pivot は計算列を持たない（calc: None）ので集計表での計の確かめは採らなかった",
+    "6": "済み: 運び手を窓の道に（/api/build・/api/changelog・窓の ui-state・日本語の検索・40 本は build・lotlist・shared.js の 3 種・偽の X-TPA-Me は窓の tabaccess）。:677 は engine=python の歩を外した",
+    "7": "済み: B の 8 を窓の残りで 1 つずつ（:104 は計算に空の本文の 400）",
+    "8": "済み: /__desktop/info の unanswered（delegate::unanswered_map）と項目「窓が答えない道が無い」。PR 121 の Windows の CI で出た GET /favicon.ico は、窓が版 3.117.3 の Python と同じ 404 の画面で答える（small_reads::favicon・test_favicon_answer.py）。製品の答えはこの 1 つだけ替わる",
+    "9": "済み: 手元の Linux の verify.py update の 1b で落ちた 4 項目だけを nan に（データの時刻・日本語の問い合わせ文字・設備グループの一覧・組む所の読み 7 本）。どれも info に 503 か「設定を組めません」",
+    "10": "済み: verify local の 3 窓目 admin-work（作業実績 3 台・開発者・編集可。共有のマスタの直下 *.json の sha256 が前後で同じ）。selftest_config.py・lotlist_fixture.py は変えていない",
+    "11": "済み: 計画書の「段 ④ 版 3.118.1」に 40 項目の分担の表",
+    "12": "済み: 計画書の ⑤ の一覧に 残す・移す・直す を足した",
+    "13": "済み: ci.yml・desktop.yml の自己診断の段に SELFTEST n=… need=… skipped=… unanswered=… と exit 6",
+    "14": "この順で作った"
+   },
+   "count": {
+    "before": "ok 40（流れる 39）・okw 25（いつも 22）・包み 1",
+    "after": "okw 66 種（必ず 62・maybe 3）＋ 節の例外 22 種（maybe）。CI の場面（一般ユーザー）で流れる 63・admin-work 62（開発者は版を置けるので 1 つ少ない）・skipped 0・unanswered はわざと叩く 2 形だけ"
+   },
+   "mutations": [
+    {
+     "what": "selftest.js の名前を 1 字変える",
+     "result": "test_bundle.py が落ちる"
+    },
+    {
+     "what": "selftest_names.json に selftest.js に無い名前（nan つき）を足す",
+     "result": "test_bundle.py が落ちる"
+    },
+    {
+     "what": "verify.py が探す名前を 1 字変える",
+     "result": "test_bundle.py が落ちる"
+    },
+    {
+     "what": "small_reads.rs の NOT_FOUND_HTML を 1 字変える",
+     "result": "test_favicon_answer.py が落ちる"
+    },
+    {
+     "what": "main.rs で GET /api/build を窓の道から外す（debug の exe）",
+     "result": "API が答える・版と更新履歴・窓が答えない道が無い（余分 unanswered GET /api/build×59）の 3 つが落ちる"
+    },
+    {
+     "what": "formula.rs の + を -（debug の exe）",
+     "result": "一覧 8 通り（⑦ 計算列の並び）が落ちる"
+    },
+    {
+     "what": "selftest.js の変換表の節の頭で throw",
+     "result": "「例外: 変換表」だけが落ち、後ろの節は全部出る（62 項目）"
+    },
+    {
+     "what": "main.rs で info の unanswered を外す（debug の exe）",
+     "result": "窓が答えない道が無い が落ちる"
+    }
+   ],
+   "not_taken": [
+    "採点の discrepancies 2 の lot.rs:1776 の段 python が残る形は直さず、項目で頼らない（⑤ の一覧の直すへ）",
+    "404 にするか（ask_user 1）は既定のまま 503"
+   ],
+   "windows_only": [
+    "WebView2 が /favicon.ico 以外を尋ねるか（SELFTEST の行の unanswered）",
+    "畳んだ static の外が 503 か 404 か（どちらでも通す）",
+    "Windows の自己診断の時間"
+   ]
+  }
  }
 }
