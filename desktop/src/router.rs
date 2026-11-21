@@ -30,6 +30,10 @@ pub trait Backend: Send + Sync {
     }
     /// 起こせなかった理由を忘れて起こし直す（画面の帯の「もう一度起こす」）
     fn retry(&self) {}
+    /// 中身を起こさない形か（版 3.118.0。段 ④: 製品の窓はいつも真。中身へ回さず、振り分けが窓の言葉で断る〈window_unanswered〉）
+    fn absent(&self) -> bool {
+        false
+    }
 }
 
 /// 長い問い合わせ（見えない Edge で LotDsp を読む・共有の写し直し）を待てる長さ。
@@ -48,6 +52,9 @@ impl Backend for Supervisor {
     }
     fn retry(&self) {
         Supervisor::retry(self);
+    }
+    fn absent(&self) -> bool {
+        Supervisor::absent(self)
     }
 
     fn ask(&self, ask: &Ask) -> Reply {
@@ -132,6 +139,9 @@ impl<B: Backend> Router<B> {
             let decoded = percent_decode(path);
             match (self.guard)(&Req { method, path: &decoded, query, body: req.body() }, &self.backend) {
                 Err(no) => (no, "shell"),
+                // 段 ④（版 3.118.0）: 中身を起こさない窓は中身へ回さず、窓の言葉で断る（503 window_unanswered。戻したキーに / がある道は 404）。
+                // 回数は形の名前ごとに数える（利用状況のいま使っている印の unanswered。src/delegate.rs）
+                Ok(_) if self.backend.absent() => (window_unanswered(method, path, &decoded, query), "shell"),
                 Ok(me) => {
                     headers.extend(me.map(|m| (ME_HEADER.to_string(), m)));
                     // 窓が答えず Python へ回した回数を、道の型ごとに数える（版 3.102.0 の作った後の採点の足りない所。src/delegate.rs。
@@ -144,6 +154,34 @@ impl<B: Backend> Router<B> {
             }
         };
         to_response(reply, by)
+    }
+}
+
+/// 窓が答えなかった問い合わせの答え（版 3.118.0。段 ④ の中身へ回していた道の落ち先の 1 か所）。raw は画面が送った道・decoded は百分率符号を
+/// 戻した道。戻すと段が増える道（/api/sources/a%2Fb/columns: 戻したキーに / がある）は道なしの 404（前は Python が道なしの 404 で答えた）。
+/// ほかは 503 {error, kind: window_unanswered, route: 道の型, why}。回数を数える（形の名前 unanswered <道の型>）
+pub fn window_unanswered(method: &str, raw: &str, decoded: &str, query: &str) -> Reply {
+    if raw.split('/').count() != decoded.split('/').count() {
+        // 形の名前は送った道の型（戻した字は書かない）
+        let route = delegate_form(method, raw, query).replacen("python ", "", 1);
+        da_core::delegate::note(&format!("unanswered_404 {route}"));
+        return error_reply(404, "not_found", "ありません。");
+    }
+    let route = delegate_form(method, decoded, query).replacen("python ", "", 1);
+    da_core::delegate::note(&format!("unanswered {route}"));
+    let mut v = json!({
+        "error": "この問い合わせには、まだ窓が答えられません（版 3.118.0 からアプリの中身〈Python〉に回しません）。画面を開き直しても続くときは、配る人に知らせてください。",
+        "kind": "window_unanswered",
+        "route": route,
+        "why": "窓の係が答えない形でした（比べる口 engine=python・窓がまだ同じに読めない形）",
+    });
+    if route.starts_with("engine_python") {
+        v["why"] = json!("engine=python は Python と比べる口です（段 ④ から中身を起こさないので答えません）");
+    }
+    Reply {
+        status: 503,
+        headers: vec![("Content-Type".into(), "application/json".into())],
+        body: serde_json::to_vec(&v).unwrap_or_default(),
     }
 }
 
@@ -406,6 +444,59 @@ mod tests {
             );
         }
         assert_eq!(r.backend.0.lock().unwrap().len(), n, "断った問い合わせは Python へ回さない");
+    }
+
+    /// 中身を起こさない窓（版 3.118.0。段 ④）: 中身の道は答えを作り物に回さない
+    struct Absent(Mutex<u32>);
+    impl Backend for Absent {
+        fn ask(&self, _: &Ask) -> Reply {
+            *self.0.lock().unwrap() += 1;
+            error_reply(200, "py", "中身")
+        }
+        fn absent(&self) -> bool {
+            true
+        }
+        fn python_now(&self) -> da_core::presence::PythonNow {
+            da_core::presence::PythonNow::absent()
+        }
+    }
+
+    #[test]
+    fn an_absent_backend_is_never_asked_and_the_window_answers_why() {
+        let r = Router {
+            static_dir: std::env::temp_dir(),
+            backend: Absent(Mutex::new(0)),
+            native: Box::new(|_, _| None),
+            guard: Box::new(|r, _| match r.path {
+                "/api/masters/access" if r.method == "POST" => Err(error_reply(403, "forbidden", "書けません")),
+                _ => Ok(None),
+            }),
+            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
+        };
+        for (m, p) in [("GET", "/api/lotlist/settings"), ("GET", "/api/dashboard/fields?source=lot&engine=python"), ("POST", "/api/x/12")] {
+            let a = r.handle(&req(m, &format!("tpa://localhost{p}"), b"{}"));
+            let v: serde_json::Value = serde_json::from_slice(a.body()).unwrap();
+            assert_eq!((a.status().as_u16(), a.headers()["x-tpa-by"].to_str().unwrap()), (503, "shell"), "{p}");
+            assert_eq!(v["kind"], "window_unanswered", "{p} {v}");
+            assert!(v["error"].as_str().unwrap().contains("窓"), "窓の言葉: {v}");
+            assert!(!v["error"].as_str().unwrap().contains("起こし直"), "中身を起こし直すとは言わない: {v}");
+        }
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(r.handle(&req("POST", "tpa://localhost/api/x/12", b"")).body()).unwrap()["route"],
+            "POST /api/x/{n}",
+            "道の型だけ（引数は書かない）"
+        );
+        let slash = r.handle(&req("GET", "tpa://localhost/api/sources/a%2Fb/columns", b""));
+        assert_eq!(
+            (slash.status().as_u16(), slash.headers()["x-tpa-by"].to_str().unwrap()),
+            (404, "shell"),
+            "戻したキーに / がある道は道なしの 404"
+        );
+        assert_eq!(r.handle(&req("POST", "tpa://localhost/api/masters/access", b"{}")).status(), 403, "門番は前のまま");
+        assert_eq!(*r.backend.0.lock().unwrap(), 0, "中身へ 1 度も回さない");
+        let n = da_core::delegate::counts();
+        assert!(n["unanswered GET /api/lotlist/settings"].as_u64().unwrap_or(0) >= 1, "回数を数える: {n}");
+        assert!(n["unanswered_404 GET /api/sources/{s}/columns"].as_u64().unwrap_or(0) >= 1, "{n}");
     }
 
     #[test]

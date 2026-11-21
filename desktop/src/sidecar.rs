@@ -467,6 +467,11 @@ impl<T: Live> Phases<T> {
     }
 }
 
+/// 段 ④（版 3.118.0）: 製品の窓は中身（Python）を起こさない。main.rs はこの理由で係を作り（Supervisor::new の py）、係は起こさず、
+/// 様子は第 3 の様子 absent（止まった stopped とは別。利用状況の印・画面の帯・配布の画面の「中身の起きない PC」に出さない）。
+/// 係の型と起こす関数は段 ⑤ で消すまで残す（呼ぶ所が残るので dead_code にならない）
+pub const ABSENT: &str = "段 ④（版 3.118.0）: 中身は窓だけ（Python を起こさない）";
+
 /// 中身の Python を1つ持ち、止まっていたら次の問い合わせで起こし直す係（複製しても同じ係）。
 #[derive(Clone)]
 pub struct Supervisor {
@@ -519,9 +524,12 @@ impl Supervisor {
         *self.inner.notices.lock().unwrap() = Some(f);
     }
 
-    /// 動いている中身（無ければ・止まっていれば起こす。だれかが起こしている最中なら待ち合わせる）。
+    /// 動いている中身（無ければ・止まっていれば起こす。だれかが起こしている最中なら待ち合わせる）。起こさない係は起こさずに理由
     pub fn get(&self) -> Result<Arc<Sidecar>, String> {
         let i = &self.inner;
+        if self.absent() {
+            return Err(ABSENT.to_string());
+        }
         let changed = i.changed.lock().unwrap().clone();
         i.phases.get_then(
             || {
@@ -556,8 +564,16 @@ impl Supervisor {
         self.inner.phases.down_reason()
     }
 
-    /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す
+    /// 中身を起こさない係か（版 3.118.0。py が ABSENT の理由）
+    pub fn absent(&self) -> bool {
+        matches!(&*self.inner.py.lock().unwrap_or_else(|e| e.into_inner()), Err(e) if e == ABSENT)
+    }
+
+    /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す（起こさない係〈absent〉は何もしない）
     pub fn retry(&self) {
+        if self.absent() {
+            return;
+        }
         // PC に Python が見つからなかった係は、ここでだけ探し直す（入れた後に「もう一度起こす」を押せば起きる）
         if !self.has_python() {
             *self.inner.py.lock().unwrap_or_else(|e| e.into_inner()) = crate::locate::python();
@@ -571,9 +587,9 @@ impl Supervisor {
         self.inner.phases.up()
     }
 
-    /// 動いていなければ裏の糸で起こし始める（待たない。起こしている最中・起こせなかった直後は何もしない）
+    /// 動いていなければ裏の糸で起こし始める（待たない。起こしている最中・起こせなかった直後・起こさない係は何もしない）
     pub fn kick(&self) {
-        if self.up().is_some() || self.inner.phases.busy() {
+        if self.up().is_some() || self.inner.phases.busy() || self.absent() {
             return;
         }
         let me = self.clone();
@@ -597,6 +613,10 @@ impl Supervisor {
     /// RETRY_AFTER の間は起こさない）。前は Backend::alive() の副作用で、心拍から alive を外すと起こし直しの合図も消えるため、ここに置く
     pub fn now(&self) -> da_core::presence::PythonNow {
         use da_core::presence::PythonNow;
+        // 起こさない係（版 3.118.0）: 起こし直しもしない。様子は absent（窓の決めは stopped と同じ・印と帯には出さない）
+        if self.absent() {
+            return PythonNow::absent();
+        }
         if self.up().is_some() {
             return PythonNow::ready();
         }
@@ -760,6 +780,30 @@ mod tests {
             assert!(t.join().unwrap().is_ok());
         }
         assert_eq!(heard.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn an_absent_supervisor_never_spawns() {
+        // 段 ④（版 3.118.0。採点の first_fixes 2）: 製品の窓は係を ABSENT の理由で作る。心拍（now）・問い合わせ（get）・「もう一度起こす」（retry）・
+        // kick のどれも起こさず（起こそうとした回数 0・PC の Python も探さない）、様子はいつも absent（揺れない・理由を持たない）
+        let progress: Progress = Arc::new(|_| {});
+        let sup = Supervisor::with_retry(Err(ABSENT.into()), PathBuf::from("."), std::env::temp_dir(), progress, Duration::from_millis(10));
+        assert!(sup.absent() && !sup.has_python());
+        for _ in 0..20 {
+            let n = sup.now();
+            assert_eq!((n.state, n.why.as_str()), ("absent", ""));
+            sup.kick();
+            sup.retry();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(sup.get().err().as_deref(), Some(ABSENT), "問い合わせは起こさずに理由");
+        assert!(!sup.absent() || sup.down_reason().is_none(), "止まった理由を持たない（画面の帯を出さない）");
+        assert!(!sup.starting() && sup.up().is_none());
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(sup.attempts(), 0, "1 度も起こそうとしない");
+        // 見つからない Python（版 3.111.0 の形）は absent ではない
+        let missing = Supervisor::new(Err("Python が見つかりません。".into()), PathBuf::from("."), std::env::temp_dir(), Arc::new(|_| {}));
+        assert!(!missing.absent());
     }
 
     #[test]

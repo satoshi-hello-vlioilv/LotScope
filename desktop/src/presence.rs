@@ -315,7 +315,8 @@ pub fn online_in(master_dir: &Path, now: NaiveDateTime) -> Option<Vec<Value>> {
 }
 
 /// 中身（Python）の様子（版 3.111.0。心拍の答えの python と、利用状況のいま使っているの印に書く物）。
-/// state は ready・starting・stopped（/api/health と同じ字）。why は止まった理由の短い字
+/// state は ready・starting・stopped（/api/health と同じ字）・absent（版 3.118.0。窓が中身を起こさない＝製品の形。窓の決めは stopped と同じ
+/// 〈without_python〉だが、利用状況の印・画面の帯・配布の画面の「中身の起きない PC」には出さない）。why は止まった理由の短い字
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PythonNow {
     pub state: &'static str,
@@ -326,11 +327,21 @@ impl PythonNow {
     pub fn ready() -> PythonNow {
         PythonNow { state: "ready", why: String::new() }
     }
-    /// 利用状況に書く形（起きていれば書かない＝前の版の印と同じ形。Python が書く印もこの形）
+    /// 窓が中身を起こさない（版 3.118.0。段 ④）
+    pub fn absent() -> PythonNow {
+        PythonNow { state: "absent", why: String::new() }
+    }
+    /// 利用状況に書く形（起きていれば書かない＝前の版の印と同じ形。Python が書く印もこの形）。absent も書かない（前の版の画面・配布の画面は
+    /// 「書かない＝起きている」と読む。書けば版 3.117.x の配布の画面が新しい版の PC を「中身の起きない PC」と数える）
     fn mark(&self) -> Option<Value> {
-        (!self.state.is_empty() && self.state != "ready")
+        (!self.state.is_empty() && self.state != "ready" && self.state != "absent")
             .then(|| json!({"state": self.state, "why": self.why.chars().take(200).collect::<String>()}))
     }
+}
+
+/// 中身に頼れない様子か（版 3.118.0。止まった stopped と起こさない absent: 窓が既定の形で答える・心拍が 503 で断る所の 1 か所の決め）
+pub fn without_python(state: &str) -> bool {
+    matches!(state, "stopped" | "absent")
 }
 
 /// いま使っている PC の印の python が「止まっている」か（配布の画面の「中身の起きない PC」。Python の presence._python_down と同じ）
@@ -725,6 +736,11 @@ impl Presence {
         // 中身（Python）が起きていなければ様子を添える（版 3.111.0。配る人が「中身の起きない PC」を数える。前の版の読み手は知らない鍵を読まない）
         if let Some(py) = self.python.lock().unwrap().mark() {
             doc["python"] = py;
+        }
+        // 窓が答えられなかった回数（版 3.118.0。採点の first_fixes 8: 形の名前と回数だけ。1 度も無ければ鍵を書かない。前の版の読み手は知らない鍵を
+        // 読まない）。配る人が共有の利用状況で「段 ⑤ に進む前に、現場で 0 か」を見る材料
+        if let Some(u) = crate::delegate::unanswered() {
+            doc["unanswered"] = u;
         }
         let ok = match under(&dir, key, ".json") {
             Some(p) => self.write(&p, &doc),

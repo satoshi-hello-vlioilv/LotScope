@@ -1,8 +1,9 @@
 //! LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
 //!
 //! 役割の分け方（得意な分野ごと）:
-//!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・中身（Python）の監督と起こし直し・外のリンク
-//!   - Python（program/sidecar.py）: 画面と API（計算・LotDsp・マスタ・権限）。標準の部品だけで動く
+//!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・画面と API（計算・LotDsp・マスタ・権限）・外のリンク
+//!   - Python（program/sidecar.py）: 段 ④（版 3.118.0）から製品の窓は起こさない（PC の Python も探さない）。ファイルは段 ⑤ まで残す
+//!     （前の版へ戻した PC の窓が起こす・突き合わせの試験の答えの元）
 //!   - 画面（WebView2）: program/app の HTML/JS/CSS。問い合わせは自前の仕組み（tpa）で Rust が受ける
 //!
 //! ポートを開かないので、プロキシ・ポートの取り合い・古いサーバーの残り・ハートビートによる推し量りが無い。
@@ -353,6 +354,18 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             if r.is_none() {
                 log(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
                 da_core::delegate::note("page");
+                // 段 ④（版 3.118.0）: 中身は起こさないので、描けない理由を窓の言葉で答える（JSON の 503 でなく、画面に出る字）
+                if backend.absent() {
+                    let text = format!(
+                        "<!doctype html><meta charset=utf-8><title>画面を描けません</title><p>画面を描けません（{}）。開き直しても続くときは、配る人に知らせてください。</p>",
+                        html_escape(&lot.page_why())
+                    );
+                    return Some(Reply {
+                        status: 500,
+                        headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())],
+                        body: text.into_bytes(),
+                    });
+                }
             }
             r
         }
@@ -450,6 +463,11 @@ fn shortcut_icon() -> &'static std::path::PathBuf {
             p.app().join(&brand().exe)
         })
     })
+}
+
+/// HTML の字に逃がす（& < > " '）
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }
 
 fn json_reply(v: &serde_json::Value) -> Reply {
@@ -639,59 +657,23 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         }
         log("BOOT 控えへ戻せないので、この版のまま開きます");
     }
-    // Python（版 3.111.0: 見つからなくても画面は開く。中身の係は理由を持って Down になり、帯と心拍の python: stopped で見せる）
-    let py = locate::python();
-    let py_text = match &py {
-        Ok(p) => {
-            let t = format!("{} {}", p.exe.display(), p.args.join(" ")).trim().to_string();
-            splash.step(&app, "python", "ok", &t);
-            t
-        }
-        Err(e) => {
-            splash.step(&app, "python", "warn", "見つかりません（画面は開きます。中身の要る所だけ使えません）");
-            format!("（見つかりません） {}", e.lines().next().unwrap_or(""))
-        }
-    };
+    // 段 ④（版 3.118.0）: 中身（Python）は起こさない。PC の Python も探さない（locate::python を呼ばない）。中身の係は起こさない形（sidecar::ABSENT）で
+    // 作り、様子は absent（窓の決めは止まった stopped と同じ・利用状況の印と画面の帯には出さない）。係の型は段 ⑤ で消すまで残す
+    let py_text = "（段 ④: 起こさない）".to_string();
     log(&format!("START program={} python={py_text}", program.display()));
-    splash.step(&app, "backend", "now", "Python でアプリの中身を読み込んでいます…");
-    let (app_p, splash_p) = (app.clone(), splash.clone());
-    let progress: Progress = Arc::new(move |h| {
-        let text = h["text"].as_str().unwrap_or("起動前の確認をしています");
-        splash_p.step(&app_p, "backend", if h["bad"] == true { "warn" } else { "now" }, text);
-    });
+    splash.step(&app, "backend", "now", "配った設定と置き場を窓が読んでいます…");
+    let progress: Progress = Arc::new(|_| {});
     let version = program_version.clone().unwrap_or_else(|| "?".into());
-    let sup = Supervisor::new(py, program.clone(), locate::local_root().join("logs"), progress);
+    let sup = Supervisor::new(Err(sidecar::ABSENT.to_string()), program.clone(), locate::local_root().join("logs"), progress);
     let _ = SUP.set(sup.clone());
     let sup_for_boot = sup.clone();
     let t0 = Instant::now();
-    // 起こした結果（最初・止まったあとの起こし直し・「もう一度」）: 記録に残し、画面を開いたあとは帯を出す・消す
-    let (app_c, splash_c) = (app.clone(), splash.clone());
-    sup.on_changed(Arc::new(move |r| {
-        match r {
-            Ok(ready) => log(&format!(
-                "READY version={} elapsed={:.2} spawn_ms={}",
-                ready["version"].as_str().unwrap_or("?"),
-                ready["elapsed"].as_f64().unwrap_or(0.0),
-                t0.elapsed().as_millis()
-            )),
-            Err(e) => log(&format!("BACKEND 起こせません: {}", e.replace('\n', " / "))),
-        }
-        if splash_c.left.load(Ordering::SeqCst) {
-            if let Some(w) = app_c.get_webview_window("main") {
-                band(&w, r.err());
-            }
+    // 起こした結果の受け手（段 ④ では起こさないので呼ばれない。「もう一度起こす」も何もしない）
+    sup.on_changed(Arc::new(|r| {
+        if let Err(e) = r {
+            log(&format!("BACKEND 起こせません: {}", e.replace('\n', " / ")));
         }
     }));
-    // 中身（Python）は裏の糸で起こし、準備を待たずに画面を開く（版 3.86.0。版 3.111.0 から入れ替えた直後も待たない）
-    let s2 = sup.clone();
-    let _ = std::thread::Builder::new().name("sidecar-first".into()).spawn(move || {
-        if s2.get().is_ok() {
-            // 起こした物と本物が違えば、入口（別名の python.exe）を通っている（止めるときは本物を待つ）
-            if let Some((spawned, Some(real))) = s2.up().map(|s| s.pids()) {
-                log(&format!("PID 起こした {spawned}・本物の Python {real}"));
-            }
-        }
-    });
 
     let info = json!({
         "shell": "tauri", "app_id": brand().app_id, "shell_version": env!("CARGO_PKG_VERSION"), "commit": env!("TPA_BUILD_COMMIT"), "protocol": sidecar::PROTOCOL,
@@ -708,7 +690,12 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     da_core::delegate::set_dir(locate::local_root().join("logs"));
     lot.set_program(program.clone()); // 利用状況に書く版（中身の版。更新で入れ替わる）
                                       // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
-    lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root())));
+    let builder = da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root()));
+    // Python へ戻す設定（desktop.lotlist_engine・schedule.fetch_engine の python）は段 ④（版 3.118.0）から効かない（利用者の決め: 黙って窓が係・記録に 1 行）
+    for r in da_core::bundle::retired_settings(&builder.read_settings().0) {
+        log(&format!("SETTINGS 版 3.118.0 から効かない設定です（窓が係を続けます）: {r}"));
+    }
+    lot.set_bundle(builder);
     let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
                                   // 起動の初期値（版 3.110.0。src/seeds.rs）: 置き場が決まってから（束の材料が引っ越しの印をたどった後）、裏の糸で 1 回だけ当てる。
                                   // 錠を 1 秒おきに 5 回まで待つのはこの糸だけ（画面の問い合わせの道では待たない）。Python に尋ねない
@@ -734,6 +721,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     upd.run(move || update_settings(&upd_lot), log);
     // 起動の直後から写し始める（一覧を開いたときに待たせない）
     std::thread::spawn(move || lot.warm());
+    splash.step(&app, "backend", "ok", "窓が答えます");
     splash.step(&app, "open", "now", "画面を開いています…");
     if let Some(w) = app.get_webview_window("main") {
         // 画面を開いたあとは、起動前の確認の進み具合を起動画面へ流さない（画面の中で splash は動かない）
@@ -741,7 +729,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         log(&format!(
             "OPEN 画面を開きます ms={} backend={}",
             t0.elapsed().as_millis(),
-            if slot.get().is_some_and(|r| r.backend.ready_now()) { "ready" } else { "starting" }
+            slot.get().map(|r| if r.backend.ready_now() { "ready" } else { r.backend.python_now().state }).unwrap_or("?")
         ));
         let _ = w.navigate(app_url("/"));
     }

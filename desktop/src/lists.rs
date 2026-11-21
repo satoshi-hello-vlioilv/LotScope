@@ -39,6 +39,11 @@ fn error(status: u16, message: &str, kind: Option<&str>, extra: &[(&str, Value)]
     (status, v)
 }
 
+/// 予定の元の更新時刻（updateTs）を窓が読めない（版 3.118.0。前は Python に任せた。Python も時刻の変換で落ちる形）
+fn ts_unreadable(code: &str) -> Fail {
+    error(502, &format!("{code} の予定の元の更新時刻（updateTs）を窓が読めません（範囲の外の数・数でない値）"), Some("cm3"), &[])
+}
+
 /// Python の真偽（JSON の値）
 fn truthy(v: &Value) -> bool {
     match v {
@@ -786,15 +791,15 @@ impl Lists {
         if code == HOT_KEY {
             return self.hot_plan(conf, q, s, cfg, force);
         }
+        // 段 ④（版 3.118.0）: ensure はいつも窓の言葉の失敗（Cm3）か答え（係を降りない。採点の first_fixes 7）
         let st = match self.sched.ensure(&cfg, &code, cfg.auto_refresh(), force) {
             Ok(st) => st,
-            Err(crate::cm3::Fail::Cm3(e)) => {
-                return Err(error(502, &format!("{code} の予定を予定の元から取れません: {e}"), Some("cm3"), &[]));
+            Err(f) => {
+                return Err(error(502, &format!("{code} の予定を予定の元から取れません: {}", f.text()), Some("cm3"), &[]));
             }
-            Err(crate::cm3::Fail::Python(_)) => return Ok(None),
         };
         if schedule::source_info_falls(&st) {
-            return Ok(None);
+            return Err(ts_unreadable(&code));
         }
         let plan = Plan {
             mirror: None,
@@ -853,9 +858,6 @@ impl Lists {
     /// HOT コイル作業順（Python の hot_plan）
     fn hot_plan(&self, conf: &Conf, q: &Quality, s: &Value, cfg: Cfg, force: bool) -> Result<Option<Plan>, Fail> {
         let got = self.sched.ensure_many(&cfg, &cfg.hot.equipments, cfg.auto_refresh(), force);
-        if got.iter().any(|(_, r)| matches!(r, Err(crate::cm3::Fail::Python(_)))) {
-            return Ok(None);
-        }
         let rs = self.sch_resolved(conf, q, s);
         if Join::list(&rs["joins"]).is_empty() {
             return Err(error(
@@ -869,14 +871,13 @@ impl Lists {
         for (code, r) in got {
             let st = match r {
                 Ok(st) => st,
-                Err(crate::cm3::Fail::Cm3(e)) => {
-                    errors.push(format!("{code}: {e}"));
+                Err(f) => {
+                    errors.push(format!("{code}: {}", f.text()));
                     continue;
                 }
-                Err(crate::cm3::Fail::Python(_)) => return Ok(None),
             };
             if schedule::source_info_falls(&st) {
-                return Ok(None);
+                return Err(ts_unreadable(&code));
             }
             let base = Plan {
                 mirror: None,
@@ -951,13 +952,10 @@ impl Lists {
             Err(f) => return Some(f),
         };
         let codes: Vec<String> = if code == HOT_KEY { cfg.hot.equipments.clone() } else { vec![code.clone()] };
-        if codes.iter().any(|c| self.sched.resigned(&cfg, c)) {
-            return None;
-        }
         self.sched.refresh_later(&cfg, &codes);
         let sts: Vec<St> = codes.iter().map(|c| self.sched.shared(c)).collect();
-        if sts.iter().any(schedule::source_info_falls) {
-            return None;
+        if let Some((c, _)) = codes.iter().zip(&sts).find(|(_, st)| schedule::source_info_falls(st)) {
+            return Some(ts_unreadable(c));
         }
         let infos: Vec<Value> = codes.iter().zip(&sts).map(|(k, st)| schedule::source_info(&cfg, st, k)).collect();
         if code != HOT_KEY {

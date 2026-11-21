@@ -50,6 +50,14 @@ pub fn counts() -> Value {
     json!(st.total)
 }
 
+/// 窓が答えられなかった回数（版 3.118.0。段 ④ の振り分けの window_unanswered: 形の名前が unanswered で始まる物）。
+/// このプロセスで数えた {形: 回数}。1 度も無ければ None（利用状況の印に載せない＝前の版の印と同じ形）
+pub fn unanswered() -> Option<Value> {
+    let st = STATE.lock().unwrap_or_else(|e| e.into_inner());
+    let m: Map<String, Value> = st.total.iter().filter(|(k, _)| k.starts_with("unanswered")).map(|(k, n)| (k.clone(), json!(n))).collect();
+    (!m.is_empty()).then_some(Value::Object(m))
+}
+
 /// まだ書いていない数を書く（使い終わりにも呼ぶ）
 pub fn flush() {
     let mut st = STATE.lock().unwrap_or_else(|e| e.into_inner());
@@ -110,6 +118,9 @@ mod tests {
         let who = crate::bundle::login_id();
         assert!(who.is_empty() || !text.contains(&who), "ログイン ID は書かない");
         assert!(counts()["bundle_seed"].as_u64().unwrap() >= 2);
+        assert!(unanswered().is_none_or(|u| u.get("bundle_seed").is_none()), "窓が答えなかった数だけ");
+        note("unanswered GET /api/x");
+        assert!(unanswered().unwrap()["unanswered GET /api/x"].as_u64().unwrap() >= 1);
         let _ = std::fs::remove_dir_all(&d);
     }
 }

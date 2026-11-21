@@ -109,7 +109,7 @@ pub fn good_links(p: &Paths, places: &[PathBuf], io: &dyn LinkIo, n: &Names) -> 
 
 /// 画面への答え（GET /__desktop/install）。
 pub fn status(p: &Paths, places: &[PathBuf], io: &dyn LinkIo, n: &Names, running_from_app: bool) -> Value {
-    let installed = p.app().join(n.exe).is_file() && p.app().join("program").join("sidecar.py").is_file();
+    let installed = p.app().join(n.exe).is_file() && crate::update::is_dist(&p.app().join("program"));
     let links = good_links(p, places, io, n);
     let declined = record(p)["declined"] == true;
     json!({

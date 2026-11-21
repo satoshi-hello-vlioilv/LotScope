@@ -10,14 +10,14 @@ pub const PROGRAM_ARG: &str = "--program";
 /// 最後に使った program フォルダの控え（`local_root()/desktop/program.txt`）。
 const REMEMBERED: &str = "program.txt";
 
-/// program フォルダ（sidecar.py がある所）。答えはここの1箇所。
+/// program フォルダ（中身がある所: da_core::update::is_dist。版 3.118.0 から sidecar.py か app の版と名乗り）。答えはここの1箇所。
 /// 探す順: 引数 `--program` → 環境変数 TPA_PROGRAM_DIR（開発・試験）→ この exe の置き場所から上へたどって
 /// `program/sidecar.py` がある所（配る形は exe と program が並ぶ・作る途中は3つ上）→ 最後に使った場所の控え。
 pub fn program_dir() -> Result<PathBuf, String> {
     let given = arg_value(PROGRAM_ARG).or_else(|| env::var_os("TPA_PROGRAM_DIR").map(PathBuf::from));
     let found = match given {
-        Some(p) if p.join("sidecar.py").is_file() => p,
-        Some(p) => return Err(format!("指定された program フォルダに sidecar.py がありません: {}", p.display())),
+        Some(p) if da_core::update::is_dist(&p) => p,
+        Some(p) => return Err(format!("指定された program フォルダに中身（app\\version.py・brand.json）がありません: {}", p.display())),
         None => {
             let exe = env::current_exe().map_err(|e| e.to_string())?;
             match find_program_from(&exe).or_else(remembered) {
@@ -48,7 +48,7 @@ fn arg_value(name: &str) -> Option<PathBuf> {
 fn remembered() -> Option<PathBuf> {
     let text = std::fs::read_to_string(local_root().join("desktop").join(REMEMBERED)).ok()?;
     let p = PathBuf::from(text.trim());
-    p.join("sidecar.py").is_file().then_some(p)
+    da_core::update::is_dist(&p).then_some(p)
 }
 
 /// program フォルダを控える（同じなら書かない）。
@@ -63,7 +63,7 @@ pub fn remember(p: &Path) {
 }
 
 pub fn find_program_from(start: &Path) -> Option<PathBuf> {
-    start.ancestors().skip(1).take(6).map(|d| d.join("program")).find(|p| p.join("sidecar.py").is_file())
+    start.ancestors().skip(1).take(6).map(|d| d.join("program")).find(|p| da_core::update::is_dist(p))
 }
 
 /// この PC の作業場所（`app_env.local_root` と同じ決まり: TRANSFER_LOCAL_ROOT → (LOCALAPPDATA → TEMP → ホーム)\<data_dir>。

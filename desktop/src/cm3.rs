@@ -21,6 +21,25 @@ pub enum Fail {
 
 pub type R<T> = Result<T, Fail>;
 
+impl Fail {
+    /// 利用者に見せる字（Cm3 はその言葉・Python は記録の理由）
+    pub fn text(&self) -> String {
+        match self {
+            Fail::Cm3(m) => m.clone(),
+            Fail::Python(why) => why.to_string(),
+        }
+    }
+}
+
+/// 段 ④（版 3.118.0）: 窓が Python と同じに答えられない形（Fail::Python）を、窓の言葉の失敗（Cm3: 「head（理由）」）にする 1 か所。
+/// スケジュールの係（schedule.rs）は答えを返す前にここを通し、係を降りない（中身〈Python〉は起こさないので任せる先が無い）。型は段 ⑤ まで残す
+pub fn windowed(f: Fail, head: &str) -> Fail {
+    match f {
+        Fail::Python(why) => Fail::Cm3(format!("{head}（{why}）")),
+        x => x,
+    }
+}
+
 fn py<T>(why: &'static str) -> R<T> {
     Err(Fail::Python(why))
 }

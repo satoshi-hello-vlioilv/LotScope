@@ -147,12 +147,25 @@ fn present(v: Option<&Value>) -> bool {
 }
 
 /// 一覧の係（desktop.lotlist_engine。版 3.112.0 の作った後の採点の割れ 1: 束とデータ元の並び・見出しのタブで同じ 1 か所の決め）。
-/// 段が表でない・無いときは既定の rust
-pub fn engine_of(settings: &Value) -> Value {
-    match settings.get("desktop") {
-        Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
-        _ => json!("rust"),
+/// 段 ④（版 3.118.0。利用者の決め）から、いつも rust（配った設定に "python" が残っていても窓が係。中身は起こさないので戻す先が無い）。
+/// 残っている設定は起動のときに記録へ 1 行（retired_settings・main.rs）
+pub fn engine_of(_settings: &Value) -> Value {
+    json!("rust")
+}
+
+/// 段 ④（版 3.118.0）から効かない、Python へ戻す設定（配った設定に残っていれば → "段.鍵=値" の並び）。desktop.lotlist_engine と
+/// schedule.fetch_engine の値が rust・window でない物（字の前後の空白と大文字小文字は見ない）
+pub fn retired_settings(settings: &Value) -> Vec<String> {
+    let mut out = vec![];
+    for (stage, key, keep) in [("desktop", "lotlist_engine", "rust"), ("schedule", "fetch_engine", "window")] {
+        let Some(v) = settings.get(stage).and_then(|s| s.get(key)) else { continue };
+        let t = v.as_str().map(|x| crate::pyfmt::strip(x).to_ascii_lowercase());
+        if v.is_null() || t.as_deref().is_some_and(|x| x.is_empty() || x == keep) {
+            continue;
+        }
+        out.push(format!("{stage}.{key}={v}"));
     }
+    out
 }
 
 /// 値の形の名前（理由の言葉。版 3.112.0）
@@ -2442,6 +2455,18 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_engines_are_retired() {
+        // 段 ④（版 3.118.0。採点の first_fixes 5）: 一覧の係はいつも rust（"python" が残っていても）。残った設定は記録の 1 行に出す
+        for s in [json!({"desktop": {"lotlist_engine": "python"}}), json!({"desktop": "x"}), json!({})] {
+            assert_eq!(engine_of(&s), json!("rust"), "{s}");
+        }
+        let s = json!({"desktop": {"lotlist_engine": " Python "}, "schedule": {"fetch_engine": "python"}});
+        assert_eq!(retired_settings(&s), [r#"desktop.lotlist_engine=" Python ""#, r#"schedule.fetch_engine="python""#]);
+        let quiet = json!({"desktop": {"lotlist_engine": "RUST"}, "schedule": {"fetch_engine": "window"}});
+        assert!(retired_settings(&quiet).is_empty() && retired_settings(&json!({"schedule": {"fetch_engine": null}})).is_empty());
+    }
 
     /// 数の設定の読み方（版 3.106.0）: program/tests/fixtures/num_setting_cases.json（Python は tests/test_num_setting.py）を、束の num_setting・
     /// num_warn と一覧の lists::num（写しの係へ渡す数）が同じに読むか

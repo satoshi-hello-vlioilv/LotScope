@@ -98,6 +98,28 @@ pub fn program_version(program: &Path) -> Option<String> {
     crate::small_reads::app_version(program).filter(|v| parse_version(v).is_some())
 }
 
+/// 「中身がある」の印（版 3.118.0。答えはこの 1 か所: 取り込み・入れ替え・戻す・配る・入っているか・program を探す）。
+/// program/sidecar.py（版 3.117.x までの窓が見る印。段 ⑤ まで ZIP に中身ごと残す）か、窓が読む program/app/version.py ＋
+/// program/app/brand.json のどちらかがあれば中身がある。⑤ で sidecar.py を消しても 3.118.0 以上の窓は取り込める
+pub fn is_dist(program: &Path) -> bool {
+    let app = program.join("app");
+    program.join("sidecar.py").is_file() || (app.join("version.py").is_file() && app.join("brand.json").is_file())
+}
+
+/// ZIP の名前の並び（"/" 区切り）から、配る形の根（program フォルダの親。頭の字で "" か "…/"）。is_dist と同じ 2 つの形を受け、
+/// 根が 2 つ以上あれば浅い方（凍らせた Python の写し program/tests/legacy/…/app/version.py は名前が program で終わらないので根にならない）
+pub fn dist_root_in_names(names: &[String]) -> Option<String> {
+    let has = |n: &str| names.iter().any(|x| x == n);
+    let root_of = |n: &str, tail: &str| n.strip_suffix(tail).filter(|r| r.is_empty() || r.ends_with('/')).map(str::to_string);
+    names
+        .iter()
+        .filter_map(|n| {
+            root_of(n, "program/sidecar.py")
+                .or_else(|| root_of(n, "program/app/version.py").filter(|r| has(&format!("{r}program/app/brand.json"))))
+        })
+        .min_by_key(|r| (r.matches('/').count(), r.clone()))
+}
+
 /// 配る形の目印（program/app/brand.json の app_id）。
 fn dist_app_id(program: &Path) -> Option<String> {
     read_json(&program.join("app").join("brand.json"))?["app_id"].as_str().map(str::to_string)
@@ -109,8 +131,8 @@ pub fn validate_dist(dir: &Path, exe: &str, app_id: &str, expect: Option<&str>) 
     if !dir.join(exe).is_file() {
         return Err(format!("{exe} がありません"));
     }
-    if !program.join("sidecar.py").is_file() {
-        return Err("program\\sidecar.py がありません".into());
+    if !is_dist(&program) {
+        return Err("program フォルダ（program\\app\\version.py・brand.json）がありません".into());
     }
     if dist_app_id(&program).as_deref() != Some(app_id) {
         return Err("このアプリの物ではありません（program\\app\\brand.json の app_id が違います）".into());
@@ -192,14 +214,14 @@ pub fn extract_zip(zip: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 展開したフォルダの中の配る形の根（program/sidecar.py がある所。先頭のフォルダ名には頼らない）。
+/// 展開したフォルダの中の配る形の根（is_dist の program がある所。先頭のフォルダ名には頼らない）。
 pub fn dist_root(dir: &Path) -> Option<PathBuf> {
-    if dir.join("program").join("sidecar.py").is_file() {
+    if is_dist(&dir.join("program")) {
         return Some(dir.to_path_buf());
     }
     let subs: Vec<PathBuf> = std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
     match subs.as_slice() {
-        [one] if one.join("program").join("sidecar.py").is_file() => Some(one.clone()),
+        [one] if is_dist(&one.join("program")) => Some(one.clone()),
         _ => None,
     }
 }
@@ -233,7 +255,7 @@ pub fn mark_failed(p: &Paths, version: &str, why: &str) {
 /// 取り込み済みの次の版（stage.json の中身）。版のフォルダが無ければ None。
 pub fn staged(p: &Paths) -> Option<Value> {
     let v = read_json(&p.stage_record())?;
-    p.stage().join("program").join("sidecar.py").is_file().then_some(v)
+    is_dist(&p.stage().join("program")).then_some(v)
 }
 
 /// 置き場の版を裏で取り込む: 手元へ写す → 指紋を照らす → 展開 → 中身を確かめる → update\stage へ（前の取り込みは捨てる）。
@@ -257,7 +279,7 @@ pub fn stage_release(p: &Paths, rel: &Release, app_id: &str, progress: &dyn Fn(&
             return Err(format!("ZIP の指紋が release.json と違います（置いている途中か、壊れています）: {}", rel.zip));
         }
         extract_zip(&dl, &tmp)?;
-        let root = dist_root(&tmp).ok_or("ZIP に program\\sidecar.py がありません")?;
+        let root = dist_root(&tmp).ok_or("ZIP に program フォルダ（program\\app\\version.py・brand.json）がありません")?;
         validate_dist(&root, &rel.exe, app_id, Some(&rel.version))?;
         // 窓の準備（版 3.111.0。src/boot.rs）も入れ替える前に当てる: 窓が描けない版は取り込まない（全員の PC が 1 回ずつ入れ替えて戻すのを防ぐ）
         validate_window(&root, &rel.exe, &p.app().join(&rel.exe), app_id)?;
@@ -337,14 +359,14 @@ pub fn apply_staged(p: &Paths, exe: &str) -> Result<Option<Applied>, String> {
 }
 
 /// 入れ替えた版が起動できなかった: 控え（直前の版）へ戻し、その版に印を付ける（理由 why）。→ 戻した版（戻せなければ None）。
-/// 版 3.111.0 から決めるのは窓の準備と画面の合図（src/boot.rs）。控えを「中身がある」と見る印の program/sidecar.py は段 ④ で替える。
+/// 版 3.111.0 から決めるのは窓の準備と画面の合図（src/boot.rs）。控えを「中身がある」と見る印は is_dist（版 3.118.0。sidecar.py か app の版と名乗り）。
 /// 印を付けて入れ替えた直後の印（applied.json）を消すのは、入れ替えが済んでから（版 3.111.0 の Windows の CI で見つけた）: app を掴む物
 /// （中身の Python は作業フォルダが app\program）が居て名前を替えられないと、前は印だけ付けて applied.json を消し、壊れた版のまま二度と
 /// 確かめ直さなかった。入れ替えられなければ何も変えず、次の起動でやり直す。控えが無い（戻せない）ときだけ印を付けて印を消す（繰り返さない）
 pub fn revert(p: &Paths, why: &str) -> Option<Applied> {
     let rec = read_json(&p.applied())?;
     let (from, to) = (rec["from"].as_str().unwrap_or("").to_string(), rec["to"].as_str().unwrap_or("").to_string());
-    if !p.old().join("program").join("sidecar.py").is_file() {
+    if !is_dist(&p.old().join("program")) {
         mark_failed(p, &to, why);
         let _ = std::fs::remove_file(p.applied());
         return None;
@@ -563,7 +585,7 @@ pub fn plan(p: &Paths, me: &Path, exe: &str, dev: bool) -> Step {
         return Step::Handoff;
     }
     match me.parent() {
-        Some(dir) if dir.join("program").join("sidecar.py").is_file() => Step::Localize(dir.to_path_buf()),
+        Some(dir) if is_dist(&dir.join("program")) => Step::Localize(dir.to_path_buf()),
         _ => Step::Stay,
     }
 }
@@ -674,6 +696,85 @@ mod tests {
         assert_eq!(validate_dist(&d, EXE, ID, Some("3.9.0")), Ok("3.9.0".into()));
         assert!(validate_dist(&d, EXE, "other", None).is_err(), "ほかのアプリは断る");
         assert!(validate_dist(&d, EXE, ID, Some("3.9.1")).unwrap_err().contains("違います"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// 段 ⑤ の配る形（program/sidecar.py が無い。版 3.118.0 の印 is_dist は app の版と名乗りでも受ける）
+    fn dist_without_sidecar(dir: &Path, version: &str, exe_body: &str) {
+        dist(dir, version, exe_body);
+        std::fs::remove_file(dir.join("program").join("sidecar.py")).unwrap();
+    }
+
+    #[test]
+    fn a_dist_without_sidecar_py_is_staged_applied_and_reverted() {
+        // 版 3.118.0（採点の first_fixes 4）: sidecar.py の無い配る形を取り込む・入れ替える・戻す（控えが 3.117.3 の形〈sidecar.py あり〉でも、
+        // 3.118.x の形〈無し〉でも）。⑤ で sidecar.py を消しても 3.118.0 以上の PC は取り込める
+        for (old_has, new_has) in [(true, false), (false, false), (false, true)] {
+            let d = tmp(&format!("nosc-{old_has}-{new_has}"));
+            let p = Paths::new(&d.join("local"));
+            if old_has {
+                dist(&p.app(), "3.117.3", "x");
+            } else {
+                dist_without_sidecar(&p.app(), "3.118.0", "x");
+            }
+            assert!(is_dist(&p.app().join("program")), "どちらの形も中身がある");
+            if new_has {
+                dist(&d.join("new"), "3.118.1", "x");
+            } else {
+                dist_without_sidecar(&d.join("new"), "3.118.1", "x");
+            }
+            assert_eq!(validate_dist(&d.join("new"), EXE, ID, Some("3.118.1")), Ok("3.118.1".into()));
+            let rel_dir = d.join("rel");
+            std::fs::create_dir_all(&rel_dir).unwrap();
+            let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
+            stage_release(&p, &release(&rel_dir, "3.118.1", &sha), ID, &|_| {}).unwrap();
+            assert!(staged(&p).is_some(), "取り込んだ版がある（{old_has} {new_has}）");
+            let a = apply_staged(&p, EXE).unwrap().unwrap();
+            assert_eq!(a.to, "3.118.1");
+            let back = revert(&p, "試験").expect("控えへ戻せる");
+            assert_eq!((back.from.as_str(), program_version(&p.app().join("program")).as_deref()), ("3.118.1", Some(back.to.as_str())));
+            let _ = std::fs::remove_dir_all(&d);
+        }
+        // 中身の無いフォルダは配る形でない（名乗りだけ・版だけでは足りない）
+        let d = tmp("nosc-half");
+        std::fs::create_dir_all(d.join("program").join("app")).unwrap();
+        std::fs::write(d.join("program").join("app").join("version.py"), "APP_VERSION = \"3.118.0\"\n").unwrap();
+        assert!(!is_dist(&d.join("program")) && dist_root(&d).is_none(), "brand.json の無い形は中身でない");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_frozen_python_copy_is_never_the_root() {
+        // 凍らせた写し program/tests/legacy/3.117.3（sidecar.py・app/version.py・app/brand.json を持つ）を根と見ない。名前の並びを逆にしても
+        let mut names: Vec<String> = [
+            "App/App.exe",
+            "App/program/tests/legacy/3.117.3/sidecar.py",
+            "App/program/tests/legacy/3.117.3/app/version.py",
+            "App/program/tests/legacy/3.117.3/app/brand.json",
+            "App/program/app/brand.json",
+            "App/program/app/version.py",
+            "Xprogram/sidecar.py",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(dist_root_in_names(&names).as_deref(), Some("App/"));
+        names.reverse();
+        assert_eq!(dist_root_in_names(&names).as_deref(), Some("App/"), "並びを逆にしても");
+        names.push("program/sidecar.py".into());
+        assert_eq!(dist_root_in_names(&names).as_deref(), Some(""), "浅い方");
+        let only_frozen: Vec<String> = names.iter().filter(|n| n.contains("legacy") || n.starts_with("Xprogram")).cloned().collect();
+        assert_eq!(dist_root_in_names(&only_frozen), None, "凍らせた写しだけなら配る形でない");
+        // 展開したフォルダでも（program の中の凍らせた写しを根にしない）
+        let d = tmp("frozen-root");
+        dist_without_sidecar(&d.join("App"), "3.118.0", "x");
+        let frozen = d.join("App").join("program").join("tests").join("legacy").join("3.117.3");
+        std::fs::create_dir_all(frozen.join("app")).unwrap();
+        std::fs::write(frozen.join("sidecar.py"), "#").unwrap();
+        std::fs::write(frozen.join("app").join("version.py"), "APP_VERSION = \"3.117.3\"\n").unwrap();
+        std::fs::write(frozen.join("app").join("brand.json"), format!(r#"{{"app_id":"{ID}"}}"#)).unwrap();
+        assert_eq!(dist_root(&d), Some(d.join("App")));
+        assert_eq!(program_version(&dist_root(&d).unwrap().join("program")).as_deref(), Some("3.118.0"));
         let _ = std::fs::remove_dir_all(&d);
     }
 

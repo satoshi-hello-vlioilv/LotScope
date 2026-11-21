@@ -3,7 +3,7 @@
 //!
 //! - 設定（元ファイル・写す間隔・古さのしきい・既定の表と件数・係）は窓が束に組む（src/bundle.rs。版 3.112.0 から Python に尋ねない）。
 //!   10 秒覚え、参照先を保存したら（invalidate）すぐ組み直す
-//! - 設定の係（desktop.lotlist_engine）が "python" なら答えない（Python が写しも一覧も受け持つ）。問い合わせに engine=python を
+//! - 設定の係（desktop.lotlist_engine）は段 ④（版 3.118.0）からいつも rust（bundle::engine_of）。前は "python" なら答えなかった。問い合わせに engine=python を
 //!   付けたときも、その1回だけ Python に任せる（自己診断の突き合わせ・食い違いの切り分け）
 //! - 写しの係（mirror.rs）は 1 つだけ。Python は窓が lotlist を受け持つと名乗ると写さず、同じ台帳を読む
 
@@ -519,7 +519,7 @@ impl Lot {
             // 画面の JS が心拍を送れる＝入れ替えた直後の確かめが「環境」の失敗で戻さない。src/boot.rs）
             // 版 3.111.0 の作った後の採点の割れ 4: 既定の形に落とすのは中身が止まっているときだけ（起こしている最中は Python に描かせる。
             // main.rs は準備を待ってから描き直す）
-            Err(e) if python() == "stopped" => {
+            Err(e) if presence::without_python(python()) => {
                 let parts = crate::page::Parts {
                     ui_state: presence::ui_state::load_exact(&b.env().local).unwrap_or_else(|| json!({"rev": 0, "keys": {}})),
                     ui_profile: json!({"keys": profile, "defaults": {}, "updatedAt": "", "updatedBy": {}}),
@@ -1400,11 +1400,18 @@ impl Lot {
     /// 設定を組めず Python も止まっていれば 503（窓は me を決められない）。設定を組めないが中身は起きている（起こしている最中）・
     /// 判定の材料が無い（前の版の Python）ときは None（Python が答える。書かない）
     pub fn heartbeat(&self, python: &dyn Fn() -> presence::PythonNow) -> Option<(u16, Value)> {
-        let down = || Some((503, json!({"error": "アプリの中身（Python）が答えません。", "kind": "backend_unavailable"})));
+        // 版 3.118.0: 窓の言葉（中身は起こさない。kind は振り分けの window_unanswered と同じ）
+        let down = || {
+            Some((
+                503,
+                json!({"error": "設定を組めないので、名乗りを決められません（配った設定が読めず、この PC に覚えた置き場もありません）。",
+                       "kind": "window_unanswered", "route": "POST /api/heartbeat"}),
+            ))
+        };
         // 束を組めない（置き場が決まらない）: 窓は me を決められない。中身が起きていれば Python が答える（書かない）
         let s = match self.settings() {
             Ok(s) => s,
-            Err(_) => return if python().state != "stopped" { None } else { down() },
+            Err(_) => return if !presence::without_python(python().state) { None } else { down() },
         };
         if !s.access.is_object() {
             return None;
@@ -2584,6 +2591,9 @@ mod tests {
         )
         .unwrap();
         assert!(lot.page(false, &|| "ready").is_none(), "Python が生きていれば、窓が同じに描けない形は Python");
+        // 段 ④（版 3.118.0）: 中身を起こさない窓（absent）も止まった（stopped）と同じに、既定の形に落として描く（採点の first_fixes 3 (d)）
+        let h = lot.page(false, &|| "absent").expect("中身を起こさない窓も、変換表が読めない（錠）形で画面を描く");
+        assert!(String::from_utf8(h.body).unwrap().contains(r#"window.TPA_CONVERSIONS = {"items": [], "revision": null};"#));
         // Python が答えないときは既定の形に落として窓が描く（画面は開く）
         let h = lot.page(false, &|| "stopped").expect("Python が答えなくても画面は窓が描く");
         let body = String::from_utf8(h.body).unwrap();
@@ -2629,6 +2639,10 @@ mod tests {
         assert!(lot2.page_why().starts_with("束の材料"), "{}", lot2.page_why());
         assert!(lot2.page(false, &|| "ready").is_none(), "起きていれば Python が描く");
         let h = lot2.page(false, &|| "stopped").expect("止まっていれば窓が既定の形で描く（画面が開き、心拍を送れる）");
+        assert!(String::from_utf8(h.body).unwrap().contains(r#"window.TPA_CONVERSIONS = {"items": [], "revision": null};"#));
+        // 段 ④（版 3.118.0。採点の first_fixes 3 (a)・verify.py の 4d）: 中身を起こさない窓も、配った設定が JSON でない PC で画面を既定の形で描く
+        // （ready に固定すると None になり、入れ替えた直後の PC が 60 秒で前の版へ戻った）
+        let h = lot2.page(false, &|| "absent").expect("中身を起こさない窓は、配った設定が JSON でなくても画面を描く");
         assert!(String::from_utf8(h.body).unwrap().contains(r#"window.TPA_CONVERSIONS = {"items": [], "revision": null};"#));
         let _ = std::fs::remove_dir_all(&work);
     }
@@ -3726,11 +3740,12 @@ mod tests {
             (json!(true), json!("届きません"), json!(1.5)),
             "受け身の係は周回の様子のファイルを読む"
         );
-        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は Python に任せる
+        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は、段 ④（版 3.118.0）から効かない: 窓が答える（利用者の決め）
         let conf = |engine: &str| json!({"master_share": {"dir": share}, "sources": {"wip": {"source": wip}}, "desktop": {"lotlist_engine": engine}});
         std::fs::write(work.join("config.json"), conf("python").to_string()).unwrap();
         lot.invalidate();
-        assert!(lot.sources_list("").is_none(), "engine = python");
+        let (_, v) = lot.sources_list("").expect("engine = python が残っていても窓が答える");
+        assert!(v["items"].as_array().is_some_and(|a| a.iter().all(|d| d.get("shellLists").is_none_or(|x| *x == json!(true)))), "{v}");
         std::fs::write(work.join("config.json"), conf("rust").to_string()).unwrap();
         lot.invalidate();
         // 品質の写しの係が最初の周回の途中でも待たない（届かない共有を指す係を動かしてから尋ねる）
@@ -4525,6 +4540,53 @@ mod tests {
         let starting = || presence::PythonNow { state: "starting", why: String::new() };
         assert!(lot3.heartbeat_with(&fail, &starting).is_none(), "起こしている最中は Python が答える（待つ）");
         assert_eq!(lot3.heartbeat_with(&fail, &stopped).unwrap().0, 503, "設定を組めず Python も止まっていれば、窓は me を決められない");
+        // 段 ④（版 3.118.0）: 中身を起こさない窓（absent）も同じく 503。言葉は窓の言葉（中身の言葉を使わない）
+        let absent = presence::PythonNow::absent;
+        let (st, v) = lot3.heartbeat_with(&fail, &absent).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (503, Some("window_unanswered")), "{v}");
+        assert!(!v["error"].as_str().unwrap().contains("Python"), "{v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_without_python_is_not_counted_as_a_stopped_pc() {
+        // 段 ④（版 3.118.0。採点の first_fixes 3 (b)(c)・8）: 中身を起こさない窓（absent）の心拍は 200 で python {state: absent}。利用状況のいま
+        // 使っている印には python の鍵を書かない（版 3.117.x の配布の画面・画面は「書かない＝起きている」と読む）ので、配布の画面の
+        // 「中身の起きない PC」（pythonDown）に数えない。窓が答えられなかった回数は印の unanswered（形の名前と回数。1 度も無ければ書かない）
+        let dir = std::env::temp_dir().join(format!("da-lot-absent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let admin = json!({"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者"});
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 1, "rows": [admin]}).to_string()).unwrap();
+        let conf = json!({"who": {"login": "boss", "pc": "PC-1", "pcSource": "", "key": "PC-1@boss"},
+                          "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": dir.join("data"),
+                                    "defaults": dir.join("defaults"), "cache": local.join("master_cache"),
+                                    "presence": share.join("presence_tpa"), "lockTtl": 20.0}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
+        let lot = Lot::new(local.join("db_cache"));
+        lot.presence.set_version("3.118.0");
+        let (st, v) = lot.heartbeat_with(&ask, &presence::PythonNow::absent).unwrap();
+        assert_eq!((st, v["python"]["state"].as_str()), (200, Some("absent")), "{v}");
+        let mine = share.join("presence_tpa").join("PC-1@boss.json");
+        let t0 = Instant::now();
+        while !mine.exists() && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let d: Value = serde_json::from_slice(&std::fs::read(&mine).expect("裏の糸が書く")).unwrap();
+        assert!(d.get("python").is_none(), "absent は印に書かない（前の版の読み手は起きていると読む）: {d}");
+        assert!(!presence::python_down(d.get("python")), "前の版と同じ読み（state が stopped のときだけ止まった PC）");
+        let (st, v) = lot.handle_body_with("GET", "/api/presence", "", b"", &ask).expect("窓が答える");
+        assert_eq!((st, v["fleet"]["pythonDown"].as_i64(), v["fleet"]["total"].as_i64()), (200, Some(0), Some(1)), "{v}");
+        // 窓が答えられなかった回数（振り分けの window_unanswered が数える形の名前）は印に載る
+        crate::delegate::note("unanswered GET /api/試験");
+        lot.presence.touch("boss", "PC-1", "開発者", "PC-1@boss", true);
+        let d: Value = serde_json::from_slice(&std::fs::read(&mine).unwrap()).unwrap();
+        assert!(d["unanswered"]["unanswered GET /api/試験"].as_u64().unwrap_or(0) >= 1, "{d}");
+        assert!(d.get("python").is_none(), "{d}");
+        lot.leave();
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -4532,7 +4594,7 @@ mod tests {
     fn the_window_answers_the_schedule() {
         // 版 3.96.0: スケジュール（CM3）は窓がただ 1 つの係（本物の道: Lot::handle_body → lists.src_plan_eq → schedule.rs）。Python が
         // 起きていなくても一覧・設備のタブ・カード・データの時刻・再読込を答え、世代と状態のファイルを置く。受け身の Python の知らせ
-        // （event: schedule）でも取り、状態の seq を進める。窓が取れない設定（https）は答えず、状態に「係を降りた」と書く
+        // （event: schedule）でも取り、状態の seq を進める。版 3.118.0 から fetch_engine の python も窓が取る（係を降りない）
         use std::io::{Read, Write};
         let work = std::env::temp_dir().join(format!("da-lot-schedule-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&work);
@@ -4622,7 +4684,7 @@ mod tests {
         lot.invalidate();
         let (st, v) = lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &down).expect("https は窓が答える");
         assert!(st == 200 && v.to_string().contains("予定の元"), "{st} {v}");
-        // 戻り道（配った設定の schedule.fetch_engine が python）: 答えず（Python が取る）、状態に係を降りたと書く
+        // 戻り道（配った設定の schedule.fetch_engine が python）は段 ④（版 3.118.0。利用者の決め）から効かない: 窓が取る（係を降りない）
         let url = format!("http://127.0.0.1:{port}");
         std::fs::write(
             &cfg,
@@ -4631,14 +4693,14 @@ mod tests {
         )
         .unwrap();
         lot.invalidate();
-        assert!(lot.handle_body_with("GET", "/api/src/sch", "equip=L-1", b"", &down).is_none(), "戻り道は Python");
-        assert!(lot.handle_body_with("GET", "/api/src/sch/source", "equip=L-1", b"", &down).is_none(), "降りた設備のデータの時刻も Python");
+        let (st, _) =
+            lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &down).expect("fetch_engine が python でも窓が答える");
+        assert_eq!(st, 200);
+        let (st, _) = lot.handle_body_with("GET", "/api/src/sch/source", "equip=L-1", b"", &down).expect("データの時刻も窓");
+        assert_eq!(st, 200);
         let s2 = state(&state_file);
-        assert_eq!(
-            (s2["resigned"]["once"].clone(), s2["resigned"]["for"]["fetch_engine"].clone(), s2["resigned"]["for"]["cm3_base_url"].clone()),
-            (json!(false), json!("python"), json!(url))
-        );
-        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 3, "降りたら取りに行かない");
+        assert_eq!((s2["resigned"].clone(), s2["writer"].clone()), (Value::Null, json!("rs")), "係を降りない: {s2}");
+        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 4, "窓が取りに行った");
         let _ = std::fs::remove_dir_all(&work);
     }
 

@@ -34,7 +34,7 @@
  .sub{margin-top:4px;font-size:18px;opacity:.82}
  .ver{margin-top:12px;min-height:12px;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.2em;opacity:.6}
 
- /* 進み具合: 周期の山の線（8 つの山・段ごとに 2 つ）。まだ＝淡い線、済んだ＝青緑（注意で進んだ段はアンバー）、いま＝明滅、止まった＝珊瑚 */
+ /* 進み具合: 周期の山の線（段ごとに 2 つの山）。まだ＝淡い線、済んだ＝青緑（注意で進んだ段はアンバー）、いま＝明滅、止まった＝珊瑚 */
  .run{width:560px;margin-top:40px}
  .seg{display:block;width:560px;height:70px;overflow:visible}
  .seg path{fill:none;stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round}
@@ -103,8 +103,7 @@
   /* 段（窓が step で伝える id の順）。detail は窓が伝えるまでの説明 */
   const STEPS = [
     { id: "program", title: "アプリの中身を探す", detail: "exe と並ぶ program フォルダ", state: "now" },
-    { id: "python", title: "Python を探す", detail: "この PC に入れた Python（PATH・Microsoft Store 版も）", state: "wait" },
-    { id: "backend", title: "アプリの中身を起こす", detail: "計算・LotDsp・マスタ（ポートは使いません）", state: "wait" },
+    { id: "backend", title: "設定と置き場を読む", detail: "配った設定・マスタの置き場（窓が読みます。ポートは使いません）", state: "wait" },
     { id: "open", title: "画面を開く", detail: "", state: "wait" },
   ];
   const CURRENT = ["now", "warn", "bad"];
@@ -127,7 +126,7 @@
     }
     return d + ` L${x0 + w} ${base}`;
   }
-  /* 段ごとに 2 つの山（560px を 4 つに分ける）。段の線は隣とつながる */
+  /* 段ごとに 2 つの山（560px を段の数に分ける）。段の線は隣とつながる */
   const PEAKS = 2, W = 560 / STEPS.length;
   $("#seg").innerHTML = STEPS.map((_, i) => `<path d="${peaks(i * W, W, PEAKS, 64, 6)}"/>`).join("");
   $("#motif").innerHTML = `<path d="${peaks(0, 1600, 9, 330, 120)}"/><path d="${peaks(0, 1600, 9, 380, 210)}"/>`;
