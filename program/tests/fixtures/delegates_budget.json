@@ -1,5 +1,5 @@
 {
- "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
+ "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）。段 ④（版 3.118.0）から製品の窓は中身（Python）を起こさないので、ここに数える歩は製品では振り分けが窓の言葉で断る（503 window_unanswered・戻したキーに / がある道は 404。router.rs の window_unanswered）。突き合わせの試験では窓の係が答えない歩（Lot が None）として数え続ける（段 ⑤ で口ごと消す）",
  "total": 8,
  "per": {
   "access_oracle": 0,
@@ -38,11 +38,9 @@
   "ui_defaults_oracle": 0,
   "worklog_write_oracle": 0
  },
- "envExtra": {
-  "schedule_oracle": 2
- },
+ "envExtra": {},
  "envWhy": {
-  "schedule_oracle": "版 3.117.1（段 ③-6・採点の first_fixes 10）: 戻り道（配った設定の schedule.fetch_engine が \"python\"。窓は係を降り、受け身の Python が取る）の 2 歩（schedule_oracle の「戻り道（fetch_engine が python）」）。設定で選んだときだけ任せる歩なので、予算の数でなく環境の幅に数える。段 ④ で Python を外すときに設定ごと消す。前の 2（Windows だけ: 更新時刻が 1970 年より前・3000 年から後）は、読む範囲を 1970〜3000 年に決めて窓が答える（cm3.rs の TS_RANGE・cm3_schedule.TS_MIN・TS_MAX）"
+  "schedule_oracle": "版 3.117.1: 戻り道（配った設定の schedule.fetch_engine が \"python\"）の 2 歩を環境の幅に数えた。版 3.118.0（段 ④。利用者の決め）で 2 → 0: fetch_engine は効かない（窓が取る。schedule_oracle の「戻り道（fetch_engine が python）」は窓が答える歩）"
  },
  "envLess": {},
  "envLessWhy": {},
@@ -58,7 +56,7 @@
  },
  "routerForward": [
   {
-   "why": "engine=python の比べる口（GET /api/lotlist/settings は Python の道として残す。窓は呼ばない。段 ④ で消す）",
+   "why": "engine=python の比べる口（GET /api/lotlist/settings は Python の道として残す。窓は呼ばない。段 ④〈版 3.118.0〉から製品では振り分けが 503 window_unanswered で断る。段 ⑤ で口ごと消す）",
    "scenes": ".",
    "routes": [
     "GET /api/lotlist/settings"
@@ -73,7 +71,7 @@
   "calc": 0,
   "route_slash": 1,
   "windowsOnly": 0,
-  "envExtraFetchEngine": 2,
-  "why": "版 3.117.1 の残り（delegate-count.py の報告の行と同じ）: 比べる口（?engine=python）7・戻したキーに / がある道 1。段 ③-6 は 0（https とプロキシも窓が取る）・Windows だけは 0（更新時刻の範囲を決めた）。戻り道 fetch_engine の 2 は envExtra。道ごとに中身へ回す当たりは routerForwardTotal（route_reach）"
+  "envExtraFetchEngine": 0,
+  "why": "版 3.118.0（段 ④）の残り: 比べる口（?engine=python）7・戻したキーに / がある道 1（製品では振り分けが道なしの 404 で答える。前は Python の 404）。どれも製品では中身へ回さない（中身を起こさない）。戻り道 fetch_engine は 0（窓が取る）。道ごとに中身へ回す当たり routerForwardTotal（route_reach）は、製品では振り分けが 503 window_unanswered で断る当たり"
  }
 }

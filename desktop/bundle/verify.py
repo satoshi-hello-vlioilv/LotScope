@@ -15,15 +15,24 @@
   3. 閉じている間に次の版（+2）を置く → ショートカットから 1 回開くだけで +2 になる（起動の最初に取り込んで入れ替える・版 3.38.0）
   4. 窓が描けない版（+3。templates/index.html を消した）を置く。取り込みは窓の準備で断る（版 3.111.0）。前の版の窓が取り込んだ形
      （update の stage に直に置く）で 1 回開く → +3 へ入れ替えるが窓の準備が通らず、画面を開く前に控え（+2）へ戻して開き直す。+3 には印（理由つき）
-  4b. Python だけ壊れた版（+4。sidecar.py を壊した）→ 戻さず、その版のまま開く。心拍 200・python stopped・窓だけの自己診断の項目が通る・
-     利用状況に中身の様子・確かめの印は画面の最初の心拍で消える
-  4c. Python が遅い版（+5。sidecar.py の頭で 30 秒眠る）→ 画面は待たずに開き、確かめの印は数秒で消え（Python の準備より前）、ショートカットも直る
-  4d. 入れ替えた直後に配った設定が JSON でない（+6。環境の失敗）→ 戻さない。Python はすぐ終わるが、窓は画面を既定の形で描き、画面の JS が心拍を送る
+  4b. Python の無い PC（段 ④・版 3.118.0。+4）→ 入れ替えて、その版のまま開く。心拍 200・python absent・窓だけの自己診断の項目が通る・
+     利用状況のいま使っている印に python が無い（前の版の配布の画面が「中身の起きない PC」と数えない）・確かめの印は画面の最初の心拍で消える
+     （前の 4b「Python だけ壊れた版」・4c「Python が遅い版」は、窓が中身を起こさないので意味が無くなった。4c は外した）
+  4d. 入れ替えた直後に配った設定が JSON でない（+6。環境の失敗）→ 戻さない。窓は画面を既定の形で描き、画面の JS が心拍を送る
   4e. 画面の JS（app.js）が壊れた版（+7）→ 画面の JS が設定を尋ねもせず心拍も来ないので、60 秒で控え（+6）へ戻す（自己診断の心拍は数えない）
   5. 配る版を前の版（+1。distribute.json）に戻す → 1 回開くだけで配る版になり、配る版を作業場所に覚える（want.json）
   6. 新しい PC（まっさらな作業場所）が配る入口を開くだけで、配る版をこの PC へ入れて開き、入口の置き場を控える
   ショートカット: 無ければ画面が尋ねる・共有を指すショートカットは次の起動でこの PC の app（作業フォルダも）に直す
   あわせて: 共有の配る形は 1 ファイルも変わらない・終わったあと Python が残らない。
+  版 3.118.0（段 ④）: いまの窓を開く段（update・local）は、PATH から Python の入ったフォルダを外し TPA_PYTHON を無い道にして開き、
+  窓の記録（desktop.log）に中身を起こした印（READY・PID）が 1 度も無いことを見る（Python が 1 度も起きていない）。
+
+    python verify.py --no-python-path                                  いまの PATH から Python の入ったフォルダを外した字（CI の自己診断）
+    python verify.py prev --old-zip <前の版の配る ZIP> --exe <作った exe> [--work …] [--keep]
+      前の版（GitHub の Releases の v3.117.x。Python を起こす）の本物の窓で始めた PC が、いまの版を取り込み・入れ替え・開き直し
+      （Python の無い PATH で開く）、配る版を前の版に戻すと前の版で開く（前の版は Python を起こすので、戻す段は Python のある PATH）。
+      Windows の CI（desktop.yml の windows-exe）で流す。前の版の Linux の exe は Releases に無いので、手元の Linux は 4 の前の版の窓の形
+      （stage_by_old_window）で代える
 """
 from __future__ import annotations
 
@@ -62,7 +71,7 @@ WINDOW_ONLY = [
     "配布の画面: 覚えた答えをすぐ返す（cached=1）",
     "権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない",
     "出さないタブを出さない・権限の札とマスタ管理の入口は窓の名乗り（中身が止まっていても）",
-    "利用状況のいま使っている印に中身の様子（起きていなければ stopped・起きていれば無い）", "画面のエラーが無い",
+    "利用状況のいま使っている印に中身の様子（止まっていれば stopped・起きている・起こさない窓は無い）", "画面のエラーが無い",
     "更新の係が答える（取り込めない理由が無い）", "中身（Python）を通す項目",
 ]
 # 窓だけの項目のうち、試す形によって出ない物（版を置けない人だけ・例外のときだけ）
@@ -92,7 +101,8 @@ def window_only_ok(r: dict, label: str) -> tuple[bool, str]:
     missing = [n for n in WINDOW_ONLY if n not in names]
     extra = [n for n in names if n not in WINDOW_ONLY and n not in WINDOW_MAYBE]
     bad = [x["name"] for x in res if not x["ok"]]
-    good = r.get("python") == "stopped" and r.get("skipped", 0) > 0 and not missing and not extra and not bad
+    # 版 3.118.0（段 ④）: 製品の窓は中身を起こさない（python absent。止まった stopped とは別の様子）
+    good = r.get("python") == "absent" and r.get("skipped", 0) > 0 and not missing and not extra and not bad
     return good, f"python={r.get('python')} 飛ばした {r.get('skipped')}・無い {missing}・余分 {extra}・通らない {bad}"
 
 
@@ -111,8 +121,8 @@ def tree_digest(root: Path) -> str:
 
 def place(stage: Path, version: str, rel_root: Path, broken: str = "") -> None:
     """配る形 stage の版を書き換えて ZIP にし、置き場の <アプリ>/<版>/ に release.json と並べて置く。
-    broken: "window"＝窓が描けない版（画面の型を消す）・"python"＝Python だけ起きない版・"slow"＝Python が 30 秒遅い版・
-    "js"＝画面の JS（app.js）が読み込みで落ちる版"""
+    broken: "window"＝窓が描けない版（画面の型を消す）・"js"＝画面の JS（app.js）が読み込みで落ちる版
+    （版 3.118.0 から "python"・"slow"〈Python だけ壊れた・遅い版〉は外した: 窓は中身を起こさない）"""
     b = bundle.brand()
     work = Path(tempfile.mkdtemp(prefix="da-variant-"))
     try:
@@ -122,19 +132,11 @@ def place(stage: Path, version: str, rel_root: Path, broken: str = "") -> None:
         text = vp.read_text(encoding="utf-8")
         old = bundle.app_version(top / "program")
         vp.write_text(text.replace(f'APP_VERSION = "{old}"', f'APP_VERSION = "{version}"', 1), encoding="utf-8")
-        side = top / "program" / "sidecar.py"
         if broken == "window":   # 窓が描けない版（取り込みの窓の準備で断る・起動の窓の準備で戻す）
             (top / "program" / "app" / "templates" / "index.html").unlink()
-        elif broken == "python":   # 中身（Python）だけが起動できない版（窓の準備は通る。戻さない）
-            side.write_text('raise SystemExit("試験のために壊した版")\n', encoding="utf-8")
         elif broken == "js":   # 画面の JS が構文の誤りで落ちる版（窓の準備は JS を読まないので通る。画面の最初の心拍で戻す）
             js = top / "program" / "app" / "static" / "js" / "app.js"
             js.write_text(js.read_text(encoding="utf-8") + "\nfunction ( {\n", encoding="utf-8")
-        elif broken == "slow":   # 中身の準備が 30 秒遅い版（Windows の Defender の走査・遅いディスクの見立て）
-            head = "from __future__ import annotations\n"     # __future__ の行より前には書けない
-            text = side.read_text(encoding="utf-8")
-            assert head in text, "sidecar.py の頭が変わった"
-            side.write_text(text.replace(head, head + "import time as _verify_time\n_verify_time.sleep(30)\n", 1), encoding="utf-8")
         dest = rel_root / b["name"] / version
         dest.mkdir(parents=True, exist_ok=True)
         zip_name = f"{b['name']}-{version}-windows.zip"
@@ -260,7 +262,8 @@ def stage_by_old_window(rel_dir: Path, local: Path, version: str) -> None:
     try:
         with zipfile.ZipFile(rel_dir / rel["zip"]) as z:
             z.extractall(tmp)
-        root = next(p.parent for p in tmp.rglob("sidecar.py") if p.parent.name == "program").parent
+        # 配る形の根（program/app/version.py の 3 つ上。凍らせた写し program/tests/legacy/…/app は program の下の app でないので選ばない）
+        root = next(p.parents[2] for p in tmp.rglob("version.py") if p.parent.name == "app" and p.parents[1].name == "program")
         stage = local / "update" / "stage"
         shutil.rmtree(stage, ignore_errors=True)
         shutil.copytree(root, stage)
@@ -316,6 +319,25 @@ def leftover_python(root: Path) -> list[str]:
     return out
 
 
+def no_python_path(path: str) -> str:
+    """PATH から Python の入ったフォルダ（python・python3・python.exe・Microsoft Store の入口のある所）を外す（版 3.118.0。採点の first_fixes 9）。
+    いまの窓を開くときだけ使う（道具の Python は外さない）。py ランチャー（C:\\Windows\\py.exe）の置き場は外さない（Windows の置き場ごと外れる。
+    段 ④ の窓は Python を探さないので、起きたかは記録と走っているプロセスで見る）"""
+    names = ("python", "python3", "python.exe", "python3.exe")
+    keep = [d for d in path.split(os.pathsep) if d and not any((Path(d) / n).exists() for n in names)]
+    return os.pathsep.join(keep)
+
+
+def without_python(env: dict, work: Path) -> dict:
+    """いまの窓を Python の無い PC の形で開く env（PATH から外し、TPA_PYTHON を無い道に）"""
+    return {**env, "PATH": no_python_path(env.get("PATH", "")), "TPA_PYTHON": str(work / "どこにも無い" / "python3")}
+
+
+def python_started(local: Path) -> list[str]:
+    """窓の記録で、窓が中身（Python）を起こした印（版 3.117.x までの窓の READY・PID の行）。段 ④ の窓では 1 度も無い"""
+    return [line[:160] for line in desktop_log(local) if " READY version=" in line or " PID 起こした" in line]
+
+
 def update(exe: Path, work: Path) -> bool:
     b = bundle.brand()
     if work.exists():
@@ -343,6 +365,7 @@ def update(exe: Path, work: Path) -> bool:
     links = [work / "links" / "Desktop", work / "links" / "Programs"]
     env = {k: v for k, v in os.environ.items() if k not in ("TPA_NO_HANDOFF", "TPA_PROGRAM_DIR", "TPA_SELFTEST")}
     env.update({"TRANSFER_APP_CONFIG": str(conf), "TRANSFER_LOCAL_ROOT": str(local), "TPA_LINK_DIRS": os.pathsep.join(map(str, links))})
+    env = without_python(env, work)    # 版 3.118.0: いまの窓は Python の無い PATH で開く（中身を起こさない）
     run = Run(work, env)
     app = local / "app"
     ok = True
@@ -420,33 +443,27 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(upd.get("state") == "latest" and v3 in (upd.get("failed") or []), "4. 起動できなかった版はもう取り込まない", json.dumps(upd, ensure_ascii=False)[:300])
     ok &= check(boot_log_has(local, "窓の準備が通りません"), "4. 窓の記録に窓の準備の失敗", "")
 
-    # 4b. Python だけ壊れた版（v4）→ 取り込み・入れ替え、戻さず開く（Python の失敗は帯と心拍の python で見せる）
-    v4, v5 = bump(v0, 4), bump(v0, 5)
-    place(Path(built["stage"]), v4, rel_root, broken="python")
-    r = run.open(app / b["exe"], "python-broken")
+    # 4b. Python の無い PC（段 ④・版 3.118.0。採点の first_fixes 10）: v4 に入れ替えて、その版のまま開く。窓だけの項目が通り、確かめの印は
+    #     画面の最初の心拍で消え、利用状況のいま使っている印に python が無い（版 3.117.x の配布の画面は「書かない＝起きている」と読む）
+    v4 = bump(v0, 4)
+    place(Path(built["stage"]), v4, rel_root)
+    make_link(lnk, share_exe, share_app)    # 直す物を作っておく（共有を指すショートカット）
+    r = run.open(app / b["exe"], "no-python")
     info = r.get("info") or {}
-    good, why = window_only_ok(r, "python-broken")
-    ok &= check(info.get("version") == v4, f"4b. Python だけ壊れた {v4} は戻さず、その版で開く", info.get("version"))
-    ok &= check(good, "4b. 心拍 200・python stopped・窓だけの自己診断の項目が通り、Python を通す項目は包みに数えた", why)
-    ok &= check(not (local / "update" / "applied.json").exists(), "4b. 確かめの印は画面の最初の心拍で消えた（Python を待たない）")
+    good, why = window_only_ok(r, "no-python")
+    ok &= check(info.get("version") == v4, f"4b. Python の無い PC で {v4} に入れ替えて開く", info.get("version"))
+    ok &= check(good, "4b. 心拍 200・python absent・窓だけの自己診断の項目が通り、Python を通す項目は包みに数えた", why)
+    ok &= check(not (local / "update" / "applied.json").exists() and boot_log_has(local, "BOOT 入れ替えた版を確かめた"),
+                "4b. 確かめの印は画面の最初の心拍で消えた")
     fj = json.loads((local / "update" / "FAILED.json").read_text(encoding="utf-8"))
     ok &= check(fj.get("versions") == [v3], f"4b. {v4} に印を付けない", fj.get("versions"))
-    # いま使っている印は窓を閉じると消えるので、開いている間に自己診断が読んだ物で見る
+    # いま使っている印は窓を閉じると消えるので、開いている間に自己診断が読んだ物で見る（absent は書かない: info は「… null」）
     pres = next((x for x in r.get("results", []) if x["name"].startswith("利用状況のいま使っている印")), {})
-    ok &= check(pres.get("ok") is True and '"stopped"' in pres.get("info", ""), "4b. 利用状況のいま使っている印に中身の様子（stopped）", pres.get("info"))
-
-    # 4c. Python が遅い版（v5）→ 画面は待たずに開き、確かめの印は数秒で消え（Python の準備より前）、ショートカットも直る
-    place(Path(built["stage"]), v5, rel_root, broken="slow")
-    make_link(lnk, share_exe, share_app)    # 直す物を作っておく（共有を指すショートカット）
-    r = run.open(app / b["exe"], "python-slow")
-    info = r.get("info") or {}
-    ok &= check(r.get("ok") is True and info.get("version") == v5 and r.get("python") == "ready", f"4c. Python が遅い {v5} で開き、自己診断が通る",
-                f"{info.get('version')} python={r.get('python')} {r.get('error', '')}")
-    confirm_ms, ready_ms = boot_ms(local, "BOOT 入れ替えた版を確かめた"), boot_ms(local, "READY")
-    ok &= check(confirm_ms is not None and confirm_ms < 15000 and (ready_ms is None or confirm_ms < ready_ms),
-                "4c. 確かめの印は画面の最初の心拍で消えた（数秒・Python の準備より前）", f"確かめ {confirm_ms} ms・Python の準備 {ready_ms} ms")
+    ok &= check(pres.get("ok") is True and '"stopped"' not in pres.get("info", "") and '"absent"' not in pres.get("info", ""),
+                "4b. 利用状況のいま使っている印に python が無い（中身の起きない PC と数えない）", pres.get("info"))
     got = read_link(lnk)
-    ok &= check(bool(got) and same(got[0], app / b["exe"]), "4c. ショートカットも直った（Python の準備を待たない）", got)
+    ok &= check(bool(got) and same(got[0], app / b["exe"]), "4b. ショートカットも直った", got)
+    # 4c（Python が遅い版）は外した（版 3.118.0: 窓は中身を起こさないので、Python の準備の速さは確かめの印に関わらない）
 
     # 4d. 入れ替えた直後に、配った設定が JSON でない（環境の失敗）→ 戻さない（版 3.111.0 の作った後の採点の割れ 1・5）
     v6, v7 = bump(v0, 6), bump(v0, 7)
@@ -464,8 +481,8 @@ def update(exe: Path, work: Path) -> bool:
                 "4d. 画面の JS が心拍を送り、確かめの印が消えた", "")
     # 配った設定が読めないので一覧などは 503 で答える（窓だけの項目のうち設定の要る物は通らない）。見るのは、画面の JS が読み込みで落ちないこと
     errs = next((x for x in r.get("results", []) if x["name"] == "画面のエラーが無い"), {})
-    ok &= check(r.get("python") == "stopped" and errs and "before initialization" not in errs.get("info", "") and "ReferenceError" not in errs.get("info", ""),
-                "4d. Python は止まったが画面の JS は落ちない（読み込みの途中に中身が止まった知らせが来ても）", f"python={r.get('python')} {errs.get('info', '')[:200]}")
+    ok &= check(r.get("python") == "absent" and errs and "before initialization" not in errs.get("info", "") and "ReferenceError" not in errs.get("info", ""),
+                "4d. 中身を起こさない窓でも画面の JS は落ちない", f"python={r.get('python')} {errs.get('info', '')[:200]}")
 
     # 4e. 画面の JS が壊れた版 → 60 秒で戻す（自己診断の心拍は合図に数えない）
     place(Path(built["stage"]), v7, rel_root, broken="js")
@@ -503,12 +520,14 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(tree_digest(share_app) == share_digest, "共有の配る形は 1 ファイルも変わらない")
     left = leftover_python(work)
     ok &= check(not left, "終わったあと Python が残らない", left)
+    started = python_started(local) + python_started(local_nan) + python_started(local2)
+    ok &= check(not started, "Python が 1 度も起きていない（窓の記録に中身を起こした印が無い。段 ④）", started)
     return ok
 
 
 def local(exe: Path, work: Path) -> bool:
     """作業場所の窓だけ（この PC の app でない・開発の形）を、Python の無い PC で開く（版 3.111.0）: TPA_PYTHON を無い道にし、PATH からも
-    Python を外す（窓は PATH の python3 へ落ちる）。窓は画面を開き、心拍 200・python stopped・窓だけの自己診断の項目が通る。
+    Python を外す（版 3.118.0 から窓は Python を探さない）。窓は画面を開き、心拍 200・python absent・窓だけの自己診断の項目が通る。
     Windows では窓が PATH の外の py ランチャー（WINDIR\\py.exe）も探すので、Linux（CI の ci.yml・check-all.sh --verify）で流す"""
     if os.name == "nt":
         print("local: Windows では py ランチャーが PATH の外にあるので流さない（Linux で流す）")
@@ -534,11 +553,11 @@ def local(exe: Path, work: Path) -> bool:
     r = Run(work, env).open(exe, "no-python")
     ok = check(r.get("ok") is True, "local. Python の無い PC でも窓は画面を開き、自己診断が通る", r.get("error", ""))
     good, why = window_only_ok(r, "no-python")
-    ok &= check(good, "local. 心拍 200・python stopped・窓だけの項目が全部通り、Python を通す項目は包みに数えた", why)
+    ok &= check(good, "local. 心拍 200・python absent・窓だけの項目が全部通り、Python を通す項目は包みに数えた", why)
     tabs = next((x for x in r.get("results", []) if x["name"].startswith("出さないタブを出さない")), {})
     ok &= check(tabs.get("ok") is True and '"calc"' in tabs.get("info", ""), "local. Python が居なくても出さないタブ（計算）を出さない", tabs.get("info"))
-    ok &= check(boot_log_has(work / "local", "BACKEND 起こせません") and boot_log_has(work / "local", "OPEN 画面を開きます"),
-                "local. 窓の記録: 画面を開き、中身は理由つきで起こせない", "")
+    ok &= check(boot_log_has(work / "local", "python=（段 ④: 起こさない）") and boot_log_has(work / "local", "OPEN 画面を開きます")
+                and not python_started(work / "local"), "local. 窓の記録: 画面を開き、中身は起こさない（Python が 1 度も起きていない）", "")
     ok &= check((r.get("info") or {}).get("version") == bundle.app_version(), "local. 中身の版は窓が読んだ program_version", r.get("info"))
     # 版 3.112.0（採点の指摘 10）: 配った設定に NaN（Python の json.loads は読む・窓の serde は読めない）があっても、Python の無い PC で
     # 窓だけの項目が全部通る（前は窓が束を Python に尋ね、心拍・一覧・配布の画面など 8 項目が落ちた）
@@ -629,7 +648,79 @@ def rename(old_exe: Path, old_repo: Path, exe: Path, work: Path) -> bool:
     return ok
 
 
+def prev(old_zip: Path, exe: Path, work: Path) -> bool:
+    """前の版と新しい版の境の通し（版 3.118.0。採点の first_fixes 10・14）。前の版（GitHub の Releases の v3.117.x の配る ZIP。Python を起こす）の
+    本物の窓で始めた PC が、置き場のいまの版（段 ④: Python を起こさない）を取り込み・入れ替え・開き直す。そのあと配る版を前の版に戻すと、
+    1 回開くだけで前の版で開く（前の版は Python を起こすので、戻した段は Python のある PATH。PC の Python は段 ⑤ まで消さない）"""
+    b = bundle.brand()
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
+    share = work / "share"
+    with zipfile.ZipFile(old_zip) as z:
+        z.extractall(share)
+        old_rel_names = z.namelist()
+    top = next(n.split("/")[0] for n in old_rel_names if n.endswith("/program/app/version.py") and n.count("/") == 3)
+    share_app = share / top
+    old_v = bundle.app_version(share_app / "program")
+    share_exe = share_app / b["exe"]
+    built = bundle.build(exe, work / "out")
+    v_new = built["version"]
+    for f in [share_exe, *(Path(built["stage"]).glob("*.exe"))]:
+        if os.name != "nt":
+            f.chmod(0o755)
+    rel_root = work / "Releases"
+    place(Path(built["stage"]), v_new, rel_root)
+    # 前の版も置き場に並べる（配る版を前の版に戻すときに選ぶ）: 前の版の ZIP をそのまま置く
+    old_dest = rel_root / b["name"] / old_v
+    old_dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(old_zip, old_dest / old_zip.name)
+    (old_dest / "release.json").write_text(json.dumps(bundle.release_json(b, old_v, old_zip.name, bundle.sha256_file(old_zip)), ensure_ascii=False, indent=1),
+                                           encoding="utf-8")
+    fixture = work / "q.sqlite3"
+    subprocess.run([sys.executable, str(REPO / "program" / "tests" / "lotlist_fixture.py"), str(fixture), "300"], check=True, capture_output=True)
+    conf = work / "appsettings.json"
+    subprocess.run([sys.executable, str(REPO / "program" / "tests" / "selftest_config.py"), str(fixture), str(conf), str(rel_root)], check=True)
+    local = work / "local"
+    app = local / "app"
+    env = {k: v for k, v in os.environ.items() if k not in ("TPA_NO_HANDOFF", "TPA_PROGRAM_DIR", "TPA_SELFTEST", "TPA_PYTHON")}
+    env.update({"TRANSFER_APP_CONFIG": str(conf), "TRANSFER_LOCAL_ROOT": str(local),
+                "TPA_LINK_DIRS": os.pathsep.join(str(work / "links" / n) for n in ("Desktop", "Programs"))})
+    with_py, no_py = Run(work, env), Run(work, without_python(env, work))
+    ok = True
+    # 1. 前の版の共有の exe（Python のある PATH）→ この PC の app へ写り、使っている間にいまの版を取り込む
+    r = with_py.open(share_exe, "old-share")
+    info, upd = r.get("info") or {}, r.get("update") or {}
+    ok &= check(r.get("ok") is True and info.get("version") == old_v, f"prev 1. 前の版 {old_v} で開き、自己診断が通る", r.get("error", "") or info.get("version"))
+    ok &= check(upd.get("state") == "ready" and upd.get("ready") == v_new, f"prev 1. 前の版の窓が {v_new} を取り込んだ（sidecar.py の印を受ける）",
+                json.dumps(upd, ensure_ascii=False)[:300])
+    # 2. Python の無い PATH で app の exe（前の版の入口）を開く → 前の窓が入れ替えて開き直し、いまの窓が Python を起こさずに開く
+    before = len(desktop_log(local))
+    r = no_py.open(app / b["exe"], "new")
+    info = r.get("info") or {}
+    good, why = window_only_ok(r, "new")
+    ok &= check(info.get("version") == v_new and good, f"prev 2. 入れ替えて開き直すと {v_new}（python absent・窓だけの項目が通る）", why)
+    ok &= check(not (local / "update" / "applied.json").exists(), "prev 2. 確かめの印は画面の最初の心拍で消えた")
+    started = [x for x in desktop_log(local)[before:] if " READY version=" in x or " PID 起こした" in x]
+    ok &= check(not started, "prev 2. いまの窓は Python を 1 度も起こさない", started)
+    # 3. 配る版を前の版に戻す → いまの窓が 1 回開くだけで前の版を取り込み・入れ替え・開き直す（前の版は Python を起こすので Python のある PATH）
+    (rel_root / b["name"] / "distribute.json").write_text(json.dumps(
+        {"schema": 1, "app_id": b["app_id"], "version": old_v, "entry": b["exe"], "setAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+         "setBy": "verify", "setPc": "verify", "previous": v_new}, ensure_ascii=False), encoding="utf-8")
+    r = with_py.open(app / b["exe"], "back")
+    info = r.get("info") or {}
+    ok &= check(r.get("ok") is True and info.get("version") == old_v and r.get("python") == "ready",
+                f"prev 3. 配る版を {old_v} に戻すと、1 回の起動で前の版（Python を起こす）で開く", f"{info.get('version')} python={r.get('python')} {r.get('error', '')}")
+    left = leftover_python(work)
+    ok &= check(not left, "終わったあと Python が残らない", left)
+    return ok
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["--no-python-path"]:    # CI の自己診断の段が、窓を起こすときだけ使う PATH（版 3.118.0）
+        print(no_python_path(os.environ.get("PATH", "")))
+        return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("update")
@@ -640,6 +731,11 @@ def main(argv=None):
     s.add_argument("--exe", required=True, type=Path)
     s.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "da-verify-local")
     s.add_argument("--keep", action="store_true")
+    s = sub.add_parser("prev")
+    s.add_argument("--old-zip", required=True, type=Path, help="前の版の配る ZIP（GitHub の Releases の v3.117.x）")
+    s.add_argument("--exe", required=True, type=Path)
+    s.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "da-verify-prev")
+    s.add_argument("--keep", action="store_true")
     s = sub.add_parser("rename")
     s.add_argument("--old-exe", required=True, type=Path, help="前の版の窓（old-repo で作った物）")
     s.add_argument("--old-repo", required=True, type=Path, help="前の版のリポジトリ（git worktree など。その program で配る形にする）")
@@ -647,7 +743,9 @@ def main(argv=None):
     s.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "da-verify-rename")
     s.add_argument("--keep", action="store_true")
     a = ap.parse_args(argv)
-    if a.cmd == "rename":
+    if a.cmd == "prev":
+        ok = prev(a.old_zip.resolve(), a.exe.resolve(), a.work.resolve())
+    elif a.cmd == "rename":
         ok = rename(a.old_exe.resolve(), a.old_repo.resolve(), a.exe.resolve(), a.work.resolve())
     elif a.cmd == "local":
         ok = local(a.exe.resolve(), a.work.resolve())

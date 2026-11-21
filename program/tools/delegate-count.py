@@ -308,13 +308,12 @@ def kind_of(scene, s, prof, oracle=""):
     if re.search(PLACE_SCENE, name) and oracle not in ("release_place_oracle", "fs_oracle"):
         return "置き場", next(k for k, rx in PLACE_RULES if re.search(rx, name))
     if oracle == "schedule_oracle":
-        # 版 3.117.1: https とシステムのプロキシも窓が取る（段 ③-6 は 0）。残るのは戻り道（配った設定の schedule.fetch_engine が python。
-        # 予算の envExtra に数える。段 ④ で設定ごと消す）
+        # 版 3.117.1: https とシステムのプロキシも窓が取る（段 ③-6 は 0）。版 3.118.0（段 ④）: 戻り道（schedule.fetch_engine が python）も窓が取る
         if "戻り道" in name:
-            return "戻り道", "戻り道: schedule.fetch_engine が python（窓は係を降りる。envExtra に数える。段 ④ で設定ごと消す）"
+            return "戻り道", "戻り道: schedule.fetch_engine が python（版 3.118.0 から効かない。窓が取るはず）"
         return "③-6", "③-6: CM3 の任せ（版 3.117.1 から無いはず）"
     if re.search(r"%2[Ff]", path):
-        return "道", "道: 戻したキーに / がある（道の型に当たらない。Python は道なしの 404。段 ④ で窓の道なしの 404）"
+        return "道", "道: 戻したキーに / がある（道の型に当たらない。版 3.118.0 から製品では振り分けが道なしの 404。前は Python の 404）"
     if re.search(r"/[^/]*%[0-9A-Fa-f]{2}[^/]*$", path) or re.search(r"/[０-９١-٩]+$", path):
         return "道", "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）"
     k = body_kind(s, name, prof)
