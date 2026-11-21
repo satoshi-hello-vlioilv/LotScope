@@ -3063,6 +3063,32 @@ import でたどった部品（oracle_gate・schedule_fixture・lotlist_fixture�
   単体の試験の discover は写しの置き場が package でない（`__init__.py` が無い・名前が「3.117.3」）ので入らない。`tests/test_single_entry.py` の残り物の確かめは
   写しを外した（写しの更新履歴は昔の版の注記を含む）。改行は `.gitattributes` で `-text`（Windows の取り出しでも sha256 が同じ）。
 
+#### ⑤' 予定の元・1 回目の Windows の CI（PR #120）の直しと取り込み
+
+- **予定の元**（利用者の決め 2026-11-21「CM3 は設備の名前です。『予定の元』に替えてください」）: 利用者に見える字で予定を配る元を「CM3」と呼んでいた所を
+  「予定の元」に替えた（画面の JS 14・Python の app の字 約 80・窓の desktop/src の字 約 40・焼いた決まりの表 bundle_tables.json 7・人の事例の表〈cm3_net・sysproxy・
+  schedule_golden〉・更新履歴の前の版の説明）。Python と窓は同じ言い方の決まりで替え、突き合わせの試験で 1 字まで同じ。替えないのは設備の名前の CM3・内部の名前
+  （kind "cm3"・cm3_base_url・ファイル名・関数）・コメントと作り手向けの文書・試験の場面の名前。評価関数 `tests/test_schedule_source_words.py`（直す前 155 か所で落ち、
+  直した後 0。コメント・docstring・内部の名前は見ない・設備の名前として許す字は理由つきの ALLOWED）・`ui-eval-schedule.mjs` の ⑦（説明は「予定の元」と言い CM3 と言わない）。
+  画面の評価関数 schedule・sources・unify・srclist・narrow は 3 つの大きさで全部 OK。言葉の変わった本 schedule・builder・equipgroups・settings・settings_write と、
+  写しの比べ方の変わった routes・dashboard・ops を焼き直した（3 回の焼きが同じ）。凍らせる写しは 3.117.3 の最後の形で作り直した（凍らせた試験 10 本が写しを相手に通る）。
+- **1 回目の Windows の CI**（頭 21c49d3）: 札 table の 20 本のうち落ちたのは access の 1 本（作った後の採点の割れ 1。直した）。Python と比べる形の cargo test で 3 本:
+  (1) bake_selftest の 4 本が「Windows では焼きません」に当たった（`Bake::with` が bake_os を使っていた → 試験の変異は posix の形から始め、Windows の形は apply_os で選ぶ。
+  Linux で `TPA_BAKE_OS=nt cargo test --test bake_selftest` で同じ 4 本の落ちを再現してから直した。check-all の段 nt-shape に入れた）・(2) fs_parity の file:// の 3 歩
+  （Python と比べる形でも本文を Windows の URL に書き直し、答え合わせ役の Python と窓に違う字を渡した → 書き直すのは表だけの形だけ）・(3) ops_parity の「勤務体系が無い」
+  3 歩の写しの様子の reason「元ファイルは変わっていません / 写しを更新しました」（この問い合わせで写し直したかは、Python と窓のどちらが先に確かめたか・更新時刻の刻みで
+  入れ替わる → `common::mirror_part` は MIRROR_SAME の 2 語だけを「@写しは元と同じ」にそろえ、届かない・見送った・写せない理由と stale・unreachable はそのまま比べる。
+  `bake_selftest` の `the_mirror_reason_settles_only_whether_this_call_copied`）。
+- **取り込み**（`bless.py --take-nt pr120-wintest.log`。measure-z の行 35＝19 表）: 取り込んだ 16 表で札を table にした本 9（calc・conversions・lotdsp・masters・mirror・place・
+  release_place・sources_write・worklog_write）。札 table は 29 本・measure は 6 本（builder・equipgroups・schedule・settings・settings_write は焼き直して tableSha が合わない、
+  fs は記録に runner の字〈「参照…」のよく使う場所の C:\Users\runneradmin・「~名前」の届いた所の C:\Users の中〉が残る）。fs は場面の側で直した（Windows の家は USERPROFILE を @HOME に・
+  「~名前」は Windows では流す PC で決まる歩）。runner の字の見張りは runner の名前・8.3 の名前・一時フォルダだけに狭めた（前は C:\Users\ も止め、どの Windows でも同じ
+  「C:\Users\無い名前\x」まで断った）。release_place の違う歩 77 は、作れない改行の名前のファイル（中身 x の 1 バイト: bytes 2296 / 2295）・権限の数は Linux だけ・OS の誤りの字・
+  道の区切りで、どれも OS の決まりの帰結として nt に持った。
+- **Linux の上の Windows の形**（nt-shape）は、nt の答えと流さない歩を当てない（窓の答えは Linux の答え）。場面は Linux の形で作り、作れない物は Windows の決めで数えて nt の
+  unmade と比べる。守れるのは nt の表の読み方・札・作れない物の数え方で、Windows の答えそのものは Windows の CI が守る。札 table の 29 本が通った。
+- **CI は計 3 回**: 1 回目（済）→ 2 回目で measure の 6 本の記録を取り直す（札 table の 29 本は比べて落とす）→ 取り込んで 3 回目で 35 本が比べる形（入口の条件 2）。
+
 #### ⑥ 持ち越し（3.117.2 の carry_to_3117_3）の行き先
 
 - 作り物の CM3 の閉じた口（http://127.0.0.1:1）の Windows の秒と WinError 10061: (b) の OS の誤りの字として nt の表に持つ（schedule は measure。秒は記録で見る）。
