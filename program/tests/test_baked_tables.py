@@ -457,11 +457,20 @@ class BakedTables(unittest.TestCase):
                 return out.getvalue()
             self.assertIn(f"表 {len(want)} つ・歩 {len(want)}・焼いた表（posix）と違う歩 0", summary())
             self.assertIn("・記録の無い表 0（", summary())
-            (tmp / "lotdsp.json").unlink()
-            text = summary()
-            self.assertIn(f"表 {len(want) - 1} つ", text)
-            self.assertIn("・記録の無い表 1（lotdsp）", text)
-            self.assertIn("・記録の無い表 0（", summary(skip=bless.BOOKS["lotdsp"]["tests"]), "流さなかった試験の表は数えない")
+            # 表だけの形の記録が無いと数えるのは札が measure の本の表だけ（札が table の本は Windows で表と比べて落とすので記録を書かない。版 3.117.3）
+            one = {b: [n for n, bk in bless.tables().items() if bk == b] for b in bless.BOOKS}
+            tabled = next(b for b in sorted(one) if len(one[b]) == 1 and bless.BOOKS[b].get("windows") == "table")
+            (tmp / f"{tabled}.json").unlink()
+            self.assertIn("・記録の無い表 0（", summary(), f"札が table の {tabled} の記録は無くてよい")
+            (tmp / f"{tabled}.json").write_text(json.dumps({"file": tabled, "os": "windows", "form": "table", "finished": True, "steps": 1,
+                                                             "missing": [], "differing": []}), encoding="utf-8")
+            gone = next((b for b in bless.measure_books() if len(one.get(b, [])) == 1), None)
+            if gone:
+                (tmp / f"{gone}.json").unlink()
+                text = summary()
+                self.assertIn(f"表 {len(want) - 1} つ", text)
+                self.assertIn(f"・記録の無い表 1（{gone}）", text)
+                self.assertIn("・記録の無い表 0（", summary(skip=bless.BOOKS[gone]["tests"]), "流さなかった試験の表は数えない")
             for p in tmp.glob("*.json"):
                 p.unlink()
             self.assertIn(f"記録の無い表 {len(want)}", summary())
