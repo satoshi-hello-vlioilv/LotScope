@@ -1,0 +1,363 @@
+{
+ "about": "Windows の上書きの表（版 3.117.3）。本 builder の posix の表に重ねる Windows の答え。書くのは python program/tools/bless.py --take-nt（Windows の CI の表だけの形の測りの記録から）。answers: posix と違う歩の Windows の答え・posix: 上書きした posix の答えの指紋（上書きした歩の今の posix の答えと違えば bless.py --check が古いと言う）・skip: Windows では流さない歩・unmade: Windows で作れない場面の物",
+ "book": "builder",
+ "file": "builder",
+ "answers": {
+  "開発者の PC #101": {
+   "json": {
+    "message": "ファイルに届きません（The system cannot find the file specified）。場所・名前・共有フォルダへの接続を確かめてください。",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #102": {
+   "json": {
+    "message": "ファイルに届きません（The system cannot find the file specified）。場所・名前・共有フォルダへの接続を確かめてください。",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #13": {
+   "json": {
+    "sources": [
+     {
+      "columns": [
+       {
+        "column": "ロット番号",
+        "samples": [
+         "L0000",
+         "L0001",
+         "L0002"
+        ]
+       },
+       {
+        "column": "設備",
+        "samples": [
+         "CR1",
+         "CR2",
+         " L-1 "
+        ]
+       },
+       {
+        "column": "合金",
+        "samples": [
+         "A1100",
+         "a5052 ",
+         "A5052"
+        ]
+       },
+       {
+        "column": "不良名",
+        "samples": [
+         "キズ",
+         "キズ ",
+         "汚れ"
+        ]
+       },
+       {
+        "column": "数",
+        "samples": [
+         "0",
+         "1",
+         "1.0"
+        ]
+       },
+       {
+        "column": "空の列",
+        "samples": []
+       },
+       {
+        "column": "日時",
+        "samples": [
+         "2026/10/01 08:00",
+         "2026/10/02 08:00",
+         "2026/10/03 08:00"
+        ]
+       }
+      ],
+      "error": "",
+      "key": "lot",
+      "name": "品質"
+     },
+     {
+      "columns": [
+       {
+        "column": "ロット番号",
+        "samples": [
+         "L0000",
+         "L0011",
+         "L0022"
+        ]
+       },
+       {
+        "column": "BOX実績_作業開始_日付",
+        "samples": [
+         "2026/10/01 08:00:00",
+         "2026/10/02 09:00:00",
+         "2026/10/03 10:00:00"
+        ]
+       },
+       {
+        "column": "重量",
+        "samples": [
+         "0.0",
+         "115.5",
+         "94.5"
+        ]
+       },
+       {
+        "column": "速度",
+        "samples": [
+         "100",
+         "111",
+         "105"
+        ]
+       },
+       {
+        "column": "合金",
+        "samples": [
+         "A1100",
+         "a5052",
+         "A3004"
+        ]
+       },
+       {
+        "column": "CALだけ",
+        "samples": [
+         "無0",
+         "L0002",
+         "L0004"
+        ]
+       },
+       {
+        "column": "ZZだけの列",
+        "samples": [
+         "z0",
+         "z1",
+         "z2"
+        ]
+       }
+      ],
+      "error": "",
+      "key": "work",
+      "name": "実績"
+     },
+     {
+      "columns": [
+       {
+        "column": "ロット番号",
+        "samples": [
+         "L0000",
+         "L0002",
+         "L0004"
+        ]
+       },
+       {
+        "column": "残仕掛設備ｺｰｽ",
+        "samples": [
+         "CR1 L-1",
+         "CR2",
+         "ANF DL2 TLV"
+        ]
+       },
+       {
+        "column": "合金",
+        "samples": [
+         "A1100",
+         "A3004",
+         "a5052"
+        ]
+       },
+       {
+        "column": "コンマ5本分割_切断巾1",
+        "samples": []
+       }
+      ],
+      "error": "",
+      "key": "src:wip",
+      "name": "仕掛"
+     },
+     {
+      "columns": [
+       {
+        "column": "材質",
+        "samples": [
+         "A1100",
+         "a5052 ",
+         "A3004"
+        ]
+       },
+       {
+        "column": "質別",
+        "samples": [
+         "O",
+         "H34",
+         "H24"
+        ]
+       },
+       {
+        "column": "強さ",
+        "samples": [
+         "10",
+         "20",
+         "30"
+        ]
+       }
+      ],
+      "error": "",
+      "key": "src:m1",
+      "name": "製造条件"
+     },
+     {
+      "columns": [
+       {
+        "column": "ロット番号",
+        "samples": [
+         "L0000",
+         "L0002",
+         "L0004"
+        ]
+       },
+       {
+        "column": "残仕掛設備ｺｰｽ",
+        "samples": [
+         "CR1 L-1",
+         "CR2",
+         "ANF DL2 TLV"
+        ]
+       },
+       {
+        "column": "合金",
+        "samples": [
+         "A1100",
+         "A3004",
+         "a5052"
+        ]
+       },
+       {
+        "column": "コンマ5本分割_切断巾1",
+        "samples": []
+       },
+       {
+        "column": "質別",
+        "samples": [
+         "O",
+         "H14",
+         "H24"
+        ]
+       },
+       {
+        "column": "強さ",
+        "samples": [
+         "10",
+         "20",
+         "30"
+        ]
+       }
+      ],
+      "error": "",
+      "key": "src:v1",
+      "name": "合わせた"
+     },
+     {
+      "columns": [],
+      "error": "共有の元ファイルを、まだ手元へ写せていません（共有の元ファイルへ届かず、写しもまだありません（x.sqlite3: WinError 3 The system cannot find the path specified））。写し終えると一覧が出ます。",
+      "key": "src:e1",
+      "name": "届かない"
+     },
+     {
+      "columns": [],
+      "error": "L-1 の予定を予定の元から取れません: 予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+      "key": "src:sch",
+      "name": "スケジュール"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "開発者の PC #29": {
+   "json": {
+    "message": "ファイルに届きません（The system cannot find the file specified）。場所・名前・共有フォルダへの接続を確かめてください。",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #51": {
+   "json": {
+    "message": "作業実績のフォルダに届きません（The system cannot find the path specified）: @WORK/data/無いフォルダ",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #54": {
+   "json": {
+    "message": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #64": {
+   "json": {
+    "message": "ファイルに届きません（The system cannot find the file specified）。場所・名前・共有フォルダへの接続を確かめてください。",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #7": {
+   "json": {
+    "error": "共有の元ファイルを、まだ手元へ写せていません（共有の元ファイルへ届かず、写しもまだありません（x.sqlite3: WinError 3 The system cannot find the path specified））。写し終えると一覧が出ます。",
+    "kind": "copying",
+    "source": {
+     "ageHours": null,
+     "at": null,
+     "checkedAt": "@T(epoch|0)",
+     "copiedAt": null,
+     "interval_sec": 60,
+     "mirrored": false,
+     "reason": "共有の元ファイルへ届かず、写しもまだありません（x.sqlite3: WinError 3 The system cannot find the path specified）",
+     "remote": "@WORK/data/無い/x.sqlite3",
+     "stale": null,
+     "staleHours": 36.0,
+     "unreachable": true
+    }
+   },
+   "status": 503
+  },
+  "開発者の PC #70": {
+   "json": {
+    "message": "作業実績のフォルダに届きません（The system cannot find the path specified）: @WORK/data/無いフォルダ",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #76": {
+   "json": {
+    "message": "予定の元に接続できません: [WinError 10061] No connection could be made because the target machine actively refused it（社内 LAN か VPN につながっているか確かめてください）",
+    "ok": false
+   },
+   "status": 200
+  },
+  "開発者の PC #80": {
+   "json": {
+    "message": "「LotDsp を裏で読むブラウザ（空なら Edge を自動で探す）」: ブラウザは msedge.exe・chrome.exe だけを指せます（安全のため、ほかの実行ファイルは起こしません）。",
+    "ok": false
+   },
+   "status": 200
+  }
+ },
+ "posix": {
+  "開発者の PC #101": "647631c39bcd",
+  "開発者の PC #102": "647631c39bcd",
+  "開発者の PC #13": "cba7db8b0e0e",
+  "開発者の PC #29": "647631c39bcd",
+  "開発者の PC #51": "719706d57d4a",
+  "開発者の PC #54": "8e69cd24ab21",
+  "開発者の PC #64": "647631c39bcd",
+  "開発者の PC #7": "bc9aadea6c65",
+  "開発者の PC #70": "719706d57d4a",
+  "開発者の PC #76": "8e69cd24ab21",
+  "開発者の PC #80": "6553b97b4b32"
+ },
+ "skip": [],
+ "unmade": []
+}
