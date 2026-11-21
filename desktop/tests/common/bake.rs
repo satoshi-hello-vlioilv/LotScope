@@ -1283,7 +1283,8 @@ pub fn materialize_os(decl: &Value, base: &Path, ctx: &Ctx, os: &str) -> Vec<Str
             let link = base.join(rel);
             let at = link.parent().map(|d| d.join(&target)).unwrap_or_else(|| PathBuf::from(&target));
             let is_dir = (std::path::Path::new(&target).is_absolute() && std::path::Path::new(&target).is_dir()) || at.is_dir();
-            let r = if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
+            let r =
+                if is_dir { std::os::windows::fs::symlink_dir(&target, &link) } else { std::os::windows::fs::symlink_file(&target, &link) };
             if r.is_err() {
                 unmade.push(format!("link {rel}"));
             }

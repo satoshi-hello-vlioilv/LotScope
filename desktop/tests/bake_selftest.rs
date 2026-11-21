@@ -949,8 +949,10 @@ fn the_unmade_scene_entries_and_the_windows_answers_are_kept() {
 fn only_what_windows_cannot_express_is_unmade() {
     use common::bake::{materialize_os, predicted_unmade, windows_bad_name};
     let scene = |files: Value, dirs: Value| json!({"files": files, "dirs": dirs, "links": {}, "blobs": {"h": {"text": "x"}}});
-    let ok = scene(json!({"a/id": {"blob": "h", "mode": 0o755}, "b.txt": {"blob": "h", "mode": 0o644}, "c": {"blob": "h", "mode": 0o700}}),
-                   json!({"a": {"mode": 0o755}, "d": {"mode": 0o775}}));
+    let ok = scene(
+        json!({"a/id": {"blob": "h", "mode": 0o755}, "b.txt": {"blob": "h", "mode": 0o644}, "c": {"blob": "h", "mode": 0o700}}),
+        json!({"a": {"mode": 0o755}, "d": {"mode": 0o775}}),
+    );
     assert_eq!(predicted_unmade(&ok, "nt"), Vec::<String>::new(), "既定の権限・実行の印だけの場面は 0");
     let bad = scene(
         json!({"z.bin": {"blob": "h", "mode": 0o000}, "ro": {"blob": "h", "mode": 0o444}, "pipe": {"fifo": true}, "改行\nの名前.txt": {"blob": "h"},
@@ -964,7 +966,13 @@ fn only_what_windows_cannot_express_is_unmade() {
     want.sort();
     assert_eq!(predicted_unmade(&bad, "nt"), want, "読めない・書けない権限・名前付きパイプ・使えない名前");
     assert_eq!(predicted_unmade(&bad, "posix"), Vec::<String>::new());
-    assert!(windows_bad_name("con.txt") && windows_bad_name("LPT9") && windows_bad_name("a:b") && !windows_bad_name("COM10") && !windows_bad_name("a b"));
+    assert!(
+        windows_bad_name("con.txt")
+            && windows_bad_name("LPT9")
+            && windows_bad_name("a:b")
+            && !windows_bad_name("COM10")
+            && !windows_bad_name("a b")
+    );
     // Windows の形で作ると、数えた物は作らない（Linux の上で）
     let base = common::work("bake-unmade-os");
     let got = materialize_os(&bad, &base, &Ctx::new(&base), "nt");
@@ -992,7 +1000,11 @@ fn every_baked_scene_of_a_table_book_is_made_on_windows() {
         let want: Vec<String> = std::fs::read(nt_dir().join(&name))
             .ok()
             .and_then(|b| common::json_keep(&b))
-            .and_then(|n| n["unmade"].as_array().map(|a| a.iter().filter_map(Value::as_str).filter(|u| !u.starts_with("link ")).map(String::from).collect()))
+            .and_then(|n| {
+                n["unmade"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(Value::as_str).filter(|u| !u.starts_with("link ")).map(String::from).collect())
+            })
             .unwrap_or_default();
         if windows_status(book) == "table" {
             assert_eq!(got, want, "札が table の {file}: Windows の形で作れない物");
