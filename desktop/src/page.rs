@@ -273,6 +273,16 @@ fn walk(root: &Path, dir: &Path, exts: &[String], skip: &[String], items: &mut V
     }
 }
 
+/// 画面の型の置き場（版 3.118.2。窓と開発用サーバー〈examples/ui_serve.rs〉が同じ決めを読む。段 ⑤ で desktop/ui へ移すときはここと static_dir だけ）
+pub fn templates_dir(program: &Path) -> PathBuf {
+    program.join("app").join("templates")
+}
+
+/// 画面の静的ファイル（/static/。JS・CSS・three.js）の置き場（版 3.118.2。templates_dir と同じ）
+pub fn static_dir(program: &Path) -> PathBuf {
+    program.join("app").join("static")
+}
+
 /// app_build.fingerprint(program)
 pub fn fingerprint(program: &Path) -> String {
     let f = &tables()["fingerprint"];
@@ -350,7 +360,7 @@ impl Page {
     }
 
     fn template_named(&self, program: &Path, name: &str) -> Option<Template> {
-        let path = program.join("app").join("templates").join(name);
+        let path = templates_dir(program).join(name);
         let s = sig(&path);
         let mut t = self.templates.lock().unwrap();
         if let Some((old, tpl)) = t.get(&path) {

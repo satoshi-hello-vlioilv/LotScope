@@ -77,7 +77,7 @@ try {
       check("④ 保存すると、一覧の行の結合の列に相手（ほか 1）・題に結合ごとの文（相手・方式・鍵）", /製造条件マスタ ほか 1/.test(sum[0]) && /製造条件マスタ を左外部結合（合金 = 材質・調質 = 質別）/.test(sum[1]) && /設備マスタ/.test(sum[1]), sum);
       await p.click("#masterCloseBtn"); await sleep(400);
       await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "list" }))); await sleep(2500);
-      const lst = await api(p, `/api/lotlist?engine=python&page_size=2000&filters=${encodeURIComponent(JSON.stringify([{ column: "圧延速度", op: "not_empty", value: "" }]))}`);
+      const lst = await api(p, `/api/lotlist?page_size=2000&filters=${encodeURIComponent(JSON.stringify([{ column: "圧延速度", op: "not_empty", value: "" }]))}`);
       const heads = await p.$$eval("#llHead th[data-fcol]", (ts) => ts.map((t) => t.dataset.fcol));
       check("④ 品質異常の一覧に持ってきた列（圧延速度・ライン）が出る", heads.includes("圧延速度") && heads.includes("ライン"), heads);
       check(`④ 圧延速度が空でない行の数がサーバーの当たった数と同じ（${st.hit}）`, lst.count === st.hit, lst.count);

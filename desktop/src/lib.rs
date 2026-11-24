@@ -63,6 +63,7 @@ pub mod schedule;
 pub mod search_index;
 pub mod seeds;
 pub mod settings_write;
+pub mod shell;
 pub mod shifts_write;
 pub mod small_reads;
 pub mod sources_list;

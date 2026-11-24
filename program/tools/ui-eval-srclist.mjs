@@ -99,7 +99,7 @@ try {
     check("⑦ 結合した表の結合の列は「＋ 製造条件マスタ」", /＋ 製造条件マスタ/.test(jtext), jtext);
     await p.click("#masterCloseBtn"); await sleep(300);
     await p.click(`.screen-tabs [data-screen="src:${vk}"]`); await sleep(4000);
-    const got = await p.evaluate(async (vk) => { const a = await (await fetch(`/api/src/${vk}?page_size=1`)).json(); const b = await (await fetch("/api/lotlist?page_size=1&engine=python")).json(); return [a.count, a.columns.length, b.columns.length, document.querySelector("#llCount")?.textContent]; }, vk);
+    const got = await p.evaluate(async (vk) => { const a = await (await fetch(`/api/src/${vk}?page_size=1`)).json(); const b = await (await fetch("/api/lotlist?page_size=1")).json(); return [a.count, a.columns.length, b.columns.length, document.querySelector("#llCount")?.textContent]; }, vk);
     check("⑦ 結合した表のタブ: 元の行の数（1,500）・元より列が多い", got[0] === 1500 && got[1] > got[2] && /1,500/.test(got[3] || ""), got);
     // ⑧
     await openSources(p);

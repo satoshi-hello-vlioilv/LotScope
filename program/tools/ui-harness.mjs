@@ -1,14 +1,21 @@
 // 画面の撮影の共通部分（開発用。ui-check.mjs・ui-variants.mjs が使う。元は Inventor の同じ名前の道具）。
 //
-// 窓の代わりの開発用サーバー（ui_server.py。試験用の品質データ 1500 行）を起こし、Playwright の Chromium（WebView2 と同じ系統）で、
+// 開発用サーバーを起こし、Playwright の Chromium（WebView2 と同じ系統）で、
 // 利用者の画面と同じ大きさ（2160×1440・表示倍率 125% → 1728×1152）の頁を開く。
+// 開発用サーバー（版 3.118.2）: 既定は窓（desktop/examples/ui_serve.rs。製品の窓と同じ lib の答えの振り分け〈src/shell.rs〉と Lot。
+// 場面は tests/ui_window_scene.py が作る: 試験用の品質データ 1500 行・作業実績 12 台・仕掛 1200 ロット・作り物の CM3）。
+// TPA_UI_SERVER=python で前の Python の開発用サーバー（tools/ui_server.py。段 ⑤ で消す）。どちらも作業フォルダ（tpa-ui-*）は閉じるときに消し、
+// ポートは OS に選ばせる。窓は TPA_UI_EXE（無ければ cargo の作業フォルダの debug/examples/ui_serve。組むのは ui-all.mjs か
+// `cd desktop && cargo build --example ui_serve`）。
 // 窓だけが答える /__desktop/*（ショートカットの様子など）は作り物で答える（デスクトップのショートカットだけが欠けた PC）。
 // 状態（STATES）は、品質異常 → … → 作業実績 → … → 更新履歴 → 表示列の設定 → マスタ管理 → 待ちの窓 の順に 1 つの頁で進める。
 // 起動画面（desktop/splash。窓が出す）は別の頁で、窓の代わりに splash.brand・step・fail を呼んで進める（SPLASH_STATES）。
 
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -106,10 +113,7 @@ const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column
 
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
 export async function launch() {
-  const port = 8765 + Math.floor(Math.random() * 1000);
-  const base = `http://127.0.0.1:${port}`;
-  const server = spawn("python", ["-u", path.join(PROGRAM, "tools/ui_server.py"), String(port)], { stdio: ["ignore", "pipe", "inherit"] });
-  await new Promise((done, fail) => { server.stdout.once("data", done); server.once("exit", (c) => fail(new Error(`ui_server.py が終わりました（${c}）`))); });
+  const { base, stop } = await startServer();
   const browser = await chromium.launch();
   return {
     browser,
@@ -148,9 +152,93 @@ export async function launch() {
     },
     async close() {
       await browser.close();
-      server.kill();
+      await stop();
     },
   };
+}
+
+/** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す） */
+export const SERVER = process.env.TPA_UI_SERVER === "python" ? "python" : "window";
+/** 窓の開発用サーバーの実行ファイル（cargo build --example ui_serve） */
+export const UI_EXE = process.env.TPA_UI_EXE
+  || path.join(process.env.CARGO_TARGET_DIR || path.resolve(PROGRAM, "../desktop/target"), "debug", "examples", process.platform === "win32" ? "ui_serve.exe" : "ui_serve");
+
+/** OS に選ばせた空いているポート（Python の開発用サーバーは 0 番を渡すと、Host の確かめがそのポートで組めない） */
+function freePort() {
+  return new Promise((done, fail) => {
+    const s = net.createServer();
+    s.once("error", fail);
+    s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => done(port)); });
+  });
+}
+
+/** 開発用サーバーを作業フォルダ（tpa-ui-*）で起こす → { base, stop }。stop は子を止めて作業フォルダを消す。
+    子の出力の最初の「LISTEN http://…」の行（窓の形）か、最初の 1 行（Python の形。ポートはこちらで選んだ物）を待つ */
+export async function startServer() {
+  // TPA_UI_MASK=1（画素の比べ）は作業フォルダの名前を決めた形に（マスタの置き場・利用状況の画面に道が出る。乱数の名前だと撮るたびに違う）。
+  // 並べて撮るときは、撮る物ごとに別の一時フォルダ（TMPDIR）で
+  const work = process.env.TPA_UI_MASK === "1" ? path.join(os.tmpdir(), "tpa-ui-mask") : fs.mkdtempSync(path.join(os.tmpdir(), "tpa-ui-"));
+  if (process.env.TPA_UI_MASK === "1") { fs.rmSync(work, { recursive: true, force: true }); fs.mkdirSync(work, { recursive: true }); }
+  const env = { ...process.env, TPA_UI_WORK: work };
+  let server, base;
+  if (SERVER === "python") {
+    const port = await freePort();
+    base = `http://127.0.0.1:${port}`;
+    server = spawn("python", ["-u", path.join(PROGRAM, "tools/ui_server.py"), String(port)], { stdio: ["pipe", "pipe", "inherit"], env });
+  } else {
+    if (!fs.existsSync(UI_EXE)) throw new Error(`窓の開発用サーバーがありません（${UI_EXE}）。cd desktop && cargo build --example ui_serve で組んでください`);
+    server = spawn("python", ["-u", path.join(PROGRAM, "tests/ui_window_scene.py"), "serve", work, UI_EXE], { stdio: ["pipe", "pipe", "inherit"], env });
+  }
+  // 道具が close を呼ばずに終わった（例外・process.exit）ときも、子を止めて作業フォルダを消す（前は ui_server.py が残り、
+  // 標準エラーをつかんだまま ui-all.mjs の待ちを止めた。版 3.118.2）
+  const atExit = () => { try { server.kill("SIGKILL"); } catch { /* 済み */ } try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* 済み */ } };
+  process.once("exit", atExit);
+  const stop = async () => {
+    process.off("exit", atExit);
+    if (server.exitCode === null && server.signalCode === null) {
+      const gone = new Promise((done) => server.once("exit", done));
+      server.stdin.end();                       // 窓の形: 台本が窓を止めてから終わる
+      const t = setTimeout(() => server.kill(), SERVER === "python" ? 0 : 10000);
+      await gone;
+      clearTimeout(t);
+    }
+    fs.rmSync(work, { recursive: true, force: true });
+  };
+  try {
+    base = await new Promise((done, fail) => {
+      let buf = "";
+      server.stdout.on("data", (d) => {
+        buf += d.toString();
+        const m = buf.match(/LISTEN (http:\/\/127\.0\.0\.1:\d+)/);
+        if (m) done(m[1]);
+        else if (SERVER === "python" && buf.includes("\n")) done(base);
+      });
+      server.once("exit", (c) => fail(new Error(`開発用サーバーが終わりました（${c}）`)));
+    });
+  } catch (e) {
+    await stop();
+    throw e;
+  }
+  server.stdout.resume();
+  return { base, stop, work };
+}
+
+/** 時計の字の要素（版 3.118.2。撮るたびに変わる: 件数の行の元データの時刻・ダッシュボードの「n:nn の数」・パネルの元の時刻・
+    データ元の表の写した時刻・元データが古いの知らせ）。TPA_UI_MASK=1 のとき shot が伏せる（画素の比べ ui-diff.mjs で、相手の違いと雑音を分ける） */
+export const TIME_MASK = ["#llFresh", "#llStale", ".db-when", ".db-meta", ".sr-state small", ".db-psub", ".dp-kmeta"];
+
+/** 頁を撮る（TPA_UI_MASK=1 なら時計の字を伏せ、動く絵を止める。ui-check.mjs） */
+export async function shot(page, file) {
+  if (process.env.TPA_UI_MASK !== "1") return page.screenshot({ path: file });
+  // 時刻の数字は 0 にそろえてから伏せる（字の幅が撮った時刻で変わり、後ろの部品が 1〜2px ずれるのを止める）
+  await page.evaluate((sels) => {
+    for (const el of document.querySelectorAll(sels.join(","))) {
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(/\d/g, "0");
+    }
+  }, TIME_MASK).catch(() => {});
+  const mask = TIME_MASK.map((s) => page.locator(s));
+  return page.screenshot({ path: file, mask, maskColor: "#888", animations: "disabled", caret: "hide" });
 }
 
 /** ダッシュボードのパネルが描き終わるまで待つ（数えています・写しています の札が消える） */

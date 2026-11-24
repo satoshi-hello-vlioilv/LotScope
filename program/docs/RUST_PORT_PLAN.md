@@ -2657,6 +2657,12 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
      採点の道具（ui_score.py・ui-variants.mjs・ui-check.mjs など）と置き場そのものは、これからの改良で使うので残す。消すときは、記録を名指ししている
      試験と文書（CLAUDE.md・RUST_PORT_PLAN.md）も一緒に直す。版 3.117.3 では消さない（3.117.3 の採点のファイルは今までどおり置く）
    - CLAUDE.md を短くする（消した物の評価関数の行を外す）
+   - 撮る・採点する道具の Python の開発用サーバー（版 3.118.2 の採点 first_fixes 11）: tools/ui_server.py と ui-harness.mjs の `TPA_UI_SERVER=python` の枝
+     （ui-all.mjs の `--server python`・`PYTHON_ONLY` も）。**先に** books.json の routes・pivot・dashboard の sources から tools/ui_server.py を外す
+     （消すと bless.py --check が「元が無い」で落ちる）。ui_server.py を import する tools/rust-port-bench.py は消す（速さは窓の dash_bench・routes_bench・fields_bench）、
+     tests/test_capacity.py・tests/test_builder_reads.py は app を import する試験なので答え合わせ役と一緒に消す（独立の答え tools/capacity-truth.py・builder-truth.py と
+     窓の pivot_parity・dash_parity・builder_parity・builder_cases は残す）。tests/routes_oracle・pivot_oracle・dashboard_oracle は答え合わせ役 36 本と一緒に消す
+   - **⑤ の入口に足す**: ui-all.mjs の窓の表で 73 本が終了コード 0（前から落ちる本は理由つき）・harness に Python を起こす枝が 1 つだけ
    - **残す**（版 3.118.1 の採点の割れ 4。自己診断と窓の通しの場面。どれも app を import しない）: program/tests/lotlist_fixture.py・program/tests/selftest_config.py・
      program/config/appsettings.example.json（selftest_config.py が読む場面の見本）
    - **移す**: verify.py の place が書き換える program/app/version.py・templates/index.html・static/js/app.js の道（画面を desktop/ui へ移すなら verify.py の道も一緒に）
@@ -3262,6 +3268,49 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
 
 - 変異（手で 1 回ずつ。結果は採点のファイルの built_3118_1）: selftest.js の名前を 1 字変える・一覧に無い nan を足す・verify.py が探す名前を 1 字変える → test_bundle.py が落ちる／
   NOT_FOUND_HTML を 1 字変える → test_favicon_answer.py が落ちる／ほかは built_3118_1 の mutations
+
+### 段 ④ 版 3.118.2: 撮る・採点する道具の相手を窓に（開発用サーバー）
+
+案は 8 つ（採点は `tools/ui-proposals/2026-11-stage4c.json`。決まり 2026-11-06 で 1 回だけ。1 位は案 A「lib の振り分けを example で HTTP に出す」61.7 点）。
+合格点に届かないので、採点の指摘 first_fixes の 12 を入れ、版を 2 つに割った形で作る（作った形はファイルの `built_plan` の `built_3118_2`）。
+3.118.2 は道具 72 本の相手を窓に、遅くする口（TPA_UI_SLOW_FILE）の要る ui-eval-dashwait.mjs だけ Python のまま（3.118.3 で窓へ）。**製品の答えは替えない**（lib へ移しただけ）。
+
+- **振り分けの 1 か所**: `desktop/src/shell.rs`（lib）に Reply・Req・`answer`（版と更新履歴・生きているか・心拍・画面・調べる道具・権限の読む 2 本・データ元の並び・
+  handle_body。前は main.rs の native）・`refuse`（門番 → `window_unanswered`）・`static_file`・`mime`・`percent_decode`・`delegate_form`・`lot_for`（Lot の組み立て。
+  前は main.rs）。main.rs は /__desktop/*・終了・自己診断の受け口・更新の係だけを持ち、残りは `shell::answer` を呼ぶ。router.rs と sidecar.rs は shell の物を使う
+  （Reply は sidecar.rs に頼らない＝⑤ で sidecar を消しても残る）。画面の型と静的ファイルの置き場は `page::templates_dir`・`page::static_dir` の 1 か所
+  （⑤ で desktop/ui へ移すときはここだけ）。試験: `shell::tests::the_shell_answers_the_window_routes_and_lot_for_keeps_one_local_root`
+- **開発用サーバー**: `desktop/examples/ui_serve.rs`（std の TcpListener・1 つのつながりに 1 本の糸・keep-alive なし・本文 8 MB まで・ポート 0 は OS が選び
+  「LISTEN http://127.0.0.1:ポート」の 1 行・--stdin で標準入力が閉じたら終わる・Host と Origin の確かめは Python の開発用サーバーと同じ）。
+  順は製品の振り分けと同じ（answer → /static/ → 門番 → window_unanswered）。/__desktop/* は 404、POST /api/shutdown は 200 で答えて待ち受けを続ける
+  （撮る道具が「終了」を押しても次の頁を開ける。採点の計画の「200 で終わる」から変えた）。起動の初期値は当てない（Python の開発用サーバーと同じ）
+- **場面の台本**: `program/tests/ui_window_scene.py serve 作業フォルダ 実行ファイル`（標準の部品だけ・app を import しない）。ui_scene.make → 作り物の CM3
+  （`tests/fakes_uicm3.py`。fakes_serve.start の入口）→ 配った設定のファイル（作業フォルダ/appsettings.json）→ 権限の表に撮る人（getpass.getuser）を開発者・編集可で
+  1 行（Python の開発用サーバーは判定を差し替えた as_role。権限の表には既に管理する人が居るので、書く道では足せない）→ 窓を起こす → 登録 5 種を窓の書く道で
+  （作業実績の探す・共有の書式 3・勤務体系 2・設備グループ 2・マスタのデータ元 2）→ TPA_UI_BAD_ROWS・TPA_UI_SHARE=down・ui_scene.finish。
+  **焼いた本の元（tools/ui_server.py・tests/ui_scene.py・schedule_fixture.py・fakes_serve.py・lotlist_fixture.py・scene_files.py）は 1 字も変えない**（bless.py --check）
+- **harness**: `ui-harness.mjs` の `startServer` が起こす所の 1 か所。既定は窓（TPA_UI_EXE か cargo の作業フォルダの debug/examples/ui_serve）、`TPA_UI_SERVER=python` で
+  前の ui_server.py（⑤ で消す枝）。どちらも作業フォルダ（tpa-ui-*）は閉じるときに消し、ポートは OS に選ばせる
+- **3 本の直し**: ui-eval-join.mjs・ui-eval-srclist.mjs は `?engine=python` を外す（窓が結合も答える）。ui-eval-colsort.mjs の check 5 は「式を添えて窓に尋ねる
+  （calc はあり・engine は無い）」
+- **流す台本**: `program/tools/ui-all.mjs 出力 [--server window|python] [--jobs 3] [--base 基準]`（本ごとの終了コード・秒・OK／NG の行を results.json と table.md に。
+  窓の表でも Python の相手で流す本は `PYTHON_ONLY`〈dashwait〉）。画素の比べは `program/tools/ui-diff.mjs`（Chromium の canvas）と、ui-check の
+  `TPA_UI_MASK=1`（時計の字の要素〈harness の TIME_MASK〉を伏せ、動く絵を止める）
+- **3.118.3 へ送った物**: 遅くする口（TPA_UI_SLOW_FILE の open・ops・only・nocache・copy）を feature testing の下に置き、ui-eval-dashwait.mjs を窓で。
+  check-all の任意の段 --ui（ui-check の list・dash と ui-eval-xss・ui-eval-narrow。窓が相手）
+- **⑤ まで作り物のまま**（採点 F12）: 中身（Python）の様子を作り物にする本（ui-eval-pydown の tpa:python の知らせ・dashwait の段 python）は、⑤ で画面の #pyBar／#pyPill と
+  段 python を消すまで作り物のまま残す（窓の開発用サーバーは中身なし＝absent なので、止まる・起こす・起きたの場面は作り物でしか起きない）
+
+#### 結果（作った形は採点のファイルの built_3118_2）
+
+- **ui-all の表**: Python の基準 73 本中 70 が終了コード 0（落ちた 3 本は前から: colsort の旧 check 5・equiporder の畳んだ段・dashwait の Route is already handled。
+  道具を直して通る）。窓の表は 72 本（dashwait を除く）が終了コード 0・窓だけで落ちる本 0（21 分。Python の相手は 45 分）。dashwait は Python の相手で 0
+- **窓で流して分かった場面の違い**（台本で直した）: 登録の「探す」で窓が覚えたフォルダの中身（finish の後に ?fresh=1 で読み直す）・共有の置き場で窓が先に置いた
+  マスタに読めない行が無い（登録で書かないマスタは共有と写しにも足す）・更新履歴の焼いた表が版と違うと窓は答えない（app_build --release を忘れると画面が「エラー」）
+- **画素の比べ**（TPA_UI_MASK=1・ui-check の 128 枚）: Python 同士で 120 枚が 0 画素（8 枚は作り物の CM3 のポート・かかった時間の字）。Python と窓は
+  1728 で 97・1536 で 101・1280 で 102 枚が 0 画素、残りは理由の表の物だけ（権限の表の 1 行・データ元の表の写しの状態と CM3 のポート・利用状況の置き場の道・
+  中身の様子の作り物・撮る時の速さ〈元データの札の言葉・消える案内・かかった時間〉）。理由のない違いは 0
+
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

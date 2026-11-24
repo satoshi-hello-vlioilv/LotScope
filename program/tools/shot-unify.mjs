@@ -41,6 +41,8 @@ try {
         });
       }
       await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)");
+      // マスタ管理のタブは権限を読んでから並ぶ（混んだ PC で 800ms では間に合わないことがある。版 3.118.2）
+      await p.waitForSelector('#masterTabs [data-tab="access"]', { state: "attached" });
       await p.evaluate(() => document.querySelector('#masterTabs [data-tab="access"]').click()); await sleep(800);
       await p.click('[data-ta-mode="tabs"]'); await sleep(1200);
       await p.screenshot({ path: `${out}/tabs-${v.width}.png` });

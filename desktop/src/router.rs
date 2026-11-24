@@ -7,8 +7,9 @@
 
 use crate::sidecar::{Ask, Reply, RequestError, Supervisor};
 use da_core::access::ME_HEADER;
-use serde_json::json;
-use std::path::{Component, Path, PathBuf};
+// 答えの形・静的ファイル・窓が答えなかった道の断りは lib の 1 か所（版 3.118.2。開発用サーバー examples/ui_serve.rs も同じ物を通る）
+pub use da_core::shell::{delegate_form, error_reply, percent_decode, static_file, window_unanswered, Req};
+use std::path::PathBuf;
 use std::time::Duration;
 use tauri::http::{Request, Response};
 
@@ -83,22 +84,8 @@ impl Backend for Supervisor {
     }
 }
 
-pub fn error_reply(status: u16, kind: &str, message: &str) -> Reply {
-    Reply {
-        status,
-        headers: vec![("Content-Type".into(), "application/json".into())],
-        body: serde_json::to_vec(&json!({"error": message, "kind": kind})).unwrap_or_default(),
-    }
-}
-
 /// 窓そのものが答える問い合わせ。None ならほかへ回す。中身（Python）に尋ねたいときは backend を使う
 /// （例: 品質異常は設定を Python に尋ねてから Rust が答える・lot.rs）。
-pub struct Req<'a> {
-    pub method: &'a str,
-    pub path: &'a str,
-    pub query: &'a str,
-    pub body: &'a [u8],
-}
 pub type Native = Box<dyn Fn(&Req, &dyn Backend) -> Option<Reply> + Send + Sync>;
 
 /// 中身（Python）へ回す前に窓が見る（版 3.65.0。src/access.rs の権限の判定と書き込みの門番）。Ok(Some(字)) は見出し X-TPA-Me に
@@ -157,57 +144,6 @@ impl<B: Backend> Router<B> {
     }
 }
 
-/// 窓が答えなかった問い合わせの答え（版 3.118.0。段 ④ の中身へ回していた道の落ち先の 1 か所）。raw は画面が送った道・decoded は百分率符号を
-/// 戻した道。戻すと段が増える道（/api/sources/a%2Fb/columns: 戻したキーに / がある）は道なしの 404（前は Python が道なしの 404 で答えた）。
-/// ほかは 503 {error, kind: window_unanswered, route: 道の型, why}。回数を数える（形の名前 unanswered <道の型>）
-pub fn window_unanswered(method: &str, raw: &str, decoded: &str, query: &str) -> Reply {
-    if raw.split('/').count() != decoded.split('/').count() {
-        // 形の名前は送った道の型（戻した字は書かない）
-        let route = delegate_form(method, raw, query).replacen("python ", "", 1);
-        da_core::delegate::note(&format!("unanswered_404 {route}"));
-        return error_reply(404, "not_found", "ありません。");
-    }
-    let route = delegate_form(method, decoded, query).replacen("python ", "", 1);
-    da_core::delegate::note(&format!("unanswered {route}"));
-    let mut v = json!({
-        "error": "この問い合わせには、まだ窓が答えられません（版 3.118.0 からアプリの中身〈Python〉に回しません）。画面を開き直しても続くときは、配る人に知らせてください。",
-        "kind": "window_unanswered",
-        "route": route,
-        "why": "窓の係が答えない形でした（比べる口 engine=python・窓がまだ同じに読めない形）",
-    });
-    if route.starts_with("engine_python") {
-        v["why"] = json!("engine=python は Python と比べる口です（段 ④ から中身を起こさないので答えません）");
-    }
-    Reply {
-        status: 503,
-        headers: vec![("Content-Type".into(), "application/json".into())],
-        body: serde_json::to_vec(&v).unwrap_or_default(),
-    }
-}
-
-/// Python へ回した問い合わせの形の名前（"python GET /api/masters/shifts/{n}" など。?engine=python は自己診断・突き合わせの口なので別の名前）
-pub fn delegate_form(method: &str, path: &str, query: &str) -> String {
-    if da_core::lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
-        return format!("engine_python {method}");
-    }
-    let mut out: Vec<String> = vec![];
-    let mut after_src = false;
-    for seg in path.split('/') {
-        let t = if after_src && !seg.is_empty() {
-            "{key}".to_string()
-        } else if !seg.is_empty() && seg.chars().all(|c| c.is_ascii_digit()) {
-            "{n}".to_string()
-        } else if seg.len() > 32 || !seg.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')) {
-            "{s}".to_string()
-        } else {
-            seg.to_string()
-        };
-        after_src = seg == "src" && out.last().is_some_and(|x| x == "api");
-        out.push(t);
-    }
-    format!("python {method} {}", out.join("/"))
-}
-
 pub fn to_response(r: Reply, by: &str) -> Response<Vec<u8>> {
     let mut b = Response::builder().status(r.status);
     for (k, v) in &r.headers {
@@ -218,85 +154,10 @@ pub fn to_response(r: Reply, by: &str) -> Response<Vec<u8>> {
     b.body(r.body).unwrap_or_else(|_| Response::builder().status(500).body(Vec::new()).unwrap())
 }
 
-/// /static/ の下のファイル。static フォルダの外へは出ない（.. や絶対パスは断る）。
-pub fn static_file(root: &Path, rest: &str, query: &str) -> Reply {
-    let decoded = percent_decode(rest);
-    let rel = Path::new(&decoded);
-    if rel.components().any(|c| !matches!(c, Component::Normal(_))) {
-        return error_reply(404, "not_found", "ありません。");
-    }
-    match std::fs::read(root.join(rel)) {
-        Ok(body) => {
-            // 指紋の付いた URL（?v=プログラムの指紋。画面の型の url_for が付ける・app_build.fingerprint）は、
-            // 中身が変われば指紋も変わるので長く使い回す。指紋の無い URL は毎回確かめる（Python の答えと同じ no-cache）
-            let cache = if query.split('&').any(|kv| kv.starts_with("v=")) { "public, max-age=31536000, immutable" } else { "no-cache" };
-            Reply {
-                status: 200,
-                headers: vec![("Content-Type".into(), mime(&decoded).into()), ("Cache-Control".into(), cache.into())],
-                body,
-            }
-        }
-        Err(_) => error_reply(404, "not_found", "ありません。"),
-    }
-}
-
-pub fn mime(path: &str) -> &'static str {
-    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
-    match ext.as_str() {
-        "js" | "mjs" => "text/javascript; charset=utf-8",
-        "css" => "text/css; charset=utf-8",
-        "html" | "htm" => "text/html; charset=utf-8",
-        "json" | "map" => "application/json",
-        "svg" => "image/svg+xml",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "ico" => "image/x-icon",
-        "woff" => "font/woff",
-        "woff2" => "font/woff2",
-        "ttf" => "font/ttf",
-        "wasm" => "application/wasm",
-        "txt" | "md" => "text/plain; charset=utf-8",
-        _ => "application/octet-stream",
-    }
-}
-
-fn percent_decode(s: &str) -> String {
-    let hex = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
-                out.push(h << 4 | l);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(b[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-#[cfg(test)]
-mod delegate_form_tests {
-    use super::delegate_form;
-
-    #[test]
-    fn forms_name_only_the_route() {
-        assert_eq!(delegate_form("PUT", "/api/masters/shifts/12", ""), "python PUT /api/masters/shifts/{n}");
-        assert_eq!(delegate_form("GET", "/api/src/仕掛/slicer", "column=a"), "python GET /api/src/{key}/slicer");
-        assert_eq!(delegate_form("GET", "/api/sources/秘密の名前/columns", ""), "python GET /api/sources/{s}/columns");
-        assert_eq!(delegate_form("GET", "/api/lotlist", "engine=python&page=2"), "engine_python GET");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::sync::Mutex;
 
     struct Echo(Mutex<Vec<String>>, Mutex<Vec<Vec<(String, String)>>>);
@@ -497,14 +358,5 @@ mod tests {
         let n = da_core::delegate::counts();
         assert!(n["unanswered GET /api/lotlist/settings"].as_u64().unwrap_or(0) >= 1, "回数を数える: {n}");
         assert!(n["unanswered_404 GET /api/sources/{s}/columns"].as_u64().unwrap_or(0) >= 1, "{n}");
-    }
-
-    #[test]
-    fn decode() {
-        assert_eq!(percent_decode("a%20b%E6%97%A5"), "a b日");
-        assert_eq!(percent_decode("100%"), "100%");
-        assert_eq!(percent_decode("%zz"), "%zz");
-        assert_eq!(percent_decode("%日本"), "%日本", "% の後ろが文字でも落ちない");
-        assert_eq!(percent_decode("a%4"), "a%4");
     }
 }

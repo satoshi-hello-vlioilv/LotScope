@@ -8,7 +8,7 @@
 // 4. 一覧を 150% に拡大していても、引いた量÷1.5 だけ狭まる
 // 計算列の並べ替え（利用者の要望 2026-10: 計算列でもカラムクリックで行の並び替え）
 // 5. 計算列の見出しを押すと ▲ 小さい順 → ▼ 大きい順 → 外す。並べ替えは全件（サーバー）で、ページの行は式の答えの順。
-//    サーバーへは式（calc）を添え、窓では Python が答える（engine=python）。ふつうの列だけのときは添えない
+//    サーバーへは式（calc）を添え、窓が答える（版 3.118.2: engine=python は付けない。段 ④ から窓は Python に回さない）。ふつうの列だけのときは添えない
 // 6. 数の式は数の大小、字の式は字の順。Shift＋クリックでふつうの列と組める（2 つ目のキーが効く）
 // 7. まとめた表の中の並べ替えにも使え、読み直しても残る（件数の行の並べ替えの札に出る）
 // 8. 仕掛（データ元 wip）の計算列でも同じ
@@ -104,7 +104,7 @@ try {
   const minLen = await p.evaluate(async () => { const r = await (await fetch("/api/lotlist?page=1&page_size=5000")).json(); return Math.min(...r.rows.map((x) => Number(x["長さ"])).filter((x) => Number.isFinite(x))) * 2; });
   check("5. 計算列「長さ2倍」を押す → ▲ 小さい順（ページの行が式の答えの順・全件でいちばん小さい値が先頭）",
     (await head(p)).find((h) => h.c === "長さ2倍").sort === "asc" && sortedBy(v.filter(Number.isFinite), "asc", true) && Math.abs(v[0] - minLen) < 1e-6, { head: v.slice(0, 5), minLen });
-  check("5. 式を添えて Python に任せる（calc・engine=python）", !!q && q.get("engine") === "python" && JSON.parse(q.get("calc") || "{}").formulas?.["長さ2倍"] === "[長さ]*2", q && Object.fromEntries(q));
+  check("5. 式を添えて窓に尋ねる（calc はあり・engine は無い）", !!q && !q.get("engine") && JSON.parse(q.get("calc") || "{}").formulas?.["長さ2倍"] === "[長さ]*2", q && Object.fromEntries(q));
   check("5. サーバーの全件の答えも同じ順（先頭のロット）", all.first && all.first["ロット番号"] === (await colVals("ロット番号"))[0], all);
   await clickHead("長さ2倍");
   v = await colVals("長さ2倍", true);

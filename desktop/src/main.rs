@@ -22,6 +22,7 @@ mod updater;
 use brand::brand;
 use da_core::install;
 use da_core::lot::Lot;
+use da_core::shell::json_reply;
 use da_core::update::{self, Paths};
 use router::{error_reply, After, Backend, Guard, Native, Router};
 use serde_json::json;
@@ -208,205 +209,148 @@ fn window_reads(req: &router::Req, backend: &dyn Backend, info: &serde_json::Val
 
 /// 窓そのものが答える問い合わせ（終了・窓の情報・自己診断の受け口・品質異常）。
 fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updater>) -> Native {
+    let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
     Box::new(move |req, backend| {
         window_reads(req, backend, &info).or_else(|| match (req.method, req.path) {
-        // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
-        ("POST", "/api/shutdown") => {
-            let app = app.clone();
-            // 使い終わり（いま使っているの印を消し、記録を最後まで書く。版 3.71.0）。共有が遅くても終わるのは待たない（QUIT_DELAY が上限）
-            let bye = lot.clone();
-            std::thread::spawn(move || bye.leave());
-            std::thread::spawn(move || {
-                std::thread::sleep(QUIT_DELAY);
-                log("EXIT 画面の終了");
-                app.exit(0);
-            });
-            Some(json_reply(&json!({"ok": true})))
-        }
-        // 中身の準備の知らせ（backend）は、問い合わせのたびに今の物（版 3.86.0: 画面は中身の準備を待たずに開く）
-        // 画面の帯の「もう一度起こす」（版 3.86.0）
-        ("POST", "/__desktop/backend/retry") => {
-            backend.retry();
-            Some(json_reply(&json!({"ok": true})))
-        }
-        // 版と更新履歴（版 3.88.0。src/small_reads.rs）: Python の準備を待たずに答える。?engine=python・焼いた更新履歴の版が中身と
-        // 違う・無いときは Python に任せる
-        (method @ ("GET" | "HEAD"), path @ ("/api/build" | "/api/changelog")) => {
-            let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
-            da_core::small_reads::reply(method, path, req.query, &program).map(|(headers, body)| Reply { status: 200, headers, body })
-        }
-        // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
-        ("GET", "/api/health") if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") => {
-            Some(json_reply(&da_core::small_reads::health(backend.python_now().state)))
-        }
-        // 更新の係（updater.rs）
-        ("GET", "/__desktop/update") => Some(json_reply(&upd.status())),
-        ("POST", "/__desktop/update/check") => {
-            upd.wake();
-            Some(json_reply(&json!({"ok": true})))
-        }
-        ("POST", "/__desktop/update/probe") => {
-            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
-            Some(json_reply(&Updater::probe(v["value"].as_str().unwrap_or(""))))
-        }
-        // ショートカット（da_core::install・lnk.rs）
-        ("GET", "/__desktop/install") => {
-            Some(json_reply(&install::status(&upd.paths, &lnk::places(), &lnk::OsLinks, &names(), upd.installed)))
-        }
-        ("POST", "/__desktop/shortcut") => {
-            Some(reply_of(install::make(&upd.paths, &lnk::places(), &lnk::OsLinks, &names()).map_err(|e| (400, e))))
-        }
-        ("POST", "/__desktop/shortcut/decline") => Some(reply_of(install::decline(&upd.paths).map_err(|e| (500, e)))),
-        // 配布の画面（da_core::distribute・updater.rs）。置き場とだれが置いてよいかは窓が読む（版 3.95.0。Lot::update_settings。
-        // 版 3.112.0 から Python に尋ねない）
-        // cached=1: 覚えた答え（裏の確認・前に開いたときにたどった物）をすぐ返す。画面はそのあと cached なしで確かめ直す
-        ("GET", "/__desktop/release") => {
-            let cached = da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "cached" && v == "1");
-            Some(match update_settings(&lot) {
-                Ok(s) => json_reply(&upd.release_view(&s, cached)),
-                Err(e) => Reply { status: 503, ..json_reply(&json!({"error": e})) },
-            })
-        }
-        ("GET", "/__desktop/release/progress") => Some(json_reply(&upd.place_progress())),
-        ("POST", "/__desktop/release/place") => {
-            let name = da_core::lotlist::parse_query(req.query).into_iter().find(|(k, _)| k == "name").map(|(_, v)| v).unwrap_or_default();
-            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.place(&s, &name, req.body)).map(|r| {
+            // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
+            ("POST", "/api/shutdown") => {
+                let app = app.clone();
+                // 使い終わり（いま使っているの印を消し、記録を最後まで書く。版 3.71.0）。共有が遅くても終わるのは待たない（QUIT_DELAY が上限）
+                let bye = lot.clone();
+                std::thread::spawn(move || bye.leave());
+                std::thread::spawn(move || {
+                    std::thread::sleep(QUIT_DELAY);
+                    log("EXIT 画面の終了");
+                    app.exit(0);
+                });
+                Some(json_reply(&json!({"ok": true})))
+            }
+            // 中身の準備の知らせ（backend）は、問い合わせのたびに今の物（版 3.86.0: 画面は中身の準備を待たずに開く）
+            // 画面の帯の「もう一度起こす」（版 3.86.0）
+            ("POST", "/__desktop/backend/retry") => {
+                backend.retry();
+                Some(json_reply(&json!({"ok": true})))
+            }
+            // 更新の係（updater.rs）
+            ("GET", "/__desktop/update") => Some(json_reply(&upd.status())),
+            ("POST", "/__desktop/update/check") => {
                 upd.wake();
-                json!({"version": r["version"], "bytes": r["bytes"]})
-            })))
-        }
-        ("POST", "/__desktop/release/distribute") => {
-            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
-            let version = v["version"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
-        }
-        ("POST", "/__desktop/release/masters") => {
-            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
-            let dir = v["dir"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_masters(&s, &dir))))
-        }
-        ("POST", "/__desktop/release/recommend") => {
-            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
-            let (version, on, note) =
-                (v["version"].as_str().unwrap_or("").to_string(), v["on"] == true, v["note"].as_str().unwrap_or("").to_string());
-            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_recommended(&s, &version, on, &note))))
-        }
-        ("POST", "/__desktop/release/remove") => {
-            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
-            let version = v["version"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
-        }
-        ("POST", "/__desktop/update/apply") => {
-            if upd.status()["state"] != "ready" || !upd.installed {
-                return Some(Reply {
-                    status: 409, ..json_reply(&json!({"error": "開き直して入れ替える版がありません。"}))
-                });
+                Some(json_reply(&json!({"ok": true})))
             }
-            let ready = upd.status()["ready"].clone();
-            log(&format!("UPDATE 開き直して {ready} にします"));
-            Some(match relaunch(&app, &upd.paths) {
-                Ok(()) => json_reply(&json!({"ok": true})),
-                Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e})) },
-            })
-        }
-        // 版が混ざった画面が、押させずに開き直す（入口から開き直す。この PC の app が無い開発の形では開き直せない）
-        ("POST", "/__desktop/restart") => {
-            if !upd.installed {
-                return Some(Reply {
-                    status: 409,
-                    ..json_reply(&json!({"error": "この PC のアプリ（app）から開いていないので、開き直せません。"}))
-                });
+            ("POST", "/__desktop/update/probe") => {
+                let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+                Some(json_reply(&Updater::probe(v["value"].as_str().unwrap_or(""))))
             }
-            log("RESTART 版が混ざったので開き直します");
-            Some(reply_of(relaunch(&app, &upd.paths).map(|_| json!({"ok": true})).map_err(|e| (500, e))))
-        }
-        // 書き出したファイルの入ったフォルダを開き、そのファイルを選んだ状態にする（保存の案内の「フォルダを開く」）
-        ("POST", "/__desktop/reveal") => {
-            use tauri_plugin_opener::OpenerExt;
-            let path = serde_json::from_slice::<serde_json::Value>(req.body)
-                .ok()
-                .and_then(|v| v["path"].as_str().map(str::to_string))
-                .unwrap_or_default();
-            if path.is_empty() || !std::path::Path::new(&path).exists() {
-                return Some(Reply {
-                    status: 404,
-                    ..json_reply(&json!({"error": "そのファイルが見つかりません（移したか消したかもしれません）。"}))
-                });
+            // ショートカット（da_core::install・lnk.rs）
+            ("GET", "/__desktop/install") => {
+                Some(json_reply(&install::status(&upd.paths, &lnk::places(), &lnk::OsLinks, &names(), upd.installed)))
             }
-            Some(match app.opener().reveal_item_in_dir(&path) {
-                Ok(()) => json_reply(&json!({"ok": true})),
-                Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e.to_string()})) },
-            })
-        }
-        ("GET", "/__desktop/downloads") => Some(json_reply(&json!(downloads().lock().map(|v| v.clone()).unwrap_or_default()))),
-        ("POST", "/__desktop/selftest") => {
-            let result: serde_json::Value =
-                serde_json::from_slice(req.body).unwrap_or_else(|e| json!({"ok": false, "error": e.to_string()}));
-            selftest_finish(&app, &result);
-            Some(json_reply(&json!({"received": true})))
-        }
-        // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す。中身が止まっていれば 503＝画面は「未接続」）
-        // 版 3.111.0: 中身の様子では断らない（窓が生きていれば 200。python に様子を添える）。様子を尋ねるたびに止まった中身の起こし直しも
-        // 始める（Backend::python_now）。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
-        ("POST", "/api/heartbeat") => lot.heartbeat(&|| backend.python_now()).map(|(status, v)| Reply { status, ..json_reply(&v) }),
-        // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
-        // （?engine=python は Python が描く。自己診断が 2 つの画面を突き合わせる）
-        (method @ ("GET" | "HEAD"), "/")
-            if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
-        {
-            let py = || backend.python_now().state;
-            let mut r = lot.page(method == "HEAD", &py);
-            // 束の材料を組めない設定で中身を起こしている最中（版 3.111.0 の作った後の採点の割れ 4）: 3.110.0 と同じく中身の準備を待ち、
-            // 起きたら Python に描かせる・止まったら窓が既定の形で描く（前は起動の最初はいつも既定の形〈空の変換表〉で描いた）
-            if r.is_none() && lot.page_why().starts_with("束の材料") {
-                let t = Instant::now();
-                while backend.python_now().state == "starting" && t.elapsed() < Duration::from_secs(130) {
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-                r = lot.page(method == "HEAD", &py);
+            ("POST", "/__desktop/shortcut") => {
+                Some(reply_of(install::make(&upd.paths, &lnk::places(), &lnk::OsLinks, &names()).map_err(|e| (400, e))))
             }
-            let r = r.map(|h| Reply { status: 200, headers: h.headers, body: h.body });
-            if r.is_none() {
-                log(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
-                da_core::delegate::note("page");
-                // 段 ④（版 3.118.0）: 中身は起こさないので、描けない理由を窓の言葉で答える（JSON の 503 でなく、画面に出る字）
-                if backend.absent() {
-                    let text = format!(
-                        "<!doctype html><meta charset=utf-8><title>画面を描けません</title><p>画面を描けません（{}）。開き直しても続くときは、配る人に知らせてください。</p>",
-                        html_escape(&lot.page_why())
-                    );
+            ("POST", "/__desktop/shortcut/decline") => Some(reply_of(install::decline(&upd.paths).map_err(|e| (500, e)))),
+            // 配布の画面（da_core::distribute・updater.rs）。置き場とだれが置いてよいかは窓が読む（版 3.95.0。Lot::update_settings。
+            // 版 3.112.0 から Python に尋ねない）
+            // cached=1: 覚えた答え（裏の確認・前に開いたときにたどった物）をすぐ返す。画面はそのあと cached なしで確かめ直す
+            ("GET", "/__desktop/release") => {
+                let cached = da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "cached" && v == "1");
+                Some(match update_settings(&lot) {
+                    Ok(s) => json_reply(&upd.release_view(&s, cached)),
+                    Err(e) => Reply { status: 503, ..json_reply(&json!({"error": e})) },
+                })
+            }
+            ("GET", "/__desktop/release/progress") => Some(json_reply(&upd.place_progress())),
+            ("POST", "/__desktop/release/place") => {
+                let name =
+                    da_core::lotlist::parse_query(req.query).into_iter().find(|(k, _)| k == "name").map(|(_, v)| v).unwrap_or_default();
+                Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.place(&s, &name, req.body)).map(|r| {
+                    upd.wake();
+                    json!({"version": r["version"], "bytes": r["bytes"]})
+                })))
+            }
+            ("POST", "/__desktop/release/distribute") => {
+                let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+                let version = v["version"].as_str().unwrap_or("").to_string();
+                Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
+            }
+            ("POST", "/__desktop/release/masters") => {
+                let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+                let dir = v["dir"].as_str().unwrap_or("").to_string();
+                Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_masters(&s, &dir))))
+            }
+            ("POST", "/__desktop/release/recommend") => {
+                let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+                let (version, on, note) =
+                    (v["version"].as_str().unwrap_or("").to_string(), v["on"] == true, v["note"].as_str().unwrap_or("").to_string());
+                Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_recommended(&s, &version, on, &note))))
+            }
+            ("POST", "/__desktop/release/remove") => {
+                let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+                let version = v["version"].as_str().unwrap_or("").to_string();
+                Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
+            }
+            ("POST", "/__desktop/update/apply") => {
+                if upd.status()["state"] != "ready" || !upd.installed {
                     return Some(Reply {
-                        status: 500,
-                        headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())],
-                        body: text.into_bytes(),
+                        status: 409, ..json_reply(&json!({"error": "開き直して入れ替える版がありません。"}))
                     });
                 }
+                let ready = upd.status()["ready"].clone();
+                log(&format!("UPDATE 開き直して {ready} にします"));
+                Some(match relaunch(&app, &upd.paths) {
+                    Ok(()) => json_reply(&json!({"ok": true})),
+                    Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e})) },
+                })
             }
-            r
-        }
-        // LotDsp の調べる道具の画面（版 3.98.0）: 窓がただ 1 つの係（Python に任せない。型を描けなければ 500）
-        (method @ ("GET" | "HEAD"), "/lotdsp-link") => Some(match lot.lotdsp_page(method == "HEAD") {
-            Some(h) => Reply { status: 200, headers: h.headers, body: h.body },
-            None => Reply {
-                status: 500, ..json_reply(&json!({"error": "調べる道具の画面を描けません（型が読めません）。"}))
-            },
-        }),
-        // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
-        // 版 3.111.0: 中身（Python）が止まっていても窓の me で答える（出さないタブ・権限の札・マスタ管理の入口が Python に依らない）
-        (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => {
-            lot.access_read(method, path).map(|(status, v)| Reply { status, ..json_reply(&v) })
-        }
-        // データ元の並び（版 3.87.0。src/sources_list.rs）: 見出しのタブを Python の準備を待たずに描く。スケジュールのカードは
-        // Python の覚え（プロセスのメモリ）なので、中身が起きているときだけ尋ねる（起きていなければ起こした直後と同じ形）
-        ("GET", "/api/sources") => lot.sources_list(req.query).map(|(status, v)| Reply { status, ..json_reply(&v) }),
-        (method, path) => lot.handle_body(method, path, req.query, req.body).map(|(status, v)| {
-            // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
-            if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
-                upd.wake();
+            // 版が混ざった画面が、押させずに開き直す（入口から開き直す。この PC の app が無い開発の形では開き直せない）
+            ("POST", "/__desktop/restart") => {
+                if !upd.installed {
+                    return Some(Reply {
+                        status: 409,
+                        ..json_reply(&json!({"error": "この PC のアプリ（app）から開いていないので、開き直せません。"}))
+                    });
+                }
+                log("RESTART 版が混ざったので開き直します");
+                Some(reply_of(relaunch(&app, &upd.paths).map(|_| json!({"ok": true})).map_err(|e| (500, e))))
             }
-            Reply { status, ..json_reply(&v) }
-        }),
-    })
+            // 書き出したファイルの入ったフォルダを開き、そのファイルを選んだ状態にする（保存の案内の「フォルダを開く」）
+            ("POST", "/__desktop/reveal") => {
+                use tauri_plugin_opener::OpenerExt;
+                let path = serde_json::from_slice::<serde_json::Value>(req.body)
+                    .ok()
+                    .and_then(|v| v["path"].as_str().map(str::to_string))
+                    .unwrap_or_default();
+                if path.is_empty() || !std::path::Path::new(&path).exists() {
+                    return Some(Reply {
+                        status: 404,
+                        ..json_reply(&json!({"error": "そのファイルが見つかりません（移したか消したかもしれません）。"}))
+                    });
+                }
+                Some(match app.opener().reveal_item_in_dir(&path) {
+                    Ok(()) => json_reply(&json!({"ok": true})),
+                    Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e.to_string()})) },
+                })
+            }
+            ("GET", "/__desktop/downloads") => Some(json_reply(&json!(downloads().lock().map(|v| v.clone()).unwrap_or_default()))),
+            ("POST", "/__desktop/selftest") => {
+                let result: serde_json::Value =
+                    serde_json::from_slice(req.body).unwrap_or_else(|e| json!({"ok": false, "error": e.to_string()}));
+                selftest_finish(&app, &result);
+                Some(json_reply(&json!({"received": true})))
+            }
+            // Lot が答える道（版 3.118.2 から lib の src/shell.rs の 1 か所。開発用サーバー examples/ui_serve.rs も同じ物を通る）:
+            // 版と更新履歴・生きているか・心拍・画面・LotDsp の調べる道具・権限の読む 2 本・データ元の並び・窓の書く道と読む道
+            (method, path) => {
+                let python_now = || backend.python_now();
+                let ctx = da_core::shell::Ctx { program: &program, python_now: &python_now, absent: backend.absent(), log: &log };
+                let r = da_core::shell::answer(&lot, req, &ctx)?;
+                // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
+                if method == "PUT" && r.status == 200 && path.starts_with("/api/settings/update.") {
+                    upd.wake();
+                }
+                Some(r)
+            }
+        })
     })
 }
 
@@ -479,20 +423,6 @@ fn shortcut_icon() -> &'static std::path::PathBuf {
             p.app().join(&brand().exe)
         })
     })
-}
-
-/// HTML の字に逃がす（& < > " '）
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
-}
-
-fn json_reply(v: &serde_json::Value) -> Reply {
-    Reply {
-        status: 200,
-        headers: vec![("Content-Type".into(), "application/json".into())],
-        // 大きな整数は桁のまま（src/held.rs の持っている値。版 3.108.0。Python の jsonify と同じ）
-        body: da_core::held::reply_bytes(v),
-    }
 }
 
 /// 窓を作る（主の窓・別の窓で同じ決まり: 外のリンクはいつものブラウザで開く）。
@@ -699,19 +629,13 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         "window_ready": window.as_ref().err().map(|b| b.to_string()),
     });
     let upd = Updater::new(paths.clone(), installed, version.clone(), notes);
-    let static_dir = program.join("app").join("static");
-    // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
-    let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
-    // 窓が Python に任せた・断った回数（形の名前と回数だけ。版 3.102.0。src/delegate.rs）
-    da_core::delegate::set_dir(locate::local_root().join("logs"));
-    lot.set_program(program.clone()); // 利用状況に書く版（中身の版。更新で入れ替わる）
-                                      // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
-    let builder = da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root()));
+    let static_dir = da_core::page::static_dir(&program);
+    // 品質異常・設定の束・回数の記録（版 3.118.2 から lib の src/shell.rs の lot_for。開発用サーバー examples/ui_serve.rs も同じ順で組む）
+    let (lot, retired) = da_core::shell::lot_for(da_core::bundle::Env::production(&program, &locate::local_root()), &program);
     // Python へ戻す設定（desktop.lotlist_engine・schedule.fetch_engine の python）は段 ④（版 3.118.0）から効かない（利用者の決め: 黙って窓が係・記録に 1 行）
-    for r in da_core::bundle::retired_settings(&builder.read_settings().0) {
+    for r in retired {
         log(&format!("SETTINGS 版 3.118.0 から効かない設定です（窓が係を続けます）: {r}"));
     }
-    lot.set_bundle(builder);
     let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
                                   // 起動の初期値（版 3.110.0。src/seeds.rs）: 置き場が決まってから（束の材料が引っ越しの印をたどった後）、裏の糸で 1 回だけ当てる。
                                   // 錠を 1 秒おきに 5 回まで待つのはこの糸だけ（画面の問い合わせの道では待たない）。Python に尋ねない

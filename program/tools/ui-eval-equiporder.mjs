@@ -58,7 +58,10 @@ try {
   // ⑤ のための「表示しない」設備（一覧の 4 番目）
   const allBefore = await server(p, true);
   // ③ マスタ管理
-  await p.click("#llEquipBar [data-ll-settings]"); await p.waitForSelector("#masterSettings .wl-tablelist [data-wl-grip]"); await sleep(500);
+  await p.click("#llEquipBar [data-ll-settings]"); await p.waitForSelector("#masterSettings .wl-tablelist [data-wl-grip]", { state: "attached" });
+  // データ元の「実績」の「設備」の段は畳んで開く（版 3.58.0 から。畳んだままでは ⋮⋮ が見えない。版 3.118.2 で道具を合わせた）
+  if (!(await p.isVisible("#masterSettings .wl-tablelist [data-wl-grip]"))) await p.click('#masterSettings [data-sr-sec="equip"]');
+  await p.waitForSelector("#masterSettings .wl-tablelist [data-wl-grip]"); await sleep(500);
   const r0 = await rows(p), note = await p.$eval("#masterSettings .wl-sorthint", (x) => x.textContent);
   check("マスタ管理の一覧: 行の ⋮⋮ と案内・一覧の並び＝タブの並び", r0.join() === allBefore.join() && note.includes("タブも同じ並び"), { r0, allBefore, note });
   await dragTo(p, "#masterSettings .wl-tablelist tbody tr:last-child [data-wl-grip]", "#masterSettings .wl-tablelist tbody tr:first-child", "y");

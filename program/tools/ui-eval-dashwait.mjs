@@ -196,7 +196,8 @@ try {
           const c = { name: a.sourceName || "作業実績", done: 5, total: 11 }; if (withCopy) a.copy = c; return c; };
         if (Array.isArray(j.groups)) { const c = j.groups.map(cut).find(Boolean); if (withCopy && c) j.copy = c; } else cut(j);
         await sleep(200);
-        return route.fulfill({ response: resp, json: j });
+        // unroute の後に届いた答えは Playwright が先に片付けている（「Route is already handled」で道具ごと落ちていた。版 3.118.2）
+        return route.fulfill({ response: resp, json: j }).catch(() => {});
       });
       await page.evaluate((l) => Dashboard._setLayout(l), std);
       await sleep(3500);
