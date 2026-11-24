@@ -400,7 +400,7 @@
 
   await part("スケジュール", async () => {
     // 10b'''') スケジュール（版 3.96.0 から窓がただ 1 つの係: schedule.rs）: 設備のタブの数はデータ元の一覧の行の設備の数と同じ・
-    //          最初の設備の一覧は答えか、届かない CM3 なら利用者の言葉（Python・urllib の名前が無い。言葉の種類は cm3_net_cases.json）
+    //          最初の設備の一覧は答えか、届かない予定の元なら利用者の言葉（Python・urllib の名前が無い。言葉の種類は cm3_net_cases.json）
     const s = await get("/api/schedule"), card = await get("/api/schedule/card");
     const sv = parse(s.text) || {}, cv = parse(card.text) || {};
     const first = ((sv.equipments || [])[0] || {}).key || "";
