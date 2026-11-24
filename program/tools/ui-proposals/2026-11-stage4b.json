@@ -837,5 +837,99 @@
     "Windows の自己診断の時間"
    ]
   }
+ },
+ "built": {
+  "name": "作った後（版 3.118.1・commit 274e4aa）",
+  "images": "画面に出ない改良（画像は撮っていない。流した記録: scratchpad/b31181/vl.log・vl2.log・vu.log）",
+  "evaluator": "上と同じ採点者",
+  "measured": {
+   "unit": "python -m unittest discover -s desktop/bundle -t desktop/bundle: 7 OK／tests.test_favicon_answer・test_schedule_source_words・test_version: 13 OK／bash program/tools/js-check.sh: 終了コード 0",
+   "verify_local": "OK。no-python 63 項目・no-python-nan 63・admin-work 62。どれも飛ばした 0・無い []・余分 []・通らない []。unanswered はわざとの 2 形（GET /api/no-such-route・GET /templates/index.html）だけ。admin-work は作業実績 3 台・開発者・書く道 5 つが窓の言葉 400／404・共有のマスタの sha256 が同じ",
+   "verify_update": "OK（PASS 45）。1b（nan-config）で落ちたのは selftest_names.json の nan の 4 項目ちょうど（日本語の問い合わせ文字・データの時刻・設備グループの一覧・組む所の読み 7 本）、どれも 503「設定を組めません」。試験の版の窓は unanswered に GET /api/changelog が足される形（allow に入っている）",
+   "calc": "版 3.118.1 の Python（test_client）の /api/calculate: 200・実 3.0・元 1・予測 10.506460998002414・合致 28.553858435969904・match False・工程 2／空の本文は 400「計算するロット（lot）がありません。」。selftest.js の決めた答えと同じ"
+  },
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 7,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "割れ 1（中）: selftest.js:258〜264『参照先の項目…マスタの置き場が使っている物と同じ』の (!ms.key || …) は、/api/settings に master_share.dir の項目がそもそも無い（path_settings.py:10 が置かないと決めている）ので毎回素通り。手元の 3 窓とも info は『置き場 項目なし』。first_fixes 5(c) と計画書の表の『マスタの置き場＝置き場の答え』は何も見ていない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（中）: 『一覧は Rust が答える』（:228）は by===shell しか見ず、一覧が 503（window_unanswered・設定を組めない）でも通る。品質の元が読めない窓では『元ファイルが無いので比べない』（maybe・true 固定）に落ちるので、1b など一覧の数の確かめが黙って消える（CI は need の照合で拾うが、verify の 1b は need を見ない）"
+    }
+   ],
+   "seen": "first_fixes 1〜14 は大筋入っている: ok 40 を 1 対 1 の okw（名前は固定の字・Python の字なし）・selftest_names.json の 1 か所（87 名、必ず 62）・verify.py は一覧から読み skipped==0／余分なし／EXCEPT・part() 22 節・/__desktop/info の unanswered と『窓が答えない道が無い』・favicon を Flask の 404 で答える・1b の nan は実物の 4 つ・admin-work・計画書の 40 行の表と ⑤ の残す／移す／直す・ci.yml と desktop.yml の SELFTEST の行と exit 6。手元で verify local・update が通り、計算の決めた答えも Python と同じ。割れ: 上の 2 つのほかに、名前と中身のずれ（『LotDsp の 9 本』は 6 本＋画面、『組む所の読み 7 本』は 6 本）・『作業実績の設備の問い合わせが答える』は by を見ない・admin-work の門番の見分けは字『門番 403』だけで『試す 403 門番』『参照… 403 門番』の形を拾わない・test_bundle.py の verify の名前の見張りは x[\"name\"] == と startswith だけで verify.py:613 の res.get(\"作業実績・データ元の一覧…\") を見ない・okw(\"字\" + 変数) の形を 1 か所に止めていない・first_fixes 8 の lot::tests の 1 歩は delegate の単体の試験だけ（main.rs の favicon の枝と info の鍵は本物の窓の自己診断だけが見る）・first_fixes 5 の diffAt 系の 1 つの関数は作っていない・admin-work は tab_access.json も写す（first_fixes 10 は置かないと書いた）・ci.yml・desktop.yml の段の頭のコメント『Rust と Python で引き比べる』と CLAUDE.md の版 3.111.0 の行『Python を通す項目は 1 つの包みに数える』が古い。確かめていない物: Windows の WebView2（favicon・畳まない static）と desktop.yml の PowerShell の行、変異の記録（built_3118_1 の mutations は読んだだけ）"
+  }
+ },
+ "built_fixed": {
+  "about": "作った後の採点（65.6 点・1 回）の割れの直し（決まり 2026-11-06: 割れを全部直し、その形を試験に足して通ったら終わり。採点し直さない）。版は 3.118.1 のまま（更新履歴は app_build.py --release --amend）",
+  "cracks": {
+   "1": "マスタの置き場: /api/settings に master_share.dir の項目は無い（path_settings.py の決め）ので、参照先の項目は置き場の状態（/api/masters/status の dir）・置き場の画面（/api/masters/place の dir）・更新の置き場（/api/update/settings の masters.dir）・配った設定の置き場（place.configured。この PC の覚え〈override〉が無いとき）の 4 つが同じで、mode が shared・dir が空でないことを見る（道の字は区切りと末尾をそろえ、Windows は大文字小文字も）。info に「4 つ同じ」か「違う <最初に違う鍵>」。変異: master_place.rs の place_answer の configured を別の字にした debug の exe で「参照先の項目…」が「違う 配った設定」で落ちた",
+   "2": "「一覧は Rust が答える」は by に加えて状態 200 を求める。代わりの「一覧の突き合わせ: 元ファイルが無いので比べない」は一覧が 200 で 0 行のときだけ通す（前はいつも真）。selftest_names.json の nan に 2 つを足した（1b の nan は 6 項目）。verify.py の 1b は nan の項目が出たら全部落ちることも見る（素通りした nan の名前を落とす）。変異: lot.rs の Route::of で /api/lotlist の一覧を窓の道から外した debug の exe で「一覧は Rust が答える」「一覧の突き合わせ」「窓が答えない道が無い」などが落ちた（前は一覧の 2 項目が通った）",
+   "3": "名前を中身に合わせた: 「LotDsp の 6 本の道と調べる道具の画面は窓が答える（…・中止・…）」「組む所の読み 6 本は窓が答え、…（札・当てる列・結合の欄の列・確かめる・接続の確かめ・試す）」。selftest_names.json・計画書の表を合わせた（verify.py はこの 2 つを名前で引かない。CLAUDE.md の「LotDsp の 9 本」「組む所の読み 7 本」は製品の道の数の評価関数の行なのでそのまま）",
+   "4": "「作業実績の設備の問い合わせが答える」は by === shell も見る（info に [形] 状態と by）",
+   "5": "門番の印は selftest.js で「門番 403」の 1 つの形に（前の並びの「試す 403 門番」「参照… 403 門番」を書き替えた）。verify.py は GATE（正規表現 門番 403|403 門番）と gate_names の 1 か所で拾う。test_bundle.py の test_gate_marks_in_selftest_are_seen_by_verify: gate_names が 3 つの形を拾い窓の言葉 400・1403 を拾わない・selftest.js の印は「門番 403」だけ（変異: 並びを「 門番」に戻すと落ちる）",
+   "6": "test_bundle.py の verify_name_lookups: verify.py を ast で読み、x[\"name\"] == 字・x[\"name\"].startswith(字)・{x[\"name\"]: x …} を入れた表の .get(字)・[字] を全部拾い、字でない物で引く所（loose）は 0。okw(\"字\" + 変数) は「例外: 」の 1 か所だけ。変異: res.get(変数) を足す・res.get の名前を 1 字変える・okw(\"字\" + \"字\") を書く → どれも落ちる",
+   "7": "main.rs の窓の絵と窓の情報を window_reads（native の頭で呼ぶ）に出し、窓の試験 tests::the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info が本物の振り分け（Router・中身を起こさない作り物）を通して見る: /favicon.ico は 404 で Flask の 404 の画面（HEAD は本文なし）・道に当たらない問い合わせは 503・/__desktop/info の unanswered にその形と回数・favicon は数えない・python_state absent。変異: favicon の枝を外す／info の unanswered を外す → どちらも落ちる",
+   "8": "selftest.js に firstDiff（2 つの値を同じ順にたどり、最初に違う鍵の道〈rows[3].設備・根は (根)〉を出す 1 つの関数）。40 本同時・書いた控え・写しの時刻・データ元のタブ・置き場の 4 つ・作業実績の登録の一覧・名乗り・タブの権限の比べる確かめはこれで比べ、info に最初の違いを出す。test_bundle.py の test_first_diff_names_the_first_key_that_differs が node で 11 の事例を流し、JSON.stringify どうしの比べが無いことを見る（変異: === を == に・道の頭の . ・JSON.stringify の比べを戻す → 落ちる）",
+   "9": "admin-work は work/masters を写すとき tab_access.json を写さない。窓が最初に読むときに同梱の最初の版を種まきするので、sha256 の確かめは「前からあるマスタは同じ・新しく置かれたのは写さなかった tab_access.json だけ」",
+   "10": "ci.yml・desktop.yml の自己診断の段の頭の注釈を今の形に（窓だけの確かめ・一覧の数を道どうしで見るために品質データを置く）。selftest_config.py の説明の「Rust と Python で引き比べる」も同じに。CLAUDE.md の版 3.111.0 の行の「Python を通す項目は 1 つの包みに数える／WINDOW_ONLY」を今の形（selftest_names.json・飛ばした項目 0）に、版 3.118.1 の行に直した分を足した。計画書の 40 項目の表と「作った後の採点の割れの直し」",
+   "11": "ci.yml・desktop.yml の自己診断の段は、selftest_names.json の一覧に無い名前が結果に出ても exit 6（一覧に無い名前を出す）"
+  },
+  "mutations": [
+   {
+    "what": "selftest.js の門番の印を「 門番」の並びの形に戻す",
+    "result": "test_bundle.py の test_gate_marks_in_selftest_are_seen_by_verify が落ちる"
+   },
+   {
+    "what": "verify.py に res.get(変数) を足す",
+    "result": "test_verify_looks_up_only_listed_names が落ちる（loose）"
+   },
+   {
+    "what": "verify.py の res.get の名前を 1 字変える",
+    "result": "test_verify_looks_up_only_listed_names が落ちる"
+   },
+   {
+    "what": "selftest.js に okw(\"字\" + \"字\") を書く",
+    "result": "test_names_are_the_same_as_selftest_js が落ちる"
+   },
+   {
+    "what": "firstDiff の === を ==・道の頭に . を付ける・比べる確かめを JSON.stringify どうしに戻す",
+    "result": "test_first_diff_names_the_first_key_that_differs が落ちる"
+   },
+   {
+    "what": "main.rs の favicon の枝の道を変える／info の unanswered を外す",
+    "result": "cargo test --bin LotScope の the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info が落ちる"
+   },
+   {
+    "what": "master_place.rs の place_answer の configured を別の字にした debug の exe（verify.py local）",
+    "result": "「参照先の項目…」が「違う 配った設定」で落ちる"
+   },
+   {
+    "what": "lot.rs の Route::of で /api/lotlist の一覧を窓の道から外した debug の exe（verify.py local）",
+    "result": "「一覧は Rust が答える」（shell 503）・「一覧の突き合わせ」・日本語の問い合わせ文字・参照先・集計表・「窓が答えない道が無い」（unanswered GET /api/lotlist×28）が落ちる"
+   }
+  ],
+  "checks": [
+   "python -m unittest discover -s desktop/bundle -t desktop/bundle",
+   "cargo test --bin LotScope",
+   "verify.py local（3 窓とも 項目 63・63・62・飛ばした 0・無い・余分・通らない が空。admin-work の門番 []）",
+   "verify.py update（1b は nan の 6 項目が落ちる）",
+   "bash program/tools/check-all.sh … --verify"
+  ]
  }
 }

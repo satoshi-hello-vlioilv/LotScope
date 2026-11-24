@@ -185,9 +185,31 @@ fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
     }
 }
 
+/// 窓の絵と窓の情報（版 3.118.1 の作った後の採点の割れ 7: 窓の試験〈下の tests〉が本物の振り分けを通して確かめられるよう、
+/// AppHandle の要らない 2 つをここに出した。native の頭で呼ぶ）
+fn window_reads(req: &router::Req, backend: &dyn Backend, info: &serde_json::Value) -> Option<Reply> {
+    match (req.method, req.path) {
+        // 窓の絵（版 3.118.1）: WebView2 が自分で尋ねる。版 3.117.3 の Python と同じ 404 の画面で答える（窓が答えなかった数に入れない）
+        (method @ ("GET" | "HEAD"), "/favicon.ico") => {
+            da_core::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
+        }
+        // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py）。Python が起きていなくても載る（自己診断・verify.py が使う）
+        ("GET", "/__desktop/info") => {
+            let mut v = info.clone();
+            v["backend"] = backend.ready();
+            v["python_state"] = json!(backend.python_now().state);
+            // 窓が答えなかった問い合わせの形と回数（版 3.118.1。読むだけの自己診断の口: selftest.js の「窓が答えない道が無い」が読む）
+            v["unanswered"] = da_core::delegate::unanswered_map();
+            Some(json_reply(&v))
+        }
+        _ => None,
+    }
+}
+
 /// 窓そのものが答える問い合わせ（終了・窓の情報・自己診断の受け口・品質異常）。
 fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updater>) -> Native {
-    Box::new(move |req, backend| match (req.method, req.path) {
+    Box::new(move |req, backend| {
+        window_reads(req, backend, &info).or_else(|| match (req.method, req.path) {
         // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
         ("POST", "/api/shutdown") => {
             let app = app.clone();
@@ -213,22 +235,9 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
             da_core::small_reads::reply(method, path, req.query, &program).map(|(headers, body)| Reply { status: 200, headers, body })
         }
-        // 窓の絵（版 3.118.1）: WebView2 が自分で尋ねる。版 3.117.3 の Python と同じ 404 の画面で答える（窓が答えなかった数に入れない）
-        (method @ ("GET" | "HEAD"), "/favicon.ico") => {
-            da_core::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
-        }
         // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
         ("GET", "/api/health") if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") => {
             Some(json_reply(&da_core::small_reads::health(backend.python_now().state)))
-        }
-        // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py）。Python が起きていなくても載る（自己診断・verify.py が使う）
-        ("GET", "/__desktop/info") => {
-            let mut v = info.clone();
-            v["backend"] = backend.ready();
-            v["python_state"] = json!(backend.python_now().state);
-            // 窓が答えなかった問い合わせの形と回数（版 3.118.1。読むだけの自己診断の口: selftest.js の「窓が答えない道が無い」が読む）
-            v["unanswered"] = da_core::delegate::unanswered_map();
-            Some(json_reply(&v))
         }
         // 更新の係（updater.rs）
         ("GET", "/__desktop/update") => Some(json_reply(&upd.status())),
@@ -397,6 +406,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             }
             Reply { status, ..json_reply(&v) }
         }),
+    })
     })
 }
 
@@ -1198,5 +1208,55 @@ mod tests {
         assert!(!outside_ok(&Url::parse("file:///C:/Windows/System32/calc.exe").unwrap()));
         assert!(is_splash(&Url::parse("tauri://localhost/index.html").unwrap()));
         assert!(is_splash(&Url::parse("http://tauri.localhost/index.html").unwrap()));
+    }
+
+    /// 中身を起こさない窓（製品の形）の作り物
+    struct Absent;
+    impl Backend for Absent {
+        fn ask(&self, _: &sidecar::Ask) -> Reply {
+            panic!("中身へ回さない")
+        }
+        fn absent(&self) -> bool {
+            true
+        }
+        fn python_now(&self) -> da_core::presence::PythonNow {
+            da_core::presence::PythonNow::absent()
+        }
+    }
+
+    fn ask(r: &Router<Absent>, method: &str, path: &str) -> (u16, String, Vec<u8>) {
+        let q = tauri::http::Request::builder().method(method).uri(format!("tpa://localhost{path}")).body(Vec::new()).unwrap();
+        let a = r.handle(&q);
+        (a.status().as_u16(), a.headers()["x-tpa-by"].to_str().unwrap().to_string(), a.body().clone())
+    }
+
+    /// 版 3.118.1 の作った後の採点の割れ 7（first_fixes 8）: 本物の振り分けと native の頭の window_reads を通して、
+    /// /favicon.ico は窓が Flask の 404 の画面で答え（窓が答えなかった数に入れない）、/__desktop/info の unanswered に
+    /// 窓が答えなかった道の形と回数が載る（自己診断の「窓が答えない道が無い」が読む鍵）
+    #[test]
+    fn the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info() {
+        let info = json!({"app_id": "test", "program_version": "0.0.0"});
+        let r = Router {
+            static_dir: std::env::temp_dir(),
+            backend: Absent,
+            native: Box::new(move |req, backend| window_reads(req, backend, &info)),
+            guard: Box::new(|_, _| Ok(None)),
+            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
+        };
+        let (st, by, body) = ask(&r, "GET", "/favicon.ico");
+        let (_, page) = da_core::small_reads::favicon("GET", "/favicon.ico").unwrap();
+        assert_eq!((st, by.as_str(), &body), (404, "shell", &page), "窓の絵は Flask の 404 の画面");
+        let (st, _, body) = ask(&r, "HEAD", "/favicon.ico");
+        assert_eq!((st, body.len()), (404, 0), "HEAD は本文なし");
+        let (st, by, _) = ask(&r, "GET", "/api/selftest-main-unanswered");
+        assert_eq!((st, by.as_str()), (503, "shell"), "道に当たらない問い合わせは窓の言葉で断る");
+        let (st, by, body) = ask(&r, "GET", "/__desktop/info");
+        assert_eq!((st, by.as_str()), (200, "shell"));
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let u = v["unanswered"].as_object().unwrap_or_else(|| panic!("info に unanswered の表: {v}"));
+        assert!(u["unanswered GET /api/selftest-main-unanswered"].as_u64().unwrap_or(0) >= 1, "窓が答えなかった道の形と回数: {v}");
+        assert!(!u.keys().any(|k| k.contains("favicon")), "窓の絵は窓が答えなかった数に入れない: {v}");
+        assert!(u.keys().all(|k| k.starts_with("unanswered")), "{v}");
+        assert_eq!((v["python_state"].as_str(), v["program_version"].as_str()), (Some("absent"), Some("0.0.0")), "{v}");
     }
 }

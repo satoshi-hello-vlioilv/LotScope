@@ -41,6 +41,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,6 +73,14 @@ WINDOW_MAYBE = {x["name"] for x in NAMES if "maybe" in x}
 NAN_EXPECTED = {x["name"]: x["nan"] for x in NAMES if "nan" in x}
 # 数えない項目（試験の版は program の版だけを書き換えるので「窓の版と中身の版が同じ」は通らない）
 EXCEPT = {x["name"] for x in NAMES if "except" in x}
+# 門番が断った印（版 3.118.1 の作った後の採点の割れ 5）: selftest.js の info は「門番 403」（項目ごとの決めた答え）と「<道の名前> 403 門番」
+# （節の中の並び: 試す・参照…・よく使う場所など）の 2 つの形で書く。どちらもこの 1 つの正規表現で拾う（test_bundle.py が selftest.js の形と合わせる）
+GATE = re.compile(r"門番 403|\b403 門番")
+
+
+def gate_names(results: list) -> list:
+    """門番（403）が断ったと info に書いた項目の名前"""
+    return [x["name"] for x in results if GATE.search(x.get("info", "") or "")]
 
 
 def window_only_ok(r: dict, label: str) -> tuple[bool, str]:
@@ -394,6 +403,9 @@ def update(exe: Path, work: Path) -> bool:
     failed = [x for x in r.get("results", []) if not x["ok"] and x["name"] not in EXCEPT]
     unexpected = [f"{x['name']} -- {x['info'][:120]}" for x in failed if x["name"] not in NAN_EXPECTED]
     ok &= check(not unexpected, "1b. lot_list が字の PC で落ちるのは品質の節を使う項目だけ（理由つきの 503）", unexpected)
+    # 版 3.118.1 の作った後の採点の割れ 2: 一覧の nan の名前は、出た物が全部落ちる（落ちずに通った nan の名前は、品質の節を見ずに素通りした割れ）
+    passed = [x["name"] for x in r.get("results", []) if x["ok"] and x["name"] in NAN_EXPECTED]
+    ok &= check(not passed, "1b. selftest_names.json の nan の項目は、出たら全部落ちる（品質の節を使う確かめが素通りしない）", passed)
     ok &= check(all("503" in x["info"] or "設定を組めません" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503",
                 [x["info"][:80] for x in failed])
     sc = ((info.get("install") or {}).get("shortcut") or {})
@@ -591,7 +603,10 @@ def admin_work(exe: Path, work: Path, env: dict, conf: Path) -> bool:
             "for e in sys.argv[3:]: f.make_work(f'{sys.argv[2]}/実績_{e}.sqlite3', e)")
     subprocess.run([sys.executable, "-c", code, str(REPO / "program" / "tests"), str(folder), *equip], check=True)
     share = admin / "masters"
-    shutil.copytree(work / "masters", share, ignore=shutil.ignore_patterns("presence_tpa"))
+    # tab_access.json は写さない（版 3.118.1 の作った後の採点の割れ 9。first_fixes 10: 1 窓目の「計算を出さない」とぶつかる）。
+    # 共有に無いので、窓が最初に読むときに同梱の最初の版を種まきする（下の sha256 の確かめは、この 1 つが新しく置かれるのだけを許す）
+    unseeded = ("tab_access.json",)
+    shutil.copytree(work / "masters", share, ignore=shutil.ignore_patterns("presence_tpa", *unseeded))
     def rows(items):
         return json.dumps({"schema": 1, "revision": 1, "rows": items}, ensure_ascii=False, indent=1)
     (share / "access_permissions.json").write_text(rows([{"id": 1, "ログインID": getpass.getuser(), "PC名": "", "権限区分": "開発者",
@@ -611,12 +626,14 @@ def admin_work(exe: Path, work: Path, env: dict, conf: Path) -> bool:
     ok = check(r.get("ok") is True and good, "local. 作業実績 3 台・開発者の名乗りでも、自己診断の項目が全部あって通る", why)
     res = {x["name"]: x for x in r.get("results", [])}
     wl = res.get("作業実績・データ元の一覧は窓が答え、答えの形と失敗の種類（8 通り・作業でまとめる・ページ・失敗の答え）", {})
-    gate = [n for n, x in res.items() if "門番 403" in x.get("info", "")]
+    gate = gate_names(r.get("results", []))
     ok &= check(wl.get("ok") is True and "設備 " in wl.get("info", "") and "設備なし" not in wl.get("info", "") and not gate,
                 "local. admin-work では作業実績の一覧が流れ、書く道は門番でなく窓の言葉で断る", f"{wl.get('info', '')[:80]}・門番 {gate}")
     after = masters_digest(share)
-    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
-    ok &= check(not changed, "local. admin-work の自己診断は共有のマスタを書かない（流す前と後の sha256 が同じ）", changed)
+    changed = sorted(k for k in before if before.get(k) != after.get(k))
+    added = sorted(set(after) - set(before))
+    ok &= check(not changed and set(added) <= set(unseeded), "local. admin-work の自己診断は共有のマスタを書かない（前からあるマスタの sha256 が同じ・"
+                "新しく置かれたのは写さなかった tab_access.json の種まきだけ）", f"変わった {changed}・置かれた {added}")
     return ok
 
 

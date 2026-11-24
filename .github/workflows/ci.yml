@@ -86,7 +86,8 @@ jobs:
           TPA_NO_PYTHON: "1"
           TPA_FROZEN_PY: "1"
         run: cargo test --locked --no-fail-fast
-      # 異常ロット一覧を Rust と Python で引き比べるため、試験用の品質データ（3000 行）を参照先にした設定で起こす
+      # 自己診断（desktop/src/selftest.js。版 3.118.1 から項目は全部窓だけの確かめ: 答えの形・道どうしの数・場面の値・決めた答え。中身〈Python〉とは比べない）。
+      # 一覧の数を道どうしで見るため、試験用の品質データ（3000 行）を参照先にした設定で起こす
       - name: 自己診断（本物の窓・WebKitGTK）
         run: |
           python program/tests/lotlist_fixture.py "$RUNNER_TEMP/q.sqlite3" 3000
@@ -113,15 +114,18 @@ jobs:
               print("ERROR:", r["error"])
           if r.get("python") != "absent":
               sys.exit(f"中身の様子が absent でありません（段 ④）: {r.get('python')}")
-          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）より少なければ落とす
+          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）が欠ける・一覧に無い名前が出たら落とす
           names = json.load(open(os.path.join(os.environ["GITHUB_WORKSPACE"], "desktop/bundle/selftest_names.json"), encoding="utf-8"))["items"]
           need = [x["name"] for x in names if "maybe" not in x]
-          got = {x["name"] for x in r.get("results", [])}
+          known = {x["name"] for x in names}
+          got = [x["name"] for x in r.get("results", [])]
           una = (r.get("info") or {}).get("unanswered")
-          print(f"SELFTEST n={len(r.get('results', []))} need={len(need)} skipped={r.get('skipped')} unanswered={json.dumps(una, ensure_ascii=False)}")
+          print(f"SELFTEST n={len(got)} need={len(need)} skipped={r.get('skipped')} unanswered={json.dumps(una, ensure_ascii=False)}")
           lack = [n for n in need if n not in got]
-          if lack or r.get("skipped") != 0:
+          extra = [n for n in got if n not in known]
+          if lack or extra or r.get("skipped") != 0:
               print("無い項目:", lack)
+              print("一覧に無い名前:", extra)
               sys.exit(6)
           sys.exit(0 if r.get("ok") else 1)
           PY

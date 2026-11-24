@@ -3227,18 +3227,19 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
 | 166 | 窓の版と中身の版 | 同じ（verify は数えない: except） | test_version.py |
 | 192 | 一覧 8 通り | 件数＝集計表の総計・検索の字・3 ページ目 50 行・絞り込みの件数＝同じ絞り込みの集計表・まとめの数＝ロット数・0 件の手がかり・計算列の並び（重量＋板幅×1000）・まとめの計算列の並び | lotlist_parity・routes_parity・焼いた本 lotlist・lists |
 | 195 | 写しは 1 つ | 写した台帳（mirrored・元の時刻が一覧と同じ） | mirror の試験・routes_parity |
-| 198 | 元ファイルが無い | （maybe） | — |
+| — | 一覧は Rust が答える | 窓が答え、状態 200（作った後の直し: 503 は落とす。1b は nan） | routes_parity |
+| 198 | 元ファイルが無い | （maybe）一覧が 200 で 0 行のときだけ通す（作った後の直し: 前はいつも真。1b は nan） | — |
 | 215 | データ元の並び | 答えの画面に出す元＝見出しのタブ | page_parity・sources_write_parity |
-| 242 | 参照先の項目 | 品質の場所＝一覧の元・マスタの置き場＝置き場の答え | page_parity・settings_write_parity |
+| 242 | 参照先の項目 | 品質の場所＝一覧の元・マスタの置き場は置き場の状態・置き場の画面・更新の置き場・配った設定（覚えが無いとき）の 4 つが同じ（作った後の直し: /api/settings に master_share.dir の項目は無く、前は素通りした） | page_parity・settings_write_parity |
 | 248・262・299・331・361 | 書く道 5 つ | 門番 403 か窓の言葉（admin-work で流れる） | settings_write・sources_write・worklog_write・conversions_write・equipgroups_write の parity |
-| 272 | 作業実績の設備 | 理由つきの空か設備 | worklog_write_parity |
+| 272 | 作業実績の設備 | 窓が答え（by）、理由つきの空か設備 | worklog_write_parity |
 | 291 | 作業実績の登録の一覧 | フォルダ・決まり・誤り・設備のキーが設備の問い合わせと同じ | worklog_write_parity |
 | 324 | 変換表 | 一覧の標準の表は書き出しにもある | conversions_write_parity |
 | 356 | 設備グループ | 品質の設備の値が全部選べ、件数＝集計表の設備ごとの件数 | equipgroups_write_parity |
 | 383 | 更新の置き場とだれが | 名乗り＝配布の画面の係・マスタの置き場＝置き場の答え・進み具合 idle | page_parity・release_parity |
 | 415 | スケジュール | 設備のタブの数＝データ元の行の設備の数・届かない言葉に Python・urllib の名前が無い | schedule_parity・cm3_net_cases |
-| 443 | LotDsp の 9 本 | 決めた答え（?engine=python の歩を外した） | lotdsp_parity・lotdsp_cases |
-| 496 | 組む所の読み 7 本 | 札の列 ⊇ 一覧の列・結合の欄の行の数＝一覧の件数・確かめるの決めた言葉・試すは門番 | builder_parity・builder_cases |
+| 443 | LotDsp の 6 本の道と調べる道具の画面 | 決めた答え（?engine=python の歩を外した。道は 9 本のうち書かずに確かめられる 6 本） | lotdsp_parity・lotdsp_cases |
+| 496 | 組む所の読み 6 本 | 札の列 ⊇ 一覧の列・結合の欄の行の数＝一覧の件数・確かめると接続の確かめの決めた言葉・試すは門番 | builder_parity・builder_cases |
 | 508 | 生きているか | status ok・by window・python absent | small_reads::tests |
 | 593 | 置き場と設定の 8 本 | 置き場の字がそろう・届くかは真偽か null・参照… は答えるか門番・引っ越しは 400／403 | place_parity・fs_parity・builder_parity・access_write_parity |
 | 622 | 作業実績・データ元の一覧 8 通り | 行と件数とページの大きさ、か言葉と種類・登録の無い設備は 404 unknown | routes_parity・lists_parity |
@@ -3247,6 +3248,15 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
 | 677 | 待っているパネルの段 | 印 2 つの済み・経過・前回の鍵（engine=python の歩を外した: 比べる口を叩かない） | progress の lib 試験 |
 | 714 | タブの権限と偽の見出し | 窓の道で偽の X-TPA-Me が効かない（中身へ渡す枝は ⑤ まで router の試験） | access_parity・router の試験 |
 | 757 | 速さ（参考） | 窓の道 30 回の平均が 300ms 未満 | — |
+
+#### 作った後の採点の割れの直し（採点 65.6 点・`tools/ui-proposals/2026-11-stage4b.json` の built・built_fixed）
+
+- 比べる確かめは `firstDiff`（最初に違う鍵の道を出す 1 つの関数）で比べ、info に違う鍵を出す（JSON.stringify どうしで比べない）
+- 門番の印は「門番 403」の 1 つの形（verify.py の `GATE`・`gate_names` は前の並びの形「403 門番」も拾う）
+- verify.py の 1b は nan の項目が出たら全部落ちることも見る（素通りを見逃さない）・admin-work は tab_access.json を写さない
+- test_bundle.py の名前の見張りは verify.py の名前で引く所を ast で全部（x["name"] ==・startswith・res.get・res[…]）。字をつないだ名前は「例外: 」の 1 か所だけ
+- main.rs の窓の絵と窓の情報は `window_reads`（native の頭）に出し、窓の試験 `tests::the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info` が本物の振り分けを通して見る
+- ci.yml・desktop.yml の自己診断の段は一覧に無い名前が出ても exit 6
 
 #### 確かめ
 

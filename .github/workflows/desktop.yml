@@ -233,7 +233,8 @@ jobs:
       # exe の名前は program/app/brand.json の1か所（ここには書かない）
       - name: exe の名前
         run: '"EXE=" + (Get-Content program/app/brand.json -Raw -Encoding utf8 | ConvertFrom-Json).exe | Out-File -Append -Encoding utf8 $env:GITHUB_ENV'
-      # 異常ロット一覧を Rust と Python で引き比べるため、試験用の品質データ（3000 行）を参照先にした設定で起こす
+      # 自己診断（desktop/src/selftest.js。版 3.118.1 から項目は全部窓だけの確かめ: 答えの形・道どうしの数・場面の値・決めた答え。中身〈Python〉とは比べない）。
+      # 一覧の数を道どうしで見るため、試験用の品質データ（3000 行）を参照先にした設定で起こす
       - name: 自己診断（本物の WebView2・ポートなし）
         run: |
           python program\tests\lotlist_fixture.py "$env:RUNNER_TEMP\q.sqlite3" 3000
@@ -271,13 +272,16 @@ jobs:
           $r = Get-Content $env:TPA_SELFTEST -Raw -Encoding utf8 | ConvertFrom-Json
           $r.results | ForEach-Object { Write-Host ("{0}: {1} -- {2}" -f ($(if ($_.ok) { "PASS" } else { "FAIL" })), $_.name, $_.info) }
           if ($r.error) { Write-Host "ERROR: $($r.error)" }
-          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）より少なければ落とす
-          $need = @((Get-Content desktop\bundle\selftest_names.json -Raw -Encoding utf8 | ConvertFrom-Json).items | Where-Object { -not $_.PSObject.Properties["maybe"] } | ForEach-Object { $_.name })
+          # 版 3.118.1: 項目の数・飛ばした数・窓が答えなかった形を 1 行に。必ず出る項目（selftest_names.json）が欠ける・一覧に無い名前が出たら落とす
+          $items = @((Get-Content desktop\bundle\selftest_names.json -Raw -Encoding utf8 | ConvertFrom-Json).items)
+          $need = @($items | Where-Object { -not $_.PSObject.Properties["maybe"] } | ForEach-Object { $_.name })
+          $known = @($items | ForEach-Object { $_.name })
           $got = @($r.results | ForEach-Object { $_.name })
           $lack = @($need | Where-Object { $got -notcontains $_ })
+          $extra = @($got | Where-Object { $known -notcontains $_ })
           $una = if ($r.info -and $r.info.unanswered) { $r.info.unanswered | ConvertTo-Json -Compress } else { "{}" }
           Write-Host "SELFTEST n=$($got.Count) need=$($need.Count) skipped=$($r.skipped) unanswered=$una"
-          if ($lack.Count -gt 0 -or $r.skipped -ne 0) { Write-Host "無い項目: $($lack -join ' / ')"; exit 6 }
+          if ($lack.Count -gt 0 -or $extra.Count -gt 0 -or $r.skipped -ne 0) { Write-Host "無い項目: $($lack -join ' / ')"; Write-Host "一覧に無い名前: $($extra -join ' / ')"; exit 6 }
           Start-Sleep -Seconds 3
           if (-not $r.ok) { exit 1 }
           if ($r.python -ne "absent") { Write-Host "中身の様子が absent でありません: $($r.python)"; exit 5 }

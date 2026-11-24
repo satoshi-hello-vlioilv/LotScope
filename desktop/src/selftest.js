@@ -21,6 +21,33 @@
   const json = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const parse = (t) => { try { return JSON.parse(t); } catch (_) { return null; } };
   const J = (v) => encodeURIComponent(JSON.stringify(v));
+  // 最初に違う所（版 3.118.1 の作った後の採点の割れ 8。比べる確かめはどれもこれ 1 つで比べ、info に違う鍵の道を出す）:
+  // 2 つの値を同じ順にたどり、最初に違う鍵の道（例 "rows[3].設備"・根なら "(根)"）。同じなら ""。表の鍵の並びの順は見ない
+  // firstDiff:start
+  const firstDiff = (a, b, at = "") => {
+    if (a === b) return "";
+    const here = at || "(根)";
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b)) return here;
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (i >= a.length || i >= b.length) return `${at}[${i}]`;
+        const d = firstDiff(a[i], b[i], `${at}[${i}]`);
+        if (d) return d;
+      }
+      return "";
+    }
+    if (a && b && typeof a === "object" && typeof b === "object") {
+      for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+        const p = at ? `${at}.${k}` : k;
+        if (!(k in a) || !(k in b)) return p;
+        const d = firstDiff(a[k], b[k], p);
+        if (d) return d;
+      }
+      return "";
+    }
+    return here;
+  };
+  // firstDiff:end
   // 尋ねた時刻で変わる鍵を外した形（同じ問い合わせを 2 回引いて比べるとき）
   const dropKeys = (keys) => {
     const f = (v) => Array.isArray(v) ? v.map(f) : v && typeof v === "object"
@@ -142,8 +169,9 @@
         hb.r.ok && hb.by === "shell" && "revoked" in hbj && hbj.python && hbj.python.state === python, `${hb.r.status} ${hb.by} python=${JSON.stringify(hbj.python)}`);
     // 書いた控えを、心拍の後にもう 1 度読む（窓が同じファイルを読み直す。前は Python が書いた控えを窓が読むかを見た）
     const again = parse((await get("/api/ui-state")).text) || {};
-    okw("書いた控えを、心拍の後にも窓が同じファイルから読む", (again.keys || {})[key] === big && JSON.stringify(again.keys) === JSON.stringify(back.keys),
-        `[道どうし] ${((again.keys || {})[key] || "").length} 字`);
+    const ad = firstDiff(again.keys, back.keys);
+    okw("書いた控えを、心拍の後にも窓が同じファイルから読む", (again.keys || {})[key] === big && !ad,
+        `[道どうし] ${((again.keys || {})[key] || "").length} 字${ad ? "・最初の違い " + ad : ""}`);
     await get("/api/ui-state", json("POST", { changed: {}, removed: [key] }));
 
     // 計算のタブの転写距離・ピッチ計算は窓が答える（版 3.72.0。src/calc.rs）。決めた入力に決めた答え（同梱のマスタの初期値で、
@@ -167,12 +195,14 @@
 
     // 6) 同時の問い合わせが混ざらない（窓の道 3 種を 40 本。1 本ずつ引いた答えと同じ）
     const paths = Array.from({ length: 40 }, (_, i) => ["/api/build", `/api/lotlist?page=${i}&page_size=7`, `/static/js/shared.js?v=p${i}`][i % 3]);
-    const canon = (t) => { const v = parse(t); return v ? JSON.stringify(dropKeys(["timing", "source"])(v)) : t; };
+    const canon = (t) => { const v = parse(t); return v ? dropKeys(["timing", "source"])(v) : t; };
     const all = await Promise.all(paths.map((p) => get(p)));
     const solo = [];
     for (const p of paths) solo.push(await get(p));
-    const off = paths.filter((p, i) => all[i].by !== "shell" || all[i].r.status !== solo[i].r.status || canon(all[i].text) !== canon(solo[i].text));
-    okw("40 本同時でも、それぞれの答えが届く（1 本ずつ引いた答えと同じ）", !off.length, `[道どうし] 違う ${off.length}/40 ${off.slice(0, 3).join(" ")}`);
+    const why = (i) => all[i].by !== "shell" ? `by ${all[i].by}` : all[i].r.status !== solo[i].r.status ? `状態 ${all[i].r.status}/${solo[i].r.status}`
+      : firstDiff(canon(all[i].text), canon(solo[i].text));
+    const off = paths.map((p, i) => [p, why(i)]).filter(([, w]) => w);
+    okw("40 本同時でも、それぞれの答えが届く（1 本ずつ引いた答えと同じ）", !off.length, `[道どうし] 違う ${off.length}/40 ${off.slice(0, 3).map(([p, w]) => `${p}（${w}）`).join(" ")}`);
   });
 
   await part("保存領域", async () => {
@@ -208,7 +238,8 @@
     // 10) 品質異常（Rust が写しから引く・lot.rs）
     const ll = await get("/api/lotlist?page=1");
     llj = parse(ll.text) || {};
-    okw("一覧は Rust が答える", ll.by === "shell", `${ll.by} ${ll.r.status}`);
+    // 版 3.118.1 の作った後の採点の割れ 2: 窓が受けただけ（by）でなく答えた（200）こと。503（設定を組めない・window_unanswered）は落とす
+    okw("一覧は Rust が答える", ll.by === "shell" && ll.r.status === 200, `[形] ${ll.by} ${ll.r.status} ${ll.r.ok ? "" : ll.text.slice(0, 80)}`);
     llSrc = await get("/api/lotlist/source");
     okw("データの時刻は Rust が答える（共有を見に行かない）", llSrc.by === "shell" && llSrc.r.ok, llSrc.text.slice(0, 120));
     llCount = ll.r.ok ? llj.count || 0 : 0;
@@ -259,9 +290,12 @@
           `[形・道どうし・場面] ${bad.length ? "違う " + bad.join(" ") : `${llCount} 行・ロット ${allLots}・④ ${r4.j.count}`}`);
       const rsSrc = parse(llSrc.text) || {};
       okw("写しは 1 つ: 一覧の元は写した台帳（写した時刻と元の時刻）", rsSrc.mirrored === true && typeof rsSrc.at === "number" && typeof rsSrc.copiedAt === "number"
-          && JSON.stringify((llj.source || {}).at) === JSON.stringify(rsSrc.at), `[道どうし] 元の時刻 ${rsSrc.at}・一覧 ${(llj.source || {}).at}・写した ${rsSrc.copiedAt}`);
+          && !firstDiff((llj.source || {}).at, rsSrc.at), `[道どうし] 元の時刻 ${rsSrc.at}・一覧 ${(llj.source || {}).at}・写した ${rsSrc.copiedAt}`);
     } else {
-      okw("一覧の突き合わせ: 元ファイルが無いので比べない（CI は試験用の品質データで見る）", true, ll.text.slice(0, 120));
+      // 元ファイルが無い（一覧は 200 で 0 行）ときだけ比べない。一覧が答えない（503 など）ときは落とす（版 3.118.1 の作った後の採点の割れ 2: 前は
+      // いつも真で、一覧の数の確かめが黙って消えた）
+      okw("一覧の突き合わせ: 元ファイルが無いので比べない（CI は試験用の品質データで見る）", ll.by === "shell" && ll.r.status === 200 && llCount === 0,
+          `[形] ${ll.r.status} ${ll.text.slice(0, 120)}`);
     }
   });
 
@@ -274,21 +308,30 @@
     const want = items.filter((d) => d.listed && String(d.api || "").startsWith("/api/src/") && !d.group && !hid.includes(d.key)).map((d) => d.screen).sort();
     const tabs = [...document.querySelectorAll('.screen-tabs [data-screen^="src:"]')].map((b) => b.dataset.screen).sort();
     okw("データ元の並びは窓が答え、見出しのタブと同じ並び", rs.by === "shell" && rs.r.status === 200 && items.length > 0 && items.every((d) => typeof d.key === "string" && typeof d.name === "string")
-        && JSON.stringify(want) === JSON.stringify(tabs), `[形・道どうし] ${rs.r.status} ${rs.by} ${items.length} 件・タブ ${tabs.join(",")} / 答え ${want.join(",")}`);
+        && !firstDiff(want, tabs), `[形・道どうし] ${rs.r.status} ${rs.by} ${items.length} 件・タブ ${tabs.join(",")} / 答え ${want.join(",")}${firstDiff(want, tabs) ? "・最初の違い " + firstDiff(want, tabs) : ""}`);
   });
 
   await part("参照先", async () => {
-    // 10a'') 参照先の項目（版 3.89.0 から窓が答える: settings_write.rs）: 品質の場所は一覧が使っている元・マスタの置き場は置き場の答えと同じ
+    // 10a'') 参照先の項目（版 3.89.0 から窓が答える: settings_write.rs）: 品質の場所は一覧が使っている元と同じ。
+    // マスタの置き場（版 3.118.1 の作った後の採点の割れ 1）: /api/settings に master_share.dir の項目は無い（path_settings.py の決め）ので、
+    // 置き場の状態（/api/masters/status）・置き場の画面（/api/masters/place）・更新の置き場（/api/update/settings の masters.dir）・
+    // 配った設定の置き場（place.configured。この PC の覚え〈override〉が無いとき）の 4 つが同じ置き場を言うかを見る（場面は共有を置いている）
     const rs = await get("/api/settings");
     const v = parse(rs.text) || {};
     const item = (k) => (v.items || []).find((x) => x.key === k) || {};
     const place = parse((await get("/api/masters/place")).text) || {};
+    const status = parse((await get("/api/masters/status")).text) || {};
+    const upd = parse((await get("/api/update/settings")).text) || {};
     const remote = (parse(llSrc ? llSrc.text : "") || {}).remote;
-    const ms = item("master_share.dir");
+    // 道の字の比べ方: 区切りの「\」と「/」・末尾の区切りは同じ。Windows は大文字と小文字も同じ
+    const norm = (d) => { const t = String(d ?? "").replace(/\\/g, "/").replace(/\/+$/, ""); return /^win/i.test(navigator.platform || "") ? t.toLowerCase() : t; };
+    const dirs = { 状態: status.dir, 更新の置き場: (upd.masters || {}).dir, 配った設定: place.override ? place.dir : place.configured };
+    const msDiff = firstDiff(Object.fromEntries(Object.entries(dirs).map(([k, d]) => [k, norm(d)])), Object.fromEntries(Object.keys(dirs).map((k) => [k, norm(place.dir)])));
+    const msOk = place.mode === "shared" && typeof place.dir === "string" && place.dir !== "" && !msDiff;
     const good = rs.by === "shell" && rs.r.status === 200 && (v.items || []).length > 5 && typeof v.config_file === "string"
-      && (!llCount || item("lot_list.source").effective === remote) && (!ms.key || ms.effective === place.configured);
+      && (!llCount || item("lot_list.source").effective === remote) && msOk;
     okw("参照先の項目は窓が答え、品質の場所とマスタの置き場が使っている物と同じ", good,
-        `[道どうし] ${rs.r.status} ${rs.by} ${(v.items || []).length} 項目・品質 ${item("lot_list.source").effective === remote}・置き場 ${ms.key ? ms.effective === place.configured : "項目なし"}`);
+        `[道どうし・場面] ${rs.r.status} ${rs.by} ${(v.items || []).length} 項目・品質 ${item("lot_list.source").effective === remote}・置き場 ${place.mode} ${msOk ? "4 つ同じ" : "違う " + (msDiff || "置き場が無い")} ${place.dir}`);
     const put = (key, value) => get("/api/settings/" + key, json("PUT", { value }));
     const unk = await put("selftest.unknown", "x"), bad = await put("lot_list.refresh_seconds", "10.5");
     const why = (x) => parse(x.text) || {};
@@ -316,17 +359,19 @@
     // 10b) 作業実績の設備（版 3.91.0 から窓が答える: worklog_write.rs）: フォルダに届かない（CI）ときも、理由つきで空の設備を返す
     const wl = await get("/api/worklog/files");
     wlj = parse(wl.text) || {};
-    okw("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
-       `設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
+    // 版 3.118.1 の作った後の採点の割れ 4: 窓が答えた（by）ことも見る
+    okw("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.by === "shell" && wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
+       `[形] ${wl.r.status} ${wl.by} 設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
     one = (wlj.items || []).find((x) => x.visible && x.state !== "missing") || null;
     eq = encodeURIComponent(one ? one.key : "無い設備");
     // 登録の一覧（マスタ）と設備の問い合わせ（フォルダ）: 同じフォルダ・同じ決まり・同じ設備
     const fa = await get("/api/worklog/files?all=1"), ma = await get("/api/masters/worklog");
     const f = parse(fa.text) || {}, m = parse(ma.text) || {};
-    const keys = (x) => (x.items || []).map((i) => i.key).sort().join(",");
+    const side = (x) => ({ folder: x.folder, pattern: x.pattern, error: x.error || "", keys: (x.items || []).map((i) => i.key).sort() });
+    const wd = firstDiff(side(f), side(m));
     okw("作業実績の登録の一覧は窓が答え、設備の問い合わせと同じフォルダ・同じ設備", fa.by === "shell" && ma.by === "shell" && fa.r.ok && ma.r.ok
-        && f.folder === m.folder && f.pattern === m.pattern && (f.error || "") === (m.error || "") && keys(f) === keys(m) && typeof m.revision === "number",
-        `[道どうし] 設備 ${(f.items || []).length}/${(m.items || []).length}・${f.folder === m.folder ? "同じフォルダ" : "違うフォルダ"}・${(m.error || "届いた").slice(0, 40)}`);
+        && !wd && typeof m.revision === "number",
+        `[道どうし] 設備 ${(f.items || []).length}/${(m.items || []).length}・${wd ? "最初の違い " + wd : "同じフォルダ・同じ設備"}・${(m.error || "届いた").slice(0, 40)}`);
     // 書く道は書かずに確かめる（無い行を直す・空の並びは窓の言葉で断る。書けない人の PC では窓の門番が先に断る）
     const why = (x) => parse(x.text) || {};
     const gone = await get("/api/masters/worklog/987654321", json("PUT", { "設備名": "x" }));
@@ -389,13 +434,14 @@
     const rs = await get("/api/update/settings"), rel = await get("/__desktop/release?cached=1");
     const u = parse(rs.text) || {}, r = parse(rel.text) || {};
     const place = parse((await get("/api/masters/place")).text) || {};
-    const who = (x) => JSON.stringify(["canRelease", "login", "pc", "role"].map((k) => (x || {})[k]));
+    const who = (x) => Object.fromEntries(["canRelease", "login", "pc", "role"].map((k) => [k, (x || {})[k]]));
+    const wd = firstDiff(who(u.who), who(r.me));
     const pg = await get("/api/release/place/progress");
     const st = (parse(pg.text) || {}).state || "";
     okw("更新の置き場と、だれが（版を置ける・配る版を決められる）は窓が答え、配布の画面の係と同じ名乗り。配布の置き場を写す進み具合も窓",
-        rs.by === "shell" && rs.r.status === 200 && typeof u.source === "string" && who(u.who) === who(r.me) && (u.masters || {}).dir === place.dir
+        rs.by === "shell" && rs.r.status === 200 && typeof u.source === "string" && !wd && (u.masters || {}).dir === place.dir
           && pg.by === "shell" && pg.r.status === 200 && st === "idle",
-        `[道どうし] ${rs.r.status} ${rs.by} 名乗り ${who(u.who)} / 係 ${who(r.me)}・置き場 ${(u.masters || {}).dir === place.dir}・進み具合 ${pg.by} ${st}`);
+        `[道どうし] ${rs.r.status} ${rs.by} 名乗り ${wd ? "最初の違い " + wd : "同じ " + JSON.stringify(who(u.who))}・置き場 ${(u.masters || {}).dir === place.dir}・進み具合 ${pg.by} ${st}`);
   });
 
   await part("スケジュール", async () => {
@@ -418,8 +464,8 @@
   });
 
   await part("LotDsp", async () => {
-    // 10b-L) LotDsp の 9 本（版 3.98.0 から窓がただ 1 つの係: lotdsp.rs・lotdsp_direct.rs）: 途中経過・学びの状態・画面の表の読み方
-    //          （実績の表が無い画面は窓の LookupError の字）・形の違うロット番号・調べる道具の画面（CSP の印つき）
+    // 10b-L) LotDsp（版 3.98.0 から窓がただ 1 つの係: lotdsp.rs・lotdsp_direct.rs。道は 9 本）のうち、書かずに確かめられる 6 本の道と調べる道具の画面:
+    //          途中経過・学びの状態・画面の表の読み方（実績の表が無い画面は窓の LookupError の字）・形の違うロット番号・中止・調べる道具の画面（CSP の印つき）
     const rows = [];
     const want = [
       ["GET", "/api/lots/fetch-lotdsp/status", null, 200, (v) => v.busy === false],
@@ -441,11 +487,11 @@
     const pageOk = page.by === "shell" && page.r.status === 200 && /nonce-/.test(page.r.headers.get("Content-Security-Policy") || "")
       && page.text.includes("LotDsp 項目の紐づけ");
     rows.push(`/lotdsp-link ${page.r.status} ${page.by}`);
-    okw("LotDsp の 9 本は窓が答える（途中経過・学びの状態・画面の表・ロット番号の形・調べる道具の画面）", allOk && pageOk, `[決めた答え] ${rows.join("・")}`);
+    okw("LotDsp の 6 本の道と調べる道具の画面は窓が答える（途中経過・学びの状態・画面の表・ロット番号の形・中止・調べる道具の画面）", allOk && pageOk, `[決めた答え] ${rows.join("・")}`);
   });
 
   await part("組む所", async () => {
-    // 10b-B) 組む所の読み 7 本（版 3.99.0 から窓が答える: builder.rs）: 札の列は一覧の列を全部含む・当てる列の元に品質がある・列の行の数は
+    // 10b-B) 組む所の読み（版 3.99.0 から窓が答える: builder.rs。道は 7 本で、ここで見るのは 6 本）: 札の列は一覧の列を全部含む・当てる列の元に品質がある・列の行の数は
     //          一覧の件数と同じ・確かめるは決めた言葉で断る（空の場所・間隔 5 秒）・試すは門番を通る（書けない人は 403）
     const cols = llj.columns || [];
     const rows = [];
@@ -469,9 +515,9 @@
     const jp = await get("/api/sources/join/preview", json("POST", { key: "lot", joins: [] })), jv = parse(jp.text) || {};
     // 「試す」は答えのファイルを作るので門番を通る（書けない人〈CI の一般ユーザー〉は 403）
     const jOk = jp.by === "shell" && ((jp.r.status === 403 && jv.kind === "forbidden") || (jp.r.ok && typeof jv === "object"));
-    rows.push(`試す ${jp.r.status} ${jp.r.status === 403 ? "門番" : ""}${jOk ? "" : "・" + jp.text.slice(0, 40)}`);
+    rows.push(`試す ${jp.r.status === 403 ? "門番 403" : jp.r.status}${jOk ? "" : "・" + jp.text.slice(0, 40)}`);
     rows.sort((x, y) => y.includes("違う") - x.includes("違う"));
-    okw("組む所の読み 7 本は窓が答え、札の列と行の数が一覧と同じ（札・当てる列・結合の欄の列・確かめる・試す）", fOk && dOk && sOk && ckOk && ccOk && jOk,
+    okw("組む所の読み 6 本は窓が答え、札の列と行の数が一覧と同じ（札・当てる列・結合の欄の列・確かめる・接続の確かめ・試す）", fOk && dOk && sOk && ckOk && ccOk && jOk,
         `[道どうし・決めた答え] ${rows.join("・")}`);
   });
 
@@ -493,7 +539,8 @@
       const v = parse(g.text);
       const good = g.by === "shell" && !!v && check(g, v);
       allOk = allOk && good;
-      rows.push(`${label} ${g.r.status}${g.r.status === 403 ? " 門番" : ""}${good ? "" : "・違い " + g.text.slice(0, 50)}`);
+      // 門番の印は「門番 403」の 1 つの形（verify.py の GATE。版 3.118.1 の作った後の採点の割れ 5）
+      rows.push(`${label} ${g.r.status === 403 ? "門番 403" : g.r.status}${good ? "" : "・違い " + g.text.slice(0, 50)}`);
       return v || {};
     };
     const reach = (x) => x === true || x === false || x === null;
@@ -635,8 +682,8 @@
     okw("権限: タブの権限の道でも、画面が名乗った見出しは効かない（窓が捨てて自分の me で答える）",
        // 書けるか（canEdit）は切断中なら書けない。偽の me は書けない段なので、本当の me が書けるときだけ見分けられる（見分けたかを言葉に出す）
        ta.r.ok && tf.r.ok && ta.by === "shell" && tf.by === "shell" && taj.canEdit === (amj.canEditAdminMaster === true && !amj.revoked)
-         && tfj.canEdit === taj.canEdit && JSON.stringify(tfj.tabs) === JSON.stringify(taj.tabs),
-       `[道どうし] ${ta.by} タブの権限 canEdit ${taj.canEdit} / 偽の見出し → ${tfj.canEdit}`
+         && !firstDiff({ canEdit: tfj.canEdit, tabs: tfj.tabs }, { canEdit: taj.canEdit, tabs: taj.tabs }),
+       `[道どうし] ${ta.by} タブの権限 canEdit ${taj.canEdit} / 偽の見出し → ${tfj.canEdit}・${firstDiff({ canEdit: tfj.canEdit, tabs: tfj.tabs }, { canEdit: taj.canEdit, tabs: taj.tabs }) || "同じ"}`
          + (taj.canEdit ? "（偽の見出しが効けば false になる形で確かめた）" : "（この PC は書けないので、偽の見出しは見分けられない）"));
     // 11c) 出さないタブ・権限の札・マスタ管理の入口（版 3.111.0）: 窓の名乗りで決める
     const me = state.me || {}, hid = me.hiddenTabs || [];
