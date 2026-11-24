@@ -110,6 +110,30 @@ pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<An
     Some((headers, if method == "HEAD" { vec![] } else { body }))
 }
 
+/// Flask の既定の 404 の画面の字（werkzeug の NotFound。版 3.117.3 の Python が道に当たらない GET に答えた本文。
+/// program/tests/test_favicon_answer.py が werkzeug の字と 1 バイトずつ比べる）
+pub const NOT_FOUND_HTML: &str = "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n\
+<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>\n";
+
+/// GET・HEAD /favicon.ico（版 3.118.1）: WebView2 は窓を開くたびに自分で尋ねる（画面は絵を置いていない）。版 3.117.3 の Python と
+/// 同じ状態（404）と中身（Flask の既定の 404 の画面）で答え、窓が答えなかった回数（unanswered）に数えない（PR 121 の Windows の CI で
+/// 「unanswered GET /favicon.ico: 1」が出た。現場の数の雑音になる）。状態は呼ぶ側（main.rs）が 404 にする
+pub fn favicon(method: &str, path: &str) -> Option<Answer> {
+    if !matches!(method, "GET" | "HEAD") || path != "/favicon.ico" {
+        return None;
+    }
+    let body = NOT_FOUND_HTML.as_bytes().to_vec();
+    let headers = vec![
+        ("Content-Type".to_string(), "text/html; charset=utf-8".to_string()),
+        ("Content-Length".to_string(), body.len().to_string()),
+        (
+            "Content-Security-Policy".to_string(),
+            "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'".to_string(),
+        ),
+    ];
+    Some((headers, if method == "HEAD" { vec![] } else { body }))
+}
+
 /// GET /api/health の窓の答え（版 3.102.0）。python は "ready"（答えられる）・"starting"（起こしている）・"stopped"（止まっている）
 pub fn health(python: &str) -> serde_json::Value {
     serde_json::json!({"status": "ok", "by": "window", "python": python})
@@ -128,6 +152,16 @@ mod tests {
             std::fs::write(d.join("app").join("changelog.json"), b).unwrap();
         }
         d
+    }
+
+    #[test]
+    fn favicon_is_the_flask_404_page() {
+        let (h, b) = favicon("GET", "/favicon.ico").unwrap();
+        assert_eq!(b, NOT_FOUND_HTML.as_bytes());
+        assert!(h.iter().any(|(k, v)| k == "Content-Type" && v == "text/html; charset=utf-8"));
+        assert_eq!(h.iter().find(|(k, _)| k == "Content-Length").unwrap().1, b.len().to_string());
+        assert!(favicon("HEAD", "/favicon.ico").unwrap().1.is_empty(), "HEAD は本文なし");
+        assert!(favicon("POST", "/favicon.ico").is_none() && favicon("GET", "/favicon.ico/x").is_none());
     }
 
     const BODY: &str = "{\"entries\":[{\"date\":\"2026-11-07\",\"notes\":[\"\\u7a93\"],\"version\":\"3.88.0\"}],\"version\":\"3.88.0\"}\n";
