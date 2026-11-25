@@ -688,5 +688,100 @@
    ],
    "check_all": "bash program/tools/check-all.sh …/s5/check1 --verify（Cargo.toml・tauri.conf.json の版を 3.119.0 に上げ忘れた 1 回目は py-tests の test_same_version と、窓と中身の版の食い違いで自己診断が試験の版と見て verify が落ちた。直した 2 回目）: js-check 0・compileall 0・cargo-build 0・no-slow-hook 0・ruff 0・fmt-clippy 0・py-tests 0（Ran 83・OK）・bundle-tests 0（Ran 13・OK）・cargo-test 0（表だけの形。70 本・379 passed・0 failed）・nt-shape 0・ci-shape 0・verify 0（PASS 46）・verify-local 0（PASS 10）・「すべて通りました」。--ui-only（…/s5/check1-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait がどれも 0（計 430 秒）。Windows だけのコード（proc.rs の Windows の kill を試験だけに）は作業用クレートで cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings が通った"
   }
+ },
+ "built": {
+  "name": "作った後（版 3.119.0・commit 03b9ecc＋a1d669f。比べる元 4309e8d）",
+  "images": "画面に出ない改良（画像は使わない。現物のコードを git show・grep で読み、軽い試験と道具を自分で流して確かめた）",
+  "evaluator": "案を作っておらず、作ってもいない別のエージェント（作った後の採点の係・2026-11-25。決まり 2026-11-06 の 1 回だけの採点）。コードは直していない",
+  "measured": {
+   "ui_score": "python program/tools/ui_score.py …/2026-11-stage5.json: 通る（built を足す前も後も）",
+   "py_tests": "(cd program && python -m unittest tests.test_fifth_table tests.test_version): Ran 11・OK",
+   "bundle_tests": "python -m unittest discover -s desktop/bundle -t desktop/bundle: Ran 13・OK（OldWindowAccepts の変異 4 も通る）",
+   "removed": "git diff --name-only --diff-filter=D 4309e8d a1d669f: 679 ファイル。足した物は desktop/icons/icon.ico・icon.png・desktop/splash/icon.png・desktop/tests/icon_files.rs の 4 つ",
+   "names_left": "消したファイル（ui-proposals と凍らせた写しを除く）の名 225 のうち 146 の名が、まだ追跡しているファイルのどこかに出る（更新履歴・ui-proposals・RUST_PORT_PLAN.md を除いて数えた）。歴史の節の無い設計書 6 本（LOT_LIST_DESIGN.md 39・LOTDSP_IMPORT_DESIGN.md 17・SCHEDULE_DESIGN.md 15・MASTER_SHARE_DESIGN.md 6・SOURCES_UNIFY_DESIGN.md 4・SHARED_READ.md 3）と README.md 2 か所。desktop/src の doc の「Python に任せる」は 45 ファイル 215 か所（None の意味は版 3.119.0 から 503 window_unanswered）",
+   "formula_js": "node program/tools/formula-parity.mjs に tests/fixtures/formula_cases.json の 4,528 事例を渡すと、表の js の答えと違うのは対の無い代用字の書き方（{utf16:[…]} と字）の 9 件だけ＝いまは画面と表が合っている。ただし、この突き合わせを流す試験は 1 つも残っていない（git grep で formula-parity.mjs を呼ぶのは CLAUDE.md の案内だけ）",
+   "check_all": "作った係の記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s5/check1/summary.txt を読んだ: 全段 終了コード 0・「すべて通りました」（nan-config の FAIL 行は 1b の落ちてよい項目）。重い cargo の全部は流し直していない",
+   "disk": "空き 13 GB（大きな物は作っていない）"
+  },
+  "seen": "1. 前の版の窓の受け入れ: 19d5cdf（3.117.3）の update.rs validate_dist（:107〜125。sidecar.py の is_file・brand.json の app_id・version.py の版）・dist_root（:184〜195）・staged・validate_window（exe の sha256 が今の窓と同じときだけ窓の準備を当てる＝3.119.0 の exe では当てない）、distribute.rs:142 extract_exe（名前が program/sidecar.py で終わる最初の物）、small_reads.rs app_version（行頭 APP_VERSION・空白・=・引用符）を読み、v3.82.0・v3.94.0・v3.99.0 の update.rs・distribute.rs も同じ決め（sidecar.py の is_file だけ）であることを見た。program/sidecar.py は 1 行のコメント、program/app/version.py の APP_VERSION の行と brand.json の app_id・name・exe は替わっていない。test_bundle.py の old_window_refusals は 3.117.3 の決めを正しく写している（mode の判定 `mode & 0o170000 in (…)` は & が in より強いので意図どおり）。stage_by_old_window は印が無ければ SystemExit。verify.py prev の 1c（prev_relaunch_failed）は 3.117.3 main.rs:634・:796 の「…に戻しました」の言葉を正規表現で拾うので形は合う。ただし 1c と sysproxy の ignored の試験は Windows の CI だけで、まだ 1 度も流れていない。2. 名指し: 門 test_fifth_table.py の 11 の名は 0 件（通る）。けれども門の外の名（test_brand.py・ops-bench.py・lotdsp-fake-tables.py・test_lotdsp_html_cases.py・formula-cases.py・web.py・app_icon.py など）は、今の案内として残る（brand.json の _about・desktop/Cargo.toml:9・README.md:184・ci.yml:19・lotdsp_samples.py:10・lotdsp_fake_tables.json の about・ui_scene.py:2・books.json の about（2026-11-stage3f.json）・設計書 6 本）。門は名を言い替えた所（「前の Python の開発用サーバー」）も通すので、言葉を消したかではなく 11 の字を消したかしか見ていない。3. CI: ci.yml・desktop.yml とも消したファイルや app を呼ぶ段は無い（ci.yml:105・106 と desktop.yml:222・223 の lotlist_fixture.py・selftest_config.py は残っていて app を import しない）。desktop.yml の --nonbook-args は手元で 29 本の --test を出す。Windows の sysproxy の ignored の試験は前の app の pac_of を winreg の台本に書き直していて、Rust の format! の {hosts:?}・{note:?} は Python の字として読める形。4. 死んだ枝: bake.rs の open_part（:1548〜）は TPA_BLESS が空なら Mode::Baked で、TPA_NO_PYTHON の有る無しによらない。bk.python() は Mode::Python／Bless の時だけ真で、それを作るのは Bake::with（bake_selftest）だけ。oracle・live は表から作り直す枝へ行き、live_table は python() なら assert で止める＝表だけの形で正しく飛ばされる。5. first_fixes 1〜12: 1・3・4・5・6・7・8・10・11・12 は入っている。2 は計画書に 3.111.0 より前の窓の 1 行があるが README には無い（弱い）。9 の門は名 11 種だけで弱い（割れ 3）。6. build.rs は Python を呼ばず、rerun-if-changed は brand.json と絵だけ。絵は追跡され .gitignore に当たらない。ci.yml に呼ばれたら落ちる python を PATH の先に置いて組む段がある（check-all には無い）。7. 振り分け: router.rs は門番を通したあと shell::window_unanswered（503、戻したキーに / なら 404）で、delegate の回数・利用状況の unanswered を残し、試験 an_absent_backend_is_never_asked_and_the_window_answers_why も残る。SERVES・PROTOCOL は shell.rs へ同じ並びで移った。割れ: 消した Python の試験が持っていた確かめのうち、Python と関係の無い物（画面の式 list-formula.js と事例表の突き合わせ・正規表現の表の js 欄・brand の Cargo.toml と名前の直書き）が、代わりの試験無しに一緒に消えた",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 8,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 6,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "program/tests/test_formula_parity.py・test_formula_regex_cases.py を消して、画面の式（program/app/static/js/list-formula.js）と事例表 tests/fixtures/formula_cases.json、正規表現の表 formula_regex_cases.json の js 欄（tools/formula-regex-js.mjs）を node で突き合わせる確かめが無くなった。Rust（formula_cases・formula_regex_cases）は表と比べるが、画面の式を直して表と食い違っても何も落ちない（CLAUDE.md:147 は今もこの評価関数があるように書く）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "program/tests/test_brand.py を消し、守りは desktop/src/brand.rs の agrees_with_the_build_tools（identifier・productName・mainBinaryName）だけ。Cargo.toml の [[bin]] name・app_id の固定値・名前をコードにじか書きしない・legacy_data_dir に TransferPitchAnalyzer は誰も見ない。brand.json の _about・desktop/Cargo.toml:9・README.md:184 は消えた試験が止めると案内する"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "program/tests/test_fifth_table.py の NAMES は 11 種だけ。消したファイルの名 146 種が残り、ci.yml:19（test_lotdsp_html_cases.py）・tests/lotdsp_samples.py:10 と fixtures/lotdsp_fake_tables.json（焼き直しは消した lotdsp-fake-tables.py、古さは消した test_lotdsp_fake_tables.py と案内）・ui_scene.py:2 と books.json の ops の why（ops-bench.py）・books.json の about（2026-11-stage3f.json）・歴史の節の無い設計書 6 本の 84 か所が今の案内として読める"
+    }
+   ],
+   "seen": "上の seen と同じ。前の版の窓の受け入れ・CI・振り分け・死んだ枝・build.rs は正しい。減点は消した試験が持っていた Python と関係の無い守りの取りこぼしと、門の狭さ"
+  },
+  "cracks": [
+   {
+    "name": "1. 画面の式と事例表の突き合わせ（node）が消えた",
+    "severity": "重い",
+    "where": "消した program/tests/test_formula_parity.py（node があれば formula-parity.mjs で表が古くないかを見ていた）・test_formula_regex_cases.py（js 欄の古さ）。残る program/tools/formula-parity.mjs・formula-regex-js.mjs を呼ぶ試験は 0（git grep）。CLAUDE.md:147",
+    "effect": "画面（list-formula.js）の式を直すと、一覧で見える計算列の値と、窓（Rust。表と比べる）が数えるダッシュボードの数が食い違っても、どの試験も落ちない。いまは合っている（4,528 事例中、違うのは代用字の書き方 9 件だけ）",
+    "fix": "tests/test_screen_parts.py に、formula_cases.json の cases を formula-parity.mjs に渡して js 欄と同じかを見る試験（代用字は表の {utf16} の形に直して比べる）と、formula_regex_cases.json の pattern を formula-regex-js.mjs に渡して js 欄と同じかを見る試験を足す（app 不要・node だけ）。変異: list-formula.js の 1 関数を替えると落ちる"
+   },
+   {
+    "name": "2. 名前の 1 か所の定義の守り（test_brand.py）の半分が消えた",
+    "severity": "中",
+    "where": "消した program/tests/test_brand.py の test_build_tools_agree_with_the_definition（Cargo.toml の [[bin]] name）・test_fixed_ids_never_change・test_names_are_not_copied_into_code。残るのは desktop/src/brand.rs:35〜43。案内は program/app/brand.json の _about・desktop/Cargo.toml:9・README.md:184",
+    "effect": "exe の名前を変えたときに Cargo.toml の bin 名を直し忘れても、アプリ名・副題を Rust や JS にじか書きしても気づかない（前の版の窓は入れ替えた後 brand.json の exe の名前で開き直すので、食い違うと開き直せない）",
+    "fix": "brand.rs の試験に Cargo.toml（include_str!）の [[bin]] name＝exe の頭・app_id の固定値・legacy_data_dir に TransferPitchAnalyzer を足し、名前のじか書きは標準の部品だけの Python の試験（program/tests/test_brand_names.py など。app を import しない）に移す。3 か所の案内をその試験の名に直す"
+   },
+   {
+    "name": "3. 段 ⑤ の門が狭く、消した物を今の案内として名指す所が残る",
+    "severity": "中",
+    "where": "program/tests/test_fifth_table.py:20（NAMES 11 種）。残り: .github/workflows/ci.yml:19・program/tests/lotdsp_samples.py:5〜21・program/tests/fixtures/lotdsp_fake_tables.json の about・program/tests/ui_scene.py:2・desktop/tests/baked/books.json の about と ops の why・desktop/tests/ops_parity.rs:3・program/tools/capacity-truth.py:5〜6・formula-parity.mjs:1〜4・num-format-check.mjs:51・lotdsp-dom-cases.mjs:5・program/docs/LOT_LIST_DESIGN.md ほか歴史の節の無い設計書 6 本（84 か所）・desktop/src の「Python に任せる」215 か所",
+    "effect": "焼き直しの道具（lotdsp-fake-tables.py・formula-cases.py）や古さを止める試験が今もあるように読め、直す人が探して見つからない。門は 11 の字が無いことしか見ないので、言い替えた名指しも通る",
+    "fix": "門の名を「消したファイルの名の全部」（4309e8d..a1d669f の --diff-filter=D の basename の表を tests/fixtures に焼く。__init__.py などの一般名は除く）にし、設計書 6 本の済んだ節を <!-- history --> で囲むか言葉を直す。焼き直せない表（lotdsp_fake_tables.json・formula_cases.json）は「凍った答え」と about に書き替える。desktop/src の「Python に任せる」は「答えない（503）」に直す"
+   },
+   {
+    "name": "4. 前の版の窓が新しい program で開く形（1c）と sysproxy の Windows の試験は、まだ 1 度も流れていない",
+    "severity": "軽い（確かめの残り）",
+    "where": "desktop/bundle/verify.py:790 prev_relaunch_failed・desktop/tests/sysproxy_cases.rs:122（書き直した winreg の台本）。どちらも Windows の CI の段だけ",
+    "effect": "push 前の確かめ（Linux）では形が通るかしか分からない。3.117.3 の窓が 1 行の sidecar.py の Python をすぐ終わると読んで戻さないかは、CI で初めて分かる",
+    "fix": "PR の CI（desktop.yml の windows-exe の prev・windows-test の TLS とプロキシの段）の結果を built_fixed に書く。落ちたらまとめて直してから 1 回で push"
+   },
+   {
+    "name": "5. README に 3.111.0 より前の窓の 1 行が無い（first_fixes 2 の半分）",
+    "severity": "軽い",
+    "where": "README.md:17〜19（計画書 RUST_PORT_PLAN.md:22 にはある）",
+    "effect": "配る人が、開き直せなかった古い PC がこの版を取り込まずに次の版を待つことを README から知れない",
+    "fix": "README の版 3.119.0 の段に 1 行足す"
+   }
+  ],
+  "not_cracks": [
+   "前の版の窓（3.82〜3.117.3）の取り込みの決めは sidecar.py の is_file・brand.json・version.py の行だけで、どれも満たす（validate_window は exe が替わる版では当てない）",
+   "表だけの形の bk.python() の枝は通らない（Mode は Baked か BlessScope だけ）",
+   "build.rs は Python を呼ばず、アイコンは追跡された焼いた絵",
+   "router の中身へ回していた道は 503 window_unanswered と回数（delegate::unanswered・利用状況の unanswered）",
+   "master_store.rs・seeds.rs・mirror.rs の差分は注釈だけ（共有のファイルの形・錠は替わらない）"
+  ],
+  "not_checked": [
+   "cargo test の全部（表だけの形）・check-all --verify は流し直していない（作った係の記録を読んだだけ）",
+   "Windows の CI（prev 1c・sysproxy の ignored・nt の表）",
+   "x86_64-pc-windows-msvc の clippy（作った係は作業用クレートで通したと書く。proc.rs の kill を cfg(test) にした所は読んで矛盾が無いことだけ見た）"
+  ]
  }
 }
