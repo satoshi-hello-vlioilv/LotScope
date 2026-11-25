@@ -18,13 +18,8 @@ use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-/// 答え（HTTP の答えと同じ中身）。
-#[derive(Debug, Clone)]
-pub struct Reply {
-    pub status: u16,
-    pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
-}
+/// 答え（HTTP の答えと同じ中身。版 3.118.2 から lib の src/shell.rs に 1 つ。段 ⑤ でこの係を消しても答えの形は残る）。
+pub use da_core::shell::Reply;
 
 /// 問い合わせ（窓が受けた HTTP の問い合わせを、そのまま渡す形）。
 pub struct Ask<'a> {

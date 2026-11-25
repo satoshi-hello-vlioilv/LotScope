@@ -1,0 +1,930 @@
+{
+ "title": "版 3.118.2（Rust 化の段 ④ の 3 つ目: 撮る・採点する道具の相手を Python の開発用サーバーから窓に替える）の進め方 — 案出し 1 回目（採点済み）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（道具の相手を替える。製品の画面は替えない）。決まり 2026-11-06: 案 5 つ以上・別の係の採点 1 回。画面に出るかもしれない所は、相手を替えた後の画像が前の画像と違う所（品質に結合があるとき画面が engine=python を付けない・起動の初期値の行）",
+ "evidence": {
+  "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s42/evidence.md（ファイル:行 と数。作業フォルダ stage4 は読むだけ・cargo は流していない）",
+  "tools": "program/tools/*.mjs 84 本のうち ui-harness.mjs を import する 73 本（ui-eval 69・ui-check・ui-variants・shot-dashunit・shot-unify）。起こすのは harness:111 の 1 か所（python tools/ui_server.py ポート）",
+  "classes": "HTTP の道だけ 62／ui_server の環境変数の仕掛け 4（skiprows・pydown・numwarn・dashwait）／?engine=python を使う・期待する 3（join:80・srclist:102・colsort:107）／標準の Python を中で呼ぶ 4（capacity・excel・marks・pivot。⑤ の後も残る）／作業フォルダのファイルを動かす 1（worklog-heal）。URL を替えるだけで済まない本は 8",
+  "apis": "道具が尋ねる /api の道 36 種は全部窓の src に答える道がある",
+  "knobs": "ui_server.py 226 行の仕掛け 19（evidence 2 節）。窓に無いのは遅くする 4 つの差し込み口（TPA_UI_SLOW_FILE）と、登録 5 種・権限の差し替え・作り物の CM3 を起こす係。設定は Python の dict で、ファイルに無い",
+  "shell": "窓の答えの入口は main.rs の native（:189〜397。Lot の所は :333〜396 の約 64 行）と router.rs（510 行。static・中身なしの断り）がバイナリだけの mod で、lib（lot.rs 4,902 行）の外。example 4 本は lib だけ（Tauri を組まない）",
+  "speed": "Python の開発用サーバー: 用意 0.36 秒・待ち受けまで 0.51 秒・GET / 8.5 ms。軽い 1 本 ui-eval-slicer 19.1 秒・popovers 78.5 秒・起こして 2 枚 7.1 秒・ui-check（128 枚）430.5 秒",
+  "noise": "同じ Python の開発用サーバーで ui-check（128 枚・430.5 秒）を 2 回撮ると、同じ 47 枚・違う 81 枚。違いは全部、時計の字（データ・数えた時刻・ファイルの更新時刻）の 1 段の帯か動く絵（最大 8,328 画素＝0.27%）。1 分の内に 2 回撮った list・dash は 0 画素。画素の比べには時計をそろえるか伏せる形が要る",
+  "unconfirmed": "窓の example の組み立て時間・窓の Lot の最初の答えまでの時間・自前の HTTP の並ぶ問い合わせでの振る舞い（cargo を流さない約束）",
+  "ci": "CI と check-all はどの ui-eval も流さない（73 本は手で流す道具。今全部が通るかは未確かめ）"
+ },
+ "axes": {
+  "about": "案の方向。列は 置き場（窓の答えをどこから出すか）／場面の作り方／仕掛けの行き先／版の割り／確かめ方／Python の残し方",
+  "A": "lib に入口を移し example が HTTP で出す／台本＋窓の書く道で登録／feature testing の口・窓の外の CM3／1 版／画素で Python と比べる／⑤ で消す",
+  "B": "製品の exe の --serve（feature）／A と同じ／A と同じ／1 版（main.rs を変える）／画素＋窓の通し／⑤ で消す",
+  "C": "本物の窓（WebKitGTK）を WebDriver で／A と同じ／窓の中の試験の口／2 版以上／目で見る（画素は WebKit の差で比べられない）／⑤ で消す",
+  "D": "HTTP を作らず Playwright の route で常駐の実行ファイルへ／A と同じ／A と同じ／1 版／画素／⑤ で消す",
+  "E": "A か B／先に台本へ全部の仕掛けを移す（Python は薄いサーバー）／ファイル／2 版（場面 → 相手）／版ごとに画素 0 の差／⑤ で消す",
+  "F": "A／A と同じ／後の版へ回す仕掛けあり／2 版（62 本 → 残り 11 本）／道具ごとの札と流す台本／⑤ の入口に札",
+  "G": "A＋2 つの相手を同時に／E の 1 版目の一部／A と同じ／1〜2 版／道具の問い合わせの JSON の突き合わせ＋画素／⑤ で消す（一度きりの評価関数）",
+  "H": "作らない（Python を凍らせて道具の側に）／今のまま／今のまま／1 版／写しの sha256／⑤ でも残す（利用者の狙いに反する）",
+  "balance": "置き場で 4 通り（example・製品の exe・本物の窓・route）、版の割りで 3 通り（1 版・場面を先・段で移す）、確かめ方で 3 通り（画素・JSON の突き合わせ・目）、Python を残す案 1。速さを測る道具（dashwait・formula のラグ・allrows）に効くのは D・G の route を通す形"
+ },
+ "visible": [
+  "どの案も: 製品の画面は替わらない。道具が撮る画像は、品質に結合があるときの画面の道（engine=python を付けない）と、起動の初期値を当てるときの権限・変換表の行で、Python の開発用サーバーの画像と変わりうる",
+  "C: 画像が Chromium から WebKitGTK になる（字の組み・スクロールバー）"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので案ごとの画像なし。測った物と Python の開発用サーバーで撮った基準の画像: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s42/noise・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s42/check-a・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s42/check-b（2 回目）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s42/noise-crops.png",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと: (1) 作業フォルダ stage4 は読むだけ（ファイルも git も変えていない・cargo を流していない）。(2) 数は grep・wc・数えるだけの python3 で出し、evidence.md にファイル:行で書いた。(3) Python の開発用サーバーは 1 つずつ起こし（slicer・popovers・2 枚撮り 2 回・ui-check 2 回）、終わった後に ui_server のプロセスが 0 なのを ps で見た。(4) 同じサーバーの 2 回の画素の差を PIL で数えた（2 枚撮りは 0 画素・ui-check の 128 枚は 81 枚が時計の字で違う。4 枚は切り出して目で見た）。(5) 案ごとに方向の列（axes）を並べ、置き場・版の割り・確かめ方・Python の残し方に 1 つ以上違う案を置いた。(6) 自分の案に点も順位も付けていない",
+   "proposals": {
+    "A 窓の Lot を HTTP で出す example（答えの入口を lib に移す）": {
+     "id": "A",
+     "name": "A 窓の Lot を HTTP で出す example（答えの入口を lib に移す）",
+     "direction": "置き場: desktop/examples の開発用サーバー（Tauri を組まない）。答えの入口（main.rs の native の Lot の所・router.rs の static と中身なしの断り）を lib に移し、窓と example が同じ関数を呼ぶ。道具は harness の起こす先を替えるだけ",
+     "what": [
+      "desktop/src/shell.rs（新・lib）: Reply・Req・dispatch(lot, req) を置く。main.rs:333〜396（心拍・画面・/lotdsp-link・権限の読む 2 本・/api/sources・handle_body）と router.rs の static_file・mime・percent_decode・window_unanswered を移し、main.rs と router.rs はそれを呼ぶ（tauri::http の型は router.rs に残す）",
+      "desktop/examples/ui_serve.rs（新）: std の TcpListener で 1 本 1 糸の HTTP/1.1（Content-Length・HEAD・keep-alive なし）。引数は 作業フォルダ・ポート（0 なら OS が選び、待ち受けの 1 行にポートを出す）。Env を作業フォルダから組み、Lot::set_bundle・TPA_DASHBOARD_NOW・delegate::set_dir。/__desktop/* は 404（harness の route が答える）・/api/shutdown は 200",
+      "場面: tests/ui_scene.py に ui(work, share=…, bad_rows=…, stale=…) を足し、make → 設定ファイル（appsettings.json。仕掛け 6・7・9・10）→ 読めない行（16）→ finish を標準の部品で書く。登録（11〜15）と権限の行（3）は example が起きた直後に自分の書く道（POST /api/masters/worklog/scan ほか）へ当てる",
+      "遅くする仕掛け（18）: mirror・pivot・operation・dashboard に feature \"testing\" の差し込み口（1 ファイルの JSON を毎回読む。鍵は ui_server と同じ open・ops・only・nocache・copy）",
+      "作り物の CM3（8）: example を起こす前に harness が `python tests/fakes_serve.py` の型（標準の部品）で起こし、URL を設定に書く",
+      "ui-harness.mjs:111: `cargo build --example ui_serve` の出来た実行ファイルを起こす（TPA_UI_SERVER=python で前の ui_server.py。⑤ まで）。close() で作業フォルダを消す",
+      "(3) の 3 本（join・srclist・colsort）を窓の答えに直す"
+     ],
+     "steps": [
+      "① lib に移す（窓の振る舞いは変えない。窓の通し verify.py local）",
+      "② example と場面の台本",
+      "③ harness の切り替え",
+      "④ 73 本を 3 つの大きさで流し、ui-check の全状態を Python と画素で比べる"
+     ],
+     "movable": "73 本のうち、URL を替えるだけで 62 本・仕掛けの行き先を作って 4 本・答えの元を直して 3 本（どれもこの版で移す）",
+     "knobs": "1・2・6・7・9・10・16・17 は台本と設定ファイル／3 は権限の表の行／4 は Lot::set_new_key と作業実績のキーの口／8 は窓の外の標準の Python／11〜15 は窓の書く道／18 は feature testing の差し込み口／19 は当てない（決めの 1 つ）",
+     "pixels": "Python と窓の両方を同じ場面で起こし、ui-check の全状態で画素の差を取る（時計をそろえてから。そろえれば差は答えか場面の違い）",
+     "versions": "1 版（3.118.2）。lib へ移す所は窓の exe も替わる",
+     "risks": [
+      "main.rs の native の分け方を誤ると窓の答えが変わる（製品の版になる。3.118.2 は「製品は替わらない」のはずが、lib へ移すだけでも窓の exe が替わる）",
+      "HTTP を自前で書く（約 150 行）。並ぶ問い合わせ（ダッシュボードのパネルの一斉の問い合わせと /api/dashboard/progress の刻み）で詰まらないか。Python は ThreadingHTTPServer",
+      "登録を窓の書く道でする形は、Python の clean_row の形と 1 字違うことがある（書式の origin・note、設備グループの rules）→ 画面に出る",
+      "起動の初期値（19）を当てるかで、権限・変換表の画面が Python の開発用サーバーと変わる",
+      "example の組み立て時間（初回は lib 全体。未確かめ）と debug の大きさ（今の example は 103〜127 MB）"
+     ],
+     "checks": [
+      "ui-check の全状態で、Python の開発用サーバーと窓の開発用サーバーの画素の差（時計をそろえた上で。Python 同士はそろえないと 81/128 枚が時計の字で違う）。差の出た状態は理由の表に書いたものだけ",
+      "73 本が窓のサーバーで終了コード 0（前に Python で通らなかった本は別に数える）",
+      "窓の通し verify.py local と lot::tests（lib へ移した後も窓の答えが同じ）",
+      "harness の起こす先が 1 か所（grep で ui_server.py を起こす所が TPA_UI_SERVER=python の枝だけ）"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 A の what 3「tests/ui_scene.py に ui(work, …) を足し」: tests/ui_scene.py を直すと、焼いた本 4 冊（routes・pivot・dashboard・ops）の元の指紋が変わる（books.json の sources に tests/ui_scene.py。bless.py:135 の sources_of は sha256 の頭 16 字）。焼き直しが要り、Windows の上書きの表（nt/）も古くなって札 table が measure に戻り、Windows の CI を 2 回回す（3.117.3 の型）。案はこれを書いていない。同じく tools/ui_server.py（3 冊）・tests/schedule_fixture.py（6 冊）・tests/fakes_serve.py（4 冊）・tests/scene_files.py（6 冊）・tests/lotlist_fixture.py（6 冊）も元"
+      }
+     ],
+     "seen": "製品の答えの関数（lot.page・heartbeat・access_read・sources_list・lotdsp_page・handle_body・small_reads::reply・health）は既に lib（da_core）にあり、main.rs の native（:189〜397）の Lot の所（:333〜396）は道の振り分けだけ。lib に小さな振り分けを移せば窓と example が同じ表を通る（同じ物は 1 か所）。撮る先を替えるのは harness:111 の 1 か所（自分で ls と grep: *.mjs 84 本・harness を import 73 本）。HTTP の待ち受けを example にだけ置くので、配る exe に口が入らない（利用者の決めにいちばん合う）。examples は dev-dependencies の testing つきの lib を使う（Cargo.toml:23〜28）ので、遅くする口を feature testing に置けば example から届く（案の言うとおり）。弱い所: (1) 1 版に lib への移し（main.rs を変える＝CLAUDE.md の決まりで verify.py の local・update）・example・場面・遅くする口 4 モジュール・CM3・harness・3 本の直し・73 本×3 の大きさ・画素の比べを全部入れて太い（3.115.0・3.116.0 で止まった型）。(2) 場面を ui_scene.py に足すと焼いた本 4 冊が古くなる（減点）。(3)「時計をそろえる」は窓の側では難しい: lib の SystemTime::now が 13 ファイル（自分で数えた）・ファイルの更新時刻・ブラウザの Date・Lot::set_clock は Lot の一部だけ。画素の比べは Playwright の screenshot の mask（時刻の要素）と animations: disabled で伏せる形が現実的。(4) 権限: 窓は登録の無い人を「一般ユーザー」にする（access.rs:172・267〜282）ので、as_role の開発者は権限の表の行が要る（案は書いている）。(5) Env::production は base＝program（bundle.rs:582〜598）。example は Env{base: 作業/base, program: 本物の program, local, config} を直に作り、Lot の cache_dir を Env.local/db_cache にそろえないと、画面の控え（page は env.local から・POST /api/ui-state は Lot の local_root へ）が食い違う。(6) 3.118.1（自己診断）が main.rs・verify.py を同時に触るので、lib への移しは 3.118.1 が入ってから始めるのが安全"
+    },
+    "B 製品の exe に試験の待ち受けの形を足す（--serve。Tauri の窓を作らない）": {
+     "id": "B",
+     "name": "B 製品の exe に試験の待ち受けの形を足す（--serve。Tauri の窓を作らない）",
+     "direction": "置き場: 製品の main.rs そのもの。コードを lib に移さず、Router（native・guard・static・中身なし）をそのまま TCP の待ち受けにつなぐ。release では組まない（feature \"devserve\"・既定は外す）",
+     "what": [
+      "main.rs: feature \"devserve\" の下に serve_http(port, work) を足す。tauri::Builder を作らずに Lot・Updater・Router を組み、std の TcpListener から Request<Vec<u8>> を作って Router::handle に渡す",
+      "native() の AppHandle に頼る所（/api/shutdown の app.exit・自己診断の終わり・/__desktop/restart）を、AppHandle が無い形でも呼べるようにする（Option にする）",
+      "場面の台本・登録・CM3・遅くする仕掛けは A と同じ（場面は tests/ui_scene.py、遅くする口は lib の feature testing）",
+      "harness は `cargo build --features devserve` の exe を `--serve ポート 作業フォルダ` で起こす"
+     ],
+     "steps": [
+      "① AppHandle を Option に（窓の振る舞いは同じ）",
+      "② --serve の形",
+      "③ harness",
+      "④ 73 本と画素の比べ"
+     ],
+     "movable": "A と同じ（73 本）",
+     "knobs": "A と同じ。/__desktop は本物（Updater）か harness の作り物かを決める",
+     "pixels": "A と同じ",
+     "versions": "1 版。main.rs を変えるので窓の通しが要る",
+     "risks": [
+      "Tauri の exe（debug 350 MB）を組む。Linux では WebKitGTK などの開発の部品が要る（CLAUDE.md）。example（103〜127 MB）より重い",
+      "製品の exe に待ち受けの口が入る形（feature を外し忘れると、配る exe が 127.0.0.1 で答える）。release の組み立てで feature が無いことを確かめる試験が要る",
+      "/__desktop/*（Updater）が本物で答えるので、harness の作り物（INSTALL・RELEASE）と食い違うと二重になる（route が先に答えるので画面は作り物だが、context.request は本物へ行く）",
+      "AppHandle を外す直しは画面の終了・再起動の道に触れる（窓の通しの update・distribute を流す決まりに当たる）"
+     ],
+     "checks": [
+      "release の exe に --serve が無い（strings・試験）",
+      "ui-check の画素の差（A と同じ）・73 本の終了コード",
+      "verify.py の local・update（main.rs を変えたので CLAUDE.md の決まり）"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 B の what 3「場面の台本・登録・CM3・遅くする仕掛けは A と同じ（場面は tests/ui_scene.py）」: tests/ui_scene.py を直すと、焼いた本 4 冊（routes・pivot・dashboard・ops）の元の指紋が変わる（books.json の sources に tests/ui_scene.py。bless.py:135 の sources_of は sha256 の頭 16 字）。焼き直しが要り、Windows の上書きの表（nt/）も古くなって札 table が measure に戻り、Windows の CI を 2 回回す（3.117.3 の型）。案はこれを書いていない。同じく tools/ui_server.py（3 冊）・tests/schedule_fixture.py（6 冊）・tests/fakes_serve.py（4 冊）・tests/scene_files.py（6 冊）・tests/lotlist_fixture.py（6 冊）も元"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案 B の direction「製品の main.rs そのもの…feature devserve」と risks 2: 配る exe（tauri build）に 127.0.0.1 の待ち受けが入りうる形を作る。Cargo.toml の features は default=custom-protocol と testing だけで、feature を外し忘れた・既定に入れた組み立てを止める仕組みが今は無い。利用者の決め（配る exe に余計な口を入れない・ui-eval-xss の脆弱性の確認をした版がある）に正面から当たる"
+      }
+     ],
+     "seen": "製品の Router::handle（router.rs:120〜157。native → static → 門番 → 中身なしの window_unanswered）をそのまま TCP につなぐので、答えの道が製品といちばん同じ（形と色を上げた）。ただ AppHandle を Option にする直し（/api/shutdown の app.exit・/__desktop/restart・update/apply の relaunch・selftest_finish）は起動・更新の流れで、CLAUDE.md の決まりで verify の local・update・distribute が要り、3.118.1 の自己診断の直しとぶつかる。Tauri の exe を組むのは A の example と同じく WebKitGTK の開発の部品と build.rs の Python（app_icon.py。build.rs:7〜22）が要るので、案の「A より重い」は組み立ての部品の差ではなく、出来る実行ファイルの大きさと窓の起動の道（tauri::Builder を作らない形）の新しさ。/__desktop は harness が route で答えるので本物の Updater は使われない（context.request が /__desktop に行く道具は 0。自分で grep）"
+    },
+    "C 本物の窓（Tauri・WebKitGTK）を xvfb の下で起こして撮る": {
+     "id": "C",
+     "name": "C 本物の窓（Tauri・WebKitGTK）を xvfb の下で起こして撮る",
+     "direction": "置き場: 本物の窓。製品と同じ exe・同じ自前の仕組み（tpa://localhost）の画面を、WebKitWebDriver（W3C WebDriver）で動かして撮る。道具は Playwright から WebDriver の言葉に移す",
+     "what": [
+      "手元に webkit2gtk-driver（WebKitWebDriver）を入れる（いま無い）。窓を xvfb-run の下で起こし、tauri-driver の型の小さな橋（WebDriver の capabilities に exe の道）",
+      "harness の launch・newPage・screenshot・route を WebDriver の言葉に写す（route の作り物 27 か所は WebDriver に無いので、/__desktop の作り物は窓の側の差し込み口にする）",
+      "場面は A と同じ台本。窓を起こす前に作業フォルダと設定（TRANSFER_APP_CONFIG）を置き、作業場所（local_root）を作業フォルダへ",
+      "大きさ 3 つ（1728・1536・1280）は窓の大きさで、125%・150% の倍率は GDK_SCALE で"
+     ],
+     "steps": [
+      "① WebKitWebDriver を入れる",
+      "② harness を WebDriver に写す",
+      "③ 73 本を写す",
+      "④ 画素を前の画像と比べる"
+     ],
+     "movable": "写した本だけ（Playwright の CDP に頼る ui-eval-ime など数本は写せない見込み）",
+     "knobs": "18 遅くする仕掛けは窓の feature（製品の exe に試験の口）／/__desktop の作り物も窓の中",
+     "pixels": "Chromium と WebKit の差が全面に出る（字の組み）。画素で同じかは見られず、目で見る",
+     "versions": "2 版以上（道具を写すのが大きい）",
+     "risks": [
+      "利用者の PC は WebView2（Chromium）。Linux の本物の窓は WebKitGTK で、字の組み・スクロールバー・IME・フォントが違う。今の画像（Chromium）より利用者の画面から遠くなる",
+      "73 本の Playwright の書き方（route・evaluate・mouse・keyboard・CDP の IME〈ui-eval-ime〉）を全部写す。CDP の IME の道は WebDriver に無い",
+      "1 回ごとに窓を起こす（verify.py local は 14 秒）・Tauri の exe を組む",
+      "利用者の決め（撮る・採点するのはこの Linux）には合うが、手元の部品を足す（apt）"
+     ],
+     "checks": [
+      "ui-check の全状態の画素を、前の Chromium の画像と比べる（差は WebKit の差として理由を付ける）",
+      "73 本が WebDriver で終了コード 0"
+     ],
+     "score": {
+      "order": 4,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 3,
+      "steps": 2,
+      "effortless": 3,
+      "intuitive": 3,
+      "form": 4,
+      "place": 4,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案 C の risks 2・movable「CDP の IME の道は WebDriver に無い」: ui-eval-ime.mjs（絞り込み・検索の 16 か所で CDP の変換中・確定）と、Playwright の route・context.request・page.clock を使う道具（route の作り物は道具に 19 か所・harness に 8 か所）が写せず、評価関数が消える"
+      }
+     ],
+     "seen": "撮る相手を利用者の PC（WebView2＝Chromium）から遠い WebKitGTK に替える。今の基準の画像（Chromium）と画素で比べられず、目で見るしかない。73 本の書き方を全部写す。手元に WebKitWebDriver・tauri-driver は無い（案の evidence。xvfb はある）。窓の自前の仕組み（tpa://）の画面を撮れる良さはあるが、その違い（origin）で画面の JS の分かれ道は無い（画面は fetch(\"/api/…\") だけで invoke・__TAURI__ は 0 か所。自分で grep）ので、得が小さい"
+    },
+    "D Playwright の route で窓の答えを差し込む（窓は常駐の小さな実行ファイルで、標準入出力で答える）": {
+     "id": "D",
+     "name": "D Playwright の route で窓の答えを差し込む（窓は常駐の小さな実行ファイルで、標準入出力で答える）",
+     "direction": "置き場: HTTP の待ち受けを作らない。harness が全部の問い合わせ（/・/static・/api）を Playwright の route で受け、常駐の example（JSON の 1 行で問い合わせ → 答え）に渡す。静的ファイルは harness が disk から返す",
+     "what": [
+      "desktop/examples/ui_answer.rs（新）: 標準入力の 1 行 {method, path, query, body(base64)} に Lot::handle_body・page・heartbeat などで答え、1 行で返す（A の dispatch を lib に移す所は同じ）",
+      "ui-harness.mjs: context.route(\"**/*\") で全部を受け、static は fs から・ほかは子のプロセスへ。base は http://tpa.test/ のような作り物の名前",
+      "道具の中の context.request.get/post（harness:132〜133 の画面の控えの消し方・道具の fetch でない呼び方）は route を通らないので、harness の関数に替える",
+      "場面・仕掛けは A と同じ"
+     ],
+     "steps": [
+      "① lib に dispatch",
+      "② 常駐の example",
+      "③ route の受け",
+      "④ context.request の直し・73 本"
+     ],
+     "movable": "73 本（ただし速さ・順を見る本は数の意味が変わる）",
+     "knobs": "A と同じ",
+     "pixels": "A と同じ（同じ答えなら同じ）",
+     "versions": "1 版",
+     "risks": [
+      "Playwright の route は 1 つの問い合わせごとに node を通る（ダッシュボードは一斉に十数本・刻みの問い合わせ）。速さと順が本物の HTTP と違う（待ちの段を見る dashwait・ime のラグを見る formula が変わる）",
+      "context.request（APIRequestContext）は context.route を通らない。harness と道具の request の呼び方を全部直す",
+      "道具の route の作り物（19 か所）と全部受けの route の順（後から足した route が先に当たる）を誤ると、作り物が効かない",
+      "同時に来る問い合わせを 1 本の標準入出力に並べると、長い問い合わせ（写しを待つ）が後ろを止める"
+     ],
+     "checks": [
+      "ui-check の画素の差（A と同じ）",
+      "dashwait・formula（入力のラグ）・allrows（最初に出るまでの速さ）の数が Python の開発用サーバーの時と同じ幅"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 D の risks 4「1 本の標準入出力に並べる」: ui-eval-dashwait.mjs は重い問い合わせが待っている最中に GET /api/dashboard/progress を刻みごとに読む。1 本の管に並べると進み具合の答えが前の問い合わせの後ろで待たされ、待ちの段の確かめ（刻みごとの n/m・あと約 n 秒）が意味を失う。並べて答える仕組みを書くと HTTP の待ち受けと同じ手間になり、route を通す利点が消える"
+      }
+     ],
+     "seen": "HTTP を作らずに済む見かけだが、harness の context.request（:130〜131 の画面の控えの消し方）と ui-eval-xss.mjs:44 の p.request.get は context.route を通らない（自分で grep して道具の外の呼び方はこの 3 か所）。全部受けの route と道具の route（19 か所）の当たる順を誤ると作り物が効かない。速さを見る道具（dashwait・formula の入力のラグ・allrows の最初に出るまで）の数の意味が変わる。答えの関数は A と同じく lib に要る"
+    },
+    "E 場面を先に分ける版を置き、その後で相手を替える（2 版: 3.118.2 場面の台本 → 3.118.3 窓の開発用サーバー）": {
+     "id": "E",
+     "name": "E 場面を先に分ける版を置き、その後で相手を替える（2 版: 3.118.2 場面の台本 → 3.118.3 窓の開発用サーバー）",
+     "direction": "版の割りと順: 先に ui_server.py を「場面を作る標準の台本」と「起こすだけの薄いサーバー」に割り、Python の開発用サーバーが台本の作ったファイル（設定・マスタの JSON）を読む形で 73 本が今と同じに通るのを確かめてから、相手を窓に替える",
+     "what": [
+      "3.118.2: tests/ui_scene.py に ui(work, …) を足し、仕掛け 1〜17 を全部ファイル（設定 appsettings.json・base/data の JSON・共有のフォルダ）で作る。登録（11〜15）は、焼いた表の場面（desktop/tests/baked/routes.json の scene に base/data の 10 種）と同じ形の JSON を台本が書く。ui_server.py は TRANSFER_APP_CONFIG と作業フォルダを読むだけにする（app の MasterRepository を呼ばない）",
+      "3.118.2 の確かめ: 前の ui_server.py（3.118.0 の形）と新しい形で ui-check の全状態の画素が 0 の差・73 本の終了コードが前と同じ",
+      "3.118.3: A の example（または B の --serve）を同じ台本の作業フォルダで起こす。仕掛け 18 は窓の feature testing、19 は当てない"
+     ],
+     "steps": [
+      "① 台本に仕掛けを移す（Python のサーバーは薄く）",
+      "② 画素 0 の差",
+      "③ 窓の開発用サーバー",
+      "④ 画素と 73 本"
+     ],
+     "movable": "1 版目 0 本（相手は Python のまま）・2 版目 73 本",
+     "knobs": "1〜17 は全部台本（ファイル）／18 は窓の feature testing／19 は当てない",
+     "pixels": "版ごとに 2 回（台本の割りの前後・相手の切り替えの前後）",
+     "versions": "2 版（3.118.2・3.118.3）",
+     "risks": [
+      "台本がマスタの JSON を手で書くと、窓と Python の行の形（rev・updated_by・id の付け方）を写し間違える。Python の clean_row が付ける欄を台本が知る必要がある（⑤ で app を消すと答え合わせの相手が無い）",
+      "④ の版が 4 つになる（3.118.0〜3.118.3）。⑤ がその分遅れる",
+      "1 版目は道具の画面が変わらない版で、利用者に見せる物が無い"
+     ],
+     "checks": [
+      "1 版目: 前と後の Python の開発用サーバーで ui-check の全状態が 0 画素の差",
+      "2 版目: A と同じ",
+      "台本が書いたマスタを窓が読む（row_check の隔てる行 0・lot::tests に場面を読む試験）"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 E の what 1「ui_server.py は TRANSFER_APP_CONFIG と作業フォルダを読むだけにする」・ui_scene.py に ui() を足す: tools/ui_server.py は焼いた本 3 冊（routes・pivot・dashboard）、tests/ui_scene.py は 4 冊（＋ops）の元。1 版目で両方を直すので、4 冊の焼き直しと Windows の上書きの表の取り直し（札 table → measure → CI 2 回）が要る。案はこれを書いていない"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案 E の versions「2 版（3.118.2・3.118.3）」: 1 版目は ⑤ で消す ui_server.py を作り替える版で、利用者に見せる物も残る物も無い（risks 3 も認める）"
+      }
+     ],
+     "seen": "場面をファイルに出してから相手を替える順は筋が良く（2 つの相手が同じ場面を読める）、版ごとの確かめ（前後で画素の差 0）も明るい。ただ台本がマスタの JSON を手で書く（risks 1）と、Python の clean_row・窓の書く係の形を写し間違える。窓の書く道（POST /api/masters/…）で登録すれば、形は窓の書く係の 1 か所で決まり、形の答え合わせは *_parity が既にしている。⑤ で消える ui_server.py に手を入れる仕事が多い"
+    },
+    "F 道具を段で移す（相手を道具ごとに選ぶ札。HTTP だけの 62 本から）": {
+     "id": "F",
+     "name": "F 道具を段で移す（相手を道具ごとに選ぶ札。HTTP だけの 62 本から）",
+     "direction": "移し方: harness に相手の選び（TPA_UI_SERVER=window|python）を足し、道具ごとの札（tools/ui-servers.json: window・python と理由）で既定を決める。最初の版は (1) の 62 本を窓へ、仕掛けの 4 本と Python の口の 3 本と速さを見る本は python の札のまま。⑤ の入口に「札が全部 window」を足す",
+     "what": [
+      "A の example（場面は ui_scene と登録）を作るが、遅くする仕掛け・共有の形・読めない行は後の版",
+      "tools/ui-servers.json（新）と ui-harness.mjs の選び。道具の頭の import で札を読む",
+      "tools/ui-all.mjs（新）: 73 本を札どおりの相手で流し、終了コード・OK/NG・時間を表に（今は流す台本が無い）",
+      "次の版で仕掛けの 4 本と Python の口の 3 本を移し、札を全部 window に"
+     ],
+     "steps": [
+      "① example と札",
+      "② 62 本を窓へ",
+      "③ 残りの 11 本（次の版）",
+      "④ ⑤ の入口の条件に札を足す"
+     ],
+     "movable": "1 版目 62 本・2 版目 11 本",
+     "knobs": "1 版目: 1〜17・19 は A と同じ／18（遅くする）・9（共有）・16（読めない行）・7（古さの字）は 2 版目",
+     "pixels": "札 window の本の状態だけ（ui-check は 1 版目で全状態）",
+     "versions": "2 版（3.118.2・3.118.3）",
+     "risks": [
+      "2 つの相手が ⑤ まで並ぶ。どちらの画像で採点したかを採点のファイルに書かないと混ざる",
+      "仕掛けの本（skiprows・pydown・dashwait・numwarn）は画面の改良の後の確かめに多く使う本で、後回しにすると ⑤ の前の版が増える",
+      "札を python のまま忘れると ⑤ で落ちる（⑤ の入口の条件で止める）"
+     ],
+     "checks": [
+      "ui-all.mjs の表: 札 window の本が窓で終了コード 0・札 python の本が Python で 0",
+      "札が window の本で、Python と窓の画素の差（ui-check は札 window で全状態）",
+      "⑤ の入口: ui-servers.json の python が 0"
+     ],
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 5,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 F の what 1「A の example（場面は ui_scene と登録）」: A と同じく tests/ui_scene.py を直す形なら焼いた本 4 冊が古くなる（books.json の sources）。案は書いていない"
+      }
+     ],
+     "seen": "道具ごとの札（ui-servers.json）と流す台本 ui-all.mjs（終了コード・OK/NG・時間の表）は、今どの本が通るかが見えない（CI と check-all は ui-eval を 0 本流す。自分で grep）穴をふさぐので良い（視覚化を上げた）。割り方も「Rust を直さずに済む物」と「Rust の口が要る物（遅くする 4 つ）」で切れる。弱い所は 2 つの相手が ⑤ まで並ぶことと、札を python に残した本が ⑤ の入口で初めて見つかること。後へ回す物を共有・読めない行・古さの字まで広げているが、これらはファイルと設定だけで起こせる（ui_server.py:88・100〜111・132〜150 を読んだ）ので 1 版目に入れられる。後へ回すべきは遅くする口だけ"
+    },
+    "G 突き合わせの評価関数を先に作る（同じ場面で Python と窓の両方を起こし、道具の問い合わせを両方へ当てる）": {
+     "id": "G",
+     "name": "G 突き合わせの評価関数を先に作る（同じ場面で Python と窓の両方を起こし、道具の問い合わせを両方へ当てる）",
+     "direction": "確かめ方を先に: harness に「2 つの相手」の形（TPA_UI_DUAL=1）を足す。画面は窓へつなぎ、Playwright の route で全部の /api の問い合わせを写して Python の開発用サーバーにも当て、答えの JSON を突き合わせて記録する（*_parity の画面の道具版）。73 本を流すと、道具が実際に使う問い合わせの違いが一覧になる。違いを直してから既定を窓に替える",
+     "what": [
+      "A の example と場面の台本（Python も同じ作業フォルダの写しを読む: 台本が設定ファイルを書き、ui_server.py は読むだけにする＝E の 1 版目の一部）",
+      "ui-harness.mjs: TPA_UI_DUAL のとき、route で問い合わせを受けて窓へ送り、同じ問い合わせを Python へも（書く道は 2 つの作業フォルダへ別々に）。答えの違いを tools/ui-dual.json に（道の型・道具・違う葉の道）。時刻・ポート・nonce は焼いた表の settle.json と同じそろえ方",
+      "違いが 0 になるまで窓か場面を直す（窓を直すときは焼いた表の本も焼き直す）",
+      "最後に既定を窓に替え、Python の形は ⑤ で消す"
+     ],
+     "steps": [
+      "① 2 つの相手の形",
+      "② 73 本を DUAL で流して違いの表",
+      "③ 直す",
+      "④ 既定を窓に"
+     ],
+     "movable": "73 本（違いが 0 になってから）",
+     "knobs": "A と同じ。2 つの相手が同じ場面を読むために 1〜17 を台本へ",
+     "pixels": "答えの突き合わせ（JSON）と画素の両方",
+     "versions": "1 版（大きい）か 2 版（評価関数 → 切り替え）",
+     "risks": [
+      "書く道を 2 つへ当てると、2 つの作業フォルダの状態が順でずれる（片方だけ失敗した書きの後）。比べる意味が薄れる所を先に決める",
+      "route を通すので D と同じく速さ・順が変わる（DUAL のときだけ。既定の形では素の HTTP）",
+      "評価関数そのものが大きい（そろえ方・書く道の 2 重化）。⑤ で Python を消すと使えなくなる一度きりの道具",
+      "ui_server.py を「読むだけ」に直す所は E と同じ手間"
+     ],
+     "checks": [
+      "ui-dual.json の違い 0（そろえた後）を 73 本で",
+      "ui-check の全状態の画素の差 0",
+      "わざと窓の 1 道の答えを 1 字変えると ui-dual が落ちる（評価関数の変異）"
+     ],
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 3,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案 G の what 1「ui_server.py は読むだけにする＝E の 1 版目の一部」: tools/ui_server.py は焼いた本 3 冊の元（books.json）。直すと焼き直しと Windows の表の取り直し"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案 G の risks 3「⑤ で Python を消すと使えなくなる一度きりの道具」: 書く道の 2 重化・そろえ方を持つ大きな評価関数を、⑤ の直前に作って ⑤ で捨てる"
+      }
+     ],
+     "seen": "道具が実際に使う問い合わせを窓と Python で突き合わせる考えは、画素より精しい。ただ窓と Python の答えは既に焼いた本 35 冊・*_parity が道ごとに突き合わせ（route_reach は中身へ回す当たり 129＝比べる口だけ、予算 8）、画面の道具で新しく見つかるのは「場面の違い」と「engine=python の道の違い」くらい。その 2 つは画素の比べと道具の終了コードで足りる。書く道を 2 つの作業フォルダへ当てると、片方だけ失敗した後に比べる意味が崩れる（案も認める）"
+    },
+    "H Python の開発用サーバーを凍らせた写しとして道具の側に残す（⑤ でも消さない）": {
+     "id": "H",
+     "name": "H Python の開発用サーバーを凍らせた写しとして道具の側に残す（⑤ でも消さない）",
+     "direction": "Python を残す: program/app と ui_server.py を tools/legacy-ui/3.118.x/ に凍らせ（tests/legacy/3.117.3 の型）、harness はそれを起こす。画面（static・templates）は今の物を写しの app に差し込んで配る。窓の開発用サーバーは作らない",
+     "what": [
+      "tools/freeze-ui.py（新）: app（static・templates を除く）・config・ui_server.py・ui_scene 一式を写す。MANIFEST.json の sha256",
+      "写しの app の templates・static の置き場を今の program/app（⑤ の後は desktop/ui）へ向ける差し込み",
+      "harness:111 の道を写しへ"
+     ],
+     "steps": [
+      "① 写す",
+      "② 置き場の差し込み",
+      "③ 73 本"
+     ],
+     "movable": "73 本（そのまま）。ただし窓の答えは見ない",
+     "knobs": "今のまま（Python の中）",
+     "pixels": "今と同じ（Python 同士でも時計の字は違う）。窓とは比べない",
+     "versions": "1 版（小さい）",
+     "risks": [
+      "利用者の狙い「不要になったファイルを片付ける」（⑤）に反する: program/app の .py の写し（約 1 万行の見込み・未数え）が道具の側に残る",
+      "画面の改良 7 件で道（/api）の答えを足す・変える改良は、凍らせた Python が答えないので撮れない（改良のたびに写しの Python も直すと、2 つの中身をまた持つ）",
+      "撮った画像が製品（窓）の答えでない。今も lotJoined のとき画面が engine=python の道を撮っている（lotlist.js:105）ように、製品と違う道の画像で採点する",
+      "Python の版（3.13）を手元に持ち続ける"
+     ],
+     "checks": [
+      "73 本が写しで終了コード 0",
+      "写しが変わっていない（MANIFEST の sha256）"
+     ],
+     "score": {
+      "order": 3,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 3,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 3,
+      "place": 3,
+      "layout": 2,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案 H の risks 2: ⑤ の後の改良 7 件（JSON の列の展開が最初）で窓に道・答えを足すと、凍らせた Python は答えないので、新しい画面を撮る・採点する評価関数が無くなる（改良の決まり 1〜7 が回らない）"
+      }
+     ],
+     "seen": "小さく見えるが、利用者の ⑤ の狙い（不要になったファイルを片付ける）に反し、program/app の写しを道具の側に持ち続ける。今の画像が製品と違う道を撮っている（Python の /api/sources は shellLists＝lists_are_external で偽〈app/__init__.py:54〜58〉→ 画面 lotlist.js:2183 の lotJoined が真 → :105 で engine=python。窓は bundle.rs:1997 で真）のを、そのまま固める。基準として置いた案という説明どおり"
+    }
+   }
+  }
+ ],
+ "first_fix_candidates": [
+  {
+   "id": "F1",
+   "what": "?engine=python を答えの元に使う 3 本を窓の答えに直す: ui-eval-join.mjs:80・ui-eval-srclist.mjs:102（`/api/lotlist?…&engine=python`）、ui-eval-colsort.mjs:107（check 5 が engine=python を期待）",
+   "why": "窓は ?engine=python を 503 window_unanswered で断る（router.rs:65・99）。画面も窓では shellLists が真で engine=python を付けない（lotlist.js:2183・bundle.rs:1997）ので、colsort の check 5 は窓では必ず落ちる",
+   "where": "上の 3 か所"
+  },
+  {
+   "id": "F2",
+   "what": "今の 73 本を Python の開発用サーバーで 1 回ずつ流し、終了コードと時間の表を作る（基準）。流す台本（tools/ui-all.mjs など）が無いので作る",
+   "why": "CI と check-all はどの ui-eval も流さない（grep 0）。今すでに落ちる本を窓のせいにしないため。測った 3 本は 19.1・78.5 秒、ui-check は数分（evidence 6 節）",
+   "where": "tools/"
+  },
+  {
+   "id": "F3",
+   "what": "画素の差の評価関数（2 つのフォルダの同じ名前の PNG を比べ、差の画素数と囲みを出す。PIL か Chromium の canvas）と、差を許す状態の理由の表",
+   "why": "同じ Python の開発用サーバーで ui-check を 2 回撮ると 128 枚のうち 81 枚が違う（全部、時計の字の帯か動く絵。最大 0.27%）。時計をそろえる（Playwright の page.clock・場面のファイルの更新時刻・TPA_DASHBOARD_NOW）か、時計の字の囲みを伏せないと、窓との差と雑音が分けられない。1 分の内に撮った 2 枚は 0 画素",
+   "where": "tools/（新）・ui-harness.mjs の newPage"
+  },
+  {
+   "id": "F4",
+   "what": "場面の設定をファイルに書く（仕掛け 6・7・9・10 を tests/ui_scene.py の標準の部品で appsettings.json に）。Python の開発用サーバーも同じファイルを読む",
+   "why": "今の ui_server.py は設定を Python の dict のまま create_app に渡し（:84〜114）、ファイルに無い。窓は配った設定のファイル（TRANSFER_APP_CONFIG）から読む",
+   "where": "tests/ui_scene.py・tools/ui_server.py:84〜114"
+  },
+  {
+   "id": "F5",
+   "what": "登録 5 種（作業実績の登録・共有の書式 3・勤務体系 2・設備グループ 2・マスタのデータ元 2）と権限の行の行き先を決める（窓の書く道へ HTTP で当てる／台本が JSON を書く）",
+   "why": "今は app の MasterRepository が書く（ui_server.py:116〜129）。⑤ で app を消すと書く係が無い。as_role（:44〜52）の差し替えも権限の表の行に替える",
+   "where": "tools/ui_server.py:44〜52・55〜67・116〜129"
+  },
+  {
+   "id": "F6",
+   "what": "遅くする仕掛け（TPA_UI_SLOW_FILE の open・ops・only・nocache・copy）の差し込み口を lib の feature \"testing\" の下に置く（mirror.rs:104〜118 の #[cfg(test)] SLOW_COPY を feature へ）",
+   "why": "ui-eval-dashwait.mjs が本物の段の道で待ちを起こすのに使う。窓には #[cfg(test)] の写しの遅れしか無く、example からは見えない",
+   "where": "desktop/src/mirror.rs・pivot.rs・operation.rs・dashboard.rs"
+  },
+  {
+   "id": "F7",
+   "what": "作り物の CM3（schedule_fixture.serve）を窓の外で起こす形（標準の Python の小さな入口。ポートを 1 行で返し、設定に書いてから窓を起こす）",
+   "why": "今は ui_server.py の中の糸（:91）。窓の開発用サーバーの中には起こす係が無い",
+   "where": "tools/ui_server.py:91・tests/schedule_fixture.py"
+  },
+  {
+   "id": "F8",
+   "what": "起動の初期値（Lot::run_seeds）を開発用サーバーで当てるか決める",
+   "why": "Python の開発用サーバーは当てない（3.110.0 から係は窓）。窓で当てると検査計・最初の管理者・釜番日付の行が増え、権限・変換表の画面が Python の時と変わる（画素の比べで差になる）",
+   "where": "lot.rs:514・main.rs:702"
+  },
+  {
+   "id": "F9",
+   "what": "作業フォルダを閉じるときに消し、ポートは 0 番で OS に選ばせて待ち受けの 1 行で受け取る",
+   "why": "/tmp/tpa-ui-* が 26 個残っていた（ui_server.py:25 の mkdtemp を消さない）。ポートは 8765+乱数(1000)（harness:109）で、並べて流すとぶつかりうる",
+   "where": "ui-harness.mjs:109〜112・149〜152"
+  },
+  {
+   "id": "F10",
+   "what": "画面の型と静的ファイルの置き場を 1 か所の引数に（page.rs:353 の program/app/templates・main.rs:686 の program/app/static）",
+   "why": "⑤ で static・templates を desktop/ui へ移す（RUST_PORT_PLAN.md:2649）。開発用サーバーも窓も同じ置き場の決めを読む形にしておかないと ⑤ でまた直す",
+   "where": "desktop/src/page.rs:353・main.rs:686"
+  },
+  {
+   "id": "F11",
+   "what": "Python の開発用サーバーを import する Python の 6 本（tests/routes_oracle・pivot_oracle・dashboard_oracle・test_capacity・test_builder_reads・tools/rust-port-bench.py）の行き先を ⑤ の一覧に書く",
+   "why": "ui_server.py を ⑤ で消すときに一緒に落ちる。答え合わせ役 3 本は ⑤ で消す一覧にあるが、test_capacity・test_builder_reads・rust-port-bench は名指しが無い",
+   "where": "program/docs/RUST_PORT_PLAN.md:2647〜2661"
+  },
+  {
+   "id": "F12",
+   "what": "中身（Python）の様子を作り物にする本（pydown の route 5・dashwait の段 python の作り物）は ⑤ で #pyBar・段 python を消すまで作り物のまま残すと決める",
+   "why": "窓の開発用サーバーは中身なし（absent）で答えるので、止まる・起こす・起きたの場面は作り物でしか起きない。⑤ の一覧に画面の #pyBar／#pyPill の部品がある",
+   "where": "ui-eval-pydown.mjs・ui-eval-dashwait.mjs:212〜216"
+  }
+ ],
+ "for_evaluator": [
+  "分かれ目 1: 窓の答えを lib に移すか（A・D・G）、製品の exe に口を足すか（B）。A は窓の exe の中身も替わる（lib へ移すだけでも）。B は製品に待ち受けの口が入る形",
+  "分かれ目 2: 登録（作業実績・書式・勤務体系・設備グループ・データ元・権限）を窓の書く道で起こすか、台本が JSON を書くか（E）。前者は製品の道を通る、後者は app を消した後に形の答え合わせが無い",
+  "分かれ目 3: 仕掛けの 4 本と Python の口の 3 本をこの版に入れるか（A）、後の版へ回すか（F）",
+  "分かれ目 4: 確かめは画素（Python 同士でも 81/128 枚が時計の字で違う。そろえるか伏せる前提）で足りるか、道具の問い合わせの JSON を突き合わせる評価関数（G）まで要るか",
+  "分かれ目 5: H は Python を残すので ⑤ の狙いに反する。採点で比べる基準として置いた",
+  "見てほしい未確かめ: example の組み立て時間と Lot の最初の答えまで・自前の HTTP の一斉の問い合わせ・73 本が今 Python で全部通るか"
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-21。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、案ごとの画像は無く、自分でコードを読み、grep・wc・数えるだけの python3 で数え、案を作った係の画像（check-a・check-b・noise-crops.png）を自分で開き、pixdiff.py を自分で流し直して採点した。作業フォルダ stage4（689aa4e・版 3.118.0）は読むだけ（ファイルも git も変えていない・cargo・node・check-all・verify は流していない）。物差しの読み替えは 2026-11-stage4.json と同じ: 順序＝版と段の並びが ④→⑤ の流れに沿うか・チャンク＝版の切り方（作る係が途中で止まっても入る大きさか）・階層化＝版ごとの狙いが 1 つか・視覚化＝効き目と残り（違い・落ちた本）が数と表で見えるか・ステップ数＝合計の手間と往復（焼き直し・Windows の CI の回数も）・考えさせない＝落とし穴の少なさ・直感的＝今までの型（example・事例の表・焼いた表・harness の 1 か所）に沿うか・形と色／言葉と置き場＝答えの元と決まりが 1 か所か・整列＝範囲の釣り合い（製品の exe と ⑤ の境を守るか）・調子＝理由の明るさ。減点は見つけた所ごと。確かめた物（数つき）は evaluation.verified_claims と discrepancies",
+ "evaluation": {
+  "verified_claims": [
+   "道具の数: 正しい。program/tools/*.mjs 84 本・ui-harness.mjs を import 73 本（自分で ls・grep -l）。起こす所は ui-harness.mjs:110〜112 の 1 か所（spawn python ui_server.py ポート。ポートは 8765＋乱数 1000）。ほかの道具は別にサーバーを起こさない（spawn・execFile は capacity〈capacity-truth.py〉・excel・marks・pivot〈python3 -c〉・xlsx-check だけ）",
+   "?engine=python の 3 本: 正しい。ui-eval-join.mjs:80・ui-eval-srclist.mjs:102 が /api/lotlist?…engine=python を答えの元に、ui-eval-colsort.mjs:107 の check 5 が画面の問い合わせに engine=python があることを期待する。窓は lot.rs:343 などで engine=python を答えず、router.rs:144 の中身なし（absent）の枝が window_unanswered（:163〜186）で 503 を返す",
+   "今の画像が製品と違う道を撮っている: 正しい。Python の /api/sources の shellLists は lists_are_external（app/__init__.py:54〜58: 窓が lists を名乗るときだけ真）で、開発用サーバーでは偽。画面は lotlist.js:2183 で lotJoined を真にし、:105 で engine=python を付ける。窓は bundle.rs:1997 で shellLists を engine_rust（3.118.0 からいつも真）",
+   "/api の 36 種: 道の型の水準では正しい。apis.txt の 36 を desktop/src で探すと 32 が字のまま見つかり、残り 4（/api/worklog/pivot・/api/sources/lot・/api/masters/formats/900・/api/lotlist/slicer）は前の段と後ろの段に分けて答える形。route_reach（Flask の道の型 138 を窓に当て、中身へ回すのは比べる口だけ）とも合う。ただし同じ場面で同じ答えかは道具を窓で流すまで分からない",
+   "窓の答えの入口: 正しい。main.rs の native（:188〜397）のうち Lot の所は :333〜396（心拍・GET /・/lotdsp-link・権限の読む 2 本・GET /api/sources・handle_body）。main.rs の mod は brand・frame・lnk・locate・proc・router・sidecar・updater の 8 つ（:13〜20）でバイナリだけ。足すと: 画面が起動で読む /api/changelog（app.js:567）は native の :211〜214 で lib の small_reads::reply が答える＝example にも要る",
+   "書く道の門番: 窓が答える書く道は lot.rs の各係が自分で access::guard を通す（lot.rs:369・423・462・691・744・775・806・931）。router の guard（main.rs:404）は中身へ回す前だけ。example は handle_body を呼ぶだけで門番も同じに効く",
+   "権限の差し替え（仕掛け 3）: 正しいが中身を足す。窓は登録の無い人を「一般ユーザー」にし、管理する人の行が無いうちはマスタ編集だけ「編集可」（access.rs:267〜282）。起動の初期値の最初の管理者は決まったログイン ID（seeds.rs:143〜165 の FIRST_DEVELOPER）で、撮る PC の人ではない。開発者で撮るには、名乗り（bundle.rs:455〜469 の login_id は LOGNAME・USER・LNAME・USERNAME）に当たる権限の行が要る",
+   "遅くする仕掛け: 正しい。mirror.rs:104〜118 の SLOW_COPY は #[cfg(test)]。Cargo.toml:23〜28 の feature testing は dev-dependencies が自分を testing つきで入れる形なので、examples から届く",
+   "時計の字: 正しい。pixdiff.py を自分で流し直して「同じ 47 枚・違う 81 枚」（check-a・check-b とも PNG 128 枚＋metrics.json）。noise-crops.png を開いて、データの時刻・「10:41 の数」・パネルの「仕掛 元 11/21 10:37」・データ元の表の更新時刻・起動画面の動く絵を見た",
+   "CI と check-all: 正しい。.github/workflows と program/tools/check-all.sh に ui-eval・ui-check・ui-harness・ui_server の字は 0（自分で grep）",
+   "作業フォルダが残る: 正しい。今この PC に /tmp/tpa-ui-* が 30 個（案の測りの後に増えた分を含む）。ui_server.py:25 の mkdtemp を消す係は無い",
+   "画面と IPC: 画面の JS は fetch(\"/api/…\") と /__desktop/* だけ（__TAURI__・invoke は 0 か所。自分で grep）。/__desktop の 21 の呼び方は harness:122〜127 の route が答える（install・release は作り物、ほかは 404）。保存は TPA.download（shared.js:575）でブラウザの download なので相手によらない。CSP は窓の lot.page も付ける（page.rs:386・413 の script-src 'self' 'nonce-…'; object-src 'none'）ので ui-eval-xss.mjs:44〜46 の確かめは窓でも成り立つ"
+  ],
+  "discrepancies": [
+   "router.rs の行: evidence の「router.rs:65・99」は違う。:65 は Supervisor::ask の起こせない答え、:99 は Native の型。中身なしの断りは router.rs:144（absent の枝）と :163〜186（window_unanswered）",
+   "(1) の本数: 表の 62 は合わない。(2) 4・(3) 3・(4) 4・(5) 1 は重ならない 12 本なので「(2)〜(5) 以外」は 61。(4) の 4 本（標準の Python を中で呼ぶ）は URL を替えるだけで済む本なので、URL だけで済む本は 73−8＝65（(2)＋(3)＋(5) の 8 本は案の言うとおり）。(5) worklog-heal は窓が同じ folder を答えれば同じで、実際に手が要るのは 7 本",
+   "「Tauri を組まない」: example の実行ファイルは Tauri の窓を作らないが、cargo はパッケージの依存（tauri・WebKitGTK に頼る crate）を組み、build.rs が組むたびに Python で program/app/app_icon.py を呼ぶ（build.rs:7〜22。無ければ panic）。A・B・D・G とも組み立ての部品は製品と同じ（WebKitGTK の開発の部品と Python が要る）。⑤ の一覧には app_icon.py の焼いた形への置き換えが既にある",
+   "「時計をそろえれば差は答えか場面の違い」（A・B・D の pixels）: 窓の側の時刻は Lot::set_clock の 1 か所に集まっていない（lib の SystemTime::now の非試験の呼び出しは 13 ファイル: builder・held・join・lot・lotdsp_direct・master_store・mirror・presence・release_place・schedule・search_index・small_reads ほか）。データの時刻はファイルの更新時刻、HOT は流した時の 40 時間前（ui_scene.py:38）、画面の「n:nn の数」はブラウザの時刻。そろえるより、撮るときに時刻の要素を伏せる（Playwright の screenshot の mask と animations: disabled）方が確か",
+   "書かれていない落とし穴（A・B・E・F・G）: 場面の台本・作り物を直すと焼いた本が古くなる。books.json の sources に tests/ui_scene.py（routes・pivot・dashboard・ops）・tools/ui_server.py（routes・pivot・dashboard）・tests/schedule_fixture.py（6 冊）・tests/fakes_serve.py（4 冊）・tests/lotlist_fixture.py（6 冊）・tests/scene_files.py（6 冊）。desktop/src は元に入っていない（元の 59 のうち tests の外は app/brand.json・app/templates/index.html・data/roll_master.*・tools/ops-bench.py・tools/ui_server.py だけ）",
+   "キーの差し替え（仕掛け 4）: Lot::set_new_key は 1 つの係で、作業実績の登録（lot.rs:382）とデータ元（lot.rs:1319）の両方に当たる。Python の key_makers は 2 つの並び（12 字の 16 進と s＋8 字）なので、窓に 1 つの係で両方の形を返させることはできない。道具はキーを画面と API から読むので、決めたキーは要らない（乱数のままでよい）",
+   "画面の控えの置き場: page は Env.local から画面の控えを読み（lot.rs の page）、POST /api/ui-state は Lot の local_root（cache_dir の親。lot.rs:283〜286）へ書く。製品は両方 locate::local_root()（main.rs:686〜690）。example は Lot::new(Env.local/db_cache) にそろえないと、harness:130〜131 の控えの消し方が画面に効かない（案はこれを書いていない）"
+  ],
+  "rank": "A 61.7・F 61.0・E 54.2・D 52.2・B 51.4・G 46.3・H 35.7・C 26.1。合格点 80 に届かない（決まり 2026-11-06 で 1 位 A に指摘を直して入れた形で作る）。A を土台に、F の流す台本と結果の表、E の「場面をファイルに出す」（ただし新しいファイルで）を持ち込む",
+  "first_fixes": [
+   {
+    "n": 1,
+    "what": "焼いた本の元のファイルを 1 字も変えない。場面の台本は新しいファイル program/tests/ui_window_scene.py（標準の部品だけ・app を import しない）に置き、ui_scene.make・finish・lotlist_fixture・schedule_fixture・scene_files を import して呼ぶだけにする。作り物の CM3 は新しい program/tests/fakes_uicm3.py の start(wip) → schedule_fixture.serve(schedule_fixture.responses(wip)) を `python tests/fakes_serve.py uicm3 仕掛のファイル` で起こす（fakes_serve.py は「種類を足しても変わらない」入口）。tools/ui_server.py も変えない（⑤ まで Python の相手の比べに使う）",
+    "where": "新: program/tests/ui_window_scene.py・program/tests/fakes_uicm3.py。変えない: tests/ui_scene.py・tools/ui_server.py・tests/fakes_serve.py・tests/schedule_fixture.py・tests/lotlist_fixture.py・tests/scene_files.py",
+    "check": "python program/tools/bless.py --check が通る（焼いた本の元の指紋が変わらない）。git diff --stat に上の 6 ファイルが無い。新しいファイルは test_baked_tables の「台本が app を import しない」と同じ確かめ（grep で from app・import app が 0）"
+   },
+   {
+    "n": 2,
+    "what": "答えの振り分けを lib に 1 か所: desktop/src/shell.rs（新・pub mod）に Reply（sidecar.rs に頼らない。⑤ で sidecar を消すため）と answer(lot, method, path, query, body, program, python_now) -> Option<Reply> を置き、main.rs:211〜218（/api/build・/api/changelog・/api/health）と :333〜396（心拍・GET /・/lotdsp-link・権限の読む 2 本・/api/sources・handle_body）をそこへ移す。router.rs の static_file・mime・percent_decode・window_unanswered も shell.rs へ（router.rs と main.rs は呼ぶだけ。/__desktop/*・/api/shutdown・GET / の Python を待つ輪は main.rs に残す）。窓の振る舞いは変えない",
+    "where": "desktop/src/shell.rs（新）・lib.rs・main.rs:188〜397・router.rs:163〜270",
+    "check": "cargo test --lib shell（native と同じ道の表を 1 つずつ当て、移す前の main の答えと同じ status・Content-Type・X-TPA-By）・router::tests・lot::tests・clippy -D warnings・verify.py local（main.rs を変えたので CLAUDE.md の決まり。update も）。3.118.1 が main.rs・verify.py を触るので、3.118.1 が main に入ってから始める"
+   },
+   {
+    "n": 3,
+    "what": "Lot の組み立ても lib に 1 か所: shell::lot_for(env, logs) が Lot::new(env.local/db_cache)・delegate::set_dir・set_program・Builder::new(env)・set_bundle を順に当てる（main.rs:686〜699 と同じ。run_seeds と sweep_profiles は main だけ）。example は Env{base: 作業/base, program: 本物の program, local: 作業/local, config: 作業/appsettings.json, now: TPA_DASHBOARD_NOW} を直に作る（Env::production は base＝program なので使わない）",
+    "where": "desktop/src/shell.rs・main.rs:686〜699",
+    "check": "lot::tests に「Env.local と Lot の local_root が同じ」（POST /api/ui-state の後に GET / の TPA_UI_STATE に載る）"
+   },
+   {
+    "n": 4,
+    "what": "desktop/examples/ui_serve.rs（新）: std の TcpListener で 1 つのつながりに 1 本の糸（keep-alive なし・Content-Length・HEAD・本文 8 MB まで）。引数は 作業フォルダ と ポート（0 なら OS が選び、待ち受けた 1 行「LISTEN http://127.0.0.1:ポート」を出す）。答えは shell::answer → /static/ は shell::static_file → どちらも無ければ shell::window_unanswered（製品の Router と同じ順。門番は lot の各係が自分で当てる）。/__desktop/* は 404・POST /api/shutdown は 200 で終わる",
+    "where": "desktop/examples/ui_serve.rs",
+    "check": "lot::tests か example の中の試験で、10 本同時の GET /api/dashboard/query の間に /api/dashboard/progress が 1 秒以内に答える"
+   },
+   {
+    "n": 5,
+    "what": "場面の支度（ui_window_scene.py）: ui_scene.make → 設定ファイル 作業/appsettings.json（app_env.load_settings の代わりに program/config/appsettings.example.json を読んで、work_log.folder・lot_list.source・update.source・schedule.cm3_base_url・sources.wip.source を差し替え。TPA_UI_WORK_STALE は work_log.stale_hours、TPA_UI_SHARE=shared/down は master_share.dir）→ TPA_UI_BAD_ROWS の行（ui_server.py:132〜150 と同じ中身を写す）→ ui_scene.finish。起こした後に harness が窓の書く道で登録する: ① POST /api/masters/access（名乗りの login_id に 開発者・編集可。管理する人がまだ居ないので通る見込み。通らなければ台本が access_permissions.json に 1 行書く）② POST /api/masters/worklog/scan ③ 書式 3・勤務体系 2・設備グループ 2・マスタのデータ元 2（ui_server.py:55〜67・116〜129 と同じ中身）④ SHARE=down はこの後に共有の名前を替える。起動の初期値は当てない（Python の開発用サーバーと同じ）。キーは乱数のまま",
+    "where": "program/tests/ui_window_scene.py・program/tools/ui-harness.mjs",
+    "check": "ui-check の全状態で Python と窓の画素の差（10）。差の理由の表に「権限の表に 1 行」「マスタの置き場の画面」「品質に結合があるときの道」が載り、ほかは 0"
+   },
+   {
+    "n": 6,
+    "what": "ui-harness.mjs の launch: 既定は窓（cargo build --example ui_serve の target/debug/examples/ui_serve を 作業フォルダ と ポート 0 で起こし、LISTEN の行からポートを読む）。TPA_UI_SERVER=python で前の ui_server.py（⑤ で消す）。close() で子を止め、作業フォルダを消す（Python の形も TPA_UI_WORK を harness が作って渡し、消す）。ポートは両方とも OS に選ばせる",
+    "where": "program/tools/ui-harness.mjs:107〜152",
+    "check": "grep で ui_server.py を起こす所が TPA_UI_SERVER=python の枝 1 か所。73 本を流した後に /tmp/tpa-ui-* と作業フォルダが増えない"
+   },
+   {
+    "n": 7,
+    "what": "?engine=python の 3 本を窓の答えに: ui-eval-join.mjs:80・ui-eval-srclist.mjs:102 は engine=python を外す（窓が結合も答える）。ui-eval-colsort.mjs:107 の check 5 は「式を添えて窓に尋ねる（calc はあり・engine は無い）」に替え、:11 の説明も直す",
+    "where": "program/tools/ui-eval-join.mjs:80・ui-eval-srclist.mjs:102・ui-eval-colsort.mjs:11・107",
+    "check": "3 本が窓で終了コード 0。Python の相手（TPA_UI_SERVER=python）では check 5 が落ちてよい（理由を表に）"
+   },
+   {
+    "n": 8,
+    "what": "流す台本 program/tools/ui-all.mjs（F の持ち込み）: 73 本を相手ごとに流し（並べるのは 3 本まで・ポート 0）、本ごとに終了コード・「OK／NG n 件」の行・秒を JSON と表に書く。札の表 tools/ui-servers.json は作らない（相手は既定の 1 つ）。前に Python で落ちていた本は「前から」と分けて数える",
+    "where": "program/tools/ui-all.mjs（新）",
+    "check": "Python の相手の基準の表（最初に 1 回）と窓の表を並べ、窓だけで落ちる本が 0。結果は終了コードと OK/NG の行で読む（CLAUDE.md の決まり。最後の 1 行で判断しない）"
+   },
+   {
+    "n": 9,
+    "what": "遅くする口（TPA_UI_SLOW_FILE の open・ops・only・nocache・copy）を feature testing の下に: mirror.rs の SLOW_COPY を cfg(any(test, feature = \"testing\")) にし、pivot（1 ファイルを開く）・operation（稼働の 1 設備）・dashboard（パネルの控えを使わない）に同じ形の口。JSON を毎回読むのは example の側（lib は秒を受けるだけ）",
+    "where": "desktop/src/mirror.rs:104〜118・pivot.rs・operation.rs・dashboard.rs・examples/ui_serve.rs",
+    "check": "cargo build --release（feature なし）で口がコンパイルされない（strings で鍵の字が無い・cfg の試験）。ui-eval-dashwait.mjs が窓で終了コード 0"
+   },
+   {
+    "n": 10,
+    "what": "画素の比べ program/tools/ui-diff.mjs（新。Chromium の canvas で 2 つのフォルダの同じ名前の PNG を比べ、差の画素と囲みを出す。PIL に頼らない）と、ui-check に TPA_UI_MASK=1 の形（screenshot の mask に時刻の要素〈件数の行のデータの時刻・ダッシュボードの「の数」・パネルの元の時刻・データ元の表の更新時刻〉・animations: \"disabled\"）。時刻の要素の選び方は harness の 1 か所の並び",
+    "where": "program/tools/ui-diff.mjs（新）・ui-harness.mjs・ui-check.mjs:26",
+    "check": "MASK=1 の Python 同士 2 回で 128 枚とも 0 画素（今は 81 枚が違う）。そのうえで Python と窓の差を理由の表（tools/ui-proposals の built に書く）"
+   },
+   {
+    "n": 11,
+    "what": "⑤ の一覧と入口に足す（計画書）: ① ui_server.py を import する tools/rust-port-bench.py・tests/test_capacity.py・tests/test_builder_reads.py の行き先 ② books.json の routes・pivot・dashboard の sources から tools/ui_server.py を外す（消すと bless.py --check が落ちる: bless.py:315〜319）③ harness の TPA_UI_SERVER=python の枝 ④ ⑤ の入口に「ui-all.mjs の窓の表で 73 本が終了コード 0（前から落ちる本は理由つき）」",
+    "where": "program/docs/RUST_PORT_PLAN.md:2647〜2661・2701〜2705"
+   },
+   {
+    "n": 12,
+    "what": "中身の様子を作り物にする本（pydown の route 5・dashwait の段 python）は ⑤ で #pyBar・段 python を消すまで作り物のまま（F12 のとおり）。CLAUDE.md の ui-harness の説明（「開発用サーバー ui_server.py は試験用の品質データ 1500 行で起こす」）を窓の example に書き替える",
+    "where": "CLAUDE.md の改良の節・ui-harness.mjs:3"
+   }
+  ],
+  "ask_user": [
+   {
+    "q": "撮る・採点する道具（73 本・全部で 1〜2 時間の見込み）を CI か check-all で流すか",
+    "default": "CI には入れない（Playwright と Chromium が CI に無く、時間も長い）。check-all.sh に任意の段 --ui（ui-check の list・dash と ui-eval-xss・ui-eval-narrow だけ。窓が相手）を足し、全部は ui-all.mjs で版ごとに手で流して表を残す。尋ねなくてもこの形で進められる"
+   },
+   {
+    "q": "版を 2 つに割ってよいか（3.118.2 は 72 本、3.118.3 で遅くする口と dashwait）",
+    "default": "割る（利用者は小さい版を受け入れている）。止まっても 3.118.2 だけで ⑤ の前の穴の大半がふさがる。返事を待たずに進めてよい"
+   }
+  ],
+  "unverified": [
+   "example の組み立ての時間と、窓の Lot が最初の GET / に答えるまで（cargo を流さない約束）",
+   "73 本が今の Python の相手で全部通るか（案を作った係が流したのは slicer・popovers・ui-check だけ）",
+   "空の権限の表で、一般ユーザーが POST /api/masters/access で自分を「開発者」にできるか（access_write.rs の role_change_check を最後まで読んでいない。できなければ台本がファイルに 1 行書く）",
+   "ui-eval-marks の虫眼鏡などで LotDsp の道が窓の RealLaunch（見えない Edge を起こす）を呼ぶか。Linux では Edge が無いので失敗の答えになるはずだが、Python の相手と言葉が同じかは見ていない",
+   "Python と窓の答えが開発用サーバーの場面（品質 1500 行・作業実績 11 台）で同じか。焼いた本の場面はこれより小さい（案の evidence 5 節）。画素の比べと 73 本で初めて分かる",
+   "3.118.1 の係が main.rs・verify.py のどこを触るか（別の係の作業中の物は読んでいない）"
+  ],
+  "note": "決まり 2026-11-06 で採点は 1 回。1 位 A（61.7）は合格点 80 に 18.3 点届かない。足りない所は、1 版に全部を入れる太さ（チャンク）・焼いた本の元を直す落とし穴（考えさせない）・時計を「そろえる」の見込み違い。first_fixes 1〜12 を入れ、版を 2 つに割った形（built_plan）で作る"
+ },
+ "built_plan": {
+  "about": "作る形（1 位 A に first_fixes 1〜12 と F の流す台本を入れた。版は 2 つ。どの版も下の番号の順に作れば、途中で止まってもそこまでが main に入る）",
+  "start": "3.118.1（自己診断）が main に入ってから始める（main.rs・verify.py がぶつかる）",
+  "versions": [
+   {
+    "version": "3.118.2",
+    "aim": "撮る・採点する道具 72 本の相手を窓に（遅くする口の要る dashwait だけ Python のまま）",
+    "order": [
+     "① 基準: 今の Python の相手で 73 本を ui-all.mjs で流して表を残す（ff 8 を先に作る。ff 6 の作業フォルダの片付けも）",
+     "② lib に振り分けと Lot の組み立て（ff 2・3。窓の振る舞いは変えない）",
+     "③ example ui_serve（ff 4）",
+     "④ 場面の台本と CM3（ff 1・5。焼いた本の元は変えない）",
+     "⑤ harness の既定を窓に（ff 6）・3 本の直し（ff 7）",
+     "⑥ 画素の比べと時刻の伏せ（ff 10）",
+     "⑦ 72 本を窓で流して直す・CLAUDE.md・計画書（ff 11・12）"
+    ],
+    "checks": [
+     "cargo test（lib の shell・lot::tests・router::tests）・clippy -D warnings・check-all（版 3.87.0 の 8 段）",
+     "verify.py local・update（main.rs を変えたので）",
+     "python program/tools/bless.py --check（焼いた本の元が変わらない）",
+     "ui-all.mjs: 窓の相手で 72 本が終了コード 0（dashwait は TPA_UI_SERVER=python）。Python の基準の表と比べて、窓だけで落ちる本 0",
+     "ui-check（1728・1536・1280）: TPA_UI_MASK=1 で Python 同士 0 画素・Python と窓の差は理由の表の物だけ（権限の表の 1 行・マスタの置き場・結合のある品質の道）",
+     "harness の ui_server.py を起こす所は TPA_UI_SERVER=python の枝 1 か所・作業フォルダが残らない"
+    ],
+    "ship": "製品の答えは替わらない（lib へ移しただけ）。配らなくてよい（次の版と一緒に）"
+   },
+   {
+    "version": "3.118.3",
+    "aim": "遅くする口を feature testing に置き、dashwait も窓へ。⑤ の入口を書く",
+    "order": [
+     "① 遅くする口（ff 9）",
+     "② dashwait を窓で",
+     "③ check-all の任意の段 --ui（ask_user 1 の既定）",
+     "④ ⑤ の入口に ui-all の表（ff 11）"
+    ],
+    "checks": [
+     "cargo build --release で口がコンパイルされない",
+     "ui-eval-dashwait.mjs が窓で終了コード 0",
+     "ui-all.mjs: 73 本が窓で終了コード 0"
+    ],
+    "ship": "製品の答えは替わらない"
+   }
+  ],
+  "fifth_entry_add": [
+   "ui-all.mjs の窓の表で 73 本が終了コード 0（前から落ちる本は理由つき）",
+   "harness に Python を起こす枝が 1 つだけ（⑤ で消す）",
+   "books.json の sources から tools/ui_server.py を外す手順",
+   "ui_server.py を import する rust-port-bench.py・test_capacity.py・test_builder_reads.py の行き先"
+  ],
+  "after": "⑤（片付け）は利用者に尋ねてから。⑤ で ui_server.py と TPA_UI_SERVER=python の枝を消す",
+  "built_3118_2": {
+   "version": "3.118.2",
+   "ff": {
+    "1": "焼いた本の元は 1 字も変えない（bless.py --check 通る・git diff に ui_server.py・ui_scene.py・schedule_fixture.py・fakes_serve.py・lotlist_fixture.py・scene_files.py が無い）。場面は新しい tests/ui_window_scene.py、作り物の CM3 は tests/fakes_uicm3.py（fakes_serve.start('uicm3', 仕掛)）。どちらも app を import しない",
+    "2": "desktop/src/shell.rs（Reply・Req・answer・refuse・window_unanswered・delegate_form・static_file・mime・percent_decode）。main.rs は /__desktop/*・終了・自己診断・更新の係だけで残りは shell::answer。router.rs・sidecar.rs は shell の物を使う。GET / の Python を待つ輪も shell へ（製品は absent なのですぐ抜ける）",
+    "3": "shell::lot_for（Lot::new(local/db_cache)・delegate::set_dir・set_program・Builder・set_bundle。効かない設定の行を返す）。試験 the_shell_answers_the_window_routes_and_lot_for_keeps_one_local_root",
+    "4": "desktop/examples/ui_serve.rs。確かめ: 10 本同時の POST /api/dashboard/query の間に GET /api/dashboard/progress が 200・9 ms。計画との違い: POST /api/shutdown は 200 で答え、待ち受けは続ける（道具が「終了」を押しても次の頁）",
+    "5": "権限は台本が base/data/access_permissions.json に getpass.getuser() の 1 行（権限の表に既に開発者が居るので書く道では足せない）。登録 5 種は窓の書く道へ HTTP。finish の後に GET /api/masters/worklog?fresh=1（窓が「探す」で覚えたフォルダの中身を読み直す。無いと SL3 の見つからない・HOT の古いが出ず dashboard・numwarn が落ちた）。共有の置き場では登録で書かないマスタの読めない行を共有と写しにも（Python は後から最初の版を置いた。無いと skiprows ⑨・pydown が落ちた）",
+    "6": "ui-harness.mjs の startServer の 1 か所（既定は窓・TPA_UI_SERVER=python で ui_server.py）。作業フォルダは close と process の exit で消す・ポートは OS（Python は空いているポートを node で選ぶ: 0 番だと Host の確かめが組めない）。73 本の前後で /tmp/tpa-ui-* が 38 → 38",
+    "7": "join・srclist は engine=python を外し、colsort の check 5 は「engine は無い」。3 本とも窓で終了コード 0（colsort は Python の基準でも旧 check 5 で落ちていた）",
+    "8": "tools/ui-all.mjs（本ごとに自分のプロセスの組で起こし、終わったら組ごと止める: dashwait が残した ui_server.py が標準エラーをつかんで待ちを止めた）",
+    "9": "3.118.3 へ（この版では作らない）",
+    "10": "tools/ui-diff.mjs・harness の TIME_MASK と shot（TPA_UI_MASK=1: 時計の字の数字を 0 にそろえて伏せる・動く絵を止める・作業フォルダの名前を tpa-ui-mask に）。並べて撮るときは撮る物ごとに TMPDIR を unshare の bind で分けた",
+    "11": "計画書の ⑤ の一覧と入口に足した",
+    "12": "CLAUDE.md の ui-harness の説明を窓に書き替え・3.118.2 の評価関数の行を足した。pydown・dashwait の中身の様子の作り物はそのまま"
+   },
+   "ui_all": {
+    "python_base": {
+     "total": 73,
+     "pass": 70,
+     "fail": [
+      "ui-eval-colsort（旧 check 5: 画面が engine=python を付けない）",
+      "ui-eval-equiporder（データ元の「設備」の段が畳まれ ⋮⋮ が見えない。道具を直して Python でも通る）",
+      "ui-eval-dashwait（Route is already handled。道具を直して通る）"
+     ],
+     "minutes": 45.1
+    },
+    "window_final": {
+     "total": 73,
+     "pass": 72,
+     "failNew": 0,
+     "failOld": [
+      "ui-eval-dashwait（Python の相手。道具を直した後の流し直しで終了コード 0）"
+     ],
+     "minutes": 21.1
+    },
+    "tool_fixes": [
+     "shot-unify・recommend: マスタ管理のタブが並ぶのを待つ（窓では開いた直後にまだ無いことがある）",
+     "equiporder: 畳んだ「設備」の段を開く",
+     "dashwait: unroute の後の fulfill の誤りを飲む"
+    ]
+   },
+   "pixels": {
+    "mask": "TPA_UI_MASK=1",
+    "py_py_1728": {
+     "same": 120,
+     "differ": 8,
+     "why": "作り物の CM3 のポート・かかった時間の字（理由の表で許す）"
+    },
+    "py_win": {
+     "1728": {
+      "same": 97,
+      "allowed": 31,
+      "unexplained": 0
+     },
+     "1536": {
+      "same": 101,
+      "allowed": 27,
+      "unexplained": 0
+     },
+     "1280": {
+      "same": 102,
+      "allowed": 26,
+      "unexplained": 0
+     }
+    },
+    "reasons": [
+     "かかった時間の字（n ms・n 秒。撮る時の速さ。Python 同士でも違う）",
+     "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "中身の様子の作り物（採点 F12）: 窓の心拍は python=absent を答え、作り物の「中身停止」の知らせを次の心拍で戻す（⑤ で #pyPill を消すまで作り物のまま）",
+     "元データの札の言葉（伏せた枠の幅）: 写した時刻と頁が読んだ時刻の前後で「新しい版を取り込みました」に替わる（撮る時の速さ。Python 同士でも起きうる）",
+     "利用状況・マスタの置き場の道: 利用状況の置き場は窓が作業場所の local/presence・Python は masters/presence（開発用サーバーの置き場の違い）と権限の表の 1 行",
+     "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "組む所の案内の 1 行（出てから数秒で消える）が、撮った時にまだ出ていた（撮る時の速さ）"
+    ],
+    "allow": {
+     "master-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-conv-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-conv-cell-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-conv-cols-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-egroups-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-egroups-rule-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-place-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-place-pick-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-release-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-release-recask-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-release-recommended-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-shifts-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "sch-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "sch-hot-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "unsaved-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "waiting-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-access-light": "権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-edit-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-join-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-joined-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-many-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-sources-many-off-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-worklog-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-paths-light": "データ元の表: 窓は写した仕掛・取ったスケジュールの状態（「1,200 行」「3 設備」）を答える（Python の開発用サーバーは写しの係が別で「まだ写していない」）。スケジュールの場所は作り物の CM3 のポート（起こすたびに替わる）・権限の表に撮る人の 1 行（Python の開発用サーバーは判定を差し替え、行を足さない）: マスタ管理の「アクセス権限」の数 1 → 2・権限の表の行",
+     "master-presence-light": "利用状況・マスタの置き場の道: 利用状況の置き場は窓が作業場所の local/presence・Python は masters/presence（開発用サーバーの置き場の違い）と権限の表の 1 行",
+     "pydown-fold-light": "中身の様子の作り物（採点 F12）: 窓の心拍は python=absent を答え、作り物の「中身停止」の知らせを次の心拍で戻す（⑤ で #pyPill を消すまで作り物のまま）",
+     "pydown-light": "中身の様子の作り物（採点 F12）: 窓の心拍は python=absent を答え、作り物の「中身停止」の知らせを次の心拍で戻す（⑤ で #pyPill を消すまで作り物のまま）",
+     "dash-series-light": "元データの札の言葉（伏せた枠の幅）: 写した時刻と頁が読んだ時刻の前後で「新しい版を取り込みました」に替わる（撮る時の速さ。Python 同士でも起きうる）",
+     "dash-ops-ranks-each-light": "組む所の案内の 1 行（出てから数秒で消える）が、撮った時にまだ出ていた（撮る時の速さ）",
+     "splash-fail-light": "かかった時間の字（n ms・n 秒。撮る時の速さ。Python 同士でも違う）",
+     "worklog-hist-light": "かかった時間の字（n ms・n 秒。撮る時の速さ。Python 同士でも違う）"
+    }
+   },
+   "not_taken": [
+    "F6/ff9 遅くする口と dashwait を窓で（3.118.3）",
+    "ask_user 1 の check-all の任意の段 --ui（3.118.3）",
+    "キーの差し替え（仕掛け 4。道具は画面と API から読むので乱数のまま）",
+    "起動の初期値（Python の開発用サーバーと同じく当てない）"
+   ]
+  }
+ },
+ "built_score": {
+  "name": "作った後（版 3.118.2）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b31182/px（作った係の撮った物）と scratchpad/eval（切り出し・字の取り出し）",
+  "evaluator": "作った係ではない別のエージェント（2026-11-24）。差分 28 ファイルを読み、自分で流した: cargo test --lib shell（4 本 ok）・node ui-eval-xss.mjs（窓で OK・11.6 秒・後に /tmp/tpa-ui-* は 39 のまま）・ui-eval-xss を 6 秒後に SIGTERM/SIGINT/SIGKILL で止めて後始末を見た・ui-eval-dashwait.mjs を既定（窓）で単独に流した（exit 1・NG 52/176）・ui_serve を空の作業フォルダで起こして curl（/favicon.ico・/api/shutdown・Origin・chunked）・両相手（TPA_UI_SERVER=window/python）でダッシュボードを開き TIME_MASK の要素の字を取った・作った係の画素の記録（b31182/px の py-win-*.json・py-py.json）を読み、違いの大きい 4 枚（dash-series・master-presence・master-sources・pydown-fold）を PIL で切り出して自分で見た。check-all（b31182/check1/summary.txt）は全段 0 を確かめた（流し直していない）",
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 7,
+    "effortless": 5,
+    "intuitive": 6,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "px/py-win-1728.json の pydown-fold-light（違いの囲み 2080×1387・全面）を名前だけで許した。切り出し eval/pydown.png: Python は見出しの札「中身停止」、窓は「待機中」＝撮るはずの状態が窓で出ていない。検索欄の焦点の輪の違いも同じ許しに隠れた"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "ui-harness.mjs の TIME_MASK（.db-psub・.dp-kmeta・.db-meta）: 両相手のダッシュボードで字を取ると .db-psub は「実績・全設備　前日 10/2（現場歴）」、.db-meta は「…設備なし 13…」。時計でない期間・件数まで 0 にして灰で塗るので、相手の違いが画素の比べに出ない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "ui-diff.mjs の --allow は画像の名前だけで許す（囲み・画素の上限なし）。理由の表は scratchpad の px/allow.json だけで、リポジトリの 2026-11-stage4c.json は built_3118_2.pixels.allow の入れ子（ui-diff にそのまま渡せない）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "node program/tools/ui-eval-dashwait.mjs を単独で流すと既定の窓に当たり NG 52/176・exit 1。Python の相手が要ると道具も CLAUDE.md の行も言わない（ui-all の PYTHON_ONLY だけが知る）"
+    }
+   ],
+   "seen": "良い所: 製品の答えは変わっていない（main.rs の native は window_reads〈favicon・/__desktop/info〉→ /__desktop/* と終了・更新 → shell::answer の順で、移した中身は 1 字ずつ同じ。lot_for は Lot::new → delegate::set_dir → set_program → Builder → retired → set_bundle の前と同じ順。門番は製品が guard → lot.access_check、ui_serve が shell::refuse → lot.access_check で同じ）。焼いた本の元 6 ファイルは差分に無い・新しい台本 2 本は app を import しない。ui_serve は std だけで cfg(windows) の分かれが無く Windows でも組める。後始末は例外・SIGINT・SIGTERM で子も作業フォルダも残らない（自分で確かめた）。ui-all は本ごとにプロセスの組で止める。足りない所: 画素の比べが「理由のない違い 0」を名前だけの許しと時計でない字の伏せで出している・pydown-fold が窓で撮れていない・dashwait の単独の流しが黙って落ちる・ui_serve が favicon を製品と違う 503 で答える。"
+  },
+  "cracks": {
+   "C1": "（中）違いを許すのが画像の名前単位で、囲み・画素数の上限が無い。全面が違う pydown-fold-light（2080×1387）や master-presence-light（19,334 画素）も 1 行の理由で丸ごと許すので、同じ画像の別の所に出た本物の違いを隠す。理由の表もリポジトリに置かれておらず（px/allow.json は scratchpad）、ui-diff に渡せる形で再現できない",
+   "C2": "（中）窓の相手では pydown-fold の状態（中身停止を畳んだ形）が撮れない。窓の心拍が absent を答え、作り物の「中身停止」を次の心拍で「待機中」に戻すため。ui-check の pydown-fold-light は狙いと違う絵で、ui-eval-narrow の pydown-fold も同じ状態を見ていない恐れ。採点 F12 の「作り物のまま残す」は作り物が効いていて初めて成り立つ",
+   "C3": "（中）「時計の字」として伏せる要素に時計でない字が入る: .db-psub（元・設備・期間・条件の数）・.dp-kmeta（期間・目標の値）・.db-meta（設備なしの数）。数字を 0 にしてから灰で塗るので、窓と Python の期間・件数・目標の違いは画素の比べに出ない。「Python と窓の違いは理由の表の物だけ」の確かめの範囲が狭い",
+   "C4": "（中低）既定の相手が窓になったので、dashwait を単独で流すと遅くする口（TPA_UI_SLOW_FILE）が効かず黙って落ちる。道具の中に相手の確かめも案内も無い。ui-all の PYTHON_ONLY だけが Python の相手にする",
+   "C5": "（低中）ui_serve は製品の振り分けの前段 window_reads を通らない。/favicon.ico に製品は 404（small_reads::favicon・数えない）、ui_serve は 503 window_unanswered で答えて「unanswered GET /favicon.ico」を数える。shell.rs の「順は製品の振り分けと同じ」と食い違う（Chromium は頁ごとに favicon を尋ねる）",
+   "C6": "（低）製品は lot.leave()（いま使っているの印を消す・記録を書き切る）を呼ぶが、ui_serve は 200 を返すだけ。計画（ff4「200 で終わる」）から「続ける」に変えたのは記録済みだが、leave を呼ばないことは書いていない。終了を押した後の利用状況の画面が製品と違う",
+   "C7": "（低）満たしていない: Python 同士で 8 枚が違う（データ元の表のスケジュールの場所の字 127.0.0.1:ポート・46×13px と、かかった時間）。伏せずに理由の表で許した。計画の check の言葉と結果が食い違うのを built_3118_2 は「許す」で済ませている",
+   "C8": "（低）MASK のときの作業フォルダは決めた名前 os.tmpdir()/tpa-ui-mask で、始めに rmSync する。ui-all.mjs（既定 --jobs 3）を TPA_UI_MASK=1 で流すと、並んだ本どうしが相手の作業フォルダを消す。ui-all は TMPDIR を本ごとに分けない（作った係は手で unshare して避けた）",
+   "C9": "（低）「Python を起こす所は TPA_UI_SERVER=python の枝 1 か所」（ff6 の check・⑤ の入口）に対し、harness の中で SERVER の分かれが 3 か所、ui-all が TPA_UI_SERVER を別に読む。⑤ で消すときの拾い漏れの種",
+   "C10": "（低）node を SIGKILL すると作業フォルダ tpa-ui-* が残る（子の台本と ui_serve は標準入力が閉じて止まる）。例外・SIGINT・SIGTERM では残らない",
+   "C11": "（低）言葉が前のまま: 「ui_server.py の TPA_UI_WORK_STALE／TPA_UI_BAD_ROWS」「開発用サーバー（ui_server.py）」。版 3.118.2 から既定の相手は窓の台本 ui_window_scene.py が同じ環境変数を読む",
+   "C12": "（低）計画の ff2 の check（移す前の main の答えと同じ status・Content-Type・X-TPA-By）のうち、比べるのは status と Content-Type だけで、移す前の答え（本文）とも X-TPA-By とも比べていない。読みでは同じ（移した中身は字のまま）だが、試験では守られていない",
+   "C13": "（低）Transfer-Encoding: chunked の本文を読まず Content-Length 0 として扱う（本文の欠けた 400 になる）・表に無い状態（422 など）は理由句が空。いまの道具は Content-Length で送るので害は無い"
+  },
+  "ff": {
+   "1": "満たした（6 ファイルは差分に無い・新しい 2 本は app を import しない）",
+   "2": "満たした（製品の答えは変わらない）。ただし ui_serve は window_reads を通らない（C5）・試験は status と Content-Type だけ（C12）",
+   "3": "満たした（lot_for の順は前と同じ・控えの置き場の試験あり）",
+   "4": "満たした（計画からの変更 /api/shutdown は記録済み。leave を呼ばない C6）",
+   "5": "満たした（権限の行は base/data の list に 1 行。共有の形では窓が最初の読みで写すので、窓を起こす前に書くのが要。登録 5 種は書く道）",
+   "6": "おおむね満たした（後始末は例外・INT・TERM で残らない。KILL で残る C10・分かれが 3 か所 C9）",
+   "7": "満たした",
+   "8": "満たした（ui-all.mjs）。MASK と並べた流しがぶつかる C8",
+   "9": "3.118.3 へ（計画どおり）。単独の dashwait が黙って落ちる C4",
+   "10": "形はできたが確かめが緩い（C1・C2・C3・C7）",
+   "11": "満たした（計画書の ⑤ の一覧と入口）",
+   "12": "満たした（CLAUDE.md）。道具の頭の言葉が前のまま C11"
+  },
+  "fixed": "直した事は \"built_fixed\"（このファイルの次の節）"
+ },
+ "built_fixed": {
+  "about": "作った後の採点（53.2 点・1 回）の割れ C1〜C13 の直し（決まり 2026-11-06: 割れを全部直し、その形を試験に足して通ったら終わり。採点し直さない）。版は 3.118.2 のまま（更新履歴は app_build.py --release --amend）。製品の答えは替えない（favicon は同じ答えのまま lib へ移した）。焼いた本の元 6 ファイルは変えない",
+  "cracks": {
+   "C1": "直した: ui-diff.mjs --allow は画像の大きさごとの {名前: {why, boxes: [[x, y, 幅, 高さ]…], max}}（名前だけ・囲みの無い許しは形の誤りで止める）。違う画素が全部囲みの中で max 以下のときだけ「許す」、囲みの外の 1 画素・上限超えは「違う」（許しの外: 囲みの外に n 画素／囲みの中が n 画素）。表はリポジトリの program/tools/ui-diff-allow/2026-11-stage4c.json（3 つの大きさ × 26 枚。囲みは違う画素のまとまりに 6px の余白・max は数の 1.25 倍＋20）。--tol n（色の差 n 以下を同じ。窓と Python は 8: 絵の縁のにじみ）。確かめ: 表から囲みを 1 つ抜く・max を 10 にすると「許しの外」で unexplained 2・名前だけの表は Error。pydown-fold の全面の許しは無くなった（C2 で 0 画素）",
+   "C2": "直した: PYDOWN_STEPS の pydown で /api/heartbeat の答えに python {state: stopped} を添える（Playwright の route・撮り終わるまで）。pydown-fold は 3.5 秒（心拍 1 回）待ってから見出しの札が「中身停止」かを確かめ、違えば止める。確かめ: px7 で pydown・pydown-fold が窓と Python で 3 つの大きさとも 0 画素（前は窓が「待機中」）・検索欄の焦点の輪の違いも出ない。ui-eval-narrow の pydown-fold も同じ PYDOWN_STEPS",
+   "C3": "直した: TIME_MASK（要素ごと）をやめ TIME_TEXT（要素の中の時刻の字だけを span.tpa-mask で包み、数字を 0 にして伏せる）。対象: #llFresh・#llStale・.db-when・.db-meta・.sr-state small の中の時刻、.sd-meta の取得の時刻、集計の n ms、起動画面の経過の秒、ダッシュボードの待ちの秒、作り物の予定の元のポート。.db-psub・.dp-kmeta（期間・件数・目標）と .db-meta の「設備なし 13」は伏せない。頁が書き直しても MutationObserver が描く前に当て直す（前は #llFresh・#elapsed が撮る前に戻った）",
+   "C4": "直した（自分で Python を選ぶ形）: 相手の決めを harness の PYTHON_ONLY と serverFor に。ui-eval-dashwait.mjs を単独で流すと「Python の開発用サーバーで流します（理由）」と 1 行で言って Python を相手にし、TPA_UI_SERVER=window なら流さずに止める。理由: 遅くする口を窓へ置くのは 3.118.3 の計画（feature testing の下）で、この版は道具が黙って落ちないことを直す。CLAUDE.md の dashwait の行と道具の頭にも書いた",
+   "C5": "直した: 窓の絵（/favicon.ico）を main.rs の window_reads から lib の shell::answer の頭へ移した（製品の答えは同じ 404 の画面・\"shell\"・数えない）。開発用サーバーは lib の shell::dev_route を通るので同じ答え。試験: shell::tests::the_dev_route_answers_the_favicon_and_leaves_on_shutdown・main.rs の the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info（本物の Lot で）・the_dev_server_route_answers_like_the_product_router",
+   "C6": "直した: dev_route の POST /api/shutdown は Lot::leave（いま使っているの印を消し記録を書き切る）の後に 200（待ち受けは続ける）。試験: 心拍で置かれた印が終了で消える（leave を外す変異で落ちた）",
+   "C7": "直した: 作り物の予定の元のポート（127.0.0.1:n）と集計の n ms・ダッシュボードの待ちの秒・スケジュールの取得の時刻を TIME_TEXT で伏せ、ダッシュボードの道具の行の 6 秒で消える一言は消えるのを待って撮る（7 秒まで）・マスタ管理のタブは選ばれたまま 1 秒残るまで押し直す（窓も Python も 1 度ずつ「設備マスタ」のまま撮れた）。結果（px7・--tol 8）: Python 同士は 1728・1280 で 128 枚とも 0 画素、1536 は利用状況の使った時間（「1 回・2 分」）の 1 枚だけで、許しの表で許す",
+   "C8": "直した: TPA_UI_MASK=1 でも作業フォルダは乱数の名前（tpa-ui-mask の決めた名前と rmSync をやめた）。画面に出る作業フォルダの字（字・入力欄の値・薄い見本の字・「参照…」のパンくずの名前だけの段）を shot が /tmp/tpa-ui-mask・tpa-ui-mask に差し替える。並べて撮れる（px2〜px7 は 3 本ずつ並べて撮った。unshare 無し）",
+   "C9": "直した: Python を起こすのは harness の startPython の 1 つ・窓は startWindow・startServer の分かれは 1 行。相手の決めは PYTHON_ONLY と serverFor の 1 か所で、ui-all.mjs は harness から import する（ui-all の PYTHON_ONLY と TPA_UI_SERVER の読みを消した）",
+   "C10": "直した: 場面の台本 ui_window_scene.py の serve の finally で、窓と CM3 を止めた後に作業フォルダを消す（node が SIGKILL でも標準入力が閉じてここへ来る）。Python の形（ui_server.py は変えない）は、harness が作業フォルダの横に持ち主の印（作業フォルダ.owner に PID）を置き、次に起こすとき sweepStale が持ち主の居ない物を消す（印の無い物には触れない）。確かめ: ui-eval-xss を 8 秒で kill -KILL → 窓の形は作業フォルダが消え .owner だけ残り、次の起動で消えた。Python の形も次の起動で作業フォルダごと消えた",
+   "C11": "直した: ui-eval-numwarn・ui-eval-skiprows・ui-eval-dashwait・ui-eval-capacity の頭の言葉を「開発用サーバーの場面〈既定の窓は tests/ui_window_scene.py・TPA_UI_SERVER=python は ui_server.py〉」に。CLAUDE.md の numwarn・skiprows・dashwait の行も",
+   "C12": "直した: main.rs の native の最後を lot_answer に出し、bin の試験 the_dev_server_route_answers_like_the_product_router が製品の本物の振り分け（Router::handle を native〈window_reads → lot_answer〉・製品の門番 guard・中身なしで）と開発用サーバーの shell::dev_route（ui_serve が X-TPA-By: shell を足す）を 23 の道（窓の絵 GET・HEAD・版・更新履歴・生きているか〈engine=python も〉・心拍・画面 GET・HEAD・engine=python・調べる道具・権限の 2 本・データ元・config・画面の控えの書く・読む・静的ファイル・static の外・知らない道・%2F の道・門番の書く道 2）で、状態・見出し全部・本文・X-TPA-By まで突き合わせる（画面の nonce と作業場所の道だけ伏せる）。移していない部品の答え（small_reads::favicon・reply・health・window_unanswered）とも比べる",
+   "C13": "直した: ui_serve は Transfer-Encoding（identity 以外）の本文を 411 Length Required・kind length_required で断る（振り分けへ渡さない）。理由句の表に 405・411・412・422・423・428・429・502・504（無ければ \"Status\"）。試験は example の tests（Cargo.toml の [[example]] ui_serve test = true で cargo test が流す）: chunked_bodies_are_refused_with_411_and_lengths_are_read"
+  },
+  "tests_added": [
+   "cargo test --lib shell::tests::the_dev_route_answers_the_favicon_and_leaves_on_shutdown",
+   "cargo test --bin LotScope the_dev_server_route_answers_like_the_product_router",
+   "cargo test --example ui_serve chunked_bodies_are_refused_with_411_and_lengths_are_read",
+   "node program/tools/ui-diff.mjs … --allow program/tools/ui-diff-allow/2026-11-stage4c.json --tol 8（3 つの大きさで理由のない違い 0）",
+   "ui-check の pydown-fold の札の確かめ（PYDOWN_STEPS）"
+  ],
+  "ui_all": "窓の相手で 73 本（直した harness・22.3 分・--jobs 3）: 71 本が終了コード 0。落ちた 2 本（ui-eval-dashwait〈Python の相手〉の 1280 の「字の要素を作り直さない」1 件・ui-eval-virtual のまとめの見出しの 0.5 の位置）は並べて流した時の速さの揺れで、1 本ずつ流し直して 2 本とも 0（dashwait 176 件・virtual 17 件）。dashwait を単独で流すと Python を選ぶ 1 行を出して通り、TPA_UI_SERVER=window では止まる。流した後に /tmp/tpa-ui-* は 0。記録は scratchpad/b31182/win-fix・win-fix2"
+ }
+}

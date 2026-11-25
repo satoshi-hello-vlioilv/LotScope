@@ -113,6 +113,8 @@ try {
         return route.fulfill({ json: { version: b.version, recommended: rec } });
       });
       await page.click("#masterBtn"); await page.waitForSelector("#masterOverlay:not(.hidden)");
+      // マスタ管理のタブは権限を読んでから並ぶ（窓の相手では、開いた直後にはまだ無いことがある。版 3.118.2）
+      await page.waitForSelector('#masterTabs [data-tab="release"]', { state: "attached" });
       await page.evaluate(() => document.querySelector('#masterTabs [data-tab="release"]').click()); await sleep(1500);
       const row = () => page.evaluate(() => {
         const live = document.querySelector("#masterSettings tr.is-live");
