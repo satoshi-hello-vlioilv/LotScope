@@ -381,6 +381,7 @@
       S.loadedAt = (S.source && S.source.copiedAt) || null;
       S.src.saveTable(S.table);
       S.shownEquip = S.equip;
+      jsonButton();
       if (fmtCtx !== scope()) { fmtCtx = scope(); window.LotListFormats?.refresh(); }   // 共有の書式の札（この所に当てた書式）を描き直す
       // 表が初めて決まった（サーバーが既定の表を選んだ）ら、その表の覚えを戻して引き直す。
       // 作業でまとめる覚え（日＋直ごと など）も範囲（設備と表）ごとなので、表を知らずに尋ねたまとめ方と違えば引き直す
@@ -781,6 +782,7 @@
         </div>
         <!-- 右端の群＝見せ方（WaveLog と同じ: 表示列 → 表の見せ方） -->
         <div class="filter-search-row-actions">
+          <button id="llJsonBtn" type="button" class="ll-jsonbtn" hidden title="JSON の入った列（{&quot;ANF&quot;:0.365} など）を、形に合う分け方で行・列に分けた表にします（集計表・ダッシュボードで合計できます）"><b>{ }</b> JSON</button>
           <button id="llColBtn" type="button" class="ll-colbtn" title="この一覧に出す列・並び・幅・書式・読み替えをまとめて設定します">
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>表示列</button>
           <button id="llViewBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="行間・並び・表示件数と、機能（ロット番号でまとめる・カード）の使う／使わないを決めます">表の見せ方 ▾</button>
@@ -1813,6 +1815,14 @@
       note.hidden = false;
     }
   }
+  /* JSON の列を分ける窓の入口（版 3.120.0）: 1 ファイルの元（品質・仕掛・足したデータ元）で、先頭 500 行に JSON の列があるときだけ出す */
+  function jsonBase() { return S.src.id === "lot" ? "lot" : S.src.id.startsWith("src:") && !S.src.cm3 ? S.src.id.slice(4) : ""; }
+  function jsonButton() {
+    const b = $("#llJsonBtn"), base = jsonBase(); if (!b) return;
+    if (!base || !window.JsonExpand) { b.hidden = true; return; }
+    window.JsonExpand.probe(base).then((d) => { const n = (d.columns || []).length; if (jsonBase() !== base) return; b.hidden = !n; b.title = n ? `JSON の入った列（${d.columns.map((c) => c.column).join("・")}）を、形に合う分け方で行・列に分けた表にします（集計表・ダッシュボードで合計できます）` : b.title; })
+      .catch(() => { b.hidden = true; });
+  }
   function renderAll() {
     renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh();
     window.LotListWork.update(S.src.id === "work" ? S.work : null);
@@ -1956,6 +1966,8 @@
       if (e.target.closest("[data-wl-adopt]")) adoptLoose();
     });
     $("#llColBtn").onclick = () => { closeViewMenu(); window.LotListColumns.toggle(); };
+    // JSON の列を分ける窓（版 3.120.0。js/json-expand.js）: 1 ファイルの元（品質・仕掛・足したデータ元）で、JSON の列があるときだけ出す
+    $("#llJsonBtn").onclick = () => { closeViewMenu(); window.JsonExpand.open({ base: jsonBase(), from: "list" }); };
     $("#llViewBtn").onclick = () => toggleViewMenu();
     $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; S.ctx = null; syncContext(true); window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset(); load(); };
     $("#llFresh").onclick = () => {

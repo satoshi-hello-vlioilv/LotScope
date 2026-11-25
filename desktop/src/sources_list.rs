@@ -197,6 +197,18 @@ pub fn answer(inp: &Inputs, me: &Value, store: &Store, live: &Live) -> Option<Va
             None
         };
         let rows = if d["kind"] == "view" { view_rows(&live.joins, &d).ok()? } else { rows_of(m.as_ref(), &d) };
+        // JSON の列を分けた表（版 3.120.0）: 行の数は最後に組んだ分けた表の数（決まりが今と同じ物）。組んでいなければ結合の数のまま
+        let rows = match d.get("expand").map(crate::json_expand::Spec::parse) {
+            Some(Ok(spec)) => {
+                let root = live.joins.parent().map(|p| p.join("expands")).unwrap_or_default();
+                let got = crate::json_expand::Expander::new(root).recent(d["key"].as_str().unwrap_or(""), &spec);
+                if let Some(st) = &got {
+                    d.insert("expandStats".into(), st.clone());
+                }
+                got.map(|st| st["stats"]["out"].clone()).unwrap_or(rows)
+            }
+            _ => rows,
+        };
         let mut info = m.as_ref().map(|m| m.source_info()).unwrap_or(Value::Null);
         // 写しの係の間隔は i64 の秒（飽和）。i64 に入らない間隔は Python と同じく束の値（int(float) の桁）で見せる（版 3.109.0）
         let r = &read["refresh_seconds"];

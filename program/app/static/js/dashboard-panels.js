@@ -275,9 +275,9 @@
     const wantLegend = fm.legend !== "none" && (m.nc > 0 || d.measures.length > 1 || ["bubble", "diag45", "xbar", "violin", "waterfall"].includes(kind)) && H >= 150 && kind !== "donut" && kind !== "treemap";
     const gh = Math.max(60, H - (wantLegend ? 20 : 0));
     const colors = seriesColors(p), pal = ST.paletteOf(fm);
-    const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
+    const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m0.rows.filter((r) => r.type === "data").length <= 8;   // 描けた行でなく全部の行で決める（版 3.120.0: 窓が狭いと行を減らして色が替わった）
     const rowColor = few || (pal && ["column", "bar", "lollipop", "donut", "treemap", "bubble"].includes(kind) && m.nc === 0)
-      ? catColors(m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r)).sort(), pal ? pal.c : CAT) : null;
+      ? catColors(m0.rows.filter((r) => r.type === "data").map((r) => m0.rowName(r)).sort(), pal ? pal.c : CAT) : null;
     // 別のデータを合わせた答え（版 3.40.0）: 色は役割の色（組む所の札と同じ: 目標＝紫・実績＝青緑）・目標と実績は同じ目盛り
     const link = !!d.link;
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
