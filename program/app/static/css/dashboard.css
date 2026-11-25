@@ -60,8 +60,9 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-pbtn.is-on[data-db-editing]{background:var(--h-input);border-color:var(--h-input);color:#fff;cursor:default}
 .db-pbtn.is-danger{color:#a3322a}
 .db-pbtn.is-armed{background:#fbe7e3;border-color:#c0392b;color:#8a2a1c}
-.db-quiet{opacity:0;transition:opacity .12s}
-.db-p:hover .db-quiet,.db-p:focus-within .db-quiet{opacity:1}
+/* 見ているときの「組む」（版 3.121.0。前は指を載せたパネルにしか見えず、どのパネルも組めると分からなかった）: どのパネルにも、枠の無い控えめな形で出す */
+.db-quiet{border-color:transparent;background:transparent}
+.db-p:hover .db-quiet,.db-p:focus-within .db-quiet{border-color:var(--line);background:var(--surface)}
 .db-rz{display:none}
 /* 編集のとき: 見出しを掴める・右下に取っ手・選んだパネルの枠 */
 .db-screen.is-edit .db-p{border:1.5px solid #c9d4de}

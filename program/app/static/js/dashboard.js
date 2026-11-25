@@ -1440,7 +1440,9 @@
     // 中身に合う大きさのパネルを 12 × 8 に敷き詰める（版 3.120.0 の作った後の採点 3 回目: 1 枚を全幅・全段にすると、組む所の見本が縮んで
     // 字が読めず〈1280 で 0.38 倍〉、棒も間延びした）。棒のパネルは幅 4 列・高さ 4 段（1280 の組む所でも縮めずに見せる大きさ）。
     // 同じ組みの合計と平均の棒・設備ごとの表（合計・平均・ロット数）・全部の合計とロット数の数字で、右と下を空けない
-    const meas = (agg) => (agg === "lots" ? { agg: "lots" } : { agg, column: v.valueCol });
+    // 値の桁を決めておく（版 3.121.0。前は棒 933.44 と表 933.439 で同じ値の桁が違った）: 合計 1 桁・平均 2 桁。ロット数は整数。
+    // 数字のパネルの単位はどちらも付けない（前は「1,167 ロット」だけに単位が付き、合計には無かった。何の数かは題で言う）
+    const meas = (agg) => (agg === "lots" ? { agg: "lots", utext: "" } : { agg, column: v.valueCol, dec: agg === "avg" ? 2 : 1 });
     const base = { source: v.source, equip: "", top: 0, basis: "work", search: "", period: null,
       filters: rows.length ? [{ column: v.keyCol, op: "not_empty", value: "" }] : [] };   // 空の鍵（分けずに残した行）は数えない
     const panel = (id, at, title, visual, b, extra = {}) => ({ id, ...at, title, visual, sort: visual === "bar" ? "desc" : "", ...base,
@@ -1449,9 +1451,10 @@
     const panels = rows.length ? [
       panel("p1", { x: 0, y: 0, w: 4, h: 4 }, v.title, "bar", { rows, measures: [meas("sum")] }),
       panel("p2", { x: 0, y: 4, w: 4, h: 4 }, `${keyName}ごとの${valueName}の平均`, "bar", { rows, measures: [meas("avg")] }),
-      panel("p3", { x: 4, y: 0, w: 8, h: 5 }, `${keyName}ごとの${valueName}（表）`, "none", { rows, measures: [meas("sum"), meas("avg"), meas("lots")], grand: true }),
-      panel("p4", { x: 4, y: 5, w: 4, h: 3 }, `全部の${valueName}`, "kpi", { measures: [meas("sum")], grand: true }),
-      panel("p5", { x: 8, y: 5, w: 4, h: 3 }, "ロット数", "kpi", { measures: [meas("lots")], grand: true }),
+      // 数字のパネルは 2 段（前は 3 段で、1728 では 1 つの数の上下に大きな空きが残った）。空いた 1 段は表へ
+      panel("p3", { x: 4, y: 0, w: 8, h: 6 }, `${keyName}ごとの${valueName}（表）`, "none", { rows, measures: [meas("sum"), meas("avg"), meas("lots")], grand: true }),
+      panel("p4", { x: 4, y: 6, w: 4, h: 2 }, `全部の${valueName}`, "kpi", { measures: [meas("sum")], grand: true }),
+      panel("p5", { x: 8, y: 6, w: 4, h: 2 }, "ロット数", "kpi", { measures: [meas("lots")], grand: true }),
     ] : [
       panel("p1", { x: 0, y: 0, w: 4, h: 8 }, v.title, "kpi", { measures: [meas("sum")], grand: true }),
       panel("p2", { x: 4, y: 0, w: 4, h: 8 }, `${valueName}の平均`, "kpi", { measures: [meas("avg")], grand: true }),
@@ -1466,7 +1469,7 @@
       : await writeLayout("POST", null, { name, scope: "me", standard: false, body }, `ダッシュボード「${name}」を作りました`);
     if (r.error) return { why: r.error };
     lastMade = { name, at: Date.now() };
-    return { ok: true, name, id: p.id };
+    return { ok: true, name, id: p.id, count: panels.length };
   }
   /** 題で探したパネルを選んで見える所へ（足したパネルの「見る」） */
   function focusPanelTitled(title) {

@@ -109,7 +109,7 @@
     if (u === "auto" && dg == null) return short(v);
     const [div, suf] = DIVS[u] || (Math.abs(v) >= 1e8 ? [1e8, "億"] : Math.abs(v) >= 1e4 ? [1e4, "万"] : [1, ""]);
     const x = v / div;
-    return (dg == null ? fmt(Math.round(x * 100) / 100) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
+    return (dg == null ? (TDIG != null ? fixed(x, TDIG) : fmt(Math.round(x * 100) / 100)) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
   }
   /** 数値ラベルの字（版 3.50.1）: 値ごとの桁（measures の dec）があればその桁。系列の名前が分かれば、その系列の値の桁（SDEC）。
       パネルの書式で桁・表示形式を決めていれば、そちらが勝つ（measFmt と同じ決まり）。目盛りは nf のまま（桁で 0.25 が 0 にならない） */
@@ -1177,8 +1177,21 @@
     return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
   }
   /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
+  /* 表の自動の小数の桁（版 3.121.0。利用者の改良依頼 2026-11-17 の 1 の採点: 547.056 と 1,116.7 が同じ値の列で違った）:
+     桁を決めていない値は、その値の表のどの数も同じ桁にする（いちばん大きい数が 1,000 以上なら 1 桁・1 以上なら 2 桁・ほかは 3 桁。整数だけなら整数） */
+  let TDIG = null;
+  const fixed = (v, dg) => v.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg });
+  function autoDigits(vals) {
+    const ns = vals.filter((v) => typeof v === "number" && Number.isFinite(v));
+    if (!ns.some((v) => !Number.isInteger(v))) return null;
+    const top = Math.max(...ns.map(Math.abs));
+    return top >= 1000 ? 1 : top >= 1 ? 2 : 3;
+  }
   function tableHtml(m, d, { measName, dimName, num = fmt }) {
     const { nr, nc, M, rows, cols } = m;
+    const auto = d.measures.map((x, j) => (x.dec != null ? null : autoDigits(rows.flatMap((r) => cols.map((c) => m.value(r, c, j))))));
+    const num0 = num;
+    num = (v, j) => { TDIG = auto[j]; try { return num0 === fmt ? numText(v, null) : num0(v, j); } finally { TDIG = null; } };
     const mNames = d.measures.map((x) => measName(x));
     // 見出し: 列の段ごとの行（同じ頭はまとめる）＋値の名前の行（値が 2 つ以上か、列が無いとき）
     let head = "";
@@ -1255,7 +1268,7 @@
   function numText(v, fm) {
     // 値ごとの単位（版 3.92.0。measFmt が suffix に入れる）: 数の後ろに付ける（数の無い所には付けない）
     const tail = fm && fm.suffix && v != null && v !== "" ? fm.suffix : "";
-    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return fmt(v) + tail;
+    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return (TDIG != null && typeof v === "number" ? fixed(v, TDIG) : fmt(v)) + tail;
     const keep = F; F = fm;
     try { return nf(v) + tail; } finally { F = keep; }
   }
@@ -1304,5 +1317,33 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, perHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  /* ---- 計算列の札（版 3.121.0。利用者の改良依頼 2026-11-17 の 1。採点 2026-11-calcpivot の N）: 一覧の集計表と、ダッシュボードの組む所で
+     同じ形・同じ言葉。カラムの欄の頭に「ƒx 計算列 n」のまとまり（畳める。画面ごとに覚える）、札の 2 段目は札の幅いっぱいに式と種類。
+     2 段目は語の切れ目（空白と「 · 」の後ろ）でだけ折り、2 行まで（3 行目からは … で、吹き出しに全部）。読めない式は理由と直す口 */
+  const FX_KEY = "tpa.calcfold.v1";
+  const fxFolded = (where) => !!(TPA.local.get(FX_KEY, {}) || {})[where];
+  function setFxFolded(where, on) { const a = { ...(TPA.local.get(FX_KEY, {}) || {}) }; a[where] = !!on; TPA.local.set(FX_KEY, a); }
+  const FX_MARK = '<i class="fx-mark" aria-hidden="true">ƒx</i>';
+  /** まとまりの見出し。n: 使える計算列の数・bad: 読めない式の数・add: 作る口の言葉・addAttr: 作る口の印 */
+  function fxHead({ n, bad = 0, sub, add, addAttr, where }) {
+    const folded = fxFolded(where);
+    if (!n && !bad) {
+      return `<div class="fx-head is-none"><span class="fx-hl">${FX_MARK}<b>計算列</b></span><small>計算列はまだありません</small>`
+        + `<button type="button" class="fx-add" ${addAttr}>${esc(add)}</button></div>`;
+    }
+    return `<div class="fx-head${folded ? " is-folded" : ""}"><span class="fx-hl">${FX_MARK}<b>計算列</b><span class="fx-n">${n}</span></span>`
+      + `<button type="button" class="fx-fold" data-fx-fold="${esc(where)}" aria-expanded="${!folded}" title="計算列のまとまりを${folded ? "開きます" : "畳みます（元の列が上に来ます）"}">${folded ? "開く ▾" : "畳む ▴"}</button>`
+      + `<small>${esc(sub)}${folded ? ` · ${n + bad} 列を畳んでいます` : ""}</small><button type="button" class="fx-add" ${addAttr}>${esc(add)}</button></div>`;
+  }
+  const fxRawHead = () => '<div class="fx-head is-raw"><span class="fx-hl"><b>元の列</b></span><small>データの列</small></div>';
+  /** 札の 2 段目（式と種類。読めない式は理由と直す口） */
+  function fxLine({ formula, kind, bad, fixAttr = "" }) {
+    if (bad) return `<div class="fx-l"><span class="nw fx-why">式が読めません</span><span class="fx-dot"> · </span><button type="button" class="nw fx-fix" ${fixAttr}>表示列で直す ›</button></div>`;
+    return `<div class="fx-l"><code>= ${esc(formula)}</code>${kind ? `<span class="fx-dot"> · </span><span class="nw">${esc(kind)}</span>` : ""}</div>`;
+  }
+  /** 札の吹き出し: 名前・式（全部） */
+  const fxTip = (name, formula, bad) => `${name}（計算列。一覧の表示列で作った列）\n= ${formula}${bad ? "\n式が読めません。表示列の「この列の作り方」で直してください" : ""}`;
+
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, perHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml, autoDigits,
+    fx: { head: fxHead, rawHead: fxRawHead, line: fxLine, tip: fxTip, MARK: FX_MARK, folded: fxFolded, setFolded: setFxFolded } };
 })();

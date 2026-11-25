@@ -224,8 +224,9 @@ try {
   await p.reload(); await waitDash(p);           // 表示列の設定は頁を開いたときに読む
   await p.click("[data-db-editmode]"); await sleep(300);
   await p.click(`${P("wipClass")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f.is-calc");
-  const calcCards = await p.$$eval("#deFields .pv-f.is-calc b", (x) => x.map((b) => b.textContent));
-  check("⑨ 組む所のカラムの札に、一覧で作った計算列が「式」の印つきで出る", calcCards.includes("設備の頭式") && calcCards.includes("ロット数の倍式"), calcCards);
+  // 版 3.121.0 から計算列は欄の頭の「ƒx 計算列」のまとまりに、ƒx の印つきの札で並ぶ（一覧の集計表と同じ形）
+  const calcCards = await p.$$eval("#deFields .pv-f.is-calc", (x) => x.map((c) => (c.querySelector(".fx-mark") ? "ƒx " : "") + c.querySelector("b").textContent));
+  check("⑨ 組む所のカラムの札に、一覧で作った計算列が「ƒx」の印つきで出る", calcCards.includes("ƒx 設備の頭") && calcCards.includes("ƒx ロット数の倍"), calcCards);
   await p.click('#deFields .pv-f.is-calc[title^="設備の頭"] [data-de-add="rows"]'); await sleep(300);
   await p.click('.de-sent [data-de-x="rows"][data-i="0"]'); await sleep(2000);
   await p.click("[data-de-apply]"); await sleep(1500);

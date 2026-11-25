@@ -43,16 +43,17 @@
 
   /* ---- カラムの手がかり（値の種類の数・数の列か・日付の列か）。範囲と表が替わったら読み直す ---- */
   async function loadFields() {
-    const sig = host.scope() + "|" + host.fieldsKey();
+    const calc = host.calc(), cq = calc ? `&calc=${encodeURIComponent(JSON.stringify(calc))}` : "";
+    const sig = host.scope() + "|" + host.fieldsKey() + cq;
     if (fields && sig === fieldsSig) return fields;
-    const r = await fetch(`${host.api()}/pivot?fields=1&${host.base()}`, { cache: "no-store" });
+    const r = await fetch(`${host.api()}/pivot?fields=1&${host.base()}${cq}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "カラムを読めませんでした");
     fieldsSig = sig; fields = d.fields || [];
     return fields;
   }
   const fieldOf = (c) => (fields || []).find((f) => f.column === c) || null;
-  const isDate = (c) => host.dateColumns().includes(c);
+  const isDate = (c) => host.dateColumns().includes(c) || !!((fieldOf(c) || {}).calc && (fieldOf(c) || {}).date);   // 日付の計算列（版 3.121.0）
   const isNum = (c) => !!(fieldOf(c) || {}).numeric;
   /* 作業実績の特別なカラム。作業日は作業開始の日（日付の数え方＝現場歴／太陽暦は、作業でまとめるのと同じ） */
   const workdayName = () => `作業日（${(host.workParams().basis || "work") === "cal" ? "太陽暦" : "現場歴"}）`;
@@ -203,6 +204,8 @@
     p.set("measures", JSON.stringify(s.measures.length ? s.measures : [{ agg: "count" }]));
     if (BOXY.has(s.chart) && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図・バイオリン・X̄-R: 値の数のカラムの分かれ方（四分位・密度）も頼む
     Object.entries(host.workParams()).forEach(([k, v]) => { if (v) p.set(k, v); });
+    // 計算列（版 3.121.0）: 今の表の計算列の式を添える（サーバーがダッシュボードと同じ道で数える）
+    const calc = host.calc(); if (calc) p.set("calc", JSON.stringify(calc));
     return p.toString();
   }
   const BOXY = new Set(["box", "violin", "xbar"]);     // 行ごとの分かれ方（boxes）を頼む形
@@ -261,12 +264,25 @@
       + `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}" title="${host.isWork() ? "作業開始が同じ行（分割したロット）を 1 と数えます" : "ロット番号が同じ行を 1 と数えます"}"${fa("@lots", ["vals"])}><span><b>ロット数</b><small>${host.isWork() ? "重複の無い作業開始" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
       + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}" title="当たる行の数"${fa("@count", ["vals"])}><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
     if (hit("作業日 直 ロット数 件数")) html += special;
-    html += (fields || []).filter((f) => hit(f.column) || hit(host.label(f.column))).map((f) => {
-      const c = f.column, u = used(c), date = isDate(c);
-      const sub = date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`);
-      return `<div class="pv-f${u || anyVal(c) ? " is-used" : ""}${date ? " is-date" : ""}${f.numeric ? " is-num" : ""}" data-col="${esc(c)}"${fa(c, f.numeric ? ["rows", "cols", "vals"] : ["rows", "cols"])}><span title="${esc(c)}"><b>${esc(host.label(c))}</b><small>${sub}</small></span>`
-        + btn("rows", c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal(c), 'title="合計を値に足します（値の札で平均・最小・最大に替えられます）"') : "<i></i>") + "</div>";
-    }).join("");
+    const subOf = (f, date) => (date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`));
+    const card = (f) => {
+      const c = f.column, u = used(c), date = isDate(c), calc = !!f.calc, bad = calc && !!f.error;
+      const fx = calc ? (host.calc() || { formulas: {} }).formulas[c] || "" : "";
+      const head = calc ? `<span>${C.fx.MARK}<b>${esc(host.label(c))}</b></span>` : `<span title="${esc(c)}"><b>${esc(host.label(c))}</b><small>${subOf(f, date)}</small></span>`;
+      const btns = bad ? "<i></i><i></i><i></i>" : btn("rows", c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal(c), 'title="合計を値に足します（値の札で平均・最小・最大に替えられます）"') : "<i></i>");
+      return `<div class="pv-f${calc ? " is-fx" : ""}${bad ? " is-bad" : ""}${u || anyVal(c) ? " is-used" : ""}${date ? " is-date" : ""}${f.numeric ? " is-num" : ""}" data-col="${esc(c)}"${calc ? ` title="${esc(C.fx.tip(host.label(c), fx, bad))}"` : ""}${bad ? "" : fa(c, f.numeric ? ["rows", "cols", "vals"] : ["rows", "cols"])}>${head}`
+        + btns + (calc ? C.fx.line({ formula: fx, kind: subOf(f, date), bad, fixAttr: `data-pv-fxfix="${esc(c)}"` }) : "") + "</div>";
+    };
+    const shown = (fields || []).filter((f) => hit(f.column) || hit(host.label(f.column)));
+    // 計算列（版 3.121.0）: 欄の頭にまとめる（読めない式は最後）。畳める（画面ごとに覚える）
+    const calcs = shown.filter((f) => f.calc).sort((a, b) => !!a.error - !!b.error), raws = shown.filter((f) => !f.calc);
+    const nOk = calcs.filter((f) => !f.error).length;
+    if (!ql || calcs.length) {
+      html += C.fx.head({ n: nOk, bad: calcs.length - nOk, sub: "一覧の表示列で作った列", add: "＋ 一覧の列を作る", addAttr: 'data-pv-fxnew title="表示列の窓で、式から列を作ります（集計表・グラフとダッシュボードで使えます）"', where: "pivot" });
+      if (!C.fx.folded("pivot")) html += calcs.map(card).join("");
+      if (raws.length) html += C.fx.rawHead();
+    }
+    html += raws.map(card).join("");
     return html || '<p class="pv-none">当たるカラムがありません</p>';
   }
   function dimChip(d, role, i) {
@@ -356,7 +372,17 @@
       + `組み方<span class="pv-pname">${esc(pname)}</span>${pname && item.standard ? '<i class="pv-star is-std" aria-label="最初に当てる">★</i>' : ""}<i aria-hidden="true">▾</i></button></div>`;
   }
   /** 文とグラフの形の行だけを描き直す（組み方・すぐに見るを替えたとき） */
-  function paintHead() { const h = $("#llPvHead"); if (h && host) window.PivotCalc.keepFocus(h, () => { h.innerHTML = sentenceHtml(st()) + calcHtml(st()) + barHtml(st()); }); }
+  function paintHead() { const h = $("#llPvHead"); if (h && host) window.PivotCalc.keepFocus(h, () => { h.innerHTML = sentenceHtml(st()) + calcHtml(st()) + barHtml(st()); }); fitBar(); }
+  /** すぐに見るの行を 1 段に収める（版 3.121.0。1280 で「組み方 ▾」が 2 段目へ折れていた）: 入らない札を後ろから隠す（どの組み方も「組み方 ▾」の面から当てられる） */
+  function fitBar() {
+    const bar = $("#llPvHead .pv-bar"), pre = $("#llPvPreset"), pick = $("#llPvChartBtn");
+    if (!bar || !pre || !pick) return;
+    const chips = [...bar.querySelectorAll(".pv-quick")];
+    let hid = 0;
+    while (pre.offsetTop > pick.offsetTop + 4 && hid < chips.length) { chips[chips.length - 1 - hid].style.display = "none"; hid++; }
+    pre.dataset.more = hid ? String(hid) : "";
+    if (hid) pre.title = `すぐに見るの ${hid} つは、この行に入らないので「組み方 ▾」の面から当ててください\n` + pre.title;
+  }
   /** 全体を描く（busy は読み直している間: 前の答えのまま薄くする） */
   function paint(d, err = "", busy = false) {
     const pane = $("#llPivot"); if (!pane || !host) return;
@@ -594,6 +620,9 @@
     pane.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || b.disabled) return;
       const s = st();
+      if (b.dataset.fxFold) { C.fx.setFolded("pivot", !C.fx.folded("pivot")); $("#llPvFields").innerHTML = fieldsHtml(st()); return; }
+      if (b.hasAttribute("data-pv-fxnew")) { window.LotListColumns.newCalc(); return; }
+      if (b.dataset.pvFxfix) { if (!window.LotListColumns.openFx(b.dataset.pvFxfix)) host.toast("この列は表示列の窓で直してください"); return; }
       if (b.dataset.pvAdd) {
         const role = b.dataset.pvAdd, col = b.dataset.col;
         if (role === "vals") addMeasure(col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : { agg: "sum", column: col });
@@ -726,7 +755,22 @@
   const stateOf = () => { const s = st(); return { view: s.view, rows: s.rows, cols: s.cols, measures: s.measures, chart: s.chart, sub: s.sub, grand: s.grand, chartAt: s.chartAt, split: s.split, labels: s.labels, month: s.month }; };
   function setState(v) { if (!v || typeof v !== "object") return; save({ ...blank(), ...v }); sync(); if (isOn()) refresh(true); }
   // _items・_apply は評価関数（ui-eval-pivot-charts.mjs）が組み込みの組み方を 1 つずつ当てるため
-  window.LotListPivot = { mount, refresh, sync, on: isOn, stateOf, setState, _buildModel: buildModel,
+  /** 計算列を集計表で使う（版 3.121.0。表示列の窓の「集計表で値に置く」）: 集計表・グラフに替え、数の列は値（合計）に・字の列は行に置く */
+  async function useCalc(col) {
+    if (!host) return;
+    save({ view: "pivot" }); host.onView(true); paintSwitch();
+    fields = null;
+    try { await loadFields(); } catch (e) { host.toast(e.message); return; }
+    const f = fieldOf(col);
+    if (!f || f.error) { host.toast(`「${host.label(col)}」は式が読めないので集計できません`); refresh(true); return; }
+    let s = st();
+    // 行が空なら、種類の少ない列（無ければ日付の列）を行に置く（行が無いと集計表は何も出さない）
+    if (!s.rows.length && f.numeric) { const r = roles().$few1 || roles().$date; if (r) { save({ rows: [{ column: r, part: defaultPart(r) }] }); s = st(); } }
+    if (f.numeric) { if (!s.measures.some((m) => m.column === col)) { if (s.measures.length >= MAX_MEASURES) save({ measures: s.measures.slice(1) }); addMeasure({ agg: "sum", column: col }); } else refresh(true); }
+    else if (!s.rows.some((d) => d.column === col)) addDim("rows", col); else refresh(true);
+    host.toast(f.numeric ? `「${host.label(col)}」の合計を値に置きました` : `「${host.label(col)}」を行に置きました`);
+  }
+  window.LotListPivot = { mount, refresh, sync, on: isOn, stateOf, setState, useCalc, _buildModel: buildModel,
     _items: () => items().map((p) => ({ id: String(p.id), name: p.name, scope: p.scope, builtin: !!p.builtin, chart: (p.body || {}).chart, missing: p.missing })),
     _apply: (id) => { const p = itemOf(id); return p ? applyPreset(p, { quiet: true }) : false; } };
 })();

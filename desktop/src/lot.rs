@@ -1995,8 +1995,10 @@ impl Lot {
             lot_col: opts.lot_col.clone(),
         };
         let tables = self.tables(s);
+        // 計算列（版 3.121.0。一覧の表示列で作った列）: 画面が今の表の式を calc で添える。ダッシュボードの組む所と同じ道で数える
+        let calc = crate::formula::clean_calc(&arg("calc"));
         let got = if arg("fields") == "1" {
-            pivot::fields(&part, None, &tables, 300)
+            pivot::fields(&part, calc.as_ref(), &tables, 300)
         } else {
             let (search, filters, rows, cols, measures, month, bx) =
                 (arg("search"), arg("filters"), arg("rows"), arg("cols"), arg("measures"), arg("month"), arg("box"));
@@ -2011,7 +2013,7 @@ impl Lot {
                 box_col: &bx,
                 period: None,
                 now: chrono::Local::now().naive_local(),
-                calc: None,
+                calc: calc.as_ref(),
                 conv: &tables,
                 equips: &[],
                 egroups: None,
@@ -2222,6 +2224,34 @@ mod tests {
         assert_eq!((st, v["error"].as_str()), (400, Some("列「無」がありません。")));
         let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", "fields=1", &ask).unwrap();
         assert!(st == 200 && v["fields"].as_array().is_some_and(|f| !f.is_empty()), "{v}");
+        // 計算列（版 3.121.0）: 画面が添えた式の列が札に並び（読めない式は理由つき）、行・値に使える（重量t＝重量/1000 の合計＝3.5/1000）
+        let calc = r#"{"formulas":{"重量t":"[重量]/1000","区分":"if([重量]>=2, \"重\", \"軽\")","寸法":"[重量] & \"x\""}}"#;
+        let enc = |t: &str| t.bytes().map(|b| format!("%{b:02X}")).collect::<String>();
+        let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", &format!("fields=1&calc={}", enc(calc)), &ask).unwrap();
+        let f = |c: &str| v["fields"].as_array().unwrap().iter().find(|x| x["column"] == c).cloned().unwrap_or(Value::Null);
+        assert_eq!((st, f("重量t")["calc"].as_bool(), f("重量t")["numeric"].as_bool()), (200, Some(true), Some(true)), "{v}");
+        assert_eq!((f("区分")["calc"].as_bool(), f("区分")["kinds"].as_i64()), (Some(true), Some(2)), "{v}");
+        assert_eq!(f("寸法")["error"].as_str(), Some("式が読めません"), "{v}");
+        let q = format!(
+            "calc={}&rows={}&measures={}",
+            enc(calc),
+            enc(r#"[{"column":"区分","part":""}]"#),
+            enc(r#"[{"agg":"sum","column":"重量t"}]"#)
+        );
+        let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", &q, &ask).unwrap();
+        assert_eq!(st, 200, "{v}");
+        let at = |k: &str| {
+            v["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|x| x["r"].as_array().is_some_and(|r| r.len() == 1 && r[0] == k))
+                .map(|x| x["v"][0].as_f64().unwrap())
+        };
+        assert!((at("$重").unwrap() - 0.002).abs() < 1e-12 && (at("$軽").unwrap() - 0.0015).abs() < 1e-12, "区分ごとの重量t: {v}");
+        // 式を添えなければ、計算列は札にも無く、使えば今までどおり 400
+        let (st, v) = lot.handle_with("GET", "/api/src/m1/pivot", &q.replacen(&format!("calc={}&", enc(calc)), "", 1), &ask).unwrap();
+        assert_eq!(st, 400, "{v}");
         // スケジュールの集計: 束にスケジュールの段が無い形は理由つきの 503（版 3.118.0 の作った後の採点の割れ 5）
         assert_eq!(lot.handle_with("GET", "/api/src/sch/pivot", "", &ask).map(|r| r.0), Some(503), "スケジュールの段が無い集計");
         let (st, v) = lot.handle_with("GET", "/api/src/e1/pivot", "table=v", &ask).unwrap();

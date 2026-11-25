@@ -2339,6 +2339,8 @@
       base: () => { const q = new URLSearchParams(S.src.params()); if (S.table) q.set("table", S.table); return q.toString(); },
       fieldsKey: () => `${S.equip}|${S.table}|${(S.source && S.source.copiedAt) || ""}`,
       lotColumn: () => S.lotColumn,
+      // 計算列（版 3.121.0）: 今の表の表示列で作った列の式（集計表のカラムに並べ、サーバーが同じ式で数える）
+      calc: () => window.LotListColumns.calcOfTable(layoutTarget(), S.columns),
       query: () => filterParams().toString(),
       label: (c) => window.LotListColumns.label(layoutTarget(), c),
       dateColumns: () => S.dateColumns,

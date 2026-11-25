@@ -293,7 +293,33 @@ body.pv-dnd-body,body.pv-dnd-body *{cursor:grabbing!important;user-select:none}
 }
 /* 値ごとの単位と見出しの式（版 3.92.0。ダッシュボードの組む所）: 小数の札と同じ行の続き。すべての値の切り替えは段の幅の 1 行 */
 .pc-ug{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.pc-uin{width:64px;font-family:inherit}
+.pc-uin{width:7.4em;font-family:inherit}   /* 見本「書式のまま」が切れない（版 3.121.0） */
 .pc-all{grid-column:1 / -1;display:inline-flex;align-items:center;gap:6px;margin-top:2px;padding-top:5px;border-top:1px dashed #e2cfa6;font-size:12.5px;color:var(--ink);cursor:pointer}
 /* 引き始めに札の字が選ばれない（引く前の 5px の間に字の選びが始まっていた） */
 .pv-chip[data-dnd-role],.pv-f[data-dnd-col] > span{user-select:none;-webkit-user-select:none}
+
+/* 計算列の札（版 3.121.0。一覧の集計表とダッシュボードの組む所で同じ形。lotlist-pivot-charts.js の fx） */
+.fx-mark{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:18px;border-radius:5px;background:var(--h-input);color:#fff;font:italic 800 11px/1 system-ui,sans-serif}
+.fx-head{flex:none;display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:2px;margin:6px 2px 2px;padding:6px 2px 2px;border-top:1px solid var(--line-soft)}
+.fx-head .fx-hl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.fx-head b{font-size:13px}
+.fx-head .fx-n{font:700 11.5px system-ui,sans-serif;color:var(--h-input);background:var(--input-soft);border-radius:9px;padding:0 7px}
+.fx-head small{flex-basis:100%;font-size:11.5px;color:var(--muted)}
+.fx-head.is-none small{flex-basis:auto}
+.fx-head .fx-fold{margin-left:auto;border:0;background:none;color:var(--h-input);font:700 12px system-ui,sans-serif;padding:2px 2px;cursor:pointer;white-space:nowrap}
+.fx-head .fx-add{border:0;background:none;color:var(--h-input);font:700 12px system-ui,sans-serif;padding:2px 0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.fx-head.is-raw b{color:var(--ink-2,#3b4756)}
+.fx-head.is-raw small{flex-basis:auto}
+.pv-f.is-fx{flex:none;border-left:3px solid var(--h-input);row-gap:1px}
+.pv-f.is-fx > span{display:flex;align-items:center;gap:6px}
+.pv-f.is-fx > span > b{min-width:0}
+.pv-f.is-fx .pv-r{height:24px}
+.fx-l{grid-column:1 / -1;padding-left:28px;font-size:11.5px;line-height:1.45;color:var(--muted);word-break:keep-all;overflow-wrap:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fx-l .nw{white-space:nowrap}
+.fx-l code{font:11.5px ui-monospace,Menlo,Consolas,monospace;color:var(--ink)}
+.pv-f.is-fx.is-bad{background:var(--surface-2);border-left-color:#b9c2cd;opacity:1}
+.pv-f.is-fx.is-bad .fx-mark{background:#7d8996}
+.pv-f.is-fx.is-bad b{color:var(--muted)}
+.fx-l .fx-why{color:#a33a1c;font-weight:700}
+.fx-l .fx-fix{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--h-input);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+#llPvHead #llPvPreset[data-more]:not([data-more=""])::before{content:"+" attr(data-more) " ";font-weight:700;color:var(--muted)}

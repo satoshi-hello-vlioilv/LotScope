@@ -67,7 +67,7 @@ const HEADERS = {
 };
 
 // 計算列を集計表・グラフで使う所（calc-list 〜 calc-off。版 3.121.0 の比べ）: 品質の表「仕掛」に計算列 4 つ（数・字・区分・読めない式）。並びは元の列のすぐ後ろ
-const CALC_LAYOUT = { "lotlist:仕掛": { order: ["ロット番号", "発生日", "設備", "不良名", "重量", "重量t", "板厚", "板厚区分", "合金", "調質", "材調質", "板幅", "寸法", "客先"],
+export const CALC_LAYOUT = { "lotlist:仕掛": { order: ["ロット番号", "発生日", "設備", "不良名", "重量", "重量t", "板厚", "板厚区分", "合金", "調質", "材調質", "板幅", "寸法", "客先"],
   hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, rules: {},
   formulas: { "重量t": "[重量]/1000", "材調質": "concat([合金], \"-\", [調質])", "板厚区分": "if([板厚]>=1, \"厚\", \"薄\")",
     "寸法": "[板厚] & \"x\" & [板幅]" } } };   // 寸法は読めない式（& は式に無い）。読めない計算列の見せ方の比べ
@@ -1060,7 +1060,9 @@ export const STATES = [
     await closeAll(p);
     await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPvFields .pv-f[data-col]");
     await p.click('#llPvFields .pv-f[data-col="合金"] [data-pv-add="rows"]'); await sleep(400);
-    await p.click('#llPvFields .pv-f[data-col="重量"] [data-pv-add="vals"]'); await sleep(1500);   // 案が組み方を替える間を待つ
+    // 版 3.121.0 から計算列が欄の頭（ƒx 計算列）に並ぶ: 重量t を値・板厚区分を列に（案の比べの時は、案の定義が 重量 → 重量t に替えていた）
+    await p.click('#llPvFields .pv-f[data-col="重量t"] [data-pv-add="vals"]'); await sleep(400);
+    await p.click('#llPvFields .pv-f[data-col="板厚区分"] [data-pv-add="cols"]'); await sleep(600);
     await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(300);
     await pickChart(p, "column").catch(() => {}); await sleep(300); await p.keyboard.press("Escape");
     await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(900);
