@@ -612,8 +612,173 @@ const CSS_M = `
 .cpm-more{font-size:11.5px;color:var(--h-input);padding:4px 6px}
 `;
 
+
+/* ================================================================== 回 3（採点 2 回目の first_fixes・next_round を受けて）
+   lib3: 計算列の札を組み直す。1 段目＝ƒx・名前・行 列 値、2 段目＝札の幅いっぱい（行 列 値 の下まで）。
+   2 段目は語の切れ目（空白・「 · 」）でだけ折り、2 行まで。3 行目からだけ … で、吹き出しに全部。
+   読めない式の理由は「式が読めません」「表示列で直す ›」の 2 つの塊で、塊の途中では折らない */
+function lib3() {
+  if (window.CP3) return;
+  const R = (window.CP3 = {});
+  const P = window.CP, Q = window.CP2;
+  /** 人の言葉の要約（作るときは式の木から作る: [列]/数 → 列 ÷ 数、concat → つなぐ、if(比べ, a, b) → 条件なら a、ほかは b。作れない式は式のまま） */
+  R.SUMMARY = { "重量t": "重量 ÷ 1000", "材調質": "合金 と 調質 を「-」でつなぐ", "板厚区分": "板厚 1 以上は 厚、ほかは 薄" };
+  R.kindOf = (x) => { const sm = x.querySelector(":scope > span small"); return sm ? (sm.dataset.kind ?? (sm.dataset.kind = sm.textContent.replace(/^式の列 · /, "").trim())) : ""; };
+  /** 札を組み直す。line: (c, kind) → 2 段目の HTML */
+  R.card = (box, line, cls = "cp3") => P.cards(box).forEach((x) => {
+    const c = P.colOf(x), span = x.querySelector(":scope > span"), b = span && span.querySelector("b");
+    if (!span || !b) return;
+    b.querySelector(".sx-calc")?.remove();
+    if (!span.querySelector(".cp2-fx")) span.insertAdjacentHTML("afterbegin", '<i class="cp2-fx" aria-hidden="true">ƒx</i>');
+    const kind = R.kindOf(x), f = P.ctx().formulas[c] || "";
+    x.classList.add("cp2-card", cls);
+    x.title = `${c}（計算列。一覧の表示列で作った列）\n= ${f}`;
+    const bad = x.classList.contains("is-off") || /式が読めません/.test(kind) || c === "寸法";
+    x.classList.toggle("cp2-bad", bad);
+    if (bad) x.querySelectorAll(".pv-r").forEach((r) => r.classList.add("cp-hide"));
+    let ln = x.querySelector(":scope > .cp3-l");
+    const html = bad ? '<span class="nw cp2-why">式が読めません</span><span class="cp3-dot"> · </span><span class="nw cp3-fixl">表示列で直す ›</span>' : line(c, kind, f);
+    if (!ln) { ln = document.createElement("div"); ln.className = "cp3-l"; x.append(ln); }
+    if (ln.dataset.h !== html) { ln.innerHTML = html; ln.dataset.h = html; }
+  });
+  R.formulaLine = (c, kind, f) => `<span class="nw cp3-code">= ${P.esc(f)}</span><span class="cp3-kind"> · <span class="nw">${P.esc(kind)}</span></span>`;
+  R.summaryLine = (c, kind, f) => `<span class="nw cp3-sum">${P.esc(R.SUMMARY[c] || "= " + f)}</span><span class="cp3-kind"> · <span class="nw">${P.esc(kind)}</span></span>`;
+}
+const CSS_R3 = `
+.pv-f.cp3,.pv-f.cp3q{flex:none !important}
+.pv-f.cp3{display:grid !important;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;column-gap:2px;row-gap:1px;height:auto !important;min-height:0}
+.pv-f.cp3 > span{display:flex !important;align-items:center;min-width:0;grid-row:1}
+.pv-f.cp3 > span > .cp2-fx{flex:none;margin-right:6px}
+.pv-f.cp3 > span > b{display:block !important;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-f.cp3 > span > small{display:none !important}
+.pv-f.cp3 > .pv-r,.pv-f.cp3 > i{grid-row:1}
+.pv-f.cp3 > .pv-r,.pv-f.cp3q > .pv-r{min-width:26px;height:24px;margin-left:3px;justify-content:center}
+.pv-f.cp3 ~ .cp2-head small,.cp2-head small{white-space:normal}
+.cp3-l{grid-column:1 / -1;grid-row:2;font-size:11.5px;line-height:1.45;color:#5b6776;white-space:normal;word-break:keep-all;overflow-wrap:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding-left:28px}
+.cp3-l .nw{white-space:nowrap}
+.cp3-l .cp3-code{font:11.5px ui-monospace,Menlo,Consolas,monospace;color:#2f3b49;white-space:normal}
+.cp3-l .cp3-sum{color:#2f3b49;font-weight:600;white-space:normal}
+.pv-f.cp2-bad .cp3-l{-webkit-line-clamp:3}
+.pv-f.cp2-bad.cp3,.pv-f.cp2-bad.cp3q{opacity:1 !important}
+.cp3-l .cp3-fixl{color:var(--h-input);font-weight:700}
+.cp3-l .cp2-why{color:#a33a1c;font-weight:700}
+`;
+
+/* ------------------------------------------------------------------ N: G 改（式を札の幅いっぱいの 2 段目に。読めない理由は塊で折る） */
+function propN() {
+  const P = CP, Q = CP2, R = CP3;
+  P.keep(() => {
+    R.card("#llPvFields", R.formulaLine); R.card("#deFields", R.formulaLine);
+    Q.group("#llPvFields", { btn: Q.BTN_LIST }); Q.group("#deFields", { btn: Q.BTN_DASH, sub: "一覧で作った列・このパネルの列" });
+    document.querySelectorAll("[data-de-calcnew]").forEach((b) => b.classList.add("cp-hide"));
+    const box = document.getElementById("lcDetail"), fx = box && box.querySelector('.lc-step[data-step="fx"]');
+    if (fx && /重量t|材調質|板厚区分/.test(box.textContent.slice(0, 40)) && !box.querySelector(".cp2-use")) {
+      fx.insertAdjacentHTML("afterend", '<div class="cp2-use"><i class="cp2-fx">ƒx</i><span>集計表・グラフとダッシュボードのカラムの頭（計算列）に並びます</span><button type="button" class="cp2-go">集計表で値に置く</button></div>');
+    }
+    P.useInPivot(); Q.reveal(); Q.fixes();
+  });
+}
+
+/* ------------------------------------------------------------------ O: 1 段の札（行 列 値 は指を載せた時と、使っている物だけ）。2 段目に人の言葉の要約 */
+function propO() {
+  const P = CP, Q = CP2, R = CP3;
+  P.keep(() => {
+    R.card("#llPvFields", R.summaryLine, "cp3o"); R.card("#deFields", R.summaryLine, "cp3o");
+    document.querySelectorAll(".pv-f.cp3o").forEach((x) => x.classList.add("cp3"));
+    Q.group("#llPvFields", { btn: Q.BTN_LIST }); Q.group("#deFields", { btn: Q.BTN_DASH, sub: "一覧で作った列・このパネルの列" });
+    document.querySelectorAll("[data-de-calcnew]").forEach((b) => b.classList.add("cp-hide"));
+    P.useInPivot(); Q.reveal(); Q.fixes();
+  });
+}
+const CSS_O = `
+.pv-f.cp3o > .pv-r:not(.on){display:none}
+.pv-f.cp3o:hover > .pv-r:not(.cp-hide),.pv-f.cp3o:focus-within > .pv-r:not(.cp-hide){display:inline-flex}
+.pv-f.cp3o::after{content:"";}
+.pv-f.cp3o:not(:hover) > span > b::after{content:"";}
+`;
+
+/* ------------------------------------------------------------------ P: G 改の 2 段目を人の言葉の要約に（式は吹き出し） */
+function propP() {
+  const P = CP, Q = CP2, R = CP3;
+  P.keep(() => {
+    R.card("#llPvFields", R.summaryLine); R.card("#deFields", R.summaryLine);
+    Q.group("#llPvFields", { btn: Q.BTN_LIST }); Q.group("#deFields", { btn: Q.BTN_DASH, sub: "一覧で作った列・このパネルの列" });
+    document.querySelectorAll("[data-de-calcnew]").forEach((b) => b.classList.add("cp-hide"));
+    P.useInPivot(); Q.reveal(); Q.fixes();
+  });
+}
+
+/* ------------------------------------------------------------------ Q: 計算列のまとまりを 2 列の小さな札に（名前・要約・行 列 値 の 3 段） */
+function propQ() {
+  const P = CP, Q = CP2, R = CP3;
+  const grid = (box) => {
+    const list = document.querySelector(box); if (!list) return;
+    const head = list.querySelector(".cp2-head:not(.is-raw)"); if (!head) return;
+    let g = list.querySelector(".cp3q-grid");
+    if (!g) { g = document.createElement("div"); g.className = "cp3q-grid"; }
+    if (head.nextElementSibling !== g) head.after(g);
+    P.cards(box).filter((x) => x.parentElement !== g).forEach((x) => g.append(x));
+    // 描き直しで欄に新しい札が出たら、古い札を外す
+    const seen = new Set();
+    [...g.children].reverse().forEach((x) => { const c = P.colOf(x); if (seen.has(c)) x.remove(); seen.add(c); });
+  };
+  P.keep(() => {
+    R.card("#llPvFields", R.summaryLine, "cp3q"); R.card("#deFields", R.summaryLine, "cp3q");
+    Q.group("#llPvFields", { btn: Q.BTN_LIST }); Q.group("#deFields", { btn: Q.BTN_DASH, sub: "一覧で作った列・このパネルの列" });
+    grid("#llPvFields"); grid("#deFields");
+    document.querySelectorAll("[data-de-calcnew]").forEach((b) => b.classList.add("cp-hide"));
+    P.useInPivot(); Q.reveal(); Q.fixes();
+  });
+  // 2 列にまとめた札も数える
+  const cards0 = P.cards;
+  P.cards = (box) => { const a = cards0(box); const g = document.querySelector(`${box} .cp3q-grid`); return g ? [...new Set([...a, ...g.querySelectorAll(".pv-f")])] : a; };
+}
+const CSS_Q = `
+.cp3q-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 4px}
+.cp3q-grid .pv-f{margin:0}
+.pv-f.cp3q{display:grid !important;grid-template-columns:repeat(3,auto) 1fr;grid-template-rows:auto auto auto;align-items:center;column-gap:3px;row-gap:2px;padding:5px 6px;height:auto !important}
+.pv-f.cp3q > span{grid-column:1 / -1;grid-row:1;display:flex !important;align-items:center;min-width:0}
+.pv-f.cp3q > span > .cp2-fx{flex:none;margin-right:5px;width:20px;height:17px;font-size:10px}
+.pv-f.cp3q > span > b{display:block !important;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-f.cp3q > span > small{display:none !important}
+.pv-f.cp3q > .cp3-l{grid-column:1 / -1;grid-row:2;padding-left:0;-webkit-line-clamp:3;font-size:11px}
+.pv-f.cp3q > .pv-r,.pv-f.cp3q > i{grid-row:3}
+.pv-f.cp3q > i{display:none}
+.pv-f.cp3q .cp3-kind{display:none}
+#deFields .cp3q-grid{grid-template-columns:1fr}
+.pv-f.cp3q.cp2-bad .cp3-l .nw{display:block}
+.pv-f.cp3q.cp2-bad .cp3-l .cp3-dot{display:none}
+`;
+
+/* ------------------------------------------------------------------ R: G 改＋欄の幅を引く取っ手を勧める（取っ手を引いて広げた所） */
+function propR() {
+  const P = CP, Q = CP2, R = CP3;
+  let widened = false;
+  P.keep(() => {
+    R.card("#llPvFields", R.formulaLine); R.card("#deFields", R.formulaLine);
+    Q.group("#llPvFields", { btn: Q.BTN_LIST, sub: "一覧の表示列で作った列 · 右の縁を引くと欄が広がります" });
+    Q.group("#deFields", { btn: Q.BTN_DASH, sub: "一覧で作った列・このパネルの列 · 欄の右の ⋮ を引くと広がります" });
+    document.querySelectorAll("[data-de-calcnew]").forEach((b) => b.classList.add("cp-hide"));
+    // 集計表のカラムの欄に引く取っ手（今は無い。作るときは組む所の de-split と同じ部品）を足し、広げた所
+    const aside = document.querySelector("#llPivot .pv-fields");
+    if (aside && !aside.querySelector(".cp3r-grip")) { aside.insertAdjacentHTML("beforeend", '<span class="cp3r-grip" title="引くと欄の幅が変わります" aria-hidden="true">⋮</span>'); }
+    // 組む所: 計算列を使ったら、取っ手を Shift＋→ で 2 回広げた所（撮る状態の後。今ある取っ手）
+    if (!widened && document.querySelector('#deFields .pv-f[data-dnd-col="重量t"] .pv-r.on')) {
+      const sp = document.querySelector("#dbEditor .de-split, .de-split");
+      if (sp) { widened = true; for (let i = 0; i < 2; i++) sp.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true })); }
+    }
+    P.useInPivot(); Q.reveal(); Q.fixes();
+  });
+}
+const CSS_RR = `
+#llPivot .pv-fields{position:relative}
+.pv:has(.cp3r-grip){grid-template-columns:300px minmax(0,1fr)}
+.cp3r-grip{position:absolute;top:50%;right:-9px;transform:translateY(-50%);width:12px;height:44px;border-radius:6px;background:#fff;border:1px solid #c5ced9;color:#5b6776;font:800 12px/42px system-ui;text-align:center;cursor:col-resize;z-index:2}
+`;
+
 const S = (fn) => `(${lib})(); (${fn})();`;
 const S2 = (fn) => `(${lib})(); (${lib2})(); (${fn})();`;
+const S3 = (fn) => `(${lib})(); (${lib2})(); (${lib3})(); (${fn})();`;
 export const PROPOSALS = [
   {
     key: "A", name: "元の列のすぐ下に並べる（式の印）", css: BASE_CSS + CSS_A, ops: [["script", S(propA)]],
@@ -681,5 +846,36 @@ export const PROPOSALS = [
     direction: "流れの変え方（左の欄を探さず、組む文の枠から選ぶ）",
     shots: "pivot-calc（「＋ 値 ▾」を開いた面: 計算列 3 が先、数える物・数の列が後。重量t に ✓）・dash-calc（G と同じ欄）",
     impl: "文の値の枠の後ろに「＋ 値 ▾」（行・列の枠にも「＋ 行 ▾」）。面は fields から作り、計算列（数は合計・字は種類の数）を先に並べる。押すと addMeasure・addDim の今の道。左の欄は G と同じ。",
+  },
+  /* ---- 回 3 ---- */
+  {
+    key: "N", round: 3, name: "G 改: 式を札の幅いっぱいの 2 段目に（切らずに 2 行まで。読めない理由は塊で折る）", css: BASE_CSS + CSS_R2 + CSS_G + CSS_R3, ops: [["script", S3(propN)]],
+    direction: "チャンク・置き場（G を持ち越し、first_fixes 1・2）",
+    shots: "calc-cols・pivot-calc・dash-calc",
+    impl: "G の impl に加え、札（両方の fieldsHtml）を 1 段目＝ƒx・名前・行 列 値、2 段目＝札の幅いっぱい（行 列 値 の下まで。左は ƒx の幅だけ下げる）の式と種類（= [重量]/1000 · 数）に組み直す。2 段目は空白と「 · 」でだけ折り（word-break: keep-all。塊は nowrap）、2 行まで。3 行目からだけ … にして吹き出しに全部。読めない式は「式が読めません」「 · 」「表示列で直す ›」の 3 つの塊（塊の途中では折らない）。",
+  },
+  {
+    key: "O", round: 3, name: "1 段の札（行 列 値 は指を載せた時と使っている物だけ）＋人の言葉の要約", css: BASE_CSS + CSS_R2 + CSS_G + CSS_R3 + CSS_O, ops: [["script", S3(propO)]],
+    direction: "減らし方（新。札のボタンを減らし、2 段目を名前の下いっぱいに）",
+    shots: "pivot-calc・dash-calc（使っている 重量t の 値・板厚区分 の 列／行 だけボタンが見える）",
+    impl: "N の札で、計算列の札の 行 列 値 を、使っている物（.on）と、指を載せた・焦点のある札だけに出す（キーボードでは Tab で札に入るとボタンが出る）。2 段目は人の言葉の要約（式の木から作る: [列]/数 → 列 ÷ 数、concat → つなぐ、if → 条件なら a、ほかは b。作れない式は式のまま）。式は吹き出し。",
+  },
+  {
+    key: "P", round: 3, name: "G 改の 2 段目を人の言葉の要約に（重量 ÷ 1000 · 数。式は吹き出し）", css: BASE_CSS + CSS_R2 + CSS_G + CSS_R3, ops: [["script", S3(propP)]],
+    direction: "見せ方（新。式の代わりに何をする列かを言葉で）",
+    shots: "pivot-calc・dash-calc",
+    impl: "N と同じ札で、2 段目を人の言葉の要約にする（O と同じ作り方）。式の全部は札の吹き出しと、表示列の「この列の作り方」。",
+  },
+  {
+    key: "Q", round: 3, name: "計算列のまとまりを 2 列の小さな札に（名前・要約・行 列 値 の 3 段）", css: BASE_CSS + CSS_R2 + CSS_G + CSS_R3 + CSS_Q, ops: [["script", S3(propQ)]],
+    direction: "チャンク（新。計算列だけを小さな札の格子にして、元の列の札と形で分ける）",
+    shots: "pivot-calc・dash-calc",
+    impl: "両方の fieldsHtml の計算列のまとまりを 2 列の格子にし、札を 名前（ƒx）・要約（2 行まで）・行 列 値 の 3 段に組む。計算列が 1 つなら 1 列。種類（数・n 種類）は吹き出し。",
+  },
+  {
+    key: "R", round: 3, name: "G 改＋欄の幅を引く取っ手を勧める（引いて広げた所）", css: BASE_CSS + CSS_R2 + CSS_G + CSS_R3 + CSS_RR, ops: [["script", S3(propR)]],
+    direction: "流れ（新。狭い欄では、欄を広げる手を計算列の所で勧める）",
+    shots: "pivot-calc（集計表のカラムの欄に引く取っ手を足して 300px に広げた所）・dash-calc（組む所の今の取っ手で 2 回広げた所）",
+    impl: "N に加え、計算列のまとまりの見出しの添え書きで欄を広げる取っ手を勧める。集計表のカラムの欄にも組む所と同じ取っ手（de-split の部品。← → とダブルクリック）を足し、幅は範囲ごとに覚える（tpa.lotlist.pivot.v1 の fieldsW）。",
   },
 ];
