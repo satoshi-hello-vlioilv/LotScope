@@ -545,5 +545,28 @@
    ],
    "self_check": "直した者が built4 の画像を自分で開いて見た: 1280 の json-dash（組む所の見本が「確定後と同じ大きさ（412×297）」で縮まず、題・添え書き・設備名・値が読める）・1728 と 1280 の json-made（合計と平均の棒・表・数字 2 枚で右と下が空かない。棒は 1 色で間延びしない）。気になる所: 1728 では数字のパネル（4 × 3）の中で数の下に空きが残る"
   }
+ },
+ "built_4": {
+  "name": "作った後・3 回目に直した後（版 3.120.0。commit 2453f23。built_3 の減点〈組む所の見本が縮み字が 4〜7.6px〉を直した形の採点し直し）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/json/score4-built-1728・score4-built-1536・score4-built-1280（前: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/json/before〈版 3.119.0〉・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/json/score3-built-*〈a2e0b8f〉）",
+  "evaluator": "作った後の 4 回目の採点の係（案を作っていない・直していない別のエージェント。2026-11-25）。2453f23 には Rust の変更が無く（最後の Rust の変更は 54c709e・12:46 UTC）、ui_serve（本体の desktop/target/debug/examples/ui_serve。15:54 UTC に組んだ物で /api/sources/json/preview を含む）をそのまま使った。TPA_UI_JSON=1 で ui-variants.mjs に ops の無い now.mjs を当て、--from json --states json,json-check,json-toast,json-made,json-dash,json-dashwin,json-off と --from dash --states dash を 1728・1536x864・1280x720 で撮り（6 回とも終了コード 0。score4.sh・score4-*.log）、画像を開いて見た。見えの字は measure3.mjs（json-dash の組む所の見本。measure4.log）と、自分で書いた measure5.mjs（json-made の全パネルの字の大きさ・パネルの大きさと中身の下の空き）・measure6.mjs（json-made の字のコントラスト）で測った。ui-eval-json.mjs も自分で流した（58 項目すべて OK・終了コード 0。score4-eval.log）",
+  "images_scored": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/json/score4-built-1728・score4-built-1536・score4-built-1280",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 9,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "前の減点（組む所の見本が縮み字が 4〜7.6px）は消えた: json-dash の見本は 3 つの大きさとも札「確定後と同じ大きさ（561×513／497×…／412×297）」で、測った祖先の transform の倍率は 1.000、見えの字は題 14px・添え書きと「組んでいます」12px・軸の札と棒の値 11px（measure4.log）。1280 の画像（score4-built-1280/json-dash、左 x≒80〜585・y≒305〜670）でも題・添え書き・CR1〜KEN・933.44 などが読める。作ったダッシュボード（json-made）: 合計の棒（左上）・平均の棒（左下）・設備ごとの表（右上）・数字 2 枚（右下）で 12 × 8 が空き無く埋まり、前の全幅の棒の間延びは無くなった（1728 の棒は太さ約 20px・間約 33px）。json-made の字は最小 11px（軸の札と棒の値 36 か所）、ほかは 12px 以上（measure5）、コントラストは全部 4.5 以上（measure6。見出しの白字は背景が画像で取れなかっただけで目で見て十分）。窓（json・json-check・json-dashwin）は 3 つの大きさとも送らずに「表を作る」「表を直してパネルに使う」まで届き、切れ・重なり・折り返しは無い。json-toast は 1 行で「見る」が届く。--from dash の標準は前と同じ。良い所: ① 列 → ② 分け方 → ③ 見本と確かめ → 下の段の できる表 と主のボタン 1 つが番号つきで左から右へ流れる・一覧から 3 手（{ } JSON → 表を作る → 見る）で 5 枚のパネルに届く・② の札・③ の確かめ・下の段・パネルの添え書きの数（6,332・33・6,365・1,167）が同じ言葉でそろう・見本が確定後と同じ大きさになり、組む所で見て確かめられる。悪い所（減点にしない）: (1) 窓の下の段のチェック「新しいダッシュボードに『設備ごとの通過回数の合計』を作る」と、知らせ「…に『設備ごとの通過回数の合計』を足しました」は 1 枚しか言わないが、実際は 5 枚（合計・平均・表・数字 2 枚）できる（score4-built-1280/json-check の下 x≒45〜560・y≒811、json-toast の下 y≒845。言葉と置き場を 8 にした理由）。(2) 1728 の数字のパネル（4 × 3、561 × 370px）は中身の下に 116px、題と数の間に約 90px の空きがあり、1 つの数に対してパネルが大きすぎる（score4-built-1728/json-made 右下 x≒680〜1985・y≒895〜1315）。数も 90px 前後の大きさで、標準のダッシュボードの数字のパネル（score4-built-1280/dash の上の段「1,200 ロット」22px 前後・1 行）と見せ方が大きく違う。(3) 同じ値の桁が棒と表で違う（棒 933.44・1.28、表 933.439・1.283。json-made の左と右上）。(4) 数字のパネルの単位が片方だけ（「7,949.8」に単位なし・「1,167 ロット」）。(5) パネルの「組む」ボタンが DOM では 5 枚とも有るのに、撮った画像では合計の棒とロット数の 2 枚だけに見え、平均・表・全部の通過回数には見えない（3 つの大きさとも同じ。score4-built-1728/json-made x≒598〜645・y≒183 と x≒1922〜1968・y≒915）。(6) 組む所の値の計算の段の単位の欄の見本の字「書式のま…」が欄で切れる（score4-built-1728/json-dash x≒1810〜1880・y≒820。この版の変更ではない組む所の作りなので、前の回と同じく減点しない）"
+  }
  }
 }
