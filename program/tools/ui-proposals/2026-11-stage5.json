@@ -185,9 +185,26 @@
       "claude_md": "push 前の確かめを Python 無しの試験に書き直す（既定 (1)。ruff と compileall は道具の Python に残す）",
       "ui_tools_in_ci": "足さない（既定 (3)）"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "印で取り込めることを確かめるのは Windows の CI の verify.py prev の 1 だけ（desktop.yml:300〜313。Releases のいちばん新しい v3.117.x 1 つ）。Linux の check-all・ci.yml では前の版の窓の受け入れの決め（3.117.3 update.rs:107〜125 validate_dist・:196〜205 dist_root・:234〜237 staged・distribute.rs:86・:142 extract_exe）を新しい ZIP に当てる確かめが無い（verify.py:247 stage_by_old_window は sidecar.py を見ない）。手元では印が欠けても気づけない"
+      }
+     ],
+     "seen": "自分で読んだ: 3.117.3（19d5cdf）の update.rs:107〜125 validate_dist は exe・program/sidecar.py の is_file・brand.json の app_id・version.py の APP_VERSION（small_reads.rs:64〜73 の行の読み方）だけ。dist_root（:196〜205）・staged（:234〜237）・install.rs:112・update.rs:566 plan の Localize・distribute.rs:86（dist_root）・:142 extract_exe（名前が program/sidecar.py で終わる最初の物）も中身を読まない。v3.82.0・v3.100.0・v3.105.0・v3.110.0 も同じ行（git show で確かめた）＝印 1 行で 3.82 以降のどの窓も取り込める（主張は正しい）。取り込んだ後: 3.117.3 main.rs:585〜606 は apply_staged → exe_changed なら relaunch（入口 app/<exe> を --wait-pid で）＝新しい窓が開き、前の窓は新しい program で Python を起こさない（正しい）。relaunch に失敗したときだけ前の窓が続け、3.111.0 以上は window_ready（3.117.3 boot.rs:6〜7・:93〜: version.py・brand.json・templates/index.html を前の窓の Template::parse で読めること・url_for('static', …) の部品・指紋・master_defaults・config/appsettings.example.json）で決める＝program/app に置いたままなら通る。ただし 3.111.0 より前の窓（v3.110.0 main.rs:641・:766〜783）は Python の準備で決めるので、印の sidecar.py はすぐ終わり、控えへ戻し（revert）、mark_failed（v3.110.0 update.rs の revert）で 3.119.0 を印に入れる＝その 1 台は 3.119.0 を二度と取り込まず、次の版を待つ（壊れはしない）。A は計画書 3133 行の「⑤ で凍らせた試験・写しを一緒に消す」と同じ型で、利用者の 1 版の決めにも合う。足りない所: books.json の sources の tools/ops-bench.py（1 行）を数えていない（58 行は答え合わせ役 37・oracle_gate 18・ui_server 3 だけ）・page::fingerprint の exts に .py（bundle_tables.json）があるので app の .py を消すと指紋が替わる・CLAUDE.md の「push 前の確かめ」は Python 無しにしても cargo test が標準の Python（*-truth.py・fakes_serve.py。bake.rs:1538〜1545）を要る・凍らせた試験を消す前に、⑤ で替えた窓をその試験に最後に 1 回当てる手順が無い・index.html を替えるなら前の窓の Template::parse で読めることの確かめが無い"
     },
     "B 印で 1 版＋共存の確かめだけ「3.118.0 より前 0 台」まで残す（版を上げない後片付け）": {
      "id": "B",
@@ -228,9 +245,30 @@
       "claude_md": "Python 無しの試験に書き直し、凍らせた試験の段だけ「後片付けまで」と書く",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "印で取り込めることを確かめるのは Windows の CI の verify.py prev の 1 だけ（desktop.yml:300〜313。Releases のいちばん新しい v3.117.x 1 つ）。Linux の check-all・ci.yml では前の版の窓の受け入れの決め（3.117.3 update.rs:107〜125 validate_dist・:196〜205 dist_root・:234〜237 staged・distribute.rs:86・:142 extract_exe）を新しい ZIP に当てる確かめが無い（verify.py:247 stage_by_old_window は sidecar.py を見ない）。手元では印が欠けても気づけない"
+      },
+      {
+       "kind": "more_steps",
+       "where": "B の compat と risks: 後片付けの時を決める「3.118.0 より前」の台数を配布の画面に別の札で出す（画面の直し＝決まり 1〜7 の採点が要る）・後片付けの commit をもう 1 回（版なしでも PR・CI・Windows の 2 回の往復）"
+      }
+     ],
+     "seen": "凍らせた試験を残すのは、3.117.x の PC が同じ共有を書く間の守りとして筋が通る（焼いた表はファイルの字は守るが、同時に書く・錠の取り合いは守らない）。ただし凍らせた写しは Flask の入った Python を CI と開発の PC に後片付けまで求め、計画書 3133 行の「⑤ で一緒に消す」と違う。台数は presence.rs:245〜 behind（配る版と違えば数える）では足りず、画面の直しが要る（画面の決まりに当たる）。ZIP を許しの並びにするのは ZIP を約 17.7 MB 減らす（tests 7.37・tools 9.54・docs 0.80 MB）良い所だが、窓が読む program/config・data（boot.rs:129・bundle.rs:587〜588・lot.rs の data）を並びに入れ忘れると壊れる。片付けの狙いが製品・確かめ・ZIP の 3 つに散る"
     },
     "C 画面を desktop/ui へ移して program を空に近くする（表の計画どおり）": {
      "id": "C",
@@ -268,9 +306,26 @@
       "claude_md": "Python 無しの試験に書き直す",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "C の compat: relaunch に失敗した 3.111.0〜3.117.x の PC で、前の窓の window_ready（3.117.3 boot.rs:93 app/templates/index.html）が読めず revert → mark_failed（3.117.3 update.rs mark_failed・boot::failed_blocks）。apply_staged（:322〜331）は印の付いた版を以後取り込まない＝その PC は 3.119.0 に二度と上がらない（自分で 19d5cdf の boot.rs・update.rs を読んで確かめた）"
+      }
+     ],
+     "seen": "表の元の計画どおりの形だが、片付けの版に置き場の作り直し（page::templates_dir・static_dir・brand.rs:9 と lotdsp_direct.rs:28 の include_str!・bundle の defaults・verify.py の place・boot_cases の場面・settings の焼き直しと nt の取り直し）が混ざる。program に残すのが前の版のための殻 3 つ＋config・data だけになるので、relaunch に失敗した PC が上がれなくなる落とし穴がある（A・B には無い）。404 へは既定 (2)「現場で数を確かめられないなら 503 のまま」に反する"
     },
     "D 2 版に割る（中身ごと残してから、3.118.0 より前 0 台で消す）": {
      "id": "D",
@@ -304,9 +359,26 @@
       "claude_md": "3.119.0 で書き直す",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "D の versions: 2 版（3.119.0・3.119.1）。利用者の決め 2026-11-25「1 版を基本、2 版目は前の窓が取り込めないときだけ」に対し、印で前の窓が取り込めること（3.117.3 update.rs:112 ほか）を確かめた＝2 版目の理由が無い"
+      }
+     ],
+     "seen": "前の窓が relaunch に失敗しても Python が起きる、いちばん保守的な形。ただし印で取り込めるので 2 版にする理由が無く、利用者の決めに反する。3.119.0 の間は試験の無い Python のファイルが ZIP に残り、壊れても気づかない（compileall だけ）。2 版目を出す時が現場の台数次第で決まらない"
     },
     "E ZIP を組む所で印を作る（リポジトリから Python の中身を全部消す）": {
      "id": "E",
@@ -341,9 +413,26 @@
       "claude_md": "Python 無しの試験に書き直す",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "印で取り込めることを確かめるのは Windows の CI の verify.py prev の 1 だけ（desktop.yml:300〜313。Releases のいちばん新しい v3.117.x 1 つ）。Linux の check-all・ci.yml では前の版の窓の受け入れの決め（3.117.3 update.rs:107〜125 validate_dist・:196〜205 dist_root・:234〜237 staged・distribute.rs:86・:142 extract_exe）を新しい ZIP に当てる確かめが無い（verify.py:247 stage_by_old_window は sidecar.py を見ない）。手元では印が欠けても気づけない"
+      }
+     ],
+     "seen": "リポジトリが片付く形は良いが、印が配る ZIP にしか無いので、開発の PC・試験・verify.py の stage_by_old_window（verify.py:247〜264）・手で写した program と配る形の差が増える。3.117.3 の distribute.rs:142 extract_exe は ZIP の名前から program/sidecar.py で終わる物を探すので、bundle.py が書く印の名前・位置（根の program/ の直下・ファイル・記号リンクでない）を test_bundle で 1 字まで見る要がある。test_version.py:43 の「sidecar.py が配る物」の確かめと RELEASE の要約（app_build.py:61 RELEASE_GLOBS の *.py）から印が外れ、要約が ZIP の中身を表さなくなる。許しの並びの入れ忘れの落とし穴は B と同じ"
     },
     "F 凍らせた試験を「焼いた答え」に替えてから消す（確かめを作り直して 1 版）": {
      "id": "F",
@@ -379,9 +468,26 @@
       "claude_md": "Python 無しの試験に書き直す（凍らせた試験の段も無くなる）",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 3,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "印で取り込めることを確かめるのは Windows の CI の verify.py prev の 1 だけ（desktop.yml:300〜313。Releases のいちばん新しい v3.117.x 1 つ）。Linux の check-all・ci.yml では前の版の窓の受け入れの決め（3.117.3 update.rs:107〜125 validate_dist・:196〜205 dist_root・:234〜237 staged・distribute.rs:86・:142 extract_exe）を新しい ZIP に当てる確かめが無い（verify.py:247 stage_by_old_window は sidecar.py を見ない）。手元では印が欠けても気づけない"
+      }
+     ],
+     "seen": "共存を Python 無しで残したい狙いは分かる（効き目は変異で数で見える）。だが焼けるのは「読む答え」だけで、凍らせた試験の芯（masters_parity の同時に書く・seeds_parity の 3 本の錠の取り合い・place_parity の種まき・mirror_parity の台帳）は焼けない（案の risks のとおり）。窓どうしに替えると 3.117.3 の Python の錠の形との取り合いの守りは結局消える。新しい本 1・場面 10 の焼きと Windows の nt の取り直しが片付けの版に乗り、片付けより作りが重くなる"
     },
     "G 使い手の無い物から 1 版で消し、Python の中身は配る物から外すだけ（リポジトリには参照の写しとして凍らせる）": {
      "id": "G",
@@ -417,9 +523,26 @@
       "claude_md": "Python 無しの試験に書き直す（凍らせた写しを相手にする段は残す）",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 4,
+      "visual": 5,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "G の risks: 消す版がもう 1 つ要る（先送り）。凍らせた写しが 2.7 MB → 約 5 MB に増え、program/app の .py は配る ZIP の外へ動くだけ"
+      }
+     ],
+     "seen": "片付けの狙い（利用者の決め 2026-11-21・25）に届かない。本物の sidecar.py を ZIP に残す理由（前の窓の互換）は印で足りると確かめたので要らない。リポジトリには写しが 2 組になり、言葉と置き場がかえって散る。使い手 0 の物から消す順そのものは良い"
     },
     "H 数えてから消す 1 版（消す条件を機械で確かめる門を先に置く）": {
      "id": "H",
@@ -456,9 +579,30 @@
       "claude_md": "Python 無しの試験に書き直す",
       "ui_tools_in_ci": "足さない"
      },
-     "score": {},
-     "minus": [],
-     "seen": ""
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "印で取り込めることを確かめるのは Windows の CI の verify.py prev の 1 だけ（desktop.yml:300〜313。Releases のいちばん新しい v3.117.x 1 つ）。Linux の check-all・ci.yml では前の版の窓の受け入れの決め（3.117.3 update.rs:107〜125 validate_dist・:196〜205 dist_root・:234〜237 staged・distribute.rs:86・:142 extract_exe）を新しい ZIP に当てる確かめが無い（verify.py:247 stage_by_old_window は sidecar.py を見ない）。手元では印が欠けても気づけない"
+      },
+      {
+       "kind": "more_steps",
+       "where": "H の 503 の決め: tools/unanswered-count.py は Python の台本で、共有の利用状況のファイル（presence.rs:742〜743 の unanswered）は利用者の LAN の中にしか無い＝利用者が Python の残った PC で流す手が要る（after_5「利用者の PC から Python を外せるのは ⑤ の後」と食い違う。この PC からは共有が見えない）"
+      }
+     ],
+     "seen": "名指し 0 の門（test_fifth_table.py を広げる・変異で落ちる）は、消した物を名指す所の取り残しを機械で止められる良い確かめで、A の確かめに足す価値がある（CLAUDE.md・計画書の歴史の節の決め方は「消した物の名を出してよい節の印」を 1 か所に決めれば甘くならない）。ただし数える道具は利用者の PC の Python に頼り、狙いが 2 つ（片付け＋503 の数）に分かれる。凍らせた試験は A と同じく消す"
     }
    }
   }
@@ -471,6 +615,40 @@
   "見てほしい未確かめ: cargo test の表だけの形を消した写しで流した数（measured.not_measured）・app_icon.py を焼いた形にしたときの build.rs と Tauri の絵・ZIP を許しの並びにしたときに窓が読む物の入れ忘れが無いか",
   "注意: このファイルは採点の欄が空のまま commit する。program/tests/test_ui_score.py:211 の test_old_records_still_read は置き場の *.json を全部 decide に通すので、採点者が evaluator と score を入れるまで落ちる（push しない）"
  ],
- "evaluator": "",
- "evaluation": {}
+ "evaluator": "案を作っていない採点者（別のエージェント・採点のみ・2026-11-25。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので案ごとの画像は無く、自分でコードを読んで確かめた: git show で 3.117.3（19d5cdf）・v3.82.0・v3.100.0・v3.105.0・v3.110.0 の desktop/src/update.rs（validate_dist・dist_root・staged・stage_release・apply_staged・mark_failed）・main.rs（start の apply_staged → relaunch・window_ready の決め・3.110 の Python の準備で戻す枝）・boot.rs（window_ready が読む物）・install.rs:112・distribute.rs:86・:142（extract_exe）・small_reads.rs（版の行の読み方）・locate.rs、今の update.rs:104〜118（is_dist・root_of）・boot.rs:79〜・page.rs:287〜（指紋の exts に .py）・build.rs（app_icon.py を Python で呼ぶ）・verify.py:247（stage_by_old_window）・:715〜（prev）・desktop.yml:300〜313・presence.rs:245〜・:742〜・books.json の sources・bake.rs:1538〜（標準の Python）・bless.py の --scope。数は git ls-files・git grep で取り直した（program/app 149・答え合わせ役 36・凍らせた写し 126・books.json の tools の sources 4〈ui_server 3・ops-bench 1〉・名前が sidecar.py で終わる追跡ファイル 3）。cargo と Python の試験は流していない（案を作った係の写しでの数 measured.python_tests_on_a_copy を読んだ）。リポジトリはこの採点のファイルのほか替えていない。物差しの読み替えは 2026-11-stage4d.json と同じ: 順序＝版と段の並び・チャンク＝版の切り方・階層化＝狙いが 1 つか・視覚化＝効き目が数で見えるか・ステップ数＝手間と往復・考えさせない＝落とし穴の少なさ・直感的＝今までの型と計画に沿うか・形と色／言葉と置き場＝決まりが 1 か所で同じ言葉か・整列＝範囲の釣り合い・調子＝理由の明るさ",
+ "evaluation": {
+  "verified_claims": [
+   "印で前の版の窓が取り込める: 正しい。3.117.3 の update.rs:112〜114 validate_dist・:197/:202 dist_root・:236 staged・:263 stage_release、distribute.rs:86・:142、install.rs:112、update.rs:566 は program/sidecar.py の is_file だけで中身を読まない。v3.82.0・v3.100.0・v3.105.0・v3.110.0 も同じ行。版は version.py の「APP_VERSION = \"…\"」の行（small_reads.rs:64〜73）・名乗りは brand.json の app_id（と distribute の name・exe）",
+   "exe が替わる版は前の窓の窓の準備を飛ばす: 正しい（3.117.3 update.rs:132〜138 validate_window は sha256 が同じときだけ。distribute.rs も同じ）",
+   "取り込んだ後は新しい窓が開く: 正しい。3.117.3 main.rs:585〜606 は Python を起こす前に apply_staged → a.exe_changed なら relaunch（app/<exe> を --wait-pid で）して return。v3.82.0〜v3.110.0 にも同じ枝（main.rs の exe_changed → relaunch）",
+   "relaunch に失敗した PC の戻す判定: 3.111.0〜3.117.x は window_ready（version.py・brand.json・templates/index.html を前の窓の Template::parse で・url_for('static', …) の部品・指紋の形・master_defaults・config/appsettings.example.json）で決め Python は見ない＝program/app に画面の物を置いたままなら戻さない（A の主張は正しい）。ただし 3.111.0 より前の窓（v3.110.0 main.rs:641・:766〜783）は Python の準備で決めるので、印の sidecar.py は起きずに控えへ戻し、mark_failed でその版を印に入れる（壊れはしないが、その 1 台は 3.119.0 を二度と取り込まず次の版を待つ）。案はこの形を書いていない",
+   "C の落とし穴: 正しい。画面の型が program/app に無いと 3.117.3 の window_ready が落ち、revert → mark_failed、apply_staged（:322〜331）が以後その版を捨てる",
+   "新しい窓は印が無くても取り込める: 正しい（今の update.rs:104〜118 is_dist・root_of。凍らせた写しの sidecar.py は根にしない試験 :751〜774）",
+   "表の数: 取り直して同じ（program/app 149・答え合わせ役 36・凍らせた写し 126）"
+  ],
+  "discrepancies": [
+   "books.json の sources の tools の行は 4（ui_server.py 3 ＋ tools/ops-bench.py 1）。案の「58 行を外す」は ops-bench.py を数えていない（ops-bench.py:43〜47 は app を import する＝消す道具。ops の本の sources に残すと bless.py --check が「元が無い」で落ちる）",
+   "画面の指紋（page.rs:287〜・bundle_tables.json の fingerprint.exts に .py）は program/app の .py の名前・大きさ・時刻を含む。消すと指紋の値が替わる（@BUILD でそろえるので表は替わらない見込みだが、page::tests の決めた入力の 12 桁の試験と boot_cases の場面は見直す）",
+   "「Python 無しの試験」: cargo test の TPA_NO_PYTHON=1 も独立の答え（tools/*-truth.py）と作り物（tests/fakes_serve.py）に標準の Python を要る（bake.rs:1538〜1545）。app を import しないだけで、開発と CI の PC から Python は外れない。after_5 の「利用者の PC」は窓を使う PC と読める（開発・試験・ZIP 作りは CI と作業の容器）が、CLAUDE.md の書き直しでこの差を言葉にする要がある",
+   "利用者の PC から Python を外す条件: 3.117.x から 3.119.0 へ直に上がった PC の控え（update::revert の戻し先）は 3.117.x で、Python を起こす。⑤ の後でも、その PC で 3.119.0 が開けず戻すと Python が要る（verify.py prev の 3 も Python のある PATH で前の版を開く）。README の「PC の Python は ⑤ まで消さない」を「控えが 3.118.0 以上になった PC から」に直す要がある",
+   "印の確かめは Windows の CI の prev（Releases のいちばん新しい v3.117.x 1 つ）だけで、Linux（ci.yml・check-all）では前の窓の受け入れの決めを新しい ZIP に当てていない（stage_by_old_window は sidecar.py を見ない）"
+  ],
+  "sidecar_one_version": "1 版で消せる（中身の無い印 program/sidecar.py を残す形で）。根拠: 3.82〜3.117.3 のどの窓も、取り込み・置く・写す・据え付けの確かめは program/sidecar.py が「ファイルである」ことだけで中身を読まず、exe が替わる版では窓の準備も当てない。取り込んだ後は Python を起こす前に入れ替えて新しい exe で開き直すので、前の窓が新しい program で Python を起こすのは relaunch に失敗したときだけ。そのときも 3.111.0 以上の窓は画面の物（program/app の templates・static・master_defaults・brand.json・version.py・config）だけで決めて戻さず、3.111.0 より前の窓は控えへ戻して 3.119.0 に印を付ける（その版に上がらないだけで壊れない。次の版は取り込む）。窓の sidecar.rs・router の中身へ回す枝・lot.rs の口は新しい窓の中の物で前の窓に関わらないので、同じ版で消せる。計画書 2699 行の「sidecar.py を消すのは要更新 0 台から」は「sidecar.py の中身を消す・印は残す」に書き直す。印は 3.117.x 以前の PC が 0 台になった後の版で消せる（そのときは版が要る）",
+  "ranking": "A 70.3・H 63.7・E 61.9・B 59.5・F 57.4・D 51.7・G 48.2・C 46.3。1 位 A は合格点 80 に届かない（決まり 2026-11-06: 案出しはやり直さず、下の first_fixes を入れた形で作る）",
+  "why_first": "A は利用者の決め（1 版・古い記録を消す・3 つの既定）と計画書の型（⑤ で凍らせた写しと試験を一緒に消す・画面の物は page::templates_dir の 1 か所のまま）にいちばん素直で、前の版との互換を、確かめた最小の物（1 行の印＋program/app の画面の物）で取る。B は共存の守りが厚いが画面の直しと 2 回目の往復が要り、H は門が良いが数える道具が利用者の PC の Python に頼る。門の考え（H）と凍らせた試験を最後に 1 回当てる考え（B・F）は first_fixes で A に入れる"
+ },
+ "first_fixes": [
+  "1. 前の版の窓の受け入れを Linux でも毎回見る: desktop/bundle/test_bundle.py に「3.117.3 の窓の決め」を写した確かめを足す（組んだ ZIP の名前の並びに対し、根の program/sidecar.py がファイル〈記号リンク・フォルダでない〉で 1 つ・extract_exe〈3.117.3 distribute.rs:142〉と同じ「名前が program/sidecar.py で終わる最初の物」が根の物と同じ・program/app/brand.json の app_id・name・exe・program/app/version.py の最初の APP_VERSION の行〈3.117.3 small_reads.rs:64〜73 の読み方〉が版と同じ）。変異: 印を外す・印をフォルダにする・tools の下に xprogram/sidecar.py を置く・version.py の行を「APP_VERSION: str = …」にする で落ちる。verify.py の stage_by_old_window（:247）も sidecar.py が無ければ落とす",
+  "2. relaunch に失敗した前の窓の形を通しで見る: verify.py prev に 1c を足す（前の版の exe と新しい program を app に並べ、update/applied.json を置き、入口の exe を開き直せない形〈TPA_LINK_DIRS と同じく試験の口で relaunch を失敗させるか、前の exe を直に --program で開く〉で開く → 前の窓の記録に「戻しました」が無い・mark_failed の versions に新しい版が無い）。これで ⑤ で index.html（#pyBar／#pyPill を外す）を替えても前の窓の Template::parse と url_for('static', …) で読めることを本物で見る。3.111.0 より前の窓は控えへ戻す形を README と計画書に 1 行書く",
+  "3. 印の中身と置き場を決める: program/sidecar.py は 1 行のコメント（実行しても何もせず終了コード 0。前の窓が relaunch に失敗して起こしても害が無い）。program/app/version.py は名前と「APP_VERSION = \"X.Y.Z\"」の行の形を替えない（前の窓の版の読み方）。test_version.py:43 の「sidecar.py が配る物」は「印が 1 行で中身が無い」に書き替え、desktop/src の is_dist・root_of（update.rs:104〜118）と locate.rs の説明の「sidecar.py か」を残す理由を 1 か所（update::is_dist の doc）に書く",
+  "4. 凍らせた試験は消す前に最後に 1 回当てる: ⑤ の PR の中で、窓のコードの片付け（sidecar.rs・router の枝・lot.rs の口・Fail::Py）を先に commit し、その形で `TPA_NO_PYTHON=1 TPA_FROZEN_PY=1 cargo test` の凍らせた試験 10 本（common::bake::frozen_python を呼ぶ 13 か所）を流して通った記録（Ran・test result の行）を built に書いてから、凍らせた写し・試験・freeze-legacy.py・share_reader を消す commit を重ねる。⑤ は共有のファイルの形・錠を替えない（master_store.rs・seeds.rs・mirror.rs の差分が 0）ことを PR の説明と確かめに書く",
+  "5. 焼き直しの順: index.html・app.js・app.css（#pyBar／#pyPill）と dashboard.js・progress.rs（順番待ち・段 python）を替えるなら、答え合わせ役を消す前に `python program/tools/bless.py settings`（Python と比べる形）で焼き直し、Windows の nt の表を CI 2 回（--take-nt）で取り直す。消した後に焼き直すときは `bless.py --scope 道の型`（TPA_NO_PYTHON=1）しか無いことを CLAUDE.md に書く",
+  "6. books.json の sources から、答え合わせ役 37・oracle_gate 18・tools/ui_server.py 3 に加えて tools/ops-bench.py 1（ops の本）も外す。tests/test_operation.py・CLAUDE.md の ops-bench の行も一緒に（ui_scene.py の ops_bench・ops_base・ops_added は残す）。外した後 `bless.py --check` が通る",
+  "7. 画面の指紋: page.rs の fingerprint の exts（bundle_tables.json の .py）を見直す（version.py だけが残る）。`page::tests::the_fingerprint_is_the_version_and_the_names_sizes_and_times`・boot_cases の場面・bake.rs:106 の build_stamp が通ることを確かめる。前の窓の指紋の形（版-12 桁）は替わらない",
+  "8. app_icon.py は絵を焼いた .ico・.png を desktop/icons と desktop/splash に追跡ファイルとして置き、build.rs は Python を呼ばない（rerun-if-changed も外す）。試験: cargo build が PATH に Python の無い形で通る（ci.yml の 1 段で PATH から Python を外して cargo build --locked）・test_app_icon.py の代わりに絵の大きさと .ico の頭の確かめ（Rust の試験で）",
+  "9. 名指し 0 の門（H の良い所）: tests/test_fifth_table.py を「消した物の名（sidecar.rs・frame.rs・ui_server・_oracle.py・tests/legacy・TPA_FROZEN_PY・frozen_python・delegates_budget・delegate-count・locate::python・Fail::Py）を git grep で名指す所が 0。例外は計画書・CHANGELOG の歴史の節〈印 `<!-- history -->` の中〉と update.rs の印の説明だけ」に書き替える。変異: 名を 1 つ戻すと落ちる",
+  "10. 窓が答えない道の数え方は残す: 503（window_unanswered）と delegate::unanswered の回数、利用状況の印の unanswered（presence.rs:742〜743）は消さない（既定 (2) の 503 のまま。後で 404 を決める材料）。言葉から Python を外し、router::tests の `an_absent_backend_is_never_asked_and_the_window_answers_why` を「中身の係が無い」形で残す。/__desktop/info の protocol・serves と心拍・/api/health の python: absent は 3.117.x の配布の画面と CI（desktop.yml の python -ne absent）が読むので、値を残す（定数は sidecar.rs から presence か shell へ移す）。利用状況の印に python を書かない形も残す",
+  "11. CLAUDE.md の「push 前の確かめ」は `TPA_NO_PYTHON=1 cargo test --locked --no-fail-fast`（表だけの形）と、app を import しない Python の試験・ruff・compileall（道具の Python）に書き替える。標準の Python（独立の答え・作り物）は残ると書く。README の「PC の Python は ⑤ まで消さない」は「控え（直前の版）が 3.118.0 以上になった PC から外してよい（3.117.x から直に上がった PC は、戻すときに Python を起こす）」に直す",
+  "12. 古い採点の記録を消すとき、ui-all.mjs:27 が読む 2026-11-stage2b.mjs と 2026-11-stage4d.json・2026-11-stage5.json を残し、test_ui_score.py:211 の test_old_records_still_read が残りの *.json で通ること・CLAUDE.md の評価関数の行に出る記録の名（2026-11-stage2.json ほか）を直すこと。ui-eval-*.mjs の頭のコメントの ui-proposals/2026-10-* の名指しは門（9）の例外にせず、言葉を直す"
+ ]
 }
