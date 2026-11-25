@@ -76,11 +76,11 @@ function lib() {
     }).join("");
   };
   /** 展開の見本（元の 2 行 → 9 行）。kk・vv＝列の名前 */
-  J.preview = (kk = "設備", vv = "通過回数", lot = "L0001C1", max = 9) => {
+  J.preview = (kk = "設備", vv = "通過回数", lot = "L0001C1", max = 9, lot2 = "L0002C2") => {
     const r1 = { ANF: 1.069, CR1: 1, DL2: 0.728, HOT: 2, KEN: 0.455, LS3: 0.366 }, r2 = { DL2: 1, KEN: 2, "L-1": 1.128 };
     const out = [];
     Object.entries(r1).forEach(([k, v], i) => out.push([i === 0, lot, k, v, 1]));
-    Object.entries(r2).forEach(([k, v], i) => out.push([i === 0, "L0002C2", k, v, 2]));
+    Object.entries(r2).forEach(([k, v], i) => out.push([i === 0, lot2, k, v, 2]));
     return `<table class="jx-prev"><thead><tr><th>元</th><th>ロット番号</th><th class="is-new">${esc(kk)}<small>鍵</small></th><th class="is-new is-num">${esc(vv)}<small>値・数</small></th></tr></thead><tbody>`
       + out.slice(0, max).map(([first, l, k, v, n]) => `<tr class="${first ? "is-first" : ""} r${n}"><td>${first ? `${n} 行目` : ""}</td><td>${l}</td><td>${k}</td><td class="is-num">${v}</td></tr>`).join("")
       + "</tbody></table>";
@@ -148,6 +148,13 @@ function propA() {
     if (!card) return;
     const join = card.querySelector('.sr-sec[data-sec="join"]');
     if (!join) return;
+    // 撮る手順（ui-harness.mjs の joinDemo: 結合の段を開いて相手と鍵 2 つを選ぶ）が済むまで段に触らない（回 2 で直した。前は先に畳んで
+    // joinDemo の「＋ 結合を足す」が押せず page.click の Timeout が出た）。鍵 2 つ目の右の列が選ばれた後か、カードを開いて 12 秒たったら
+    if (!card.dataset.jxT) card.dataset.jxT = Date.now();
+    const done = card.querySelector('.jn-item [data-jn-key="1"] [data-jn-r]')?.value === "質別";
+    if (!done && Date.now() - card.dataset.jxT < 12000) return;
+    if (done && !card.dataset.jxD) card.dataset.jxD = Date.now();
+    if (done && Date.now() - card.dataset.jxD < 500) return;
     // 結合の段は畳み、JSON の段を開く（開くのは 1 つ）
     card.querySelectorAll('.sr-sec:not([data-sec="json"])').forEach((s) => {
       s.classList.remove("is-open"); const sb = s.querySelector(".sr-sb"); if (sb) sb.hidden = true;
@@ -443,7 +450,347 @@ const CSS_F = `
 .jxf-foot{font-size:12px;color:#4c5864}
 `;
 
+/* ================================================================== 回 2（1 回目の採点: 1 位 D 78.5 点。first_fixes 1〜6 と next_round の方向）
+   G＝D に first_fixes 1〜6 を全部入れた形（持ち越し）・H＝組む所の中に E の 3 段の面（新）・I＝組む所の「見本から組む」に JSON の見本（新）・
+   J＝データ元で決めた展開が組む所の札に出て、札の ✎ で直す（A と D の組み合わせ。新）・K＝E に採点の指摘を入れ、窓からパネルも足す（持ち越し）。
+   G・H・I・J は dash-panel（--from dash-edit）、K は list（--from list）で撮る。数は仕掛（1,200 行）の作り物から数えた本当の数 */
+function lib2() {
+  if (window.JX2) return;
+  const J = window.JX, K = (window.JX2 = {});
+  const c = J.COLS.wip[0];
+  /** 細い欄に合わせた分け方の 5 つ（説明は 1 行・例・行の数・おすすめ） */
+  K.miniPats = (pick = "dict") => {
+    const ans = { dict: ["6,332 行", "合う 97%", "is-fit"], list: ["合いません", "並びは 0.3%", ""], rows: ["合いません", "0%", ""],
+      nest: ["1,200 行・列 +9", "横に広げる", "is-alt"], dictrows: ["合いません", "値が表でない", ""] };
+    const say = { dict: "鍵ごとに行へ（鍵・値の 2 列）", list: "要素ごとに行へ（値の 1 列）", rows: "要素ごとに行へ・中の名前が列に",
+      nest: "平らにして列を足す・行は増えない", dictrows: "鍵ごとに行へ・中を列に" };
+    return `<div class="jk-pats" role="radiogroup" aria-label="分け方">${J.SHAPES.map((s) => {
+      const [n, t, cls] = ans[s.k];
+      return `<button type="button" role="radio" aria-checked="${s.k === pick}" class="jk-pat ${cls}${s.k === pick ? " is-on" : ""}">`
+        + `<span class="jk-pn">${s.n}</span><span class="jk-pb"><b>${s.name}${cls === "is-fit" ? '<i class="jk-rec">おすすめ</i>' : ""}</b><small>${say[s.k]}</small></span>`
+        + `<em>${n}<small>${t}</small></em></button>`;
+    }).join("")}</div>`;
+  };
+  /** 小さな見本（元の 1 行 → 分けた行。細い欄用） */
+  K.miniPrev = (kk = "設備", vv = "通過回数") => `<table class="jk-prev"><thead><tr><th>元の 1 行</th><th>${kk}</th><th class="n">${vv}</th></tr></thead><tbody>`
+    + [["W00001", "ANF", "1.069"], ["", "CR1", "1"], ["", "DL2", "0.728"]].map(([l, k, v]) => `<tr><td>${l}</td><td>${k}</td><td class="n">${v}</td></tr>`).join("")
+    + '<tr class="more"><td></td><td colspan="2">… ほか 3 行（HOT・KEN・LS3）</td></tr></tbody></table>';
+  /** 1 段の知らせ（理由は「見る」の先） */
+  K.warn1 = () => `<div class="jk-warn" role="status"><b>▲ 9 行</b> 数えていません<button type="button" class="jx-link" title="壊れた JSON 5 行・違う形（並び）4 行。押すとその行を出します">見る</button></div>`;
+  K.keyMaster = () => `<small class="jk-km" title="設備マスタと照らした結果">設備マスタに 8 / 9 · <b>CR1</b> が無い</small>`;
+  /** 組む所の文の札と題・パネルの中身（設備ごとの通過回数の合計の見本）。kn・vn＝札の名前 */
+  K.result = (kn, vn, foot) => {
+    const ed = document.querySelector("#dbEditor");
+    if (!ed) return;
+    const nm = document.querySelector("#deTitle");
+    if (nm && nm.value !== "設備ごとの通過回数の合計") nm.value = "設備ごとの通過回数の合計";
+    [...ed.querySelectorAll(".pv-chip")].forEach((ch) => {
+      const b = ch.querySelector("b");
+      if (/仕掛区分/.test(ch.textContent) && !ch.dataset.jx) { ch.dataset.jx = 1; if (b) b.textContent = kn; }
+      if (/ロット数/.test(ch.textContent) && !ch.dataset.jx) { ch.dataset.jx = 1; if (b) b.textContent = vn; }
+    });
+    ed.querySelectorAll(".de-main b, .de-main span, .de-main label").forEach((x) => { if (x.children.length === 0 && x.textContent === "ロット数" && !x.closest("#deFields")) x.textContent = vn; });
+    const panel = document.querySelector('#dashGrid .db-p[data-id="wipClass"]');
+    const body = panel && panel.querySelector(".db-pb");
+    if (panel && body && !panel.querySelector(".jxd-res")) {
+      const t = panel.querySelector(".db-ph h3");
+      if (t) t.textContent = "設備ごとの通過回数の合計";
+      body.innerHTML = `<div class="jxd-res">${J.bars(J.SUMS.wip)}<small class="jk-foot">${foot}</small></div>`;
+    }
+  };
+  /** 組む所の右の上に、いまの組みの要約（1280 でも文の結果が組む所の中で見える。first_fixes 6） */
+  K.summary = (kn, vn) => {
+    const main = document.querySelector("#dbEditor .de-main");
+    if (!main || main.querySelector(".jk-sum")) return;
+    main.insertAdjacentHTML("afterbegin", `<div class="jk-sum" role="status"><span class="jk-sl">いまの組み</span><b>${kn}</b><span>ごとに</span><b>${vn} の合計</b><span class="jk-sr">→ 9 行 · 計 7,949.8</span></div>`);
+  };
+  K.c = c;
+  /** 元の JSON の札を札の並びから外す */
+  K.dropJsonCards = (fields) => J.COLS.wip.forEach((x) => [...fields.querySelectorAll(".pv-f")].filter((f) => f.querySelector("b")?.firstChild?.textContent === x.col).forEach((f) => f.remove()));
+  K.rb = (k, on) => `<button type="button" class="pv-r r-${{ 行: "rows", 列: "cols", 値: "vals" }[k]}${on ? " on" : ""}" aria-pressed="${!!on}">${k}</button>`;
+}
+const CSS_K = `
+.jk-pats{display:flex;flex-direction:column;gap:3px}
+.jk-pat{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:6px;align-items:center;padding:4px 7px;border:1px solid #cfd9e4;border-radius:7px;background:#fff;font:inherit;color:#16202b;text-align:left;cursor:pointer;min-width:0}
+.jk-pat.is-on{border:2px solid #3f7fcf;background:#f2f7fd;padding:3px 6px}
+.jk-pat:not(.is-fit):not(.is-alt){color:#4c5864}
+.jk-pn{font-size:15px;font-weight:700;color:#2d5f9e}
+.jk-pb{display:flex;flex-direction:column;min-width:0}
+.jk-pb b{font-size:13px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.jk-pb small{font-size:11.5px;color:#4c5864;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jk-rec{font-style:normal;font-size:11px;font-weight:700;color:#fff;background:#1d7a44;border-radius:9px;padding:0 6px;line-height:17px}
+.jk-pat em{font-style:normal;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.jk-pat em small{font-size:11px;font-weight:400;color:#4c5864}
+.jk-pat.is-fit em{color:#1d6b3a}
+.jk-prev{border-collapse:collapse;font-size:12px;width:100%;table-layout:fixed}.jk-prev th,.jk-prev td{overflow:hidden;text-overflow:ellipsis}
+.jk-prev th{background:#eef3f8;color:#2b3947;text-align:left;padding:2px 6px;font-weight:700;white-space:nowrap}
+.jk-prev td{padding:1px 6px;border-bottom:1px solid #edf1f5;white-space:nowrap}
+.jk-prev .n{text-align:right;font-variant-numeric:tabular-nums}
+.jk-prev tr.more td{color:#4c5864;font-size:11.5px;white-space:normal}
+.jk-warn{display:flex;align-items:center;gap:6px;font-size:12px;color:#8a2a1f;white-space:nowrap}
+.jk-warn .jx-link{padding:0}
+.jk-km{font-size:11.5px;color:#4c5864}.jk-km b{color:#8a2a1f}
+.jk-foot{font-size:12px;color:#4c5864}
+.jxd-res{display:flex;flex-direction:column;gap:6px;padding:4px 18px 10px;height:100%;box-sizing:border-box}
+.jxd-res .jx-chart{flex:1 1 0;min-height:0;justify-content:space-around;gap:2px}.jxd-res .jx-cr{flex:1 1 0;min-height:0;max-height:34px}.jxd-res .jx-cr i{height:min(20px,100%)}
+.jk-sum{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 6px;padding:6px 10px;margin:0 0 8px;border-radius:8px;background:#eef6ef;border:1px solid #c9e2cf;font-size:13px}
+.jk-sum .jk-sl{font-size:12px;color:#3d4a3f;font-weight:700;margin-right:4px}.jk-sum .jk-sr{color:#1d6b3a;font-weight:700;margin-left:auto}
+.jk-lab{font-size:12px;font-weight:700;color:#4c5864;margin-top:2px}
+`;
+
+/* ------------------------------------------------------------------ G: D に first_fixes 1〜6 を全部入れた形 */
+function propG() {
+  const J = window.JX, K = window.JX2;
+  if (!window.__jxDash) { window.__jxDash = 1; setTimeout(() => document.querySelector("#tabDash")?.click(), 60); }
+  J.keep(() => {
+    const fields = document.querySelector("#deFields");
+    if (!fields || fields.querySelector(".jg")) return;
+    K.dropJsonCards(fields);
+    const others = J.COLS.wip.slice(1).map((x) => `<div class="jg-c"><span class="jg-car">▸</span><b>${x.col}</b><small>${J.shapeOf(x.shape).n} ${J.shapeOf(x.shape).name} · ${J.fmt(x.rows)} 行</small></div>`).join("");
+    const name = (v, role) => `<span class="jg-nm" title="押して名前を変える"><span class="jg-ar">›</span><input value="${v}" aria-label="${role}の列の名前"><span class="jg-pen" aria-hidden="true">✎</span></span>`;
+    fields.insertAdjacentHTML("afterbegin", `<div class="jg"><div class="jg-h"><b>{ } JSON の列 5</b><small>開くと分けた列を使えます</small></div>
+      <div class="jg-c is-open"><span class="jg-car">▾</span><b>設備別通過回数</b><small>1,200 行 → 6,332 行</small></div>
+      <div class="jg-in">
+        <span class="jk-lab">分け方 <small>中身に合う形を先に選んであります</small></span>${K.miniPats("dict")}
+        <span class="jk-lab">見本</span>${K.miniPrev()}
+        <span class="jk-lab">分けた列 <small>名前は押して変える</small></span>
+        <div class="pv-f jg-f is-used"><span>${name("設備", "鍵")}<small>鍵 · 9 種類</small></span>${K.rb("行", true)}${K.rb("列")}<i></i></div><div class="jg-km">${K.keyMaster()}</div>
+        <div class="pv-f jg-f is-used"><span>${name("通過回数", "値")}<small>値 · 数</small></span><i></i><i></i>${K.rb("値", true)}</div>
+        ${K.warn1()}
+        <button type="button" class="jg-save" title="データ元（仕掛）の決まりにして、一覧・集計表・ほかのパネルでも同じ列を使います">⤴ データ元に保存（一覧・集計表でも）</button>
+      </div>${others}</div>`);
+  });
+  J.keep(() => {
+    K.summary("設備別通過回数 › 設備", "› 通過回数");
+    K.result("設備別通過回数 › 設備", "› 通過回数", "仕掛 › 設備別通過回数 を ① 名前→値 で分けた（1,167 行 → 6,332 行）· 計 7,949.8 回 · ▲ 9 行は数えていません");
+  });
+}
+const CSS_G = `
+@media (min-width:1700px){#dbEditor .de-body{--de-fw:272px!important}}
+@media (max-width:1699px){#dbEditor .de-body{--de-fw:248px!important}.jg .jk-pb small{display:none}.jg .jk-pat{grid-template-columns:18px minmax(0,1fr)}.jg .jk-pat em{grid-column:2;flex-direction:row;gap:6px;align-items:baseline}.jg-c{grid-template-columns:12px minmax(0,1fr)}.jg-c small{grid-column:2}.jg-in .jk-lab small{display:none}}
+.jg-km{padding:0 0 2px 8px}
+.jg{display:flex;flex-direction:column;gap:4px;padding:6px;margin-bottom:8px;border:1px solid #b9d0ea;border-radius:8px;background:#f3f8fe}
+.jg-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.jg-h b{font-size:13.5px}.jg-h small{font-size:12px;color:#4c5864}
+.jg-c{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:5px;align-items:baseline;padding:4px 6px;border-radius:6px;background:#fff;border:1px solid #dbe4ee;font-size:13px}
+.jg-c b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jg-c small{font-size:11.5px;color:#4c5864;white-space:nowrap}.jg-car{color:#4c5864;font-size:11px}
+.jg-c.is-open{border-color:#3f7fcf}
+.jg-in{display:flex;flex-direction:column;gap:4px;padding:2px 0 4px 10px}
+.jg-in .jk-lab small{font-weight:400;margin-left:6px}
+.jg-nm{display:inline-flex;align-items:center;gap:3px}.jg-ar{font-weight:700}
+.jg-nm input{width:86px;font:inherit;font-weight:700;font-size:13px;border:1px dashed #9db9d8;border-radius:4px;padding:0 4px;background:#fff}
+.jg-pen{font-size:11px;color:#4c5864}
+.jg-f > span{min-width:0}
+.jg-save{align-self:flex-start;border:1px solid #9db9d8;background:#fff;color:#1f4f8a;border-radius:6px;padding:3px 8px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+`;
+
+/* ------------------------------------------------------------------ H: 組む所の中に E の 3 段の面（列 → 分け方 → 見本と確かめ）を開く */
+function propH() {
+  const J = window.JX, K = window.JX2, c = K.c;
+  if (!window.__jxDash) { window.__jxDash = 1; setTimeout(() => document.querySelector("#tabDash")?.click(), 60); }
+  J.keep(() => {
+    const fields = document.querySelector("#deFields");
+    if (!fields || fields.querySelector(".jh")) return;
+    K.dropJsonCards(fields);
+    const rows = J.COLS.wip.map((x, i) => `<div class="jh-c${i === 0 ? " is-on" : ""}"><b>${x.col}</b><small>${J.shapeOf(x.shape).n} ${J.shapeOf(x.shape).name}</small><button type="button" class="jh-go">${i === 0 ? "分けています" : "分ける…"}</button></div>`).join("");
+    fields.insertAdjacentHTML("afterbegin", `<div class="jh"><div class="jh-h"><b>{ } JSON の列 5</b></div>${rows}</div>`);
+  });
+  J.keep(() => {
+    const body = document.querySelector("#dbEditor .de-body");
+    if (!body || body.querySelector(".jh-pane")) return;
+    body.insertAdjacentHTML("beforeend", `<section class="jh-pane" role="dialog" aria-label="JSON の列を分ける">
+      <div class="jh-ph"><b>{ } JSON の列を分ける</b><small>仕掛 · 先頭 500 行を読みました</small><span style="flex:1"></span><button type="button" class="jh-x" aria-label="閉じる">×</button></div>
+      <div class="jh-s1"><span class="jh-n">1</span><span class="jh-t">列</span><b class="jh-cn">設備別通過回数</b>${J.bar(K.c, 1200, true)}<small class="jh-hint">左の札で選び替え</small></div>
+      <div class="jh-two">
+        <div class="jh-s"><div class="jh-st"><span class="jh-n">2</span><span class="jh-t">分け方</span></div>${K.miniPats("dict")}
+          <div class="jx-name">鍵の列<input value="設備">値の列<input value="通過回数"></div>${K.keyMaster()}</div>
+        <div class="jh-s"><div class="jh-st"><span class="jh-n">3</span><span class="jh-t">見本と確かめ</span></div>${K.miniPrev()}
+          <div class="jx-iss"><span class="jx-ok">✓ 1,167 行を 6,332 行に分けます</span><span class="jx-mute">空 24 行は分けずに残します</span>
+          <span class="jx-ng">▲ 9 行は分けられません<button type="button" class="jx-link">見る</button></span><span class="jk-eg">壊れた JSON 5 · 違う形（並び）4</span></div></div>
+      </div>
+      <div class="jh-f"><label class="jh-ck" title="データ元（仕掛）の決まりにして、一覧・集計表・ほかのパネルでも同じ列を使います"><input type="checkbox" checked>データ元に保存（一覧・集計表でも）</label><span style="flex:1"></span><button type="button" class="jx-btn">やめる</button><button type="button" class="jx-btn pri">札に並べる</button></div>
+    </section>`);
+  });
+  J.keep(() => K.result("設備別通過回数 › 設備", "› 通過回数", "仕掛 › 設備別通過回数 を ① 名前→値 で分けた（1,167 行 → 6,332 行）· ▲ 9 行は数えていません"));
+}
+const CSS_H = `
+.jh{display:flex;flex-direction:column;gap:3px;padding:6px;margin-bottom:8px;border:1px solid #b9d0ea;border-radius:8px;background:#f3f8fe}
+.jh-h b{font-size:13.5px}
+.jh-c{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 6px;align-items:center;padding:4px 6px;border-radius:6px;background:#fff;border:1px solid #dbe4ee;font-size:13px}
+.jh-c b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jh-c small{grid-column:1;font-size:11.5px;color:#4c5864;white-space:nowrap}
+.jh-c .jh-go{grid-column:2;grid-row:1/3;border:1px solid #9db9d8;background:#fff;color:#1f4f8a;border-radius:6px;padding:2px 7px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.jh-c.is-on{border:2px solid #3f7fcf;padding:3px 5px}.jh-c.is-on .jh-go{background:#2d5f9e;color:#fff;border-color:#2d5f9e}
+.jh-pane{position:absolute;z-index:5;top:10px;bottom:10px;right:10px;left:calc(20px + var(--de-fw,210px));background:#fff;border:1px solid #b9c6d4;border-radius:10px;box-shadow:0 10px 28px rgba(20,35,55,.22);display:flex;flex-direction:column;overflow:hidden}
+.jh-ph{display:flex;align-items:baseline;gap:10px;padding:9px 14px;background:#1e3a57;color:#fff}.jh-ph b{font-size:15px}.jh-ph small{font-size:12px;color:#d6e2ee}
+.jh-x{border:0;background:none;color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.jh-n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2d5f9e;color:#fff;font-size:12px;font-weight:700;flex:none}
+.jh-t{font-size:14px;font-weight:700}
+.jh-s1{display:grid;grid-template-columns:auto auto auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 14px;border-bottom:1px solid #e3eaf2}.jh-cn{font-size:13.5px;white-space:nowrap}.jh-hint{font-size:12px;color:#4c5864;white-space:nowrap}
+.jk-eg{font-size:12.5px;color:#6b3b33;padding-left:16px}
+.jh-cols{display:flex;gap:6px;overflow:hidden}
+.jh-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid #d7e1ec;border-radius:7px;background:#fff;padding:4px 7px;font:inherit;font-size:12.5px;cursor:pointer}
+.jh-col b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jh-col.is-on{border:2px solid #3f7fcf;background:#f2f7fd;padding:3px 6px}
+.jh-col .jx-words{font-size:11.5px}
+.jh-two{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);overflow:auto}
+.jh-pane .jk-pb b{overflow:hidden;text-overflow:ellipsis}
+.jh-s{display:flex;flex-direction:column;gap:7px;padding:8px 14px;min-width:0}.jh-s:first-child{border-right:1px solid #e3eaf2}
+.jh-st{display:flex;align-items:center;gap:8px}
+.jh-s .jx-name input{width:90px}
+.jh-f{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid #e3eaf2;background:#f6f8fb}
+.jh-ck{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+@media (max-width:1400px){.jh-ph small{display:none}.jh-hint{display:none}.jh-two{grid-template-columns:1fr}.jh-s:first-child{border-right:0;border-bottom:1px solid #e3eaf2}.jh-pane .jk-pb small{display:none}.jh-pane .jk-pat{padding:2px 6px}.jh-pane .jk-pat.is-on{padding:1px 5px}.jh-s{padding:6px 14px;gap:5px}}
+`;
+
+/* ------------------------------------------------------------------ I: 組む所の「見本から組む」に JSON の見本（1 手で札と分け方が入る） */
+function propI() {
+  const J = window.JX, K = window.JX2;
+  if (!window.__jxDash) { window.__jxDash = 1; setTimeout(() => document.querySelector("#tabDash")?.click(), 60); }
+  J.keep(() => {
+    const ex = document.querySelector("#dbEditor .cp-ex");
+    const list = ex && ex.querySelector(".cp-exl");
+    if (!list || list.querySelector(".ji-ex")) return;
+    list.insertAdjacentHTML("afterbegin", `<button type="button" class="cp-exb on ji-ex" aria-pressed="true"><b>✓ { } JSON の列を鍵ごとに合計</b><small>設備別通過回数 → 設備ごとの通過回数</small></button>`);
+    const h = ex.querySelector(".cp-exh small");
+    if (h) h.textContent = "設備の実力・JSON の列の合計。押すと行・値・分け方が入ります（あとで自由に直せます）";
+  });
+  J.keep(() => {
+    const sent = document.querySelector("#dbEditor .de-sent");
+    if (!sent || sent.parentElement.querySelector(".ji-band")) return;
+    sent.insertAdjacentHTML("afterend", `<div class="ji-band">
+      <div class="ji-top"><span class="ji-l">{ } 分け方</span><b>設備別通過回数</b><span>を</span>
+        <span class="ji-seg" role="radiogroup">${J.SHAPES.map((s) => `<button type="button" role="radio" aria-checked="${s.k === "dict"}" class="${s.k === "dict" ? "is-on" : ""}" title="${J.esc(s.how)}">${s.n} ${s.name}${s.k === "dict" ? " ✓" : ""}</button>`).join("")}</span></div>
+      <div class="ji-mid"><span class="ji-fit">合う 97% · 1,167 行 → 6,332 行</span>${K.keyMaster()}${K.warn1()}</div>
+      <div class="ji-prev"><span class="ji-l">見本</span><span class="ji-row"><code>W00001 {"ANF":1.069,"CR1":1,…}</code><span class="ji-arrow">→</span><span class="ji-chips"><i>ANF 1.069</i><i>CR1 1</i><i>DL2 0.728</i><i>HOT 2</i><i>KEN 0.455</i><i>LS3 0.366</i></span></span></div>
+    </div>`);
+  });
+  J.keep(() => {
+    const fields = document.querySelector("#deFields");
+    if (!fields || fields.querySelector(".ji-f")) return;
+    K.dropJsonCards(fields);
+    fields.insertAdjacentHTML("afterbegin", `<div class="pv-f ji-f is-used"><span><b>› 設備</b><small>設備別通過回数 の鍵 · 9 種類</small></span>${K.rb("行", true)}${K.rb("列")}<i></i></div>
+      <div class="pv-f ji-f is-used"><span><b>› 通過回数</b><small>設備別通過回数 の値 · 数</small></span><i></i><i></i>${K.rb("値", true)}</div>`);
+    K.result("設備別通過回数 › 設備", "› 通過回数", "仕掛 › 設備別通過回数 を ① 名前→値 で分けた（1,167 行 → 6,332 行）· ▲ 9 行は数えていません");
+  });
+  J.keep(() => { K.summary("設備別通過回数 › 設備", "› 通過回数"); K.result("設備別通過回数 › 設備", "› 通過回数", "仕掛 › 設備別通過回数 を ① 名前→値 で分けた（1,167 行 → 6,332 行）· ▲ 9 行は数えていません"); });
+}
+const CSS_I = `
+.ji-ex{border-color:#3f7fcf!important;background:#f2f7fd!important}
+.ji-band{display:flex;flex-direction:column;gap:6px;margin:8px 0 2px;padding:8px 10px;border:1px solid #b9d0ea;border-radius:8px;background:#f3f8fe;font-size:13px}
+.ji-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ji-l{font-size:12px;font-weight:700;color:#1f4f8a}
+.ji-seg{display:grid;grid-template-columns:repeat(5,minmax(0,auto));border:1px solid #cfd9e4;border-radius:7px;overflow:hidden;background:#fff;flex:1 1 100%;min-width:0}
+.ji-seg button{border:0;border-right:1px solid #cfd9e4;background:#fff;padding:3px 6px;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;color:#3a4653}
+.ji-seg button:last-child{border-right:0}.ji-seg button.is-on{background:#2d5f9e;color:#fff;font-weight:700}
+.ji-mid{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}.ji-fit{color:#1d6b3a;font-weight:700;font-size:12.5px}
+.ji-prev{display:flex;align-items:center;gap:8px;min-width:0}
+.ji-row{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
+.ji-row code{font-size:11.5px;background:#fff;border:1px solid #dbe4ee;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.ji-arrow{color:#4c5864}
+.ji-chips{display:flex;gap:4px;flex-wrap:wrap;min-width:0}.ji-chips i{font-style:normal;font-size:12px;background:#e1ecf9;color:#1f4f8a;border-radius:4px;padding:0 5px;white-space:nowrap}
+@media (max-width:1400px){.ji-row code{display:none}.ji-arrow{display:none}}
+`;
+
+/* ------------------------------------------------------------------ J: データ元で決めた展開が組む所の札に出る。札の ✎ で小さな面を開いて直す（A×D） */
+function propJ() {
+  const J = window.JX, K = window.JX2;
+  if (!window.__jxDash) { window.__jxDash = 1; setTimeout(() => document.querySelector("#tabDash")?.click(), 60); }
+  J.keep(() => {
+    const fields = document.querySelector("#deFields");
+    if (!fields || fields.querySelector(".jj-f")) return;
+    K.dropJsonCards(fields);
+    const tag = '<i class="jj-tag" title="データ元（仕掛 › JSON の列）で決めた分け方。一覧・集計表・ほかのパネルと同じ列">① 名前→値</i>';
+    const pen = '<button type="button" class="jj-pen" title="分け方を直す（データ元の決まりを直します）" aria-label="分け方を直す">✎</button>';
+    fields.insertAdjacentHTML("afterbegin", `<div class="jj-h"><b>設備別通過回数</b>${tag}${pen}</div>
+      <div class="pv-f jj-f is-used"><span><b>› 設備</b><small>鍵 · 9 種類</small></span>${K.rb("行", true)}${K.rb("列")}<i></i></div>
+      <div class="pv-f jj-f is-used"><span><b>› 通過回数</b><small>値 · 数</small></span><i></i><i></i>${K.rb("値", true)}</div>
+      <div class="jj-h is-shut"><b>設備別実績</b><i class="jj-tag">⑤ 名前→表</i>${pen}</div>
+      <div class="jj-more">工程履歴 ③・仕様 ④・測定値 ② は分けていません<button type="button" class="jx-link">分ける…</button></div>`);
+  });
+  J.keep(() => {
+    const ed = document.querySelector("#dbEditor");
+    const pen = document.querySelector("#deFields .jj-h .jj-pen");
+    if (!ed || !pen) return;
+    let pop = document.querySelector(".jj-pop");
+    if (!pop) {
+      document.body.insertAdjacentHTML("beforeend", `<div class="jj-pop" role="dialog" aria-label="設備別通過回数 の分け方">
+        <div class="jj-ph"><b>✎ 設備別通過回数 の分け方</b><button type="button" class="jxc-x" aria-label="閉じる">×</button></div>
+        <small class="jj-note">データ元（仕掛）の決まりです。直すと、このパネル・一覧・集計表・ほかのパネルの同じ列が一緒に替わります</small>
+        <div class="jj-det">${J.bar(K.c, 1200, true)}</div>
+        ${K.miniPats("dict")}
+        <div class="jx-name">鍵の列<input value="設備">値の列<input value="通過回数"></div>${K.keyMaster()}
+        <span class="jk-lab">見本</span>${K.miniPrev()}
+        <div class="jx-iss"><span class="jx-ok">✓ 1,167 行を 6,332 行に分けます</span><span class="jx-ng">▲ 9 行は分けられません<button type="button" class="jx-link">見る</button></span><span class="jk-eg">壊れた JSON 5 · 違う形（並び）4</span></div>
+        <div class="jxc-acts"><button type="button" class="jx-btn">やめる</button><span style="flex:1"></span><button type="button" class="jx-btn pri">直す</button></div>
+      </div>`);
+      pop = document.querySelector(".jj-pop");
+    }
+    // 組む所の左（ダッシュボードの上）に、✎ の高さから開く。窓に収まるよう上下を詰める
+    const er = ed.getBoundingClientRect(), pr = pen.getBoundingClientRect();
+    const w = Math.min(420, er.left - 24);
+    pop.style.width = `${w}px`;
+    pop.style.left = `${er.left - w - 10}px`;
+    const h = pop.offsetHeight;
+    pop.style.top = `${Math.max(70, Math.min(pr.top - 20, innerHeight - h - 10))}px`;
+  });
+  J.keep(() => K.summary("設備別通過回数 › 設備", "› 通過回数"));
+  J.keep(() => K.result("設備別通過回数 › 設備", "› 通過回数", "仕掛 › 設備別通過回数（データ元で ① 名前→値。1,167 行 → 6,332 行）· ▲ 9 行は数えていません"));
+}
+const CSS_J = `
+.jj-h{display:flex;align-items:center;gap:6px;padding:4px 2px 2px;font-size:13px}.jj-h b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jj-h.is-shut{margin-top:4px;color:#4c5864}
+.jj-tag{font-style:normal;font-size:11.5px;font-weight:700;background:#e1ecf9;color:#1f4f8a;border-radius:9px;padding:0 6px;white-space:nowrap}
+.jj-pen{margin-left:auto;border:1px solid #9db9d8;background:#fff;border-radius:6px;padding:0 6px;font:inherit;font-size:12px;cursor:pointer;color:#1f4f8a}
+.jj-h:first-child .jj-pen{background:#2d5f9e;color:#fff;border-color:#2d5f9e}
+.jj-f{margin-left:8px}
+.jj-more{font-size:12px;color:#4c5864;padding:4px 2px 8px;border-bottom:1px solid #dbe4ee;margin-bottom:6px}
+.jj-pop{position:fixed;z-index:9000;max-height:calc(100vh - 80px);overflow:auto;background:#fff;border:1px solid #b9c6d4;border-radius:10px;box-shadow:0 12px 32px rgba(20,35,55,.25);padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.jj-ph{display:flex;align-items:center}.jj-ph b{font-size:14.5px;flex:1}
+.jj-note{font-size:12px;color:#7a4a0c;background:#fff6e5;border:1px solid #f0d9a8;border-radius:6px;padding:4px 7px}
+.jj-pop .jx-name input{width:90px}
+.jj-pop .jxc-acts{display:flex;gap:8px;align-items:center}.jj-pop .jxc-x{border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:#4c5864}
+.jj-pop .jk-eg{font-size:12.5px;color:#6b3b33;padding-left:16px}
+@media (min-width:1401px){#dbEditor .de-body{--de-fw:244px!important}}
+@media (max-height:800px){.jj-pop .jk-pb small,.jj-pop .jj-det{display:none}.jj-pop{gap:5px;padding:8px 10px}.jj-note{padding:2px 6px}}
+`;
+
+/* ------------------------------------------------------------------ K: E に採点の指摘を入れ、窓からダッシュボードのパネルも足す */
+function propK() {
+  const J = window.JX;
+  // 採点 1 回目の指摘: ④ の説明が 2 段に折れた → 短く（1 段に収める）
+  J.SHAPES.find((x) => x.k === "nest").how = "列を足す（寸法.幅）・行は増えない";
+  const total = 1500, c = J.COLS.lot[0];
+  J.keep(() => {
+    const colBtn = document.querySelector("#llColBtn");
+    if (colBtn && !document.querySelector(".jxe-open")) colBtn.insertAdjacentHTML("beforebegin", '<button type="button" class="jxe-open" title="JSON の列を行・列に分けた表を作ります">{ } JSON</button>');
+    if (document.querySelector(".jxe") || !document.querySelector("#llBody tr")) return;
+    const cols = J.COLS.lot.map((x, i) => `<button type="button" class="jxe-col${i === 0 ? " is-on" : ""}"><b>${x.col}</b>${J.bar(x, total)}</button>`).join("");
+    document.body.insertAdjacentHTML("beforeend", `<div class="jxe-back"></div><div class="jxe" role="dialog" aria-label="JSON の列を分ける">
+      <div class="jxe-h"><b>{ } JSON の列を分ける</b><small>品質 · 中身の先頭 500 行を読みました</small><span style="flex:1"></span><button type="button" class="jxe-x" aria-label="閉じる">×</button></div>
+      <div class="jxe-body">
+        <section><h5><i>1</i>列</h5><div class="jxe-cols">${cols}</div></section>
+        <section><h5><i>2</i>分け方</h5><div class="jxe-pats" role="radiogroup">${J.patterns("dict", total, c.rows, "long")}</div>
+          <div class="jx-name">鍵の列<input value="設備">値の列<input value="通過回数"></div><small class="jk-km">設備マスタに 8 / 9（<b>CR1</b> が無い）</small></section>
+        <section><h5><i>3</i>見本と確かめ</h5>${J.preview()}
+          <div class="jx-iss"><span class="jx-ok">✓ 1,459 行を 7,970 行に分けます</span><span class="jx-mute">空 30 行は分けずに 1 行のまま残します</span>
+          <span class="jx-ng">▲ 11 行は分けられません<button type="button" class="jx-link">見る</button></span>
+          <span class="jk-eg">壊れた JSON 6（12 行目 <code>{"ANF":0.797,…</code> 閉じていない）</span><span class="jk-eg">違う形 5（並び <code>[1, 2]</code>）</span></div></section>
+      </div>
+      <div class="jxe-f"><span class="jk-out">できる表 <b>品質 › 設備別通過回数</b>（1,500 → 7,970 行）</span>
+        <label class="jk-ck"><input type="checkbox" checked>ダッシュボードに「設備ごとの通過回数の合計」のパネルも足す</label>
+        <span style="flex:1"></span><button type="button" class="jx-btn">やめる</button><button type="button" class="jx-btn pri">表を作る</button></div>
+    </div>`);
+  });
+}
+const CSS_K2 = `
+.jx-iss code{white-space:nowrap}
+.jk-eg{font-size:12.5px;color:#6b3b33;padding-left:16px}
+.jk-out{font-size:13px}
+.jk-ck{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#eef6ef;border:1px solid #c9e2cf}
+.jk-km{font-size:12px;color:#4c5864}.jk-km b{color:#8a2a1f}
+@media (max-width:1400px){.jk-out{display:none}}
+`;
+
 const S = (fn) => `(${lib})(); (${fn})();`;
+const S2 = (fn) => `(${lib})(); (${lib2})(); (${fn})();`;
 export const PROPOSALS = [
   {
     key: "A", name: "データ元のカードに「JSON の列」の段", css: BASE_CSS + CSS_A, ops: [["script", S(propA)]],
@@ -474,5 +821,31 @@ export const PROPOSALS = [
     key: "F", name: "自動で展開（何も選ばない。札にはじめから分けた列が並ぶ）", css: BASE_CSS + CSS_F, ops: [["script", S(propF)]],
     shots: "dash-panel（組む所。JSON の列の札が 設備別通過回数.鍵・.値 などに置き換わり、パネルの下に数えなかった行の添え書き）",
     impl: "列の札を作るとき（search_index の札・/api/dashboard/fields）に json_expand.rs が先頭 500 行で形を決め（いちばん多い形が 90% 以上なら自動）、問い合わせが札の名前（列.鍵）を見たときだけ json_each で展開する。変える所はデータ元のカードの「JSON の列」（A の段を小さくした物）だけ。",
+  },
+  /* ---- 回 2 ---- */
+  {
+    key: "G", round: 2, name: "D 改: 組む所のカラムの札で JSON を開く（first_fixes 1〜6 を全部）", css: BASE_CSS + CSS_K + CSS_G, ops: [["script", S2(propG)]],
+    shots: "dash-panel（--from dash-edit。カラムの欄を 300px に広げ、設備別通過回数 を開いた所）",
+    impl: "D と同じくパネルの組み（panel.expand）に持つが、「⤴ データ元に保存して一覧・集計表でも使う」で J と同じデータ元の決まり（sources の JSON）へ移せる。札の名前（鍵・値）は panel.expand.names。設備マスタとの照らし合わせは dashboard の fields の答えに json_expand.rs が鍵の種類と設備マスタの当たりを足す。",
+  },
+  {
+    key: "H", round: 2, name: "組む所の中に E の 3 段の面（列 → 分け方 → 見本と確かめ）を開く", css: BASE_CSS + CSS_K + CSS_H, ops: [["script", S2(propH)]],
+    shots: "dash-panel（--from dash-edit。左の JSON の列の「分ける…」から、組む所の右に 3 段の面を開いた所）",
+    impl: "面で決めた分け方は既定でデータ元の決まり（sources の JSON。J・A と同じ）に保存し、外せばこのパネルだけ（panel.expand）。面の数は GET /api/sources/{key}/json?col=…（json_expand.rs）。分けた列は札（/api/dashboard/fields）にいつもの列として並び、dashboard.rs・pivot.rs が json_each を横結合して数える。",
+  },
+  {
+    key: "I", round: 2, name: "組む所の「見本から組む」に JSON の見本（押すと札と分け方が 1 手で入る）", css: BASE_CSS + CSS_K + CSS_I, ops: [["script", S2(propI)]],
+    shots: "dash-panel（--from dash-edit。見本「{ } JSON の列を鍵ごとに合計」を押した後。文の下に分け方の帯）",
+    impl: "見本は dash の組み込みの見本（useExample）に JSON の見本を足し、データ元の JSON の列（json_expand.rs の見分け。① ⑤ ③ の形があるとき）から作る。押すと panel.expand と行・値が入る。帯の切り替えは panel.expand.shape を替える。データ元に保存する道は H と同じ。",
+  },
+  {
+    key: "J", round: 2, name: "データ元で決めた展開が組む所の札に出て、札の ✎ で直す（A と D の組み合わせ）", css: BASE_CSS + CSS_K + CSS_J, ops: [["script", S2(propJ)]],
+    shots: "dash-panel（--from dash-edit。カラムの欄の上の 設備別通過回数 ① の ✎ を押し、組む所の左に分け方の面を開いた所）",
+    impl: "分け方はデータ元の決まり（sources の JSON: [{列, 形, 鍵, 値}]。A の段と同じ物）だけに持つ。初めは json_expand.rs の見分けで 90% 以上合う形を入れておく。札は /api/dashboard/fields と一覧の列の札に同じ名前（列 › 鍵）で並び、問い合わせが json_each を横結合する（db_cache/expands に組むかは速さで決める）。✎ の面は PUT /api/sources/{key} で直し、一覧・集計表・ほかのパネルが一緒に替わる。",
+  },
+  {
+    key: "K", round: 2, name: "E 改: 展開の窓（採点の指摘を入れ、ダッシュボードのパネルも足す）", css: BASE_CSS + CSS_E + CSS_K2, ops: [["script", S2(propK)]],
+    shots: "list（--from list。道具の行の「{ } JSON」から開いた窓）",
+    impl: "E と同じく窓で決めた展開を展開した表（db_cache/expands）としてデータ元に足し、「パネルも足す」でダッシュボードの今の画面に 設備ごとの通過回数の合計 のパネル（鍵を行・値の合計）を足す（dashboards の組みに 1 枚足して保存する今の道）。",
   },
 ];
