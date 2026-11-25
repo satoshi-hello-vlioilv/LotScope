@@ -31,7 +31,32 @@
      "direction": "置き場",
      "shots": "pivot-calc・dash-calc",
      "changes": "common_build に加え、札の並びを fields の答えの deps の 1 つ目の列の後ろへ（両方の fieldsHtml）",
-     "risks": "式が 2 つ以上の列を読むとき（重量÷長さ）は 1 つ目の下にしか出ない。元の列が欄の下の方なら計算列も下の方"
+     "risks": "式が 2 つ以上の列を読むとき（重量÷長さ）は 1 つ目の下にしか出ない。元の列が欄の下の方なら計算列も下の方",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "scroll",
+       "where": "score1-1280/pivot-calc-light-A.png・dash-calc-light-A.png: 計算列は元の列の真下なので、材調質（調質の下）は欄の中ほどで、1280 では欄を送らないと見えない。読む元が下の方の列なら計算列も下へ沈む"
+      },
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "集計表・組む所とも、重量t は重量の下、板厚区分は板厚の下に └ と左の線・「式」の印で字下げされ、どの元の列から作ったかは一目で分かる。値に入れた重量t は茶の 値、列に入れた板厚区分は紫の 列 で状態も見える。ただし計算列が 3 か所に散り、『自分で作った列をまとめて見る』ことができない（チャンクが弱い）。材調質＝concat([合金],…) は合金でなく調質の下にあり、置き場の決まりが推測しにくい。1728 では 3 つとも見えるが、1280 では材調質が欄の下に隠れる。組む所（dash-calc）も同じ並びで、狭い欄でも名前は切れていない。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
     },
     "B カラムの欄の頭に「計算列」のまとまり（＋ 作る もここ）": {
      "id": "B",
@@ -39,7 +64,28 @@
      "direction": "チャンク・置き場",
      "shots": "pivot-calc・dash-calc",
      "changes": "common_build に加え、両方の fieldsHtml を 3 つのまとまりで描く。一覧の集計表の「＋ 作る」は表示列の「この列の作り方」の窓（llFxPanel）を開き、保存したら札を読み直す。組む所の「＋ 作る」はパネルだけの列（今の ＋ 計算列）",
-     "risks": "集計表の「＋ 作る」（一覧の列になる）と組む所の「＋ 作る」（パネルだけの列）で、同じ見た目でできる物が違う"
+     "risks": "集計表の「＋ 作る」（一覧の列になる）と組む所の「＋ 作る」（パネルだけの列）で、同じ見た目でできる物が違う",
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "カラムの欄が ロット数・件数 →「計算列 3 · 表示列で作った列 ［＋ 作る］」→「元の列 データの列」の 3 つに見出しで分かれ、作った 3 列が欄の頭にまとまる。1728・1536・1280 のどれでも、集計表を開いて送らずに計算列が見え、重量t の 値 を押せば合計が出る（探させない）。集計表と組む所で同じ形・同じ言葉で並び、左の青い線と「式」の印も同じ。気になる所: (1) 集計表の「＋ 作る」は一覧の列を作り、組む所の「＋ 作る」はパネルだけの列を作るのに、同じ見た目・同じ言葉（置き場の統一が崩れる）。(2) 撮る状態が欄を送ったので、1536・1280・組む所では件数の札の下の字（行の数）が欄の上の縁で半分切れて見える（撮り方の送りで、開いた直後の形ではないので減点しない）。(3)「式」の印は小さく薄く、数の計算列と区分の計算列の違いは添え書き（数・9 種類）でしか分からない。(4) 計算列が無い表で見出しだけが出るのか、消えるのかは画像では分からない。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
     },
     "C 一覧の計算列の見出しの Σ から集計表へ": {
      "id": "C",
@@ -47,7 +93,32 @@
      "direction": "流れの変え方",
      "shots": "calc-list（重量t の Σ を押した面）・pivot-calc",
      "changes": "common_build に加え、一覧の見出しの計算列（th.is-calc）に Σ と面。ボタンで集計表の組み方を入れて一覧｜集計を替える／組む所を開く",
-     "risks": "Σ は指を載せないと見えない（見つけにくい）。集計表を先に開いた人には、計算列は欄の最後のまま"
+     "risks": "Σ は指を載せないと見えない（見つけにくい）。集計表を先に開いた人には、計算列は欄の最後のまま",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "scroll",
+       "where": "score1-1728/pivot-calc-light-C.png・score1-1280/pivot-calc-light-C.png: 集計表のカラムの欄で計算列は 40 列（項目01〜20 など）の後ろの最後。画像は送った後の形で、開いた直後は欄の底まで送らないと見えない（組む所 dash-calc-light-C.png も同じ）"
+      },
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "一覧の 重量t の見出しの Σ を押すと面「重量t を集計する」が開き、値（合計）に置いて集計表へ／行に置いて集計表へ／ダッシュボードのパネルにする… の 3 つと、それぞれの結果（1,500 行で数える・ヒストグラムの件数・組む所を開く）が添えてある。一覧から来た人には 1 手で集計表に入れて分かりやすい。ただし Σ は指を載せた見出しにしか出ず（calc-list-light-C.png では開いた 重量t だけに Σ）、見つける手掛かりが無い。集計表を先に開いた人（いちばん多い道）には計算列は欄の最後のままで、今の不足点（探させる）が残る。面は一覧の表の上に重なるが、その場の面なので重なりの減点はしない。1280 でも面は収まり字は切れない。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
     },
     "D 札に種類の印（123・字・日・ƒx）と式の中身": {
      "id": "D",
@@ -55,7 +126,36 @@
      "direction": "見せ方",
      "shots": "pivot-calc・dash-calc",
      "changes": "common_build に加え、両方の fieldsHtml に種類の印と、計算列の式の 1 行（ctx.formulas）",
-     "risks": "札の字が印のぶん狭い（組む所の狭い欄では名前が … で切れる）。色の数が増える"
+     "risks": "札の字が印のぶん狭い（組む所の狭い欄では名前が … で切れる）。色の数が増える",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 9,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1728/pivot-calc-light-D.png・score1-1280/pivot-calc-light-D.png: 計算列の式の行が「= [重量]/10…」「= concat([…」「= if([板厚]…」と切れ、何で作ったかを見せる狙いが果たせない。ロット数の添え書きも「重複の無いロ…」"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1728/dash-calc-light-D.png・score1-1280/dash-calc-light-D.png: 組む所の狭い欄で名前が「ロット…」「設備グ…」、添え書きが「「設備」…」「設備が入…」「重複の無…」「数・677 …」と切れる"
+      },
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "どの札にも左に種類の印（Σ 数える物・ƒx 計算列・123 数・字・日）、計算列は ƒx と左の線と式の行、置き場はロット数・件数のすぐ後ろ。数・字・日付の区別が形で見え、計算列もどの大きさでも送らずに見える（視覚化は最も良い）。一方で、すべての札に色の付いた印が付き、欄が賑やかで主（計算列）と従の差が薄れる。印の色（茶・青・緑・灰）が増え、札の字が印のぶん狭くなって、式の行と元の列の名前・添え書きがあちこちで … に切れる。板厚（6 種類）が「字」の印なのも、数と思う人には推測させる。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
     },
     "E 「すぐに見る」に計算列の組み方を足す": {
      "id": "E",
@@ -63,7 +163,36 @@
      "direction": "減らし方",
      "shots": "pivot-calc",
      "changes": "common_build に加え、すぐに見るの並び（quickBtn）の頭に、今の表の計算列から作る組み方（数の計算列は合計を値に・60 種類までの計算列を行に。役 $calcnum・$calcfew）",
-     "risks": "狭い画面では既定のすぐに見るの札を「組み方 ▾」へ押し出す。組む所には効かない"
+     "risks": "狭い画面では既定のすぐに見るの札を「組み方 ▾」へ押し出す。組む所には効かない",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "scroll",
+       "where": "score1-1728/pivot-calc-light-E.png: カラムの欄の計算列は 40 列の後ろの最後のまま（画像は送った後）。すぐに見るの札を使わず自分で組む人は、欄の底まで送って探す"
+      },
+      {
+       "kind": "more_steps",
+       "where": "score1-1536・score1-1280/pivot-calc-light-E.png: 既定のすぐに見るの札（担当×板厚区分の件数・担当のパレート図）が「組み方 ▾」の中へ移り、今まで 1 手だった組み方が 2 手になる"
+      },
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "すぐに見るの頭に ƒx の札「板厚区分ごとの重量t」「材調質ごとの件数」が枠の色で目立ち、押せば 1 手で計算列の組み方になる。作った直後の『とりあえず見たい』には最短。ただし札は案出し側の自動の決まり（数の計算列を合計・種類の少ない計算列を行）で 2 つだけ選ばれ、別の組み方（材調質ごとの重量t など）をしたい人は結局欄の最後まで探す。1536・1280 では既定の札が 2 つ「組み方 ▾」へ押し出され、1280 ではそれでも「組み方 ▾」が 2 段目に折れる。組む所（dash-calc）には効かず今と同じ。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
     },
     "F 表示列の窓の「この列の作り方」の下に「集計表・グラフで使う」": {
      "id": "F",
@@ -71,9 +200,104 @@
      "direction": "流れの変え方",
      "shots": "calc-cols（重量t を選んだ所）・pivot-calc",
      "changes": "common_build に加え、表示列の窓の計算列の詳細（lotlist-columns.js）に段を足し、ボタンで窓を閉じて集計表の組み方を入れる／組む所を開く",
-     "risks": "右の欄が長くなり、1280 では下の段（結果）を送る。集計表を先に開いた人には、計算列は欄の最後のまま"
+     "risks": "右の欄が長くなり、1280 では下の段（結果）を送る。集計表を先に開いた人には、計算列は欄の最後のまま",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "scroll",
+       "where": "score1-1280/calc-cols-light-F.png: 右の欄で「集計表・グラフで使う」の段の下の行（数の列なので 合計・平均…）が欄の下の縁で切れ、右の欄を送らないと読めない"
+      },
+      {
+       "kind": "scroll",
+       "where": "score1-1728/pivot-calc-light-F.png: 集計表のカラムの欄の計算列は 40 列の後ろの最後のまま（画像は送った後の形）。開いた直後は送って探す"
+      },
+      {
+       "kind": "wrap",
+       "where": "score1-1280/pivot-calc-light-*.png: 板厚区分を列に入れると、すぐに見るの札（担当×板厚区分の件数）が長くなり「組み方 ▾」が 2 段目へ折れる（どの案も同じ。common_build の範囲。今の画面 before-1280 は 1 段）"
+      }
+     ],
+     "seen": "表示列の窓で 重量t を選ぶと、この列の作り方の下に Σ の段「集計表・グラフで使う」: この列は集計表・ダッシュボードのカラムに「式」の札で並ぶ、と言い、［値（合計）に置く］［行に置く］｜［パネルにする…］が 1 段に並ぶ。作った所で使える場所を教える点は良い。しかし計算列は作ってすぐ集計に使うとは限らず、後で集計表を開いた人には今と同じく欄の最後に沈む。段は 見せ方 と 値の整え方 の間に割り込み、①②③ の番号の流れを途中で切る（順序）。1280 では段の下の行が欄の外。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
+    }
+   },
+   "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。",
+   "images_scored": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280",
+   "evaluation": {
+    "ranking": "1 位 B 78.0 点・2 位 A 63.5・3 位 E 62.2・4 位 D 62.0・5 位 F 59.3・6 位 C 58.5。1 位 B も合格点 80 に 2 点届かない（全案に共通の 1280 の折り返し −3 が無ければ 81）→ 決めずに案出しの 2 回目",
+    "common": "どの案も同じ中身（集計表が計算列を数える）で、表の数（重量t の合計 4,940.7・厚 3,330.2・薄 1,610.5）は案によらず同じ。案に関係なく見えた所: 1280 の集計表ですぐに見るの「組み方 ▾」が 2 段目へ折れる（板厚区分の名前で札が長くなる。全案に同じ減点）・表の小数の桁が列で違う（547.056 と 1,116.7。今の画面にもある自動の桁）・一覧の 重量t が 3.7053000000000003 のような誤差のまま（calc-list・calc-cols）・組む所の単位の欄の見本「書式のま」が切れる（今の画面にもある）。後の 3 つは今の画面から残る物として減点に入れず、first_fixes に書いた",
+    "first_fixes": [
+     "B: 「＋ 作る」の言葉を置き場で分ける（集計表＝「＋ 一覧の列を作る」で表示列の「この列の作り方」の窓、組む所＝「＋ このパネルだけの列」）か、組む所も一覧の列を作る道にそろえる。同じ見た目で違う物ができないように",
+     "B: 欄を送った時も ロット数・件数 の札が半分切れないよう、送り位置を札の境にそろえる（撮った 1536・1280・組む所で「行の数」が上の縁で半分）。計算列のまとまりは 1280 でも送らずに見えるので、開いた直後は送らない",
+     "B: 計算列の札の「式」の印をもう少し強く（数の計算列と区分の計算列で添え書きの 数／n 種類 に加えて、D の ƒx のような形の印を計算列だけに付ける）。元の列には印を付けず、主と従の差を保つ",
+     "B: 計算列が 0 の表では見出しの代わりに「計算列はまだありません ＋ 一覧の列を作る」の 1 行にし、読めない式の計算列は札を薄くして理由（式が読めません・表示列で直す）を札に出す（今は集計表では消えて理由が分からない）",
+     "全案共通（作る時に一緒に直す）: 1280 で、すぐに見るの札が長いときは「組み方 ▾」を 1 段に収める（札の名前を縮めるか、入らない札を組み方 ▾ へ）。表の小数の桁を列ごとでなく値ごとにそろえる（547.056 と 1,116.7）。一覧の計算列の値の小数の誤差（3.7053000000000003）を既定で丸めて見せる。組む所の単位の欄の見本が切れない",
+     "C・F の良い所の持ち越し（任意）: 一覧の計算列の見出しの右クリックか表示列の窓から「集計表で値に置く」1 手の道を、B の置き場に足す（ただし主の道は B の欄の頭のまとまり）"
+    ],
+    "next_round": "効いた所（持ち越す）: B の『カラムの欄の頭に計算列のまとまり（見出し・数・作る口）』で、集計表を開いてすぐ送らずに見え、値を押せば合計が出る形。集計表と組む所で同じ形。D の種類の印のうち ƒx（計算列だけの形の印）、A の『どの列から作ったか』の手掛かり（式の中身を札の上で切らずに見せる道。指を載せた時の吹き出しなど）、C・F の『一覧・表示列の窓から 1 手で集計表へ』の道（従の道として）。直す所: 1280 のすぐに見るの行の折り返し（全案）、B の「＋ 作る」の言葉の食い違い、印の弱さ。やめる所: 計算列を 40 列の後ろに置いたまま別の入口だけで補う形（C・E・F）、全部の札に印を付けて賑やかにする形（D）。新しい案の方向の例: B の頭のまとまりに ƒx の印と式の吹き出しを足す形・カラムの欄に「計算列｜元の列」のタブ（または絞りの札）を置く形・カラムの検索の欄の下に「ƒx 計算列 3」の札を置き押すと計算列だけに絞る形・値の札（重量の 値）の ▾ に同じ元から作った計算列（重量t）を出す形"
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/r2-1728・r2-1536・r2-1280（案 G・H・J・K・M。sheet-状態-light.png が全案の一覧、strip-pivot-calc.png・strip-dash-calc.png は案ごとのカラムの欄を並べた切り抜き、r2-1280/strip-quickrow.png はすぐに見るの行）。今は回 1 の before-*（回 2 で場面に読めない式の計算列「寸法」を足したので、今の一覧には寸法の空の列が 1 つ増えるが、集計表・組む所に計算列が出ない形は同じ）",
+   "how_to_shoot": "TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=<ui_serve> node program/tools/ui-variants.mjs 出力 program/tools/ui-proposals/2026-11-calcpivot.mjs --only G,H,J,K,M --from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc（--view 1536x864・--view 1280x720 でも）。ui_serve は Rust を変えていないので本体の desktop/target/debug/examples/ui_serve でよい（TPA_UI_PROGRAM を付けないと本体の program を読み、ui-harness の場面と食い違う）",
+   "carried": "回 1 で効いた所（next_round）: B の欄の頭のまとまり（G・J・M が持ち越し、H はタブ、K は文の上の帯へ置き場を替えた）・D の ƒx の印（計算列だけに付ける。元の列には付けない）・A のどの列から作ったかの手掛かり（J）・C・F の 1 手の従の道（G の表示列の窓の 1 行）。新しい案: H・J・K・M（4 案）",
+   "common_fixes": "案の定義の共通の部分（lib2・CSS_R2）で、どの案にも当てて撮った: ① 1280 のすぐに見るの行を 1 段（入らない既定の札を後ろから「組み方 ▾」へ。r2-1280/strip-quickrow.png で「組み方 ▾」が 1 段目）・② 表の小数の桁を値ごとにそろえる（547.056 → 547.1。1,116.7 と同じ 1 桁）・③ 一覧と表示列の窓の計算列の値の誤差を丸める（3.7053000000000003 → 3.7053）・④ 値の計算の単位の欄を 7.2em にして見本「書式のまま」が切れない・⑤ 撮る状態が押した札の所へ欄が送られても、計算列のまとまりの見出しを欄の上の縁にそろえる（札が半分に切れない）。場面に読めない式の計算列「寸法」（[板厚] & \"x\" & [板幅]）を足し、読めない計算列の見せ方も比べられるようにした（ui-harness の CALC_LAYOUT）",
+   "self_check": "案を作った者（案出し係）が 5 案を 1728・1536×864・1280×720 で撮り（撮り直し 3 回。最後の回はどれも終了コード 0）、画像を自分で開いて見た。直したこと: (1) 読めない式の札の理由「式が読めません · 表示列で直す」が 1728 でも「· 表…」と切れた → 読めない札だけ理由を折り返す（集計表で 2 行・組む所の狭い欄で 3 行）。(2) K: 帯の札の 行・列・値 のボタンが潰れて「値」が詰まった → ボタンを 26×24px にした。(3) 組む所: ƒx の印で名前が 2 段目へ落ちた（重量t・材調質・板厚区分）→ 札の中を 印｜名前・下の段 の格子にし、名前は 1 行（…）。(4) 組む所の読めない札（寸法）は data-dnd-col が無く、まとまりに入らず 40 列の後ろに残った → 名前の字で見分けてまとまりの最後へ（薄く・理由つき）。(5) K: 組む所で札を先に帯へ移したため、撮る状態が欄の 板厚区分・重量t を押せず、パネルがロット数のままだった → 組む所では撮る状態が押し終えてから帯へ移す（帯の札の 行・値 が押された形で見える）。採点で見てほしい所: G・J・M の組む所の狭い欄（1280 で約 240px）では、式の 1 行が「= [重量…」と切れる（札に指を載せた吹き出しに全部）。J の下の段「合金・調質 か…」も 1280 の組む所で切れる。H は計算列のタブを押した形（数える物＋計算列だけ）で、すべてのタブの形は G と同じ並び。K の組む所の帯は「② 数え方」の頭（見本から組むの上）に出る（組む所の文 #deSent の前）。M の「＋ 値 ▾」の面は、開いたまま撮った（グラフと すぐに見る の行の一部に重なる。押して開く面）。一覧（calc-list）は G 以外も共通の直し ③ だけが効いた形で、案の違いは無い",
+   "proposals": {
+    "G B 改: 欄の頭の「ƒx 計算列」のまとまり（first_fixes 1〜4・6）": {
+     "id": "G",
+     "summary": "B のまとまりに first_fixes を入れた形。見出し「ƒx 計算列 3 · 一覧の表示列で作った列」、作る口の言葉を置き場で分ける（集計表「＋ 一覧の列を作る」・組む所「＋ このパネルだけの列」。組む所の検索の横の口は見出しへ移した）。計算列の札だけに ƒx の形の印と式の 1 行（= [重量]/1000 · 数）。読めない式は最後に薄く「式が読めません · 表示列で直す」。表示列の窓の計算列の詳細に「ƒx 集計表・グラフとダッシュボードのカラムの頭に並びます［集計表で値に置く］」",
+     "direction": "チャンク・置き場（持ち越し）",
+     "shots": "calc-cols・pivot-calc・dash-calc",
+     "changes": "2026-11-calcpivot.mjs の G の impl",
+     "risks": "組む所の狭い欄では式の 1 行が切れる。計算列が 0 の表の 1 行（計算列はまだありません ＋ 一覧の列を作る）は場面に無く、画像では見えない"
+    },
+    "H カラムの欄の上に「すべて｜ƒx 計算列｜元の列」のタブ": {
+     "id": "H",
+     "summary": "検索の下にタブ（すべて・ƒx 計算列 3・元の列 40）。計算列のタブを押すと、数える物（ロット数・件数）と計算列だけになり、下に作る口と「元の列 40 は『元の列』のタブに」。すべてのタブでは G と同じ並び",
+     "direction": "減らし方（新）",
+     "shots": "pivot-calc・dash-calc（計算列のタブを押した所）",
+     "changes": "H の impl",
+     "risks": "タブを押した後、元の列（行に入れた 合金）が欄から見えない。手が 1 つ増える（タブを押す）"
+    },
+    "J 頭のまとまり＋どの列から作ったか": {
+     "id": "J",
+     "summary": "G のまとまりに加え、計算列の札の下の段に「重量 から · 数」「合金・調質 から · 9 種類」、元の列の札に「→ ƒx 重量t」「→ ƒx 板厚区分」（作った列と元の列のつながり）。式の全部は吹き出し",
+     "direction": "見せ方（新）",
+     "shots": "pivot-calc・dash-calc",
+     "changes": "J の impl",
+     "risks": "元の列の札が 1 行増えて欄が長くなる。式の中身（÷1000）は札の上では見えない"
+    },
+    "K 文の真上に「ƒx 計算列」の帯": {
+     "id": "K",
+     "summary": "計算列を左の欄から出し、集計表の文の真上（組む所は ② 数え方の頭）に横の帯「ƒx 計算列 ［重量t 数 行 列 値］［材調質 9 種類 行 列 値］［板厚区分 2 種類 行 列 値］ 寸法 式が読めません · 表示列で直す ＋ 一覧の列を作る」",
+     "direction": "置き場（新）",
+     "shots": "pivot-calc・dash-calc",
+     "changes": "K の impl",
+     "risks": "計算列が多いと帯が横に送る（集計表）・折り返して縦に伸びる（組む所）。左の欄に計算列が無く、置き場が 2 つに分かれる"
+    },
+    "M 文の［値］の「＋ 値 ▾」の面に計算列を先に": {
+     "id": "M",
+     "summary": "文の値の枠の後ろに「＋ 値 ▾」。開くと「値に足す」の面で ƒx 計算列 3（重量t = [重量]/1000 合計 ✓・材調質 種類の数・板厚区分 種類の数）が先、数える物・数の列が後。左の欄は G と同じまとまり",
+     "direction": "流れの変え方（新）",
+     "shots": "pivot-calc（面を開いた所）・dash-calc（G と同じ欄）",
+     "changes": "M の impl",
+     "risks": "面は開いている間グラフに重なる。組む所の文にはまだ「＋ 値 ▾」を当てていない（作るときに同じ部品を当てる）"
     }
    }
   }
- ]
+ ],
+ "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_PROGRAM=<作業場所>/program TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve で ui-variants.mjs を how_to_shoot のとおり （--from calc-list --states calc-list,calc-cols,pivot-calc,dash-calc）、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。（TPA_UI_PROGRAM を付けないと、ui_serve が本体のリポジトリの program を読み「画面を描けません（画面の型・指紋）」で止まったため、作業場所の program を渡した。）画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score1-1728・score1-1536・score1-1280。今は before-1728・before-1536・before-1280 を見て比べた。"
 }
