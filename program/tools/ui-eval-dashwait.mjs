@@ -3,12 +3,11 @@
 //   node program/tools/ui-eval-dashwait.mjs [1728x1152,1536x864,1280x720]
 // 開発用サーバーを TPA_UI_SLOW_FILE で遅くし、本物の段の道（GET /api/dashboard/progress）で待ちを起こして、刻みごとに確かめる:
 // 相手は窓の開発用サーバー（examples/ui_serve.rs。版 3.118.3 から。遅くする口は lib の desktop/src/slow.rs〈feature testing〉で、ui_serve が TPA_UI_SLOW_FILE を
-// 読む関数を渡す）。TPA_UI_SERVER=python で前の Python の開発用サーバー（tools/ui_server.py の slow_down。段 ⑤ まで比べの基準）。鍵は同じ（open・ops・only・nocache・copy）。
-// 窓はパネルを一斉に数える（順番待ちの段が無い）ので、9 の順番待ちは窓では起きない: 見た数を記録に出す（窓 0 件・Python 1 件以上。空の確かめにしない）
+// 読む関数を渡す）。鍵は open・ops・only・nocache・copy。版 3.119.0（段 ⑤）で前の Python の開発用サーバーと、その段（Python に任せた・順番待ち）の確かめを外した。
 // 11. 3 つの数（版 3.118.3）: 刻みごとに、頁の円の量・字の n/m と、同じ刻みに道具が自分で尋ねた GET /api/dashboard/progress の n/of を並べる
 //    （分母が同じ・頁の n はサーバーの n を越えず、遅れは数刻みまで）。時間で遅くする形の取りこぼしを見えるようにする。
 //    比べた刻みは段（作業実績を読む・合わせた表を組む・稼働のガントを組む）ごとに、大きさごとに 1 以上
-// 遅くする口の only は窓だけ nocache・copy も絞り（desktop/src/slow.rs）、Python は open・ops だけを絞る。⑤ まで両方の相手で比べるので、この本は only を使わない
+// 遅くする口の only は nocache・copy も絞る（desktop/src/slow.rs）。この本は only を使わない
 // 1. 印は 1 つ: 待っているパネルは題の頭の点が円になる（回る印 .db-spin・上の縁の進みの線・道具の行の棒は無い）。済めば元の点に戻り、題の字の位置は待つ前と同じ
 // 2. 円と字は同じ数: 字の n/m（読む 7/11 台・まとまり 1/2 済み・ガント n/11 台）と円の量（--f）が刻みごとに同じ。n/m の無い段は輪だけ
 // 3. 段の言葉: 作業実績を読む・合わせた表を組む・稼働のガントを組む（どのデータ・どの計算）。前回が無い初回は経過の秒、前回があれば「あと約 n 秒」「まもなく」と
@@ -18,8 +17,7 @@
 // 6. 道具の行は「n / m 枚 済み・待っている k 枚」の字で、切れない
 // 7. 写している間（答えを写し中の形にする）: パネルは「写し待ち」と「写した 5/11 台」（合わせた表も 5/11。前は仕掛の写しまで足して 6/12）・
 //    道具の行に写しているデータの札が 1 つ（同じ円・同じ 5/11）。答えに copy の無い前の版の答えでも 5/11
-// 8. Python に任せた問い合わせ（段 python）は「Python が数えています」と経過の秒だけ（n/m を推して作らない・円は輪だけ）
-// 9. 順番待ち（Python はパネルを 1 つずつ数える）・写しを待つ間は前回と比べない（「前回より長くかかっています」「あと約」「まもなく」を出さない）。
+// 9. 写しを待つ間は前回と比べない（「前回より長くかかっています」「あと約」「まもなく」を出さない）。
 //    前回と比べる時間・覚える前回は、数えている段にいた時間だけ（作った後の採点で見つけた割れ）
 // 10. 本物の写し（開発用サーバーで共有から写す速さを落とす）: 道具の行の写す札に「共有から写しています n/m 台」と、速さが分かれば「あと約 n 秒」
 //    （分かるまでは経過の秒）・札の説明に MB と MB/秒。札の n/m とパネルの「写した n/m」が同じ（作った後の採点: 写している間、あとどのくらいがどこにも出なかった）
@@ -49,7 +47,7 @@ const SLOW = path.join(DIR, "slow.json");
 process.env.TPA_UI_SLOW_FILE = SLOW;
 process.env.TPA_UI_BYPASS_CSP = "1";
 fs.writeFileSync(SLOW, "{}");
-const { launch, parseView, sleep, waitDash, SERVER } = await import("./ui-harness.mjs");
+const { launch, parseView, sleep, waitDash } = await import("./ui-harness.mjs");
 const slow = (o) => fs.writeFileSync(SLOW, JSON.stringify(o));
 
 let n = 0, bad = 0;
@@ -134,7 +132,7 @@ const nofOf = (e, id) => {
   if (id === "board" && Array.isArray(e.group)) return ["group", e.group[0], e.group[1]];
   return e.of > 1 ? [e.stage, e.n, e.of] : null;
 };
-let compared = 0, queued = 0;
+let compared = 0;
 /** 3 つの数を比べた刻み（大きさ → 段 → 数。版 3.118.3 の作った後の採点の割れ 3: 段ごとに 1 以上を求める） */
 const byStage = {};
 const STAGES = { read: "作業実績を読む", group: "合わせた表を組む", gantt: "稼働のガントを組む" };
@@ -151,8 +149,8 @@ function checkTicks(v, label, ticks, steady) {
   const per = {};
   waits.forEach((p) => { if (p.node) (per[p.id] = per[p.id] || new Set()).add(p.node); });
   check(`${v} ${label}: 字の要素を刻みごとに作り直さない（ちらつかない）`, Object.values(per).every((x) => x.size <= 2), Object.fromEntries(Object.entries(per).map(([k, x]) => [k, x.size])));
-  const qbad = waits.filter((p) => /順番待ち|写し待ち|写した/.test(p.text) && /前回.*長|あと約|まもなく/.test(p.text));
-  check(`${v} ${label}: 順番待ち・写しを待つ間は前回と比べない（前回より長い・あと約・まもなく を出さない）`, qbad.length === 0, qbad.slice(0, 3).map((p) => [p.id, p.text]));
+  const qbad = waits.filter((p) => /写し待ち|写した/.test(p.text) && /前回.*長|あと約|まもなく/.test(p.text));
+  check(`${v} ${label}: 写しを待つ間は前回と比べない（前回より長い・あと約・まもなく を出さない）`, qbad.length === 0, qbad.slice(0, 3).map((p) => [p.id, p.text]));
   const outs = waits.filter((p) => p.out);
   check(`${v} ${label}: 字が添え書きの段・パネルからはみ出さない`, outs.length === 0, outs.slice(0, 3).map((p) => [p.id, p.text]));
   const lost = waits.filter((p) => p.f > 0 && p.text && !/\d+\/\d+/.test(p.text));
@@ -168,12 +166,9 @@ function checkTicks(v, label, ticks, steady) {
   const off = pairs.filter((x) => x.of !== x.sof || x.n > x.sn || x.sn - x.n > 6 || Math.abs(Math.round((x.n / x.of) * 100) - x.f) > 1);
   check(`${v} ${label}: 円の量・字の n/m・サーバーの n/of が同じ数（分母が同じ・頁はサーバーを越えず遅れは 6 まで。比べた ${pairs.length} 刻み）`,
     off.length === 0, off.slice(0, 4).map((x) => [x.id, x.text, x.f, `${x.sn}/${x.sof}`]));
-  // 順番待ちの数え方（割れ 5）: 刻み × パネル（250 ms ごとに同じパネルを数え直す。1 枚が 2 秒待てば 8）と、順番待ちになったパネルの枚数
-  const qs = waits.filter((p) => /順番待ち/.test(p.text));
-  queued += qs.length;
   const kinds = {};
   for (const x of pairs) { const k = x.id === "board" ? "group" : kindOfText(x.text); kinds[k] = (kinds[k] || 0) + 1; }
-  console.log(`    記録: ${v} ${label} 順番待ちが見えた刻み ${qs.length}（パネル × 刻み）・パネル ${new Set(qs.map((p) => p.id)).size} 枚（${SERVER === "window" ? "窓はパネルを一斉に数える" : "Python は 1 つずつ数える"}）・`
+  console.log(`    記録: ${v} ${label} `
     + `3 つの数を比べた刻み ${pairs.length}（${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join("・") || "なし"}）`);
   const bars = ticks.filter((s) => s.bar);
   check(`${v} ${label}: 道具の行は「n / m 枚 済み・待っている k 枚」の字で切れない`, bars.length > 0 && bars.every((s) => /\d+ \/ \d+ 枚 済み・待っている \d+ 枚/.test(s.bar) && s.barFit), bars.slice(-1).map((s) => [s.bar, s.barFit]));
@@ -244,7 +239,7 @@ try {
     const feat = (t) => [/実績を/.test(t), /（前回/.test(t), /あと約|まもなく|\d+\.\d 秒|前回より長/.test(t)].join("");
     const pairs = [];
     for (const s of tw2) { const a = s.panels.find((p) => p.id === "workTotal"), b = s.panels.find((p) => p.id === "workMonth");
-      if (a && b && a.wait && b.wait && a.text && b.text && !/順番待ち/.test(a.text + b.text)) pairs.push([a.text, b.text]); }
+      if (a && b && a.wait && b.wait && a.text && b.text) pairs.push([a.text, b.text]); }
     check(`${v} 並んだ同じ形のパネル（前日・今月）は同じ段まで省く`, pairs.every(([a, b]) => feat(a) === feat(b)), pairs.filter(([a, b]) => feat(a) !== feat(b)).slice(0, 3));
     // ---- 3 回目: 前より遅い → 前回より長い（茶色の輪と言い替え・道具の行）
     slow({ open: 0.55, nocache: true });
@@ -260,7 +255,7 @@ try {
     slow({ ops: 0.25, nocache: true });
     const w4 = checkTicks(v, "稼働のガント・ABC", await watch(page, "d", () => page.click("[data-db-refresh]")), steadyOps);
     check(`${v} 段の言葉: 稼働のガントを組む n/11 台（円も同じ数）`, w4.some((p) => p.id === "gantt" && /ガントを組む|組む/.test(p.text) && /\d+\/11/.test(p.text)), w4.filter((p) => p.id === "gantt").slice(0, 3).map((p) => p.text));
-    check(`${v} 段の言葉: ABC 分析は設備を読む n/11 か品種を並べる（n/m なしは輪だけ）`, w4.some((p) => p.id === "abc" && /読む \d+\/11|ABC 分析の品種を並べる|並べる|順番待ち/.test(p.text)), w4.filter((p) => p.id === "abc").slice(0, 3).map((p) => p.text));
+    check(`${v} 段の言葉: ABC 分析は設備を読む n/11 か品種を並べる（n/m なしは輪だけ）`, w4.some((p) => p.id === "abc" && /読む \d+\/11|ABC 分析の品種を並べる|並べる/.test(p.text)), w4.filter((p) => p.id === "abc").slice(0, 3).map((p) => p.text));
     slow({});
     // ---- 写している間（答えを写し中の形にする: 作業実績 11 台のうち 5 台を写し終えた）。copy を付ける今の答えと、付けない前の版の答え
     for (const withCopy of [true, false]) {
@@ -289,18 +284,6 @@ try {
       check(`${v} ${tag}: 道具の行に写しているデータの札が 1 つ（同じ円・同じ 5/11）・切れない`, s.chips.length === 1 && /共有から写しています 5\/11 台/.test(s.chips[0].text) && Math.abs(s.chips[0].f - 45) <= 1 && s.barFit, [s.chips, s.bar]);
       await sleep(2000); await page.evaluate((l) => Dashboard._setLayout(l), std); await waitDash(page, 60000).catch(() => {}); await sleep(300);
     }
-    // ---- Python に任せた問い合わせ（段 python）: 経過だけ・n/m を作らない
-    slow({ open: 0.25, nocache: true });
-    await page.route("**/api/dashboard/progress**", async (route) => {
-      const asks = new URL(route.request().url()).searchParams.get("ask").split(",");
-      return route.fulfill({ json: { asks: Object.fromEntries(asks.map((a) => [a, { stage: "python", elapsedMs: 1500, prevMs: null, done: false }])) } });
-    });
-    await page.click("[data-db-refresh]"); await sleep(1500);
-    const sp = await page.evaluate(sample);
-    await page.unroute("**/api/dashboard/progress**");
-    const py = sp.panels.filter((p) => p.wait);
-    check(`${v} Python に任せた形は「Python が数えています」と経過の秒だけ（n/m なし・円は輪だけ）`, py.length > 0 && py.every((p) => /Python が数えています/.test(p.text) && !/\d+\/\d+/.test(p.text) && p.ring), py.map((p) => [p.id, p.text, p.ring]));
-    slow({});
     await waitDash(page, 60000).catch(() => {});
     check(`${v} 頁の誤りが無い`, errs.length === 0, errs);
     // 11 の 3 つの数は段ごとに比べられた（段の名前が画面と段の係で食い違うと、その段だけ黙って比べなくなる）
@@ -311,9 +294,6 @@ try {
   }
   // 3 つの数は、どこかの刻みで比べられた（時間で遅くしても段の n/of が 1 度も見えないなら、取りこぼしている）
   check("3 つの数を比べた刻みがある", compared > 0, compared);
-  // 9 の順番待ちは窓では起きない（パネルを一斉に数える）。Python の相手では 1 件以上（空の確かめにしない）
-  if (SERVER === "window") check("順番待ちは窓では起きない（0 件。窓はパネルを一斉に数える）", queued === 0, queued);
-  else check("順番待ちが見えた（Python はパネルを 1 つずつ数える）", queued > 0, queued);
 } finally {
   await app.close();
 }

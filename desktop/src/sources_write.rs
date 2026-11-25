@@ -1,4 +1,4 @@
-//! データ元の書く道（版 3.90.0）。Python の `routes/sources.py` の 7 本を窓が受ける:
+//! データ元の書く道（版 3.90.0）。Python の `前の版の sources` の 7 本を窓が受ける:
 //!
 //! ```text
 //! POST   /api/sources               … 足す（201。キーは "s" と 16 進 8 字）
@@ -10,14 +10,14 @@
 //! PUT    /api/sources/<key>/conn    … 接続の設定の 1 項目（参照先の項目〈settings_write〉か、このマスタの行）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/sources_write_parity.rs ← program/tests/sources_write_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/sources_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 sources_write））:
 //! - 行の整え方は services/data_sources.clean_row、結合は services/data_join.parse・clean（確かめる順も同じ。誤りの出る順が答えになる）。
 //!   列の順・役割・取り出し方・接続の欄の範囲と言葉・組み込みの元は焼いた表（bundle_tables.json の sources・sourcesList・join）
 //! - 書く係は master_repository の data_source_put・data_source_order・data_source_delete（キーは正規化しない一致・足すときだけ一意を確かめる・
 //!   order は決めた列だけ変え、同じなら行の版を上げない）。何も変えなくてもマスタの版は上がる（Python の store.write と同じ）
 //! - 今の並び（_all）は窓の束の材料（bundle::Inputs::sources_parts。GET /api/sources と同じ物）
 //!
-//! 窓が答えず Python に任せる形: 読めない・読みの割れる本文（NaN・1e400・-0・i64 に入らない整数）・表でない真の本文（Python は 400 か 500）・
+//! 窓が答えない（製品では 503）形: 読めない・読みの割れる本文（NaN・1e400・-0・i64 に入らない整数）・表でない真の本文（Python は 400 か 500）・
 //! 値が並び・表（Python の str() の repr が要る。結合の列だけは並びを読む）・keys が表（送った順の鍵）か数・結合の on・cols が数や真偽・cols が表・
 //! 道に百分率符号・置き場の行を窓が Python と同じに読めない・版の番号に 10 進でない数の字・書く係の思いがけない失敗。
 
@@ -51,7 +51,7 @@ fn key_of(s: &str) -> Option<String> {
     (!s.is_empty() && !s.contains('/') && !s.contains('%')).then(|| s.to_string())
 }
 
-/// 窓が受ける道か（routes/sources.py の 7 本だけ。確かめる道〈/check・/conn/check・/join/preview〉と /columns は Python）。
+/// 窓が受ける道か（前の版の sources の 7 本だけ。確かめる道〈/check・/conn/check・/join/preview〉と /columns は Python）。
 /// 百分率符号は Python と同じく道を戻してから合わせる（body::unquote。版 3.106.0。前は任せていた）
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
     let path = crate::body::unquote(path);
@@ -77,7 +77,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
 
 type Answer = (u16, Value);
 
-/// 窓が Python と同じに答えられない形（Python に任せる）
+/// 窓が Python と同じに答えられない形（答えない（製品では 503））
 pub struct Delegate;
 pub(crate) type D<T> = Result<T, Delegate>;
 
@@ -550,7 +550,7 @@ fn wrote(r: Result<Value, MasterError>, ok: u16) -> Answer {
     }
 }
 
-/// 新しい元のキー（data_sources.new_key: "s" + uuid4 の 16 進の頭 8 字）。乱数を取れなければ None（窓は答えず Python に任せる）
+/// 新しい元のキー（data_sources.new_key: "s" + uuid4 の 16 進の頭 8 字）。乱数を取れなければ None（窓は答えない（製品では 503））
 pub fn new_key() -> Option<String> {
     let mut b = [0u8; 4];
     getrandom::fill(&mut b).ok()?;

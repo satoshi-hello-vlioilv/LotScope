@@ -1,4 +1,4 @@
-//! マスタの置き場（版 3.101.0。Python の services/master_place.py と routes の GET /api/masters/status・GET /api/masters/place・
+//! マスタの置き場（版 3.101.0。Python の 前の版の master_place と routes の GET /api/masters/status・GET /api/masters/place・
 //! POST /api/masters/place/check・move）を窓が答える。
 //!
 //! - GET /api/masters/status … 置き場（手元／共有）・共有へ届くか・錠・各マスタの版（MasterStore.status＋同期フォルダの注意）。
@@ -8,7 +8,7 @@
 //! - POST /api/masters/place/check … 新しい置き場（上のフォルダ＋名前）へ変えられるか（plan。門番なし: Python と同じ）
 //! - POST /api/masters/place/move … 門番（配布の置き場と同じ release_place::gate）→ plan → 写して切り替える
 //!
-//! 写す係（引っ越し）は窓の 1 つ（sidecar.rs の SERVES に place を名乗り、Python は move を 409 で断る。配布の置き場と同じ型）。
+//! 写す係（引っ越し）は窓の 1 つ（shell::SERVES に place を名乗り、Python は move を 409 で断る。配布の置き場と同じ型）。
 //! 引っ越しは、利用状況の記録（もともと錠の外で書かれる物）を錠の外で先に写し、マスタだけを錠の中で写す。錠は延ばさない
 //! （理由は docs/RUST_PORT_PLAN.md の版 3.100.0 の割れ 2）。錠の長さの半分を過ぎたら・読んだマスタが変わったら、切り替えずに止める。
 //!
@@ -19,7 +19,7 @@
 //!   - 同期フォルダの名前の表は今の表のまま（足さない）
 //!
 //! 置き場を変える部品（名前の確かめ・道のつなぎ方・同じ所と中・読めない理由）は配布の置き場（release_place.rs）と 1 つ。
-//! 突き合わせ: desktop/tests/place_parity.rs ← program/tests/place_oracle.py（答え・断る言葉・できたファイル）、
+//! 突き合わせ: desktop/tests/place_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 place）（答え・断る言葉・できたファイル）、
 //! desktop/tests/place_cases.rs ← tests/fixtures/place_cases.json（独立の答え tools/place-truth.py と同じ表）。
 
 use crate::master_store::{iso, now_local, write_bytes_atomic, MasterError, Store, LOCK_FILENAME};
@@ -207,7 +207,7 @@ fn read_json_j(p: &Path) -> Option<J> {
     crate::pyjson::loads(std::str::from_utf8(b).ok()?).ok()
 }
 
-/// _as_doc（送った順のまま）。読めない形・版の番号が整数でない（Python の int() の字）は None（Python に任せる）
+/// _as_doc（送った順のまま）。読めない形・版の番号が整数でない（Python の int() の字）は None（答えない（製品では 503））
 fn as_doc(raw: J) -> Option<J> {
     let (rev, at, by, rows) = match raw {
         J::Arr(rows) => (0, J::Str(String::new()), J::obj(), J::Arr(rows)),
@@ -256,15 +256,15 @@ pub struct Item {
 pub enum Fail {
     /// OSError（道があれば Python の str と同じ字にする）
     Os(io::Error, Option<PathBuf>),
-    /// Python も落ちる・窓が同じに読めない形（Python に任せる）
-    Py,
+    /// 窓が同じに読めない形（版 3.119.0 で中身の係を消した。答えない）
+    Unreadable,
 }
 
 impl Fail {
     fn text(&self) -> String {
         match self {
             Fail::Os(e, p) => os_error(e, p.as_deref(), None),
-            Fail::Py => String::new(),
+            Fail::Unreadable => String::new(),
         }
     }
 }
@@ -335,11 +335,14 @@ fn docs(store: &Store) -> Result<Vec<(String, Vec<u8>)>, Fail> {
         }
         let mirror = store.mirror(&name);
         let path = if store.is_shared(&name) && mirror.exists() { mirror } else { store.initial_file(&name) };
-        let doc =
-            if path.exists() { as_doc(read_json_j(&path).ok_or(Fail::Py)?).ok_or(Fail::Py)? } else { as_doc(J::Arr(vec![])).unwrap() };
+        let doc = if path.exists() {
+            as_doc(read_json_j(&path).ok_or(Fail::Unreadable)?).ok_or(Fail::Unreadable)?
+        } else {
+            as_doc(J::Arr(vec![])).unwrap()
+        };
         let has_rows = matches!(doc.get("rows"), Some(J::Arr(a)) if !a.is_empty());
         let in_share = match store.share_file(&name) {
-            Some(p) => crate::release_place::py_stat(&p).map_err(|_| Fail::Py)?.is_some(),
+            Some(p) => crate::release_place::py_stat(&p).map_err(|_| Fail::Unreadable)?.is_some(),
             None => false,
         };
         if has_rows || store.bundled_file(&name).exists() || in_share {
@@ -406,7 +409,7 @@ fn server_only(par: &str) -> bool {
 }
 
 /// plan: 新しい置き場（parent\name）へ変えられるか → {ok, mode: copy|switch, dest, files, bytes, names, caution, note} / {ok: false, problem}。
-/// cwd は Python の今のフォルダ（相対の道の見方）。None は窓が Python と同じに答えられない形（Python に任せる）
+/// cwd は Python の今のフォルダ（相対の道の見方）。None は窓が Python と同じに答えられない形（答えない（製品では 503））
 pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value> {
     let nm = match check_name(name) {
         Ok(n) => n,
@@ -473,7 +476,7 @@ pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value
     }
     let (place, items) = match sources(store) {
         Ok(x) => x,
-        Err(Fail::Py) => return None,
+        Err(Fail::Unreadable) => return None,
         Err(Fail::Os(e, _)) => return Some(fail_at(&dest, format!("いまの置き場を読めません（{}）。", strerror(&e)))),
     };
     let note = match place {
@@ -521,7 +524,7 @@ fn share_root(store: &Store, server: &str, name: &str, cwd: &Path) -> Option<Val
 
 // ------------------------------------------------------------------ 変える（move）
 
-/// 写すのが止まった（ValueError の理由）か、窓が答えない（Python に任せる）か、書く係が断った（錠など）か
+/// 写すのが止まった（ValueError の理由）か、窓が答えない（答えない（製品では 503））か、書く係が断った（錠など）か
 pub enum MoveError {
     Invalid(String),
     Master(MasterError),
@@ -636,7 +639,7 @@ pub fn move_to(store: &Store, parent: &str, name: &str, cwd: &Path, read: Reader
         tmp = Some(t.clone());
         let first = (|| {
             let (_, items) = sources(store).map_err(|f| match f {
-                Fail::Py => MoveError::Py,
+                Fail::Unreadable => MoveError::Py,
                 f => MoveError::Invalid(format!("写せませんでした: {}", f.text())),
             })?;
             let pres: Vec<&Item> = items.iter().filter(|i| presence_rel(&i.rel)).collect();
@@ -691,7 +694,7 @@ fn locked(
         let os = |e: io::Error, a: &Path, b: Option<&Path>| MoveError::Invalid(format!("写せませんでした: {}", os_error(&e, Some(a), b)));
         // **錠を取ってから**読み直す（plan の後にほかの PC が保存した分も写す）
         let (place, items) = sources(store).map_err(|f| match f {
-            Fail::Py => MoveError::Py,
+            Fail::Unreadable => MoveError::Py,
             f => MoveError::Invalid(format!("写せませんでした: {}", f.text())),
         })?;
         let masters: Vec<&Item> = items.iter().filter(|i| !presence_rel(&i.rel)).collect();
@@ -977,7 +980,7 @@ fn gated((parent, name): (String, String), rule: &str, cwd: &Path) -> Result<(St
     Ok((v.remove("parent").unwrap_or_default(), v.remove("name").unwrap_or_default()))
 }
 
-/// 4 本の答え。None は Python に任せる（?engine=python も。move は製品では Python が断る: 写す係は窓の 1 つ）
+/// 4 本の答え。None は 答えない（製品では 503）（?engine=python も。move は製品では Python が断る: 写す係は窓の 1 つ）
 pub fn handle(
     route: Route,
     query: &str,
@@ -1109,6 +1112,9 @@ mod tests {
             b,
             "{\n \"schema\": 1,\n \"revision\": 3,\n \"updated_at\": \"\",\n \"updated_by\": {},\n \"rows\": [\n  {\n   \"b\": 1,\n   \"a\": \"字\"\n  }\n ]\n}\n"
         );
-        assert!(as_doc(crate::pyjson::loads(r#"{"rows": [], "revision": "3"}"#).unwrap()).is_none(), "int(\"3\") は Python に任せる");
+        assert!(
+            as_doc(crate::pyjson::loads(r#"{"rows": [], "revision": "3"}"#).unwrap()).is_none(),
+            "int(\"3\") は 答えない（製品では 503）"
+        );
     }
 }

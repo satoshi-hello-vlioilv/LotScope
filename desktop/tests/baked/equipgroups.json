@@ -3200,11 +3200,9 @@
   "links": {}
  },
  "sources": {
-  "tests/equipgroups_oracle.py": "66828ffb3cb09c69",
-  "tests/fakes_equipgroups.py": "b7b4bba8b33f47cd",
-  "tests/fakes_serve.py": "fc71085077c6898b",
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/schedule_fixture.py": "c040571ff4fff91c"
+  "tests/fakes_equipgroups.py": "a7c4827e5e7f0005",
+  "tests/fakes_serve.py": "b5faa043efa143de",
+  "tests/schedule_fixture.py": "d5703c248324aa2f"
  },
  "variant": "root"
 }

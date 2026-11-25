@@ -62,11 +62,114 @@ class Bundle(unittest.TestCase):
 
     def test_program_files_are_tracked_files_without_local_state(self):
         files = bundle.program_files()
-        self.assertIn("program/sidecar.py", files)
+        self.assertIn("program/sidecar.py", files, "前の版の窓が見る印（版 3.119.0 から 1 行）")
         self.assertIn("program/app/brand.json", files)
         self.assertFalse([f for f in files if "__pycache__" in f or f.endswith(".pyc")])
         self.assertEqual(bundle.app_version(), json.loads(json.dumps(bundle.app_version())))
 
+
+
+def old_window_refusals(zpath: Path, b: dict, version: str) -> list[str]:
+    """3.117.3 の窓（main の 19d5cdf）が配る ZIP を受ける決めを写した確かめ（版 3.119.0。段 ⑤ の採点の first_fixes 1）。→ 断る理由（空なら受ける）
+    - distribute.rs:142 の extract_exe: 名前が program/sidecar.py で終わる最初の物の前が配る形の根。その根の exe を取り出す
+    - update.rs の validate_dist・dist_root・staged（:107〜125・:196〜205・:234〜237）: 根の program/sidecar.py がファイル（中身は読まない）・
+      program/app/brand.json の app_id（distribute は name・exe も）・program/app/version.py の版
+    - small_reads.rs:64〜73 の版の読み方: 行の頭が APP_VERSION・空白・「=」・引用符の字"""
+    out = []
+    with zipfile.ZipFile(zpath) as z:
+        infos = {i.filename: i for i in z.infolist()}
+        names = list(infos)
+        root = next((n[: -len("program/sidecar.py")] for n in names if n.endswith("program/sidecar.py")), None)
+        if root is None:
+            return ["ZIP に program/sidecar.py がありません"]
+        if root != f"{b['name']}/":
+            out.append(f"program/sidecar.py で終わる最初の名前の根が {root!r}（配る形の根 {b['name']}/ でない）")
+        mark = infos.get(f"{root}program/sidecar.py")
+        mode = (mark.external_attr >> 16) if mark else 0
+        if mark is None or mark.is_dir() or (mode and not (mode & 0o170000 in (0, 0o100000))):
+            out.append("program/sidecar.py がファイルでない（フォルダ・記号リンク）")
+        if f"{root}{b['exe']}" not in infos:
+            out.append(f"ZIP に {b['exe']} がありません")
+        try:
+            got = json.loads(z.read(f"{root}program/app/brand.json").decode("utf-8"))
+        except (KeyError, ValueError):
+            got = {}
+        for k in ("app_id", "name", "exe"):
+            if got.get(k) != b[k]:
+                out.append(f"brand.json の {k} が {got.get(k)!r}")
+        try:
+            text = z.read(f"{root}program/app/version.py").decode("utf-8")
+        except (KeyError, UnicodeDecodeError):
+            text = ""
+        v = None
+        for line in text.splitlines():
+            m = re.match(r"APP_VERSION\s*=\s*(['\"])(.*?)\1", line)
+            if m:
+                v = m.group(2)
+                break
+        if v != version:
+            out.append(f"version.py の版を前の窓が {v!r} と読む（{version} でない）")
+    return out
+
+
+class OldWindowAccepts(unittest.TestCase):
+    """前の版（3.117.x まで）の窓が、組んだ配る ZIP を取り込める（版 3.119.0。program/sidecar.py は 1 行の印・画面のファイルは program/app のまま）。
+    Linux でも毎回見る（本物の v3.117.x の exe で確かめるのは Windows の CI の verify.py prev）"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="da-oldwin-"))
+        exe = cls.tmp / "fake.exe"
+        exe.write_bytes(b"MZ")
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            cls.built = bundle.build(exe, cls.tmp / "out")
+        cls.b, cls.version = bundle.brand(), bundle.app_version()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def mutate(self, tag, edit):
+        """組んだ ZIP の名前と中身を edit(名前の並び) で替えた写し"""
+        src = Path(self.built["path"])
+        dst = self.tmp / f"{tag}.zip"
+        with zipfile.ZipFile(src) as a, zipfile.ZipFile(dst, "w") as w:
+            for name, data, info in edit([(i.filename, a.read(i), i) for i in a.infolist()]):
+                if info is None:
+                    w.writestr(name, data)
+                else:
+                    info.filename = name
+                    w.writestr(info, data)
+        return dst
+
+    def test_the_built_zip_is_accepted_by_the_old_window(self):
+        self.assertEqual(old_window_refusals(Path(self.built["path"]), self.b, self.version), [])
+
+    def test_the_mark_is_one_line_that_does_nothing(self):
+        mark = bundle.PROGRAM / "sidecar.py"
+        lines = mark.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 1, "印は 1 行")
+        self.assertTrue(lines[0].startswith("#"), "コメントだけ（実行しても何もしない）")
+        import sys
+        r = subprocess.run([sys.executable, "-I", str(mark)], capture_output=True, text=True, timeout=60)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""), "前の窓が開き直せずに起こしても害が無い")
+        self.assertIn("program/sidecar.py", bundle.program_files())
+
+    def test_mutations_are_refused(self):
+        top = self.b["name"]
+        mark = f"{top}/program/sidecar.py"
+        cases = {
+            "印を外す": lambda xs: [x for x in xs if x[0] != mark],
+            "印をフォルダにする": lambda xs: [x for x in xs if x[0] != mark] + [(mark + "/", b"", None)],
+            "tools の下に xprogram/sidecar.py を先に置く": lambda xs: [(f"{top}/program/app/tools/xprogram/sidecar.py", b"#", None)] + xs,
+            "version.py の行を APP_VERSION: str = にする": lambda xs: [
+                (n, d.replace(b"APP_VERSION = ", b"APP_VERSION: str = ", 1) if n.endswith("program/app/version.py") else d, i) for n, d, i in xs],
+        }
+        for why, edit in cases.items():
+            with self.subTest(why):
+                self.assertNotEqual(old_window_refusals(self.mutate(why.replace(" ", "_")[:12], edit), self.b, self.version), [], why)
 
 
 HERE = Path(__file__).resolve().parent

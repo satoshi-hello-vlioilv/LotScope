@@ -1,7 +1,7 @@
 //! 計算列の式（src/formula.rs）が、画面の式（program/app/static/js/list-formula.js）と同じ答えを出すか（評価関数。版 3.59.0）。
 //!
-//! 画面の答えは事例表（program/tests/fixtures/formula_cases.json。program/tools/formula-cases.py が node で作る）に焼き付けてあり、
-//! node・Python 無しで突き合わせる。Python（tests/test_formula_parity.py）も同じ表と突き合わせるので、表が 3 つの実装の約束になる。
+//! 画面の答えは事例表（program/tests/fixtures/formula_cases.json。前の版の道具が node で作った）に焼き付けてあり、
+//! node・Python 無しで突き合わせる（版 3.119.0 から表は凍った答え。前の版の Python の写しと作り直す道具は app と一緒に消した）。
 //! 答え（数・字・空）と、その字（String(値)）と、読めない式の理由が全部合えば通る（壊れた正規表現の理由の後半は仕組みの言葉なので前半だけ）。
 
 use da_core::formula::{check, js_num_text, text_of, Formula, Tables, V};

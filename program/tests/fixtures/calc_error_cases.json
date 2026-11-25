@@ -1,5 +1,5 @@
 {
- "about": "転写距離・ピッチ計算の誤りの言葉の事例（版 3.115.0。人が仕様から書いた。Python の services/calc_errors.message と窓の calc::error_message が同じ表を読む。tests/test_calc_errors.py・cargo test --test calc_error_cases）。kinds は例外の種類 → 言葉の形の 6 種（欄が無い・数でない・並びが短い・字でない・大きすぎる数・小さすぎて割れない数〈版 3.116.0〉）。読めないマスタ（MasterUnreadable）は種類に無く、読めない理由の言葉のまま。type の欄（例外のクラスの名前）は API の名残で、画面は読まない（今のまま答える）",
+ "about": "転写距離・ピッチ計算の誤りの言葉の事例（版 3.115.0。人が仕様から書いた。Python の services/calc_errors.message と窓の calc::error_message が同じ表を読む。前の版の試験 test_calc_errors・cargo test --test calc_error_cases）。kinds は例外の種類 → 言葉の形の 6 種（欄が無い・数でない・並びが短い・字でない・大きすぎる数・小さすぎて割れない数〈版 3.116.0〉）。読めないマスタ（MasterUnreadable）は種類に無く、読めない理由の言葉のまま。type の欄（例外のクラスの名前）は API の名残で、画面は読まない（今のまま答える）",
  "kinds": {"KeyError": "missing", "ValueError": "number", "IndexError": "short", "AttributeError": "text", "TypeError": "text", "OverflowError": "large", "ZeroDivisionError": "zero"},
  "cases": [
   {"why": "欄が無い（ロットの厚み）", "type": "KeyError", "str": "'thickness'", "want": "計算の入力に「thickness」がありません。"},

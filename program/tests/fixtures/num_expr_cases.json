@@ -1,5 +1,5 @@
 {
- "note": "値の計算（四則演算）の事例。画面（static/js/num-format.js の expr）とサーバー（services/num_expr.py）の両方がこの表で同じ答えを出す。[式, 値, 答え]。答え \"err\" は読めない式・\"none\" は計算なし・null は数にならない（0 で割る）",
+ "note": "値の計算（四則演算）の事例。画面（static/js/num-format.js の expr）とサーバー（前の版の num_expr）の両方がこの表で同じ答えを出す。[式, 値, 答え]。答え \"err\" は読めない式・\"none\" は計算なし・null は数にならない（0 で割る）",
  "cases": [
   [
    "÷1000",

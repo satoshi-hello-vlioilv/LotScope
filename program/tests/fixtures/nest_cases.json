@@ -1,5 +1,5 @@
 {
- "about": "変換表の式の入れ子の数え方の事例（版 3.106.0。作った後の採点の割れ 3）。formula.nest_count の決まり（字と列の名前の外の「(」・単項の「-」〈式の頭・演算子・「(」・「,」・not／and／or の後ろ〉・語の not。読めない式は 0）から人が書いた答え。上限は conversions.NEST_MAX（90）。Python は tests/test_nest_cases.py、窓は cargo test --test nest_cases",
+ "about": "変換表の式の入れ子の数え方の事例（版 3.106.0。作った後の採点の割れ 3）。formula.nest_count の決まり（字と列の名前の外の「(」・単項の「-」〈式の頭・演算子・「(」・「,」・not／and／or の後ろ〉・語の not。読めない式は 0）から人が書いた答え。上限は conversions.NEST_MAX（90）。Python は 前の版の試験 test_nest_cases、窓は cargo test --test nest_cases",
  "max": 90,
  "cases": [
   {

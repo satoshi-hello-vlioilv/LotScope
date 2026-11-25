@@ -1,16 +1,16 @@
-//! 一覧の表示の初期設定の道（版 3.78.0）。Python の `routes/system.py` の 2 本を窓が受ける:
+//! 一覧の表示の初期設定の道（版 3.78.0）。Python の `前の版の system` の 2 本を窓が受ける:
 //!
 //! ```text
 //! GET /api/ui-defaults   … 表示の設定の範囲（keys）・初期設定（defaults）・置いた時刻と人・この PC が置けるか（canPublish＝開発者か）
 //! PUT /api/ui-defaults   … 今の表示を初期設定にする（開発者だけ・切断中は置けない・{keys: {名前: 字}}。keys が空なら外す）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/ui_defaults_parity.rs ← program/tests/ui_defaults_oracle.py）:
-//! - 範囲の名前（PROFILE_KEYS）は services/ui_defaults.py の 1 か所。一覧の設定の答え（uiProfileKeys）で Python から受け取る
+//! 決まりは Python と同じ（評価関数: tests/ui_defaults_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 ui_defaults））:
+//! - 範囲の名前（PROFILE_KEYS）は 前の版の ui_defaults の 1 か所。一覧の設定の答え（uiProfileKeys）で Python から受け取る
 //! - 置くのは範囲の名前で値が字の物だけ・json.dumps の UTF-8 で 2 MB まで・行は名前の字の順（ui_defaults.replace）
 //! - 本文は Content-Type によらず読み、表でなければ 400・keys が表でなければ 400（Python も版 3.78.0 から同じ）
 //!
-//! 窓が答えず Python に任せる形: 範囲の名前を受け取っていない（前の版の Python）・窓が読めない本文（NaN・片割れの代用字など。
+//! 窓が答えない（製品では 503）形: 範囲の名前を受け取っていない（前の版の Python）・窓が読めない本文（NaN・片割れの代用字など。
 //! master_rows::unreadable）・置き場の行の形が違う（行が表でない・名前や値が字でない）。
 
 use crate::master_store::Store;
@@ -114,7 +114,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, body: &[u8], rows: &[Valu
         return Some(error(403, "この PC は一時的に切断されています。初期設定を置けません。", Some("revoked")));
     }
     if crate::master_rows::unreadable(body) {
-        return None; // 窓が読めない本文（Python が読むか 400 にするかは Python に任せる）
+        return None; // 窓が読めない本文（Python が読むか 400 にするかは 答えない（製品では 503））
     }
     let parsed: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
     let Some(obj) = parsed.as_object() else {

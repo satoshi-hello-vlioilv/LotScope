@@ -1,4 +1,4 @@
-//! カードの設計の道（版 3.80.0）。Python の routes/dashboard.py のカードの 4 本を窓が受ける:
+//! カードの設計の道（版 3.80.0）。Python の 前の版の dashboard のカードの 4 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/card-forms?source=card:…   … その表のカードの設計の並び（自分の ID → 共通 → 共通デフォルト）・いま当てる標準・書けるか・方眼の範囲と色の鍵
@@ -8,9 +8,9 @@
 //! ```
 //!
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/card_forms.clean_body と同じ
-//! （評価関数: tests/cards_parity.rs ← program/tests/cards_oracle.py）。置き場はマスタ dashboards の行のうち元が「card:」で始まる行。
+//! （評価関数: tests/cards_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 cards））。置き場はマスタ dashboards の行のうち元が「card:」で始まる行。
 //!
-//! 窓が答えず Python に任せる形（card_plain）: 項目の名前・列・式・字・日付の列・タブの名前が並び・表（Python は repr の字で置く）・
+//! 窓が答えない（製品では 503）形（card_plain）: 項目の名前・列・式・字・日付の列・タブの名前が並び・表（Python は repr の字で置く）・
 //! 項目のタブが並び・表（Python は TypeError）・中身の字を窓が Python と同じに読めない（text_split）。
 //! ほかはセットと同じ（rows_plain・Place::split_file・share_absent。本文の欄の型は版 3.106.0 から本文の門が断る）。方眼の数の字（全角の数字・ASCII でない空白・
 //! 4,300 桁を超える字）と道の全角の id は、版 3.104.0 から窓が Python の int() と同じに読む（pyfmt::py_int_of・path_int）。
@@ -56,7 +56,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }

@@ -1,6 +1,6 @@
 //! Python と同じに値を文字にする・読む（品質データの一覧を Python と同じ答えにするため）。
 //!
-//! 一覧の問い合わせは SQL の中で Access 風の CStr・Val・ToDate を呼ぶ。Python 版（program/app/services/sqlite_ro.py）は
+//! 一覧の問い合わせは SQL の中で Access 風の CStr・Val・ToDate を呼ぶ。Python 版（前の版の sqlite_ro）は
 //! それぞれ Python の str()・正規表現（\d・\s は Unicode）・float() で書いてあるので、ここも同じ決まりで書く:
 //!   - 小数は Python の repr（2.73→"2.73"・1e16→"1e+16"・1.0→"1.0"・1e-05→"1e-05"・-0.0→"-0.0"）
 //!   - バイナリは Python の bytes の repr（b'\x00\x01'）

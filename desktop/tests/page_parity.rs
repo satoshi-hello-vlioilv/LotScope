@@ -1,7 +1,7 @@
 //! 画面と最初の画面の読む道（版 3.85.0。版 3.95.0 から GET /api/update/settings〈src/release_place.rs〉も）: 窓（src/page.rs・bundle.rs の config・dashboard.rs の sources_answer・equip_tree_answer）が、
-//! Python の道（routes/system.py の index・config、routes/dashboard.py の dashboard_sources・dashboard_equip_tree）と同じ答えを返すか。
-//! program/tests/settings_oracle.py が束の場面と同じフォルダで Python に尋ねた答え（reads）と突き合わせる。窓の Lot には Python が居ない
-//! （設定を尋ねると失敗する）形で尋ね、窓が自分で答えた物は 1 字（JSON は値）も違わないこと、答えなかった物（Python に任せる）は
+//! Python の道（前の版の system の index・config、前の版の dashboard の dashboard_sources・dashboard_equip_tree）と同じ答えを返すか。
+//! 前の版の答え合わせ役 settings が束の場面と同じフォルダで Python に尋ねた答え（reads）と突き合わせる。窓の Lot には Python が居ない
+//! （設定を尋ねると失敗する）形で尋ね、窓が自分で答えた物は 1 字（JSON は値）も違わないこと、答えなかった物（答えない（製品では 503））は
 //! Python が答えられない・窓が同じに読めない形だけであることを見る。画面の印（nonce）は @NONCE@ に揃えて比べる。
 
 mod common;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 const READS: [&str; 7] =
     ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings"];
 
-/// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
+/// 窓が答えない（答えない（製品では 503））場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
 const MUST_DELEGATE: [(&str, &str); 0] = [
     // 版 3.113.0（採点の指摘 3・4）: 画面の控えの 4 形（i64 に入らない版・字の大きな整数の版・対の無い代用字・入れ子 130 段）の画面と、
@@ -35,25 +35,6 @@ const TABLE_ANSWERS: [(&str, &str); 1] = [
 /// 版 3.112.0 の作った後の採点の割れ 5: 更新の置き場が決まらない形（update の段が字・null で参照先に置き場の行）は、窓が理由つきの 503 で断る
 /// （Python は空の置き場と答える。窓は更新の係の控えを残す: appsettings_cases の @unknown）
 const UPDATE_UNKNOWN: [&str; 2] = ["束に出ない項目の段が字", "更新の段が null で参照先に更新の置き場"];
-
-/// 表の問い合わせに持たない鍵（Python の答えそのもの。読む道は状態だけ残す。bundle_parity の strip_python と同じ）
-fn strip_python(v: &Value) -> Value {
-    let mut o = v.clone();
-    for sc in o["scenarios"].as_array_mut().unwrap() {
-        let m = sc.as_object_mut().unwrap();
-        for k in ["answer", "shareAfter", "override"] {
-            m.remove(k);
-        }
-        if let Some(reads) = m.get_mut("reads").and_then(Value::as_object_mut) {
-            for r in reads.values_mut() {
-                if !r.is_null() {
-                    *r = serde_json::json!({"status": r["status"]});
-                }
-            }
-        }
-    }
-    o
-}
 
 /// 見に行った時刻で決まる写しの様子（/api/sources の mirror の欄）を除く
 fn without_mirror_times(v: &mut Value) {
@@ -77,7 +58,7 @@ fn page_and_first_reads_are_like_python() {
     // この試験の決まりで見て（食い違いがあれば焼かない）、Python 無しでは表とだけ比べる
     let mut bk = common::bake::Bake::open_part("settings", "pages", &work);
     bk.pack = true;
-    let o = bk.oracle_with("settings_oracle.py", &[work.to_str().unwrap()], strip_python);
+    let o = bk.table_oracle();
     let mut bad = vec![];
     let (mut same, mut delegated, mut refused) = (std::collections::BTreeMap::<&str, usize>::new(), 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
@@ -165,7 +146,7 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             if must_delegate {
-                bad.push(format!("{name} {path}: 窓が答えた（Python に任せるはず）"));
+                bad.push(format!("{name} {path}: 窓が答えた（答えない（製品では 503）はず）"));
                 continue;
             }
             if TABLE_ANSWERS.contains(&(name, path)) {
@@ -208,7 +189,7 @@ fn page_and_first_reads_are_like_python() {
                 Ok(mut want) => {
                     let mut v = v;
                     if path == "/api/sources" {
-                        // 場面の Python は、どの元にも受け身の写しの係を作ってから尋ねる（settings_oracle.py）ので、どの元も写しの様子を比べる
+                        // 場面の Python は、どの元にも受け身の写しの係を作ってから尋ねる（前の版の答え合わせ役 settings）ので、どの元も写しの様子を比べる
                         // （Python が null・窓が答える、は割れ）。見に行った時刻で決まる物（確かめた・写した時刻・届かない理由・いまからの古さ）
                         // だけは比べない: 窓の写しの係は場面の前の道（画面・設備の木）で動き始めていることがあり、動いている係の値が答え。
                         // 周回の様子のファイル（state.json）を受け身の係が読むことは lot::tests::the_window_answers_the_sources_list

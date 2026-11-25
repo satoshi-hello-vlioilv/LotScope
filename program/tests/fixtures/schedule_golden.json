@@ -1,5 +1,5 @@
 {
- "_note": "ScheduleView の旧版（Python・コミット 9ad8a4c）の答えの記録（ScheduleView の desktop/tests/golden/python.json）から、入力と答えが対の物だけを写した。tests/test_schedule.py が移した物と突き合わせる",
+ "_note": "ScheduleView の旧版（Python・コミット 9ad8a4c）の答えの記録（ScheduleView の desktop/tests/golden/python.json）から、入力と答えが対の物だけを写した。前の版の試験 test_schedule が移した物と突き合わせる",
  "text": [
   [
    "",

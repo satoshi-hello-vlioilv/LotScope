@@ -1,6 +1,6 @@
 //! 窓が答える問い合わせの振り分け（版 3.118.2。製品の窓〈src/main.rs の native・src/router.rs〉と開発用サーバー〈examples/ui_serve.rs〉が
 //! 同じ 1 か所を通る）。窓そのもの（Tauri）に頼る所（/__desktop/*・終了・自己診断の受け口・更新の係）は main.rs に残し、ここは Lot が答える道と
-//! 静的ファイル・窓が答えなかった道の断り・Lot の組み立てだけ。中身（Python）の係（src/sidecar.rs）には頼らない（段 ⑤ で消すため）。
+//! 静的ファイル・窓が答えなかった道の断り・Lot の組み立てだけ（中身〈Python〉の係は版 3.119.0〈段 ⑤〉で消した）。
 //!
 //! 順は製品の振り分け（Router::handle）と同じ: answer（窓の係）→ /static/（static_file）→ 門番（Lot::access_check）→ 窓が答えなかった道
 //! （window_unanswered）。
@@ -11,7 +11,13 @@ use crate::presence::PythonNow;
 use serde_json::json;
 use std::path::{Component, Path};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+
+/// 枠の約束の版（/__desktop/info の protocol。版 3.119.0 で中身の係から移した。前の版の配布の画面と CI が読むので値を残す）
+pub const PROTOCOL: u64 = 1;
+/// 窓が受け持つこと（/__desktop/info の serves。版 3.119.0 で中身の係から移した。版 3.119.0 から窓が全部を受け持つが、前の版の読み手のために
+/// 前と同じ並びを載せる）
+pub const SERVES: &[&str] =
+    &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp", "place", "seeds"];
 
 /// 答え（HTTP の答えと同じ中身）。
 #[derive(Debug, Clone)]
@@ -29,14 +35,11 @@ pub struct Req<'a> {
     pub body: &'a [u8],
 }
 
-/// 振り分けが要る、窓の外の様子（製品は中身の係〈Supervisor〉と desktop.log、開発用サーバーは中身なし）
+/// 振り分けが要る、窓の外の様子（製品は desktop.log、開発用サーバーは標準エラー）。中身（Python）の様子は版 3.119.0（段 ⑤）からいつも absent
+/// （心拍・/api/health・/__desktop/info の python は前の版の配布の画面と CI が読むので値を残す: presence::PythonNow::absent）
 pub struct Ctx<'a> {
     /// 中身のフォルダ（program。版と更新履歴を読む）
     pub program: &'a Path,
-    /// 中身（Python）のいまの様子（待たない。段 ④ から製品はいつも absent）
-    pub python_now: &'a dyn Fn() -> PythonNow,
-    /// 中身を起こさない形か（段 ④ から製品はいつも真）
-    pub absent: bool,
     /// 記録の 1 行（製品は desktop.log）
     pub log: &'a dyn Fn(&str),
 }
@@ -74,47 +77,32 @@ pub fn answer(lot: &Lot, req: &Req, ctx: &Ctx) -> Option<Reply> {
         (method @ ("GET" | "HEAD"), "/favicon.ico") => {
             crate::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
         }
-        // 版と更新履歴（版 3.88.0。src/small_reads.rs）: Python の準備を待たずに答える。?engine=python・焼いた更新履歴の版が中身と
-        // 違う・無いときは Python に任せる
+        // 版と更新履歴（版 3.88.0。src/small_reads.rs）。?engine=python・焼いた更新履歴の版が中身と違う・無いときは答えない（窓の言葉で断る）
         (method @ ("GET" | "HEAD"), path @ ("/api/build" | "/api/changelog")) => {
             crate::small_reads::reply(method, path, req.query, ctx.program).map(|(headers, body)| Reply { status: 200, headers, body })
         }
-        // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
-        ("GET", "/api/health") if !engine_python(req.query) => Some(json_reply(&crate::small_reads::health((ctx.python_now)().state))),
-        // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す。中身が止まっていれば 503＝画面は「未接続」）
-        // 版 3.111.0: 中身の様子では断らない（窓が生きていれば 200。python に様子を添える）。様子を尋ねるたびに止まった中身の起こし直しも
-        // 始める（Backend::python_now）。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
-        ("POST", "/api/heartbeat") => lot.heartbeat(ctx.python_now).map(|(status, v)| Reply { status, ..json_reply(&v) }),
-        // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
-        // （?engine=python は Python が描く。自己診断が 2 つの画面を突き合わせる）
+        // 生きているか（版 3.102.0）: 窓が答え、中身の様子 absent を添える（前の版の読み手のため。?engine=python は前の版の比べる口で答えない）
+        ("GET", "/api/health") if !engine_python(req.query) => Some(json_reply(&crate::small_reads::health(PythonNow::absent().state))),
+        // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す）。版 3.111.0 から窓が生きていれば 200 で、python に
+        // 様子（版 3.119.0 からいつも absent）を添える。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
+        ("POST", "/api/heartbeat") => lot.heartbeat(&PythonNow::absent).map(|(status, v)| Reply { status, ..json_reply(&v) }),
+        // 画面（版 3.85.0。src/page.rs）: 窓が描く。描けない形は理由を窓の言葉で答える（JSON の 503 でなく、画面に出る字）
+        // （?engine=python は前の版の比べる口で答えない）
         (method @ ("GET" | "HEAD"), "/") if !engine_python(req.query) => {
-            let py = || (ctx.python_now)().state;
-            let mut r = lot.page(method == "HEAD", &py);
-            // 束の材料を組めない設定で中身を起こしている最中（版 3.111.0 の作った後の採点の割れ 4）: 3.110.0 と同じく中身の準備を待ち、
-            // 起きたら Python に描かせる・止まったら窓が既定の形で描く（前は起動の最初はいつも既定の形〈空の変換表〉で描いた）
-            if r.is_none() && lot.page_why().starts_with("束の材料") {
-                let t = Instant::now();
-                while (ctx.python_now)().state == "starting" && t.elapsed() < Duration::from_secs(130) {
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-                r = lot.page(method == "HEAD", &py);
-            }
-            let r = r.map(|h| Reply { status: 200, headers: h.headers, body: h.body });
+            let py = || PythonNow::absent().state;
+            let r = lot.page(method == "HEAD", &py).map(|h| Reply { status: 200, headers: h.headers, body: h.body });
             if r.is_none() {
-                (ctx.log)(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
+                (ctx.log)(&format!("PAGE {}", lot.page_why())); // 窓が画面を描けなかった理由
                 crate::delegate::note("page");
-                // 段 ④（版 3.118.0）: 中身は起こさないので、描けない理由を窓の言葉で答える（JSON の 503 でなく、画面に出る字）
-                if ctx.absent {
-                    let text = format!(
-                        "<!doctype html><meta charset=utf-8><title>画面を描けません</title><p>画面を描けません（{}）。開き直しても続くときは、配る人に知らせてください。</p>",
-                        html_escape(&lot.page_why())
-                    );
-                    return Some(Reply {
-                        status: 500,
-                        headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())],
-                        body: text.into_bytes(),
-                    });
-                }
+                let text = format!(
+                    "<!doctype html><meta charset=utf-8><title>画面を描けません</title><p>画面を描けません（{}）。開き直しても続くときは、配る人に知らせてください。</p>",
+                    html_escape(&lot.page_why())
+                );
+                return Some(Reply {
+                    status: 500,
+                    headers: vec![("Content-Type".into(), "text/html; charset=utf-8".into())],
+                    body: text.into_bytes(),
+                });
             }
             r
         }
@@ -174,20 +162,20 @@ pub fn refuse(lot: &Lot, req: &Req) -> Reply {
 pub fn window_unanswered(method: &str, raw: &str, decoded: &str, query: &str) -> Reply {
     if raw.split('/').count() != decoded.split('/').count() {
         // 形の名前は送った道の型（戻した字は書かない）
-        let route = delegate_form(method, raw, query).replacen("python ", "", 1);
+        let route = delegate_form(method, raw, query);
         crate::delegate::note(&format!("unanswered_404 {route}"));
         return error_reply(404, "not_found", "ありません。");
     }
-    let route = delegate_form(method, decoded, query).replacen("python ", "", 1);
+    let route = delegate_form(method, decoded, query);
     crate::delegate::note(&format!("unanswered {route}"));
     let mut v = json!({
-        "error": "この問い合わせには、まだ窓が答えられません（版 3.118.0 からアプリの中身〈Python〉に回しません）。画面を開き直しても続くときは、配る人に知らせてください。",
+        "error": "この問い合わせには、アプリの窓が答えられません。画面を開き直しても続くときは、配る人に知らせてください。",
         "kind": "window_unanswered",
         "route": route,
-        "why": "窓の係が答えない形でした（比べる口 engine=python・窓がまだ同じに読めない形）",
+        "why": "窓の係が答えない形でした（窓に無い道・窓が読めない形）",
     });
     if route.starts_with("engine_python") {
-        v["why"] = json!("engine=python は Python と比べる口です（段 ④ から中身を起こさないので答えません）");
+        v["why"] = json!("engine=python は前の版の比べる口です（版 3.119.0 で中身を消したので答えません）");
     }
     Reply {
         status: 503,
@@ -196,7 +184,7 @@ pub fn window_unanswered(method: &str, raw: &str, decoded: &str, query: &str) ->
     }
 }
 
-/// Python へ回した問い合わせの形の名前（"python GET /api/masters/shifts/{n}" など。?engine=python は自己診断・突き合わせの口なので別の名前）
+/// 窓が答えなかった問い合わせの形の名前（"GET /api/masters/shifts/{n}" など。?engine=python は前の版の比べる口なので別の名前）
 pub fn delegate_form(method: &str, path: &str, query: &str) -> String {
     if engine_python(query) {
         return format!("engine_python {method}");
@@ -216,7 +204,7 @@ pub fn delegate_form(method: &str, path: &str, query: &str) -> String {
         after_src = seg == "src" && out.last().is_some_and(|x| x == "api");
         out.push(t);
     }
-    format!("python {method} {}", out.join("/"))
+    format!("{method} {}", out.join("/"))
 }
 
 /// /static/ の下のファイル。static フォルダの外へは出ない（.. や絶対パスは断る）。
@@ -307,9 +295,9 @@ mod tests {
 
     #[test]
     fn forms_name_only_the_route() {
-        assert_eq!(delegate_form("PUT", "/api/masters/shifts/12", ""), "python PUT /api/masters/shifts/{n}");
-        assert_eq!(delegate_form("GET", "/api/src/仕掛/slicer", "column=a"), "python GET /api/src/{key}/slicer");
-        assert_eq!(delegate_form("GET", "/api/sources/秘密の名前/columns", ""), "python GET /api/sources/{s}/columns");
+        assert_eq!(delegate_form("PUT", "/api/masters/shifts/12", ""), "PUT /api/masters/shifts/{n}");
+        assert_eq!(delegate_form("GET", "/api/src/仕掛/slicer", "column=a"), "GET /api/src/{key}/slicer");
+        assert_eq!(delegate_form("GET", "/api/sources/秘密の名前/columns", ""), "GET /api/sources/{s}/columns");
         assert_eq!(delegate_form("GET", "/api/lotlist", "engine=python&page=2"), "engine_python GET");
     }
 
@@ -328,10 +316,9 @@ mod tests {
         let env = Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
         let (lot, retired) = lot_for(env, &program);
         assert_eq!(retired.len(), 1, "効かなくなった設定を 1 行: {retired:?}");
-        let python_now = PythonNow::absent;
         let lines = std::sync::Mutex::new(vec![]);
         let log = |l: &str| lines.lock().unwrap().push(l.to_string());
-        let ctx = Ctx { program: &program, python_now: &python_now, absent: true, log: &log };
+        let ctx = Ctx { program: &program, log: &log };
         let ask = |method: &str, path: &str, query: &str, body: &[u8]| answer(&lot, &Req { method, path, query, body }, &ctx);
         // 版と更新履歴・生きているか・心拍・画面・調べる道具・権限の読む 2 本・データ元の並び・窓の読む道（handle_body）
         for (method, path, query, status, ctype) in [
@@ -395,9 +382,8 @@ mod tests {
         std::fs::write(&cfg, json!({"master_share": {"dir": ""}}).to_string()).unwrap();
         let env = Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
         let (lot, _) = lot_for(env, &program);
-        let python_now = PythonNow::absent;
         let log = |_: &str| {};
-        let ctx = Ctx { program: &program, python_now: &python_now, absent: true, log: &log };
+        let ctx = Ctx { program: &program, log: &log };
         let sd = crate::page::static_dir(&program);
         let go = |method: &str, path: &str| dev_route(&lot, &Req { method, path, query: "", body: b"{}" }, &ctx, &sd);
         let icon = go("GET", "/favicon.ico");
@@ -426,9 +412,9 @@ mod tests {
         };
         assert_eq!(go("POST", "/api/heartbeat").status, 200);
         // 利用状況は裏の糸が書く（版 3.71.0）
-        let t = Instant::now();
-        while marks().is_empty() && t.elapsed() < Duration::from_secs(10) {
-            std::thread::sleep(Duration::from_millis(50));
+        let t = std::time::Instant::now();
+        while marks().is_empty() && t.elapsed() < std::time::Duration::from_secs(10) {
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
         let before = marks();
         assert!(

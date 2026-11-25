@@ -1,5 +1,5 @@
 //! CM3 のシステムのプロキシの読み方（src/sysproxy.rs）が、人が書いた事例の表 program/tests/fixtures/sysproxy_cases.json と同じか（版 3.117.1）。
-//! Python は tests/test_sysproxy_cases.py が同じ表を urllib の関数に当てる。env・bypass・choose・pac の事例は posix と nt（Windows）の
+//! Python は 前の版の試験 test_sysproxy_cases が同じ表を urllib の関数に当てる。env・bypass・choose・pac の事例は posix と nt（Windows）の
 //! 2 つの答えを持ち、どの OS で流しても両方を確かめる（読み方は nt を選ぶ純粋な関数。版 3.117.1 の作った後の直し・割れ 1）。
 
 use da_core::sysproxy::{self, Choice, Reg, RegVal, System};
@@ -115,20 +115,25 @@ fn reads_this_pc() {
 
 /// Windows の CI の段「TLS とプロキシを Windows の本物で（③-6）」だけ（HKCU の Internet Settings を書いてから流す。TPA_SYSPROXY_REAL=1 か pac）:
 /// 窓のレジストリの読み（System::read）が、同じ機械の Windows の Python の urllib.request.getproxies・proxy_bypass と、
-/// app の services/sysproxy.pac_note（PAC の一言。winreg を本当に読む。版 3.117.1 の作った後の直し・割れ 6: 前は窓の答えを定数と比べるだけで、
-/// Python の winreg の読みはどこでも流れていなかった）と同じ答えか。落ちたときは期待（Python）と来た物（窓）を出す（手元の Linux では流せない）
+/// PAC の一言（winreg を本当に読む。版 3.117.1 の作った後の直し・割れ 6。版 3.119.0 から前の版の app の pac_note と同じ決めを標準の部品で書いた台本）
+/// と同じ答えか。落ちたときは期待（Python）と来た物（窓）を出す（手元の Linux では流せない）
 #[test]
 #[ignore = "Windows の CI の段が HKCU に書いてから流す"]
 fn the_real_registry_reads_like_windows_python() {
     let mode = std::env::var("TPA_SYSPROXY_REAL").unwrap_or_default();
     assert!(cfg!(windows) && !mode.is_empty(), "Windows の CI の段（TPA_SYSPROXY_REAL）だけで流す");
     let hosts = ["nlmfangyweb1a:9085", "cm3.corp.example", "Cm3.CORP.Example:443", "10.1.2.3:80", "x.other.example", "corp.example"];
-    let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+    // PAC の一言の決めは前の版の Python（services/sysproxy.pac_of。版 3.119.0 で app と一緒に消した）と同じ形を、標準の部品だけ（winreg）で書いた台本で
+    // 読む: 環境変数のプロキシが無く、ProxyEnable が 0 で AutoConfigURL があれば一言
     let script = format!(
-        "import json, sys, urllib.request as u\nsys.path.insert(0, {program:?})\nfrom app.services import sysproxy\nhosts = {hosts:?}\n\
-         print(json.dumps({{'proxies': [[k, v] for k, v in u.getproxies().items()], 'bypass': {{h: bool(u.proxy_bypass(h)) for h in hosts}}, \
-         'pac': sysproxy.pac_note()}}))",
-        program = program.to_string_lossy()
+        "import json, winreg, urllib.request as u\nhosts = {hosts:?}\nreg = {{}}\n\
+         try:\n    k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings')\n\
+         except OSError:\n    reg = None\n\
+         else:\n    for n in ('ProxyEnable', 'AutoConfigURL'):\n        try:\n            reg[n] = winreg.QueryValueEx(k, n)[0]\n        except OSError:\n            pass\n\
+         env = u.getproxies_environment()\n\
+         pac = '' if (env or reg is None) else ({note:?} if (not (reg.get('ProxyEnable') or 0) and str(reg.get('AutoConfigURL') or '').strip()) else '')\n\
+         print(json.dumps({{'proxies': [[k, v] for k, v in u.getproxies().items()], 'bypass': {{h: bool(u.proxy_bypass(h)) for h in hosts}}, 'pac': pac}}))",
+        note = da_core::sysproxy::PAC_NOTE
     );
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| "python".into());
     let out = std::process::Command::new(&py).arg("-c").arg(&script).output().expect("Windows の Python を起こせません");

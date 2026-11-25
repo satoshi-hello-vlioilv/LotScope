@@ -1,5 +1,5 @@
 //! 読む道の種まき（版 3.105.0。作った後の採点の割れ: 共有にまだ無いマスタを読む道の一部が種をまかなかった）。
-//! program/tests/seed_reads_oracle.py が読む道ごとに置き場（共有は空・マスタは写しだけ）を作り、Python の道で GET を 1 回当てて、
+//! 前の版の答え合わせ役 seed_reads が読む道ごとに置き場（共有は空・マスタは写しだけ）を作り、Python の道で GET を 1 回当てて、
 //! 終わった後の共有のファイルを渡す。ここでは同じ置き場に本物の窓の道（Lot::handle_body・sources_list・page。Python は居ない）で同じ GET を当て、
 //! 共有に置かれたマスタと中身（時刻は伏せる・場面のフォルダの名前はそろえる）を Python と比べる。決まり:
 //! - Python がその道で置くマスタは、窓も必ず置く（置き漏らさない）。置いた中身は同じ
@@ -45,7 +45,7 @@ fn reads_seed_the_same_masters_as_python() {
     let base = common::work("seed-reads");
     let mut bk = common::bake::Bake::open("seed_reads", &base);
     (bk.strip, bk.strip_in) = (vec!["files".into(), "status".into()], vec!["path"]);
-    let oracle = bk.oracle("seed_reads_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut answered, mut delegated, mut seeded) = (0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

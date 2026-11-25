@@ -1,5 +1,5 @@
 {
- "about": "CM3 への 1 回の接続・読み・書きの秒（設定の timeout_sec）の読み方。人が決めから書いた事例の表（版 3.115.0 の PR #115 の Windows の CI の直し）。決め: 1 ミリ秒〜1 日（86,400 秒）の数はそのまま。偽の値・数でない値・0・負・nan・inf・範囲の外は既定の 15 秒。上限は、poll の無い Python（Windows）がミリ秒で INT_MAX（2,147,483,647）を超える timeout を OverflowError で断るので、どの OS の Python も受ける値に決めた。Python は tests/test_cm3_timeout.py（services/cm3_schedule.timeout_of）、窓は cargo test --lib schedule::tests::timeout_like_the_table（schedule::timeout_secs）。j は設定に書いた値の JSON の字（NaN・Infinity・大きな整数も書けるように字で持つ）",
+ "about": "CM3 への 1 回の接続・読み・書きの秒（設定の timeout_sec）の読み方。人が決めから書いた事例の表（版 3.115.0 の PR #115 の Windows の CI の直し）。決め: 1 ミリ秒〜1 日（86,400 秒）の数はそのまま。偽の値・数でない値・0・負・nan・inf・範囲の外は既定の 15 秒。上限は、poll の無い Python（Windows）がミリ秒で INT_MAX（2,147,483,647）を超える timeout を OverflowError で断るので、どの OS の Python も受ける値に決めた。Python は 前の版の試験 test_cm3_timeout（services/cm3_schedule.timeout_of）、窓は cargo test --lib schedule::tests::timeout_like_the_table（schedule::timeout_secs）。j は設定に書いた値の JSON の字（NaN・Infinity・大きな整数も書けるように字で持つ）",
  "min": 0.001,
  "max": 86400,
  "default": 15,

@@ -1,6 +1,6 @@
-//! スケジュール（CM3 の設備ごとの作業予定。版 3.96.0。Python の services/schedule.py を写した）。
+//! スケジュール（CM3 の設備ごとの作業予定。版 3.96.0。Python の 前の版の schedule を写した）。
 //!
-//! 係はただ 1 つ（窓）。窓は sidecar.rs の SERVES に schedule を名乗り、CM3 へ取りに行く・世代のファイルを置く・状態のファイルを書く。
+//! 係はただ 1 つ（窓）。窓は shell::SERVES に schedule を名乗り、CM3 へ取りに行く・世代のファイルを置く・状態のファイルを書く。
 //! Python の Schedules は受け身（窓の状態のファイルと世代を読むだけ。取りに行く要るときは知らせ {"event": "schedule", …} で窓に頼んで待つ）。
 //!
 //! 置き場（この PC の作業場所の db_cache/schedule。Python と同じ）:
@@ -1142,7 +1142,7 @@ mod tests {
     }
 
     /// timeout の決め（版 3.115.0 の PR #115 の Windows の CI の直し）: 人が書いた事例の表 program/tests/fixtures/cm3_timeout_cases.json
-    /// （Python は tests/test_cm3_timeout.py）と同じ秒か。答えは必ず 1 ミリ秒〜1 日で、Duration が 0 にならない
+    /// （Python は 前の版の試験 test_cm3_timeout）と同じ秒か。答えは必ず 1 ミリ秒〜1 日で、Duration が 0 にならない
     #[test]
     fn timeout_like_the_table() {
         let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/cm3_timeout_cases.json")).unwrap();

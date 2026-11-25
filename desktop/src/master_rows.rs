@@ -1,7 +1,7 @@
 //! マスタの行を書く共通の型（版 3.75.0）。Python の repositories/master_repository の汎用（SPECS と _create／_update／_delete・
 //! _check_rev・_check_unique）と同じ決まりを、窓の 1 か所に持つ。組ごとの決まり（_check_row・表示順）は呼ぶ側が渡す。
 //! 使う組: 権限（src/access_write.rs）・勤務体系（src/shifts_write.rs）・設備・ロール（src/equip_write.rs。版 3.77.0）。
-//! 版の番号の読み方（Python の int()）と、窓が答えず Python に任せる本文の判定（unreadable）もここ。
+//! 版の番号の読み方（Python の int()）と、窓が答えない（製品では 503）本文の判定（unreadable）もここ。
 
 use crate::access::normalize_part;
 use crate::master_store::{next_id, MasterError, Store};
@@ -216,10 +216,10 @@ pub(crate) fn json_depth(t: &[u8]) -> usize {
     deepest
 }
 
-/// serde_json が読むのをやめる入れ子の段（これ以上の字は窓が答えず Python に任せる）
+/// serde_json が読むのをやめる入れ子の段（これ以上の字は窓が答えない（製品では 503））
 pub(crate) const SERDE_DEPTH: usize = 128;
 
-/// 字の JSON を Python の json.loads と窓の serde で読みが割れるか（割れるなら Python に任せる）。serde が読める字は数の割れ
+/// 字の JSON を Python の json.loads と窓の serde で読みが割れるか（割れるなら 答えない（製品では 503））。serde が読める字は数の割れ
 /// （split_number: -0・i64 に入らない整数）だけを見る。serde が読めない字は、Python だけが読む形（NaN・Infinity・
 /// 1e400 のような指数の数・片割れの代用字の \u）が入っていそうなら割れる、入っていなければ Python も読めない（どちらも「読めない」で同じ）
 pub fn text_split(t: &str) -> bool {
@@ -238,7 +238,7 @@ pub fn text_split(t: &str) -> bool {
 }
 
 /// 窓では Python と同じに読めない本文か（空でない本文を serde_json が読めない〈NaN・Infinity・1e400・片割れの代用字など〉か、
-/// 読みが割れる数がある）。そのときは窓は答えず Python に任せる。書く道の組（権限・勤務体系・設備・ロール）はみなこれを使う
+/// 読みが割れる数がある）。そのときは窓は答えない（製品では 503）。書く道の組（権限・勤務体系・設備・ロール）はみなこれを使う
 pub fn unreadable(body: &[u8]) -> bool {
     !body.iter().all(|b| b.is_ascii_whitespace()) && (serde_json::from_slice::<Value>(body).is_err() || split_number(body))
 }
@@ -275,7 +275,7 @@ pub(crate) fn is_self(r: &Value, self_id: Option<&PyInt>) -> bool {
     }
 }
 
-/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は Python に任せる）、
+/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は 答えない（製品では 503））、
 /// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
 pub(crate) fn row_readable(name: &str, r: &Map<String, Value>) -> bool {
     // 行を id で引かないマスタ（データ元・変換表の標準）は id の型を見ない（row_check::ID_FREE の 1 か所。版 3.108.0 の作った後の採点の割れ 3:
@@ -292,7 +292,7 @@ pub(crate) fn row_readable(name: &str, r: &Map<String, Value>) -> bool {
 }
 
 /// 項目の値を窓が Python の str() と同じ字に書けるか（版 3.77.0）: 並び・表は Python では ['x']・{'a': 1} の形、
-/// i64 に入らない整数は Python では桁のまま（窓は 1e+19 の形）になるので、書けない（そのときは Python に任せる）
+/// i64 に入らない整数は Python では桁のまま（窓は 1e+19 の形）になるので、書けない（そのときは 答えない（製品では 503））
 pub(crate) fn value_plain(v: &Value) -> bool {
     match v {
         Value::Array(_) | Value::Object(_) => false,
@@ -586,7 +586,7 @@ pub(crate) fn py_body_held(body: &[u8]) -> Option<Value> {
 }
 
 /// 書く道の本文（routes の request.get_json(force=True, silent=True) or {}）。版 3.90.0 から参照先の項目・データ元の書く道の 1 か所。
-/// 読めない本文は {}（Python と同じ）。Python だけが読む字・読みの割れる数・表でない真の本文（Python は 400 か 500）は None（Python に任せる）
+/// 読めない本文は {}（Python と同じ）。Python だけが読む字・読みの割れる数・表でない真の本文（Python は 400 か 500）は None（答えない（製品では 503））
 pub(crate) fn py_body(body: &[u8]) -> Option<Value> {
     let v = match serde_json::from_slice::<Value>(body) {
         _ if body.iter().all(|b| b.is_ascii_whitespace()) => Value::Null,

@@ -99,15 +99,18 @@ pub fn program_version(program: &Path) -> Option<String> {
 }
 
 /// 「中身がある」の印（版 3.118.0。答えはこの 1 か所: 取り込み・入れ替え・戻す・配る・入っているか・program を探す）。
-/// program/sidecar.py（版 3.117.x までの窓が見る印。段 ⑤ まで ZIP に中身ごと残す）か、窓が読む program/app/version.py ＋
-/// program/app/brand.json のどちらかがあれば中身がある。⑤ で sidecar.py を消しても 3.118.0 以上の窓は取り込める
+/// program/sidecar.py か、窓が読む program/app/version.py ＋ program/app/brand.json のどちらかがあれば中身がある。
+/// program/sidecar.py を残す理由（版 3.119.0。段 ⑤ で中身〈Python〉を消し、1 行の印にした）: 版 3.117.x までの窓は、配る ZIP を受ける・置く・写す・
+/// 据え付けるときに program/sidecar.py が「ファイルである」ことだけを見る（3.117.3 の validate_dist・dist_root・staged・distribute の extract_exe。
+/// 中身は読まない）。印が無いと前の版の窓はこの版を取り込めない。3.118.0 以上の窓は印が無くても取り込めるので、印は 3.117.x 以前の PC が
+/// 0 台になった後の版で消せる（確かめは desktop/bundle/test_bundle.py の OldWindowAccepts と verify.py prev）
 pub fn is_dist(program: &Path) -> bool {
     let app = program.join("app");
     program.join("sidecar.py").is_file() || (app.join("version.py").is_file() && app.join("brand.json").is_file())
 }
 
 /// ZIP の名前の並び（"/" 区切り）から、配る形の根（program フォルダの親。頭の字で "" か "…/"）。is_dist と同じ 2 つの形を受け、
-/// 根が 2 つ以上あれば浅い方（凍らせた Python の写し program/tests/legacy/…/app/version.py は名前が program で終わらないので根にならない）
+/// 根が 2 つ以上あれば浅い方（program の下に入れ子に置いた写し …/tests/old/…/app/version.py は名前が program で終わらないので根にならない）
 pub fn dist_root_in_names(names: &[String]) -> Option<String> {
     let has = |n: &str| names.iter().any(|x| x == n);
     let root_of = |n: &str, tail: &str| n.strip_suffix(tail).filter(|r| r.is_empty() || r.ends_with('/')).map(str::to_string);
@@ -744,13 +747,13 @@ mod tests {
     }
 
     #[test]
-    fn the_frozen_python_copy_is_never_the_root() {
-        // 凍らせた写し program/tests/legacy/3.117.3（sidecar.py・app/version.py・app/brand.json を持つ）を根と見ない。名前の並びを逆にしても
+    fn a_nested_program_copy_is_never_the_root() {
+        // program の中に入れ子に置いた写し（版 3.117.3〜3.118.3 の凍らせた写しの形。sidecar.py・app/version.py・app/brand.json を持つ）を根と見ない。名前の並びを逆にしても
         let mut names: Vec<String> = [
             "App/App.exe",
-            "App/program/tests/legacy/3.117.3/sidecar.py",
-            "App/program/tests/legacy/3.117.3/app/version.py",
-            "App/program/tests/legacy/3.117.3/app/brand.json",
+            "App/program/tests/old/3.117.3/sidecar.py",
+            "App/program/tests/old/3.117.3/app/version.py",
+            "App/program/tests/old/3.117.3/app/brand.json",
             "App/program/app/brand.json",
             "App/program/app/version.py",
             "Xprogram/sidecar.py",
@@ -763,12 +766,12 @@ mod tests {
         assert_eq!(dist_root_in_names(&names).as_deref(), Some("App/"), "並びを逆にしても");
         names.push("program/sidecar.py".into());
         assert_eq!(dist_root_in_names(&names).as_deref(), Some(""), "浅い方");
-        let only_frozen: Vec<String> = names.iter().filter(|n| n.contains("legacy") || n.starts_with("Xprogram")).cloned().collect();
+        let only_frozen: Vec<String> = names.iter().filter(|n| n.contains("/old/") || n.starts_with("Xprogram")).cloned().collect();
         assert_eq!(dist_root_in_names(&only_frozen), None, "凍らせた写しだけなら配る形でない");
         // 展開したフォルダでも（program の中の凍らせた写しを根にしない）
         let d = tmp("frozen-root");
         dist_without_sidecar(&d.join("App"), "3.118.0", "x");
-        let frozen = d.join("App").join("program").join("tests").join("legacy").join("3.117.3");
+        let frozen = d.join("App").join("program").join("tests").join("old").join("3.117.3");
         std::fs::create_dir_all(frozen.join("app")).unwrap();
         std::fs::write(frozen.join("sidecar.py"), "#").unwrap();
         std::fs::write(frozen.join("app").join("version.py"), "APP_VERSION = \"3.117.3\"\n").unwrap();

@@ -195,13 +195,12 @@ function viewCols() {
 }
 
 /* ---------------- 状態表示 ---------------- */
-function setStatus(t, cls = "") { const s = $("#status"); s.textContent = t; s.className = "pill " + cls; paintIdle(); }
+function setStatus(t, cls = "") { const s = $("#status"); s.textContent = t; s.className = "pill " + cls; }
 function fail(m) { const e = $("#error"); e.textContent = m; e.classList.remove("hidden"); setStatus("エラー", "err"); }
 function clearError() { $("#error").classList.add("hidden"); }
 
 /* ================= 起動 ================= */
 async function boot() {
-  pyBoot();                                    // 中身の様子（読み込みの途中に来た知らせも）はここから描く（版 3.111.0）
   loadOverrides();
   try {
     const r = await fetch("/api/config");
@@ -228,7 +227,7 @@ async function boot() {
   showScreen(initialScreen());
 }
 
-/* ---------------- 版・自分の権限・切断（WaveLog と同じ管理。判定はサーバーの services/access.py の1箇所） ----------------
+/* ---------------- 版・自分の権限・切断（WaveLog と同じ管理。判定はサーバーの 前の版の access の1箇所） ----------------
    - 見出しの版の札（押すと更新履歴）。その横の札は1つで、版のことを1か所にまとめる:
        新しい版を取り込み済み（窓の更新の係 /__desktop/update）なら「更新あり」→ 更新履歴の窓で「更新して開き直す」
        ほかの人がもっと新しい版を使っている（心拍の答え）だけなら「新しい版あり」→ 取り込めない理由と次にすること
@@ -274,7 +273,7 @@ function paintMeUnknown() {
   if (state.sources) loadSources();
   if (state.pendingScreen && !state.screen) { const want = state.pendingScreen; state.pendingScreen = null; hiddenScreen(want, {}); }
 }
-/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
+/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの 前の版の access の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
    権限をまだ 1 度も読めていなければ（読んでいる最中も・読めなかった後も）、決まりのあるタブは出さない（版 3.111.0。fail-closed。
    前は読んでいる最中は出したので、窓が名乗りを決められず中身を起こしている間〈最大 125 秒〉、出さないタブが出た） */
 function tabHidden(key) { return state.me ? (state.me.hiddenTabs || []).includes(key) : true; }
@@ -305,7 +304,6 @@ function paintRevoked(r) {
     + "そのあいだマスタは読むだけです。" + (r.reason ? ` 理由: ${r.reason}` : "");
 }
 function paintBeat(d) {
-  if (d && d.python && typeof d.python === "object") setPython(d.python);   // 中身（Python）の様子（版 3.111.0。心拍は止まっていても窓が 200）
   state.versionNotice = (d && d.version) || null;
   paintVersionNotice();
   if (d && "revoked" in d) paintRevoked(d.revoked);
@@ -592,141 +590,6 @@ document.addEventListener("tpa:error", (e) => fail(e.detail));
 document.addEventListener("tpa:masters-changed", () => {          // マスタが変わった → 表に工程があれば計算し直す
   if (state.rows.some((r) => (r.equipment || "").trim())) recalc();
 });
-
-/* ---------------- 中身（Python）の様子（版 3.111.0。2026-11-stage2b-ui.json の 2 回目で決めた I） ----------------
-   心拍は窓が答えるので、中身（Python）が止まっても「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま。止まった・起こしている間は、見出しのすぐ下
-   （切断の帯と同じ置き場）に 1 段の知らせの段（#pyBar。［もう一度起こす］［詳しく］［畳む］）を出し、画面を 38px 縮める（表に重ねない）。
-   畳むと段は消え、見出しの字の札「中身 停止」（#pyPill。button）が残り、押すと段が戻る。段が出ている間は札を出さない（同じことを 2 か所で言わず、
-   1728 で見出しのタブの絵を残す。採点の作るときの指摘 b）。起きたら段に「✓ 中身（Python）が動きました」を 2.5 秒出してから畳み、権限を読み直す（指摘 d・f）。
-   様子の元は心拍の答えの python と、窓が起こした結果を知らせる tpa:python（main.rs の band）。暇なときの「待機中」の札は止まっている間だけ隠す（指摘 c） */
-state.py = { state: "ready", why: "" };
-state.pyBarClosed = false;
-// 描けるか（版 3.111.0 の作った後の採点の割れ 1）: 読み込みの途中で中身が止まった知らせ（window.__tpaPython・tpa:python）が来ても、描くのは boot() の後。
-// 前は読み込みのときに setPython → fitTabs が、まだ宣言されていない tabEls（const）に触れて app.js が落ち、画面が空で心拍も来なかった
-let pyBooted = false, pyOkTimer = 0, connPopOff = null, pyFocusBack = null;
-const PY_USE = "画面・ダッシュボード・一覧・マスタ管理は使えます（窓が読めない一部の形だけ使えません）";
-function setPython(p) {
-  const next = { state: ["ready", "starting", "stopped"].includes(p && p.state) ? p.state : "ready", why: String((p && p.why) || "") };
-  const was = state.py.state;
-  if (next.state === was && next.why === state.py.why) return;
-  state.py = next;
-  if (was === "ready" && next.state !== "ready") state.pyBarClosed = false;   // 新しく止まったら段を出す
-  if (!pyBooted) return;                       // 描くのは boot() の後（boot が描く）
-  if (next.state === "ready" && was !== "ready") {
-    loadMe();                                  // 起きた後も窓の名乗りで読み直す（前は起きた後に権限を読み直さず、札が空のままだった）
-    closeConnPop();
-    if (!state.pyBarClosed && !$("#pyBar").hidden) { flashPyOk(); return; }
-  }
-  paintPython();
-}
-/** boot() の頭: ここから中身の様子を描く（読み込みの途中に来た知らせも、ここで描く） */
-function pyBoot() {
-  pyBooted = true;
-  if (window.__tpaPython) setPython(window.__tpaPython);
-  if (state.py.state !== "ready") paintPython();
-}
-/** 段の出し入れで表が 38px 動いても、送り位置（scrollTop）を保つ（選んだ行は描き直さない） */
-function keepScroll(f) {
-  const scr = [...document.querySelectorAll('[id$="Screen"]:not(.hidden) *')].filter((el) => el.scrollTop > 0).map((el) => [el, el.scrollTop]);
-  f();
-  for (const [el, top] of scr) el.scrollTop = top;
-  requestAnimationFrame(() => { for (const [el, top] of scr) if (el.isConnected && el.scrollTop !== top) el.scrollTop = top; });
-  document.dispatchEvent(new CustomEvent("tpa:pyband"));   // ダッシュボードが数字のパネルの段の高さを保つ（dashboard.js）
-}
-/** 段の釦をキーで押して段が描き直る・畳まれるとき、焦点を段に入る前の所（無ければ見出しの「接続 ●」）へ戻す（作った後の採点の弱い所 3） */
-function pyFocusOut() {
-  const to = pyFocusBack && pyFocusBack.isConnected && !$("#pyBar").contains(pyFocusBack) ? pyFocusBack : $("#conn");
-  to.focus({ preventScroll: true });
-}
-document.addEventListener("focusin", (e) => {
-  const bar = $("#pyBar"), pop = $("#connPop");
-  if (bar && !bar.contains(e.target) && !(pop && pop.contains(e.target)) && e.target !== $("#pyPill")) pyFocusBack = e.target;
-}, true);
-function flashPyOk() {
-  const bar = $("#pyBar"), had = bar.contains(document.activeElement);
-  clearTimeout(pyOkTimer);
-  bar.className = "py-bar is-ok"; bar.dataset.key = "ok";
-  bar.innerHTML = "<b>✓ 中身（Python）が動きました</b><span>中身の要る形も、もう使えます</span>";
-  if (had) pyFocusOut();
-  paintPill();
-  pyOkTimer = setTimeout(() => { pyOkTimer = 0; paintPython(); }, 2500);
-}
-function paintPill() {
-  const p = state.py, pill = $("#pyPill"), conn = $("#conn"), down = p.state !== "ready";
-  pill.hidden = !(down && state.pyBarClosed);
-  // 札は「待機中」の札と同じ置き場・同じ幅（隠した「待機中」の幅をそのまま使う）。見出しのタブの並びが中身の様子で動かない（採点の作るときの指摘 b・弱い所 2）
-  pill.innerHTML = p.state === "starting" ? '<i class="wait-spin" aria-hidden="true"></i>中身' : "中身停止";
-  pill.setAttribute("aria-label", p.state === "starting" ? "中身（Python）を起こしています" : "中身（Python）が止まっています。押すと知らせの段を出します");
-  pill.classList.toggle("is-wait", p.state === "starting");
-  pill.title = p.state === "starting" ? "中身（Python）を起こしています" : `窓とはつながっています。中身（Python）が止まっています${p.why ? `: ${p.why}` : ""}（押すと知らせの段を出します）`;
-  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は見出しの下の段・右の札）" : "アプリ（窓）と接続中";   // 版 3.118.0: 窓が全部を答える（中身〈Python〉は起こさない）
-  paintIdle();
-}
-/** 止まっている間だけ、暇なときの「待機中」の札を隠して幅を札に渡す（計算中・エラーの札は出す） */
-function paintIdle() {
-  const st = $("#status"), pill = $("#pyPill"); if (!st || !state.py || !pill) return;
-  const idle = st.textContent.trim() === "待機中";
-  if (idle && !st.classList.contains("idle-hide") && st.offsetWidth) state.idleW = st.offsetWidth;   // ふだんの「待機中」の幅（札の幅に使う）
-  const hide = state.py.state !== "ready" && idle;
-  st.classList.toggle("idle-hide", hide);
-  pill.style.width = hide && state.idleW ? `${state.idleW}px` : "";
-  $(".hstat").classList.toggle("py-last", hide && !pill.hidden);
-}
-function paintPython() {
-  if (pyOkTimer || !pyBooted) return;          // 「動きました」を出している間・boot の前は描き直さない
-  const p = state.py, bar = $("#pyBar"), down = p.state !== "ready", show = down && !state.pyBarClosed;
-  const key = show ? `${p.state}|${p.why}` : "";
-  const had = bar.contains(document.activeElement) ? (document.activeElement.dataset.py || "bar") : "";
-  if (bar.dataset.key !== key || bar.hidden === show) {
-    keepScroll(() => {
-      bar.className = "py-bar"; bar.dataset.key = key;
-      bar.hidden = !show;
-      document.body.classList.toggle("py-band-on", show);
-      // 起こしている間は回る印（ダッシュボードの待ちの印と同じ部品 .wait-spin。弱い所 4）
-      bar.innerHTML = !show ? "" : `<b>${p.state === "starting" ? '<i class="wait-spin" aria-hidden="true"></i>中身（Python）が起きるのを待っています…' : "⚠ 中身（Python）が止まっています"}</b><span title="${esc(p.why)}">${PY_USE}</span>`
-        + (p.state === "stopped" ? '<button type="button" class="py-restart" data-py="restart" title="中身（Python）をもう一度起こします">もう一度起こす</button>'
-          + '<button type="button" data-py="more" aria-haspopup="dialog" title="画面と窓・中身のつながりと、止まった理由">詳しく</button>'
-          + '<button type="button" data-py="fold" title="畳みます（見出しの「中身停止」の札は残ります）">畳む</button>' : "");
-    });
-    const b = (k) => bar.querySelector(`[data-py="${k}"]`);
-    if (b("restart")) b("restart").onclick = pyRetry;
-    if (b("more")) b("more").onclick = (e) => openConnPop(e.currentTarget);
-    if (b("fold")) b("fold").onclick = () => { state.pyBarClosed = true; paintPython(); $("#pyPill").focus(); };
-    if (had) { if (show && had !== "bar" && b(had)) b(had).focus({ preventScroll: true }); else pyFocusOut(); }   // 押した釦が無くなったら段に入る前の所へ
-  }
-  paintPill();
-  if (typeof fitTabs === "function") fitTabs();
-}
-async function pyRetry() {
-  closeConnPop();
-  setPython({ state: "starting", why: "" });
-  try { await fetch("/__desktop/backend/retry", { method: "POST" }); } catch (_) { /* 窓の外（開発のサーバー）では起こし直しの口が無い */ }
-}
-function closeConnPop() { const pop = $("#connPop"); if (pop) pop.remove(); if (connPopOff) connPopOff(); connPopOff = null; }
-/** 接続の様子の面（段の「詳しく」から。押した物の下、入らなければ上に開く） */
-function openConnPop(anchor) {
-  closeConnPop();
-  const p = state.py, r = anchor.getBoundingClientRect();
-  document.body.insertAdjacentHTML("beforeend", `<div id="connPop" class="conn-pop" role="dialog" aria-label="接続の様子">
-    <div class="cp-h"><span>接続の様子</span><button type="button" data-cp="close" aria-label="閉じる">✕</button></div>
-    <div class="cp-r"><i></i><b>画面と窓</b><span>つながっています</span></div>
-    <div class="cp-r${p.state === "ready" ? "" : " off"}"><i></i><b>中身（Python）</b><span>${p.state === "ready" ? "動いています" : p.state === "starting" ? "起こしています" : "止まっています"}</span></div>
-    <p>${esc(p.why)}${p.why ? "\n" : ""}画面・ダッシュボード・一覧・マスタ管理は使えます。窓が読めない一部の形（例: https のスケジュール）だけ使えません。</p>
-    ${p.state === "stopped" ? '<div class="cp-a"><button type="button" class="py-restart" data-cp="restart">もう一度起こす</button></div>' : ""}</div>`);
-  const pop = $("#connPop");
-  pop.style.left = `${Math.max(8, Math.min(innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth))}px`;
-  pop.style.top = `${r.bottom + 8 + pop.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - pop.offsetHeight - 8) : r.bottom + 8}px`;
-  const back = () => { closeConnPop(); if (anchor.isConnected) anchor.focus({ preventScroll: true }); };
-  pop.querySelector('[data-cp="close"]').onclick = back;
-  const rs = pop.querySelector('[data-cp="restart"]'); if (rs) rs.onclick = pyRetry;
-  connPopOff = TPA.dismissable(pop, (byEsc) => { connPopOff = null; pop.remove(); if (byEsc && anchor.isConnected) anchor.focus({ preventScroll: true }); }, { keep: anchor });
-  (rs || pop.querySelector('[data-cp="close"]')).focus({ preventScroll: true });
-}
-$("#pyPill").onclick = () => {                 // 畳んだ段を戻す（焦点は段へ移す: 札は段が出ている間は出さない）
-  state.pyBarClosed = false; paintPython();
-  const bar = $("#pyBar"); (bar.querySelector('[data-py="restart"]') || bar.querySelector("button"))?.focus({ preventScroll: true });
-};
-window.addEventListener("tpa:python", (e) => setPython(e.detail));   // 窓が起こした結果（main.rs の band。心拍を待たずに）
 
 /* ---------------- 心拍（利用状況・接続） ----------------
    数秒ごとに /api/heartbeat へ送る。答えで「接続 ●」と、見出しの版の札（新しい版あり・切断）を決める。
@@ -1047,15 +910,15 @@ function applyLot(d) {
 /* ---------------- 検索 = LotDsp 進度情報から取込 ----------------
    検索ボタンは1つ。押すと入力したロット番号で LotDsp の進度情報を読み、工程を取り込む。
    LotDsp は別サイトで、表はブラウザの中で描かれる。読む道は上から順に試す（runSearch）:
-   - LotDsp の API（ログインなし・LotSearch と同じ道。/api/lots/fetch-lotdsp-api・lotdsp_api.py）: 項目名を学び終えたあと
+   - LotDsp の API（ログインなし・LotSearch と同じ道。/api/lots/fetch-lotdsp-api・前の版の lotdsp_api）: 項目名を学び終えたあと
      （画面で読めるたびに同じロットを API でも引いて学ぶ）だけ。速く（1秒ほど）、Edge も要らない。読めなければ次の道へ回す。
    - 見えない Edge（既定・社内のログイン不要な範囲）: アプリがこの PC の Edge を画面に出さずに動かして読む
-     （/api/lots/fetch-lotdsp・lotdsp_direct.py）。ログインの欄が出たら押さずに引き返す（kind: login）。
+     （/api/lots/fetch-lotdsp・前の版の lotdsp_direct）。ログインの欄が出たら押さずに引き返す（kind: login）。
    - LotDsp の窓（ログインが要るとき・VPN）: アプリが Edge を見える窓で開き、利用者がその窓でログインする
      （アプリは ID・パスワードに触れない。ロット番号だけ欄に入れておく）。済めば、続きの検索・読み取りはアプリが行う
      （login_window: true）。ログインが要ったことは覚え、次からは最初から窓で読む（空振りを省く）。
    - どれも使えないとき: 貼り付け（Ctrl+A → Ctrl+C → Ctrl+V）か、保存した HTML ファイル。理由をダイアログで言う。
-   どの道も HTML の読み方はサーバー（lotdsp_progress.py）の1箇所。
+   どの道も HTML の読み方はサーバー（前の版の lotdsp_progress）の1箇所。
    以前はブラウザ版だけ、Edge 拡張 LotData-Link の道もあった（版 3.0.0 で外した。窓の道で同じことができる）。 */
 const LS_LAST_LOT = "tpa.lastLot.v1";
 const LS_ROUTE = "tpa.lotdsp.route.v2";   // {v: "win", at} … ログインが要った（VPN）ので LotDsp の窓を先に使う
@@ -1337,16 +1200,8 @@ function applyTabs() {
 /* 見出しのタブを帯に収める（版 3.54.0。データ元のグループ・結合した表でタブが増えても、右端の「アプリ」「終了」を切らない。
    2026-10-srclist の作った後の採点）: まずタブを詰め（印を外す。名前は切らない）、それでも入らなければ、選んでいないタブを
    後ろから「ほか N ▾」にまとめる（押すと残りのタブのメニュー。作業実績の設備のタブと同じ考え）。Alt＋数字はまとめたタブにも効く */
-/** 見出しのタブを詰める。中身（Python）の様子で並びが動かないよう、「待機中」を隠している間（止まった・起こしている）も、ふだんの形
-    （「待機中」を出し、札「中身停止」は隠す）で測って並べてから戻す（版 3.111.0 の作った後の採点の弱い所 2: 1280 は段が出ると「ほか 2 ▾」が消え、
-    1728 は畳むと絵が消えた）。札は「待機中」と同じ幅なので、戻した後も見出しからはみ出さない */
-function fitTabs() {
-  // 札が出ている間は「待機中」と同じ幅なのでそのまま測る（札を隠すと、札にある焦点が落ちる）。札も「待機中」も隠れている（段が出ている）間だけ、
-  // 「待機中」を出して測る（「待機中」は焦点を持たない）
-  const st = $("#status"), pill = $("#pyPill"), swap = !!st && st.classList.contains("idle-hide") && (!pill || pill.hidden);
-  if (swap) st.classList.remove("idle-hide");
-  try { fitTabsNow(); } finally { if (swap) st.classList.add("idle-hide"); }
-}
+/** 見出しのタブを詰める */
+function fitTabs() { fitTabsNow(); }
 function fitTabsNow() {
   const nav = $(".screen-tabs"), head = nav && nav.closest("header");
   if (!head) return;
@@ -1891,7 +1746,7 @@ $("#exportCsv").onclick = () => {
 };
 
 /* ---------------- 終了 ----------------
-   窓（Rust）が /api/shutdown に答えてから自分で閉じる。中身（Python）は入力が閉じて自分で終わる。
+   窓（Rust）が /api/shutdown に答えてから自分で閉じる。
    画面の状態は閉じる前に覚え、次に開けば同じ所から続けられるので確かめない（版 3.19.0）。ただし保存していない設定の変更（マスタ・
    ダッシュボードの編集・表示列の窓など）は覚えないので、あれば聞く（版 3.43.0） */
 async function quit(what = "アプリを終了する") {

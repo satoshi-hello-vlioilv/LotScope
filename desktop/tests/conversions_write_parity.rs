@@ -1,7 +1,7 @@
-//! 変換表の道（src/conversions_write.rs）が Python の道（routes/conversions.py の 8 本）と同じ答えか（版 3.93.0）。
-//! program/tests/conversions_oracle.py が場面ごとに同じ中身の置き場を作り、py に Python の道で問い合わせの並びを当てる。ここでは rs に
+//! 変換表の道（src/conversions_write.rs）が Python の道（前の版の conversions の 8 本）と同じ答えか（版 3.93.0）。
+//! 前の版の答え合わせ役 conversions が場面ごとに同じ中身の置き場を作り、py に Python の道で問い合わせの並びを当てる。ここでは rs に
 //! 同じ並びを本物の窓の道（Lot::handle_body → conversions_route。門番・書く係）で当て、1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、
-//! 終わった後のファイル（共有・同梱の data/ の変換表と標準）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
+//! 終わった後のファイル（共有・同梱の data/ の変換表と標準）を突き合わせる。窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。
 //! 取り込みで標準にもする 2 回の書き込みの間に錠を置く場面は、conversions_write::set_between_writes で Python と同じ錠のファイルを置く。
 
 mod common;
@@ -53,7 +53,7 @@ fn conversion_tables_match_python() {
     // 版 3.116.0: 窓の答えと終わった後のファイルを焼いた表（tests/baked/conversions.json。詰めた形）にも持つ
     let mut bk = common::bake::Bake::open("conversions", &base);
     bk.pack = true;
-    let oracle = bk.oracle("conversions_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -108,12 +108,12 @@ fn conversion_tables_match_python() {
             }
         }
         da_core::conversions_write::set_between_writes(None);
-        // 窓が答えず Python に任せる歩（書く前に断る＝ファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（書く前に断る＝ファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = call(st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {}?{} {}: 窓 {status} {}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {}?{} {}: 窓 {status} {}",
                     st["method"],
                     st["path"],
                     st["query"],

@@ -1,6 +1,6 @@
 //! 設備グループの正規表現（版 3.102.0）: 窓（src/equip_regex.rs の判定と、src/pivot.rs の compile_rules〈fancy-regex の (?i)〉の当たり）が、
-//! 事例の表 program/tests/fixtures/equip_regex_cases.json（program/tools/equip-regex-cases.py が仕様と同梱と同じ Python の re から作る）と
-//! 同じか。Python は tests/test_equip_regex.py が同じ表を読む。Python に頼らない（表を読むだけ）ので Windows の CI でも流れる。
+//! 事例の表 program/tests/fixtures/equip_regex_cases.json（前の版の道具 equip-regex-cases が仕様と同梱と同じ Python の re から作る）と
+//! 同じか。Python は 前の版の試験 test_equip_regex が同じ表を読む。Python に頼らない（表を読むだけ）ので Windows の CI でも流れる。
 
 use da_core::equip_regex::{check, why_of, Verdict};
 use da_core::pivot::rules_match;

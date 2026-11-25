@@ -2,7 +2,7 @@
 // 読み方。Python の html.parser を使わない）で入れ子の無い表にし、各事例の "dom" に書く。表の作り方は取込と同じ約束（行・セルの字・
 // script と style は読まない・br は空白・空白は 1 つに縮める〈JS の \s〉・空の行は除く）。
 //   node program/tools/lotdsp-dom-cases.mjs
-// Python の答えと違う事例は、program/tools/lotdsp-cases.py の DOM_DIFFERS に理由を書く（試験が理由の無い違いを止める）。
+// 版 3.119.0 から表は凍った答え（Python の答えを焼く道具は app と一緒に消した）。この道具は DOM の答え "dom" の欄だけを書き直す。
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
 import fs from "node:fs";

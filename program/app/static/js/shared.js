@@ -30,7 +30,7 @@
     };
   };
 
-  /* 画面の設定の控え（app/services/ui_state.py）。localStorage は画面の置き場（オリジン）ごとに別なので、
+  /* 画面の設定の控え（前の版の ui_state）。localStorage は画面の置き場（オリジン）ごとに別なので、
      WebView の作業場所が消えても戻せるように・以前のブラウザ版（ポートの置き場）で使い込んだ設定を引き継ぐために、
      覚え直すたびに「変わった名前だけ」を控えに重ね、開くときに控えの版（rev）が進んでいれば戻す（サーバーが TPA_UI_STATE として画面に埋める）。
      - 控えに入れるのは tpa. で始まる名前だけ。どの版の控えと揃っているかは tpa. で始まらない名前（REV）に覚える
@@ -76,7 +76,7 @@
           Object.entries(keys).forEach(([k, v]) => { if (ls().getItem(k) == null) ls().setItem(k, v); });
           local.forEach(touched);
         } else if (rev == null && !local.length && !(snap.rev || 0)) {
-          // 入れたばかりの PC（画面の設定も控えも無い）: 開発者が置いた一覧の表示の初期設定を当てる（services/ui_defaults.py）
+          // 入れたばかりの PC（画面の設定も控えも無い）: 開発者が置いた一覧の表示の初期設定を当てる（前の版の ui_defaults）
           const defs = (window.TPA_UI_PROFILE || {}).defaults || {};
           Object.entries(defs).forEach(([k, v]) => { ls().setItem(k, v); touched(k); });
         } else if ((snap.rev || 0) > (+rev || 0)) {
@@ -156,7 +156,7 @@
     };
   })();
 
-  /* 条件の比べ方（一覧の条件・ダッシュボードのパネルの条件で同じ。サーバーは services/lot_list.py の ALLOWED_OPS）。
+  /* 条件の比べ方（一覧の条件・ダッシュボードのパネルの条件で同じ。サーバーは 前の版の lot_list の ALLOWED_OPS）。
      版 3.54.0（決め方: ui-proposals/2026-10-wildcard の B）: 字・数・空欄・日付の段に分け、言葉を「〜で始まる／〜で始まらない」の型にそろえる
      （設備グループのルール・変換表と同じ言葉）。字の比べ方の値には Excel と同じ * ?（全角も）・~ が使える（wild の部品） */
   const FILTER_OPS = [
@@ -444,7 +444,7 @@
         return `/api/masters/rows/${file}/${s.row}?summary=${encodeURIComponent(s.summary)}&key=${encodeURIComponent(s.key)}`;
       return null;
     },
-    /** 読めない行を消す（版 3.109.0。2026-11-delegates-3109-ui.json で決めた C）: 画面の真ん中の確かめの窓で、何のマスタの何行目か・中身（要約）・
+    /** 読めない行を消す（版 3.109.0。採点 2026-11-delegates-3109-ui（記録は版 3.119.0 で片付けた） で決めた C）: 画面の真ん中の確かめの窓で、何のマスタの何行目か・中身（要約）・
         理由を見せてから消し、消した後は一言（中身と残りの数。帯の札の数と同じ）を出す。前は小さな面で「ファイル名の n 行目を消しますか」だけを聞き、
         消した後は何も言わなかった */
     async skipDelete(it, s, url) {
@@ -457,7 +457,7 @@
         note: `消すと元に戻せません。消さずに直すときは、${TPA.skipWhere(it.file)} を直します。`, ok: "× 消す", cancel: "やめる",
         onClose: (h) => { how = h; }, restore: false });
       if (!sure) {
-        // やめた（版 3.110.0。2026-11-stage2-ui.json の D）: Esc・「やめる」は開いた順の逆に 1 段ずつ戻る＝読めない行の面を開き直し、押した行に焦点
+        // やめた（版 3.110.0。採点 2026-11-stage2-ui（記録は版 3.119.0 で片付けた） の D）: Esc・「やめる」は開いた順の逆に 1 段ずつ戻る＝読めない行の面を開き直し、押した行に焦点
         // （もう一度 Esc で面を閉じて札へ、3 度目でマスタ管理を閉じる）。後ろ（窓の外）を押したときは全部やめて札へ
         const badge = skipBadge(skipOrigin);
         if (badge && how !== "back") {

@@ -1,5 +1,5 @@
 {
- "about": "道の字の門（版 3.114.0。services/path_rules.py・desktop/src/path_gate.rs）の事例の表。種類（browse: 「参照…」の欄・dir: 上のフォルダといまの置き場・name: フォルダの名前）× OS（posix・nt）ごとに、人が仕様と OS の決まりから書いた答え want （ok: 門を通った字〈null は字のまま〉・no: 断る理由の名前）と、版 3.113.0 の Python の答え py（browse は前の clean の字、dir・name は前の道の部品の振る舞い）を並べる。窓（desktop/tests/ospath_cases.rs）と Python（tests/test_ospath_cases.py）が同じ表を読む",
+ "about": "道の字の門（版 3.114.0。前の版の path_rules・desktop/src/path_gate.rs）の事例の表。種類（browse: 「参照…」の欄・dir: 上のフォルダといまの置き場・name: フォルダの名前）× OS（posix・nt）ごとに、人が仕様と OS の決まりから書いた答え want （ok: 門を通った字〈null は字のまま〉・no: 断る理由の名前）と、版 3.113.0 の Python の答え py（browse は前の clean の字、dir・name は前の道の部品の振る舞い）を並べる。窓（desktop/tests/ospath_cases.rs）と Python（前の版の試験 test_ospath_cases）が同じ表を読む",
  "note": [
   "routes: 欄の並びごとの門（path_rules.apply・path_gate::apply）。ok が null は欄の字が全部そのまま、表は書き直した欄だけ（ほかはそのまま）。名前が check_name で断られる・上のフォルダが空のときは、後ろの欄を門へ通さない（plan が先に自分の言葉で答える）",
   "os: Windows の want を字で書かず、GetFullPathNameW（窓の path_gate::full_path_name・Python の nt._getfullpathname）の答えを正しい答えにする形（Microsoft の文書が決めていない形: 途中の段の「..」で終わる名前・共有の根の段の末尾の空白と「.」。版 3.114.0 の Windows の CI の直し）",

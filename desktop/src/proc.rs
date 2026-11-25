@@ -1,9 +1,7 @@
 //! プロセスを PID で見る・止める（WaveLog の desktop/src/proc.rs から写した）。
 //!
-//! 窓が起こしたプロセスと、本当に動いている Python は**同じとは限らない**。Microsoft Store・Python Install Manager の
-//! 入口（`WindowsApps\python.exe`）は別名で、本物（`pythoncore-*\python.exe`）を子として起こす。窓が入口だけを止めると
-//! 本物が残り、作業フォルダ（`program`）を掴んだまま版の入れ替えが断られる（WaveLog で利用者の PC で起きた）。
-//! そこで本物の PID（起動の合図 `ready.pid`）を見張り、止めるときも本物が終わるのを待つ。
+//! 版 3.119.0 から使うのは、入口の exe が前の窓の終わりを PID で待つ所（main.rs の --wait-pid）だけ（中身〈Python〉の係を消した）。
+//! 止める（kill）は試験だけが使う。
 
 use std::time::{Duration, Instant};
 
@@ -12,7 +10,8 @@ pub fn alive(pid: u32) -> bool {
     imp::alive(pid)
 }
 
-/// 止める（無ければ何もしない）。
+/// 止める（無ければ何もしない。試験だけ）。
+#[cfg(test)]
 pub fn kill(pid: u32) {
     imp::kill(pid)
 }
@@ -34,9 +33,7 @@ pub fn wait_gone(pid: u32, wait: Duration) -> bool {
 #[cfg(windows)]
 mod imp {
     use windows::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
-    use windows::Win32::System::Threading::{
-        OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
-    };
+    use windows::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE};
 
     pub fn alive(pid: u32) -> bool {
         unsafe {
@@ -47,7 +44,9 @@ mod imp {
         }
     }
 
+    #[cfg(test)]
     pub fn kill(pid: u32) {
+        use windows::Win32::System::Threading::{TerminateProcess, PROCESS_TERMINATE};
         unsafe {
             if let Ok(h) = OpenProcess(PROCESS_TERMINATE, false, pid) {
                 let _ = TerminateProcess(h, 1);
@@ -67,6 +66,7 @@ mod imp {
         }
     }
 
+    #[cfg(test)]
     pub fn kill(pid: u32) {
         let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
     }
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn pid_is_seen_waited_and_killed() {
-        // 窓は本物の Python を PID だけで見る（自分の子ではない）。子の持ち手を使わず、PID だけで見る・待つ・止める
+        // 入口の exe は前の窓を PID だけで見る（自分の子ではない）。子の持ち手を使わず、PID だけで見る・待つ・止める
         let mut c = sleeper();
         let pid = c.id();
         assert!(alive(pid), "動いている物を動いていると見る");

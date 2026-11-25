@@ -1,4 +1,4 @@
-//! フォルダ・ファイルの欄の補助（版 3.101.0。Python の services/folder_browse.py と routes/settings.py の POST /api/fs/browse・
+//! フォルダ・ファイルの欄の補助（版 3.101.0。Python の 前の版の folder_browse と 前の版の settings の POST /api/fs/browse・
 //! GET /api/fs/places）を窓が答える。読むだけで、何も書かない。
 //!
 //! - POST /api/fs/browse … そのフォルダの中（フォルダ・その欄で選べるファイル・目的ごとの印）と区切り（パンくず）。
@@ -9,7 +9,7 @@
 //! NATURAL_SORT（エクスプローラーと同じ自然な並び）・WORKLOG_MARK（作業実績の印の頭）・HIDE_ATTRS（Windows の隠し・システムの属性は出さない）。
 //! 道の字は Python の字の上の整え（tidy: ntpath・posixpath の normpath。記号リンクは解かない）と、Path の anchor・parts（crumbs）と同じ。
 //! 欄の字は道の門（path_gate.rs。版 3.114.0）が先に決める（~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・装置の道・NUL・
-//! 長すぎる名前。前は答えず Python に任せた）。届くかを尋ねる糸は probe.rs の係の 1 つ（道の根ごとに 1 本）。突き合わせ: desktop/tests/fs_parity.rs ← program/tests/fs_oracle.py、事例の表 place_cases.json の
+//! 長すぎる名前。前は答えず Python に任せた）。届くかを尋ねる糸は probe.rs の係の 1 つ（道の根ごとに 1 本）。突き合わせ: desktop/tests/fs_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 fs）、事例の表 place_cases.json の
 //! sort・clean・marks・hidden（desktop/tests/place_cases.rs）。
 
 use crate::release_place::{ignorable, join_for, normcase};

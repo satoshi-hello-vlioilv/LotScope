@@ -1,6 +1,6 @@
 /* フォルダ・ファイルの欄の補助（版 3.29.0。7 案＋2 回目で選んだ M1: ui-proposals/2026-10-pathpick*）。
    欄の横の「参照…」で、アプリの中のフォルダを選ぶ窓を開く（よく使う場所・中身の印つき）。欄の下には、よく使う場所の札（押すと入る）。
-   窓の中身はサーバー（services/folder_browse.py）が読む。アプリの中身はこの PC で動くので、見えるのはこの PC のエクスプローラーと同じ所。
+   窓の中身はサーバー（前の版の folder_browse）が読む。アプリの中身はこの PC で動くので、見えるのはこの PC のエクスプローラーと同じ所。
 
      TPA.pathPick(input, { purpose, title, note, pattern, chipsAfter, exclude, onPick })
        purpose   … 欄の目的。master（マスタの置き場）・release（配布の置き場）・worklog（作業実績）・folder・sqlite・exe

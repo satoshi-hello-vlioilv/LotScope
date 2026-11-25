@@ -1,4 +1,4 @@
-//! 異常ロット一覧: Rust（src/lotlist.rs）の答えが Python（app/services/lot_list.py）と同じか。
+//! 異常ロット一覧: Rust（src/lotlist.rs）の答えが Python（前の版の lot_list）と同じか。
 //! 試験用の品質データと問い合わせの組は program/tests/lotlist_fixture.py（Python の試験と同じ物）。
 //! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lotlist.json。詰めた形。場面の品質データは台本 lotlist_fixture.py が作り、表は指紋だけ）にも持ち、Python 無しでは表とだけ比べる。
 
@@ -34,7 +34,7 @@ fn rust_answers_like_python() {
     bk.script = Some(("lotlist_fixture.py", vec![work.join("lotlist_fixture.sqlite3").to_string_lossy().into_owned()]));
     // Python の答え（expected）は表に持たない（表は窓の答えを answers に持つ）
     bk.drop.push("expected");
-    let o = bk.oracle("lotlist_oracle.py", &[work.to_str().unwrap()]);
+    let o = bk.table_oracle();
     let db = std::path::PathBuf::from(o["db"].as_str().unwrap());
     let today = NaiveDate::parse_from_str(o["today"].as_str().unwrap(), "%Y-%m-%d").unwrap();
     let cases = o["cases"].as_array().unwrap();

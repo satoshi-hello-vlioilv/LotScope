@@ -1,5 +1,9 @@
 # 共有の写し方の約束（第1版）
 
+> 版 3.119.0（段 ⑤）で前の版の Python の部品（program/app の .py・試験・道具）を消した。この文書は済んだ版の設計の記録（歴史の節）。今の係は窓（desktop/src）で、確かめは焼いた表と事例の表（CLAUDE.md の評価関数の行）。
+
+<!-- history -->
+
 DataRelay が共有の公開先へ出すファイルを、**WaveLog・LotScope・DataRelay のビュワー**が読むときの約束。
 同じ置き場で中を書き換える SQLite（WaveLog のほかの端末の測定データなど）を読むときも、読み手は同じ作法で読む。
 
@@ -66,3 +70,4 @@ WaveLog `docs/SHARED_READ.md`）。変えるときは3つを同時に変える�
 
 各リポジトリの網が、自分の読み手についてこの場面を確かめる（LotScope `program/tests/test_mirror_writer.py`・
 WaveLog `tests/test_dbmirror.py`・DataRelay `tests/test_shared_read.py`）。
+<!-- /history -->

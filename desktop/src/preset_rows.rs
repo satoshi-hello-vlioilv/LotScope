@@ -1,11 +1,11 @@
-//! 保存の行の部品（版 3.79.0）。Python の services/pivot_presets.py の行の決まり（範囲・見せる行・書ける人・標準の決め方・画面の形・
+//! 保存の行の部品（版 3.79.0）。Python の 前の版の pivot_presets の行の決まり（範囲・見せる行・書ける人・標準の決め方・画面の形・
 //! 画面から来た値の確かめ）と、routes/presets._gate（書いてよいかの言葉）、repositories/master_repository._preset_write（作る・直す。
 //! ★標準にしたら同じ組のほかの★を外す・同じ組の名前は 1 つ）を窓の 1 か所に持つ。
 //!
 //! 使う組: ダッシュボードのセット（src/dash_sets.rs。版 3.79.0）。組み方のプリセット・カードの設計・ダッシュボードも
 //! 同じ行の形（マスタ dashboards・pivot_presets の FIELDS）なので、移すときはこの部品に中身の確かめだけを足す。
 //!
-//! 窓が Python と同じに書けない値は呼ぶ側が先に Python に任せる（rows_plain。本文の項目の型は版 3.106.0 から本文の門〈body_rules.TYPES〉が断る）: 本文の項目が並び・表（Python は str() の
+//! 窓が Python と同じに書けない値は呼ぶ側が先に 答えない（製品では 503）（rows_plain。本文の項目の型は版 3.106.0 から本文の門〈body_rules.TYPES〉が断る）: 本文の項目が並び・表（Python は str() の
 //! ['x'] の形か TypeError）・u64 に入らない整数（serde は小数に読む。master_rows::unreadable が先に任せる）。
 //! 小数（float_repr。版 3.80.0 から丁度まん中の値も Python の repr と同じ）と u64 の整数は、版 3.105.0 から窓が答える（worksum::str_plain）。
 
@@ -130,7 +130,7 @@ pub fn sort_views(items: &mut [Value]) {
 /// 字の JSON を Python と窓で読みが割れるか（master_rows::text_split。ここでも同じ名前で使う）
 pub use crate::master_rows::text_split;
 
-/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（Python に任せる）。
+/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（答えない（製品では 503））。
 /// 組み方の中身は版 3.108.0 から桁のまま読む（pivot_presets::body_json。ダッシュボード・カード・セットの中身の確かめはまだ任せる）
 pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows::Iso)> {
     let spec =

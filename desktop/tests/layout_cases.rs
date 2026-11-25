@@ -1,7 +1,7 @@
 //! ダッシュボードの中身の確かめ（src/layout_clean.rs）が、Python の clean_layout・clean_hide_body・condition_of と同じ答えか（版 3.81.0）。
-//! 答えは program/tools/layout-cases.py が Python で焼いた事例の表（program/tests/fixtures/layout_cases.json）。入力は送った順のまま JSON の字で持ち、
+//! 答えは 前の版の道具 layout-cases が Python で焼いた事例の表（program/tests/fixtures/layout_cases.json）。入力は送った順のまま JSON の字で持ち、
 //! 窓は送った順を保つ木（jsontree）で読んで確かめる。中身（値）と置く字（json.dumps(sort_keys=True)）と、誤りの理由を突き合わせる。
-//! "py" の印の事例と、Python が道の外の例外で落ちる事例（crash）は、窓が答えず Python に任せる（Stop::Py）こと
+//! "py" の印の事例と、Python が道の外の例外で落ちる事例（crash）は、窓が答えない（製品では 503）（Stop::Py）こと
 
 use da_core::jsontree::Tree;
 use da_core::layout_clean::{clean_hide_body, clean_layout, condition_of, Stop};
@@ -38,7 +38,7 @@ fn layout_checks_answer_like_python() {
                     bad.push(format!("{label}: 窓が答えない（Python の答え {}）", want.to_string().chars().take(300).collect::<String>()));
                 }
             }
-            _ if must_delegate => bad.push(format!("{label}: 窓が答えた（Python に任せるはず。Python {want}）")),
+            _ if must_delegate => bad.push(format!("{label}: 窓が答えた（答えない（製品では 503）はず。Python {want}）")),
             Err(Stop::Layout(m)) => {
                 answered += 1;
                 if want["error"].as_str() != Some(m.as_str()) {

@@ -1,5 +1,5 @@
 //! ダッシュボードのパネルの数（版 3.62.0）: 窓（src/dashboard.rs。src/lot.rs の handle_body）が POST /api/dashboard/query に、
-//! Python の道（routes/dashboard.py の dashboard_query）と同じ答え・同じ失敗を返すか。program/tests/dashboard_oracle.py が開発用サーバーと
+//! Python の道（前の版の dashboard の dashboard_query）と同じ答え・同じ失敗を返すか。前の版の答え合わせ役 dashboard が開発用サーバーと
 //! 同じ試験データに読めない設備・表示しない設備・設備の並び・設備の列の書きゆれ・30 を超える設備・設備グループ（正規表現・除く）・
 //! 全角の合金を足し、パネルの形ごと（数字・グラフ・合わせた表・別のデータ・設備の分け方・まとめ・設備グループの段・手で並べた順・
 //! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。スケジュールは窓の束の設定が無いこの試験では Python へ回す（None。
@@ -44,24 +44,6 @@ fn sent(c: &Value) -> Vec<u8> {
         Some(t) => t.as_bytes().to_vec(),
         None => serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap(),
     }
-}
-
-/// 表の問い合わせに持つ形（Python の答え status・body を除く。変換表の版の印は決めた字）
-fn question(v: &Value) -> Value {
-    let mut o = v.clone();
-    let drop = |cs: &mut Value| {
-        for c in cs.as_array_mut().unwrap() {
-            let c = c.as_object_mut().unwrap();
-            c.remove("status");
-            c.remove("body");
-        }
-    };
-    drop(&mut o["cases"]);
-    for ph in o["phases"].as_array_mut().unwrap() {
-        drop(&mut ph["cases"]);
-    }
-    common::bake::fixed_conv_rev(&mut o);
-    o
 }
 
 /// 答えの中の、更新が止まった HOT（実績_HOT.sqlite3）の写しの様子の stale（版 3.117.2 の作った後の採点の割れ 1）
@@ -127,7 +109,7 @@ fn dashboard_answers_like_python() {
     bk.script = Some(("ui_scene.py", vec![work.to_string_lossy().into_owned(), "dashboard".into()]));
     bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
     bk.fid_key = Some("fids");
-    let o = bk.oracle_with("dashboard_oracle.py", &[work.to_str().unwrap()], question);
+    let o = bk.table_oracle();
     let settings = o["settings"].clone();
     assert_eq!(settings["engine"], "rust");
     assert!(settings["lists"]["dash"]["now"].is_string(), "試験の「いま」が設定の答えに無い");
@@ -194,7 +176,7 @@ fn dashboard_answers_like_python() {
     let body = serde_json::to_vec(&json!({"panel": o["cases"][0]["panel"]})).unwrap();
     assert!(lot.handle_body_with("POST", "/api/dashboard/query", "engine=python", &body, &ask).is_none());
     assert!(lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_some(), "ふつうは窓が答える");
-    // 材料（lists.dash）を答えない中身（前の版の Python）とは、ダッシュボードを Python に任せる
+    // 材料（lists.dash）を答えない中身（前の版の Python）とは、ダッシュボードを 答えない（製品では 503）
     let mut old = settings.clone();
     old["lists"].as_object_mut().unwrap().remove("dash");
     lot.invalidate();

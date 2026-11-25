@@ -22,7 +22,7 @@ fn name_keys_match_python() {
     let base = common::work("name-key");
     let mut bk = common::bake::Bake::open("name_key", &base);
     bk.drop = vec!["changed", "samples"];
-    let oracle = bk.oracle("name_key_oracle.py", &[]);
+    let oracle = bk.table_oracle();
     let changed = bk.want("changed", || oracle["changed"].clone());
     let py: HashMap<u32, String> =
         changed.as_array().unwrap().iter().map(|x| (x[0].as_u64().unwrap() as u32, x[1].as_str().unwrap().to_string())).collect();

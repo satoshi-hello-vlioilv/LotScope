@@ -2,8 +2,8 @@
 """基準の数（稼働直・稼働日・換算稼働日・稼働率・直あたり重量）の独立の答え（版 3.103.0）。
 
 app を import しない（sqlite3・json・datetime だけ）。作業実績のファイルを自分で読み、作業開始の日時から勤務体系で作業日と直を決め
-（日を跨ぐ直の跨いだ後は日付補正。未設定は -1）、設備 × 作業日 × 直を数えて、仕様（services/capacity.py の冒頭・利用者に見せる定義）どおりに
-数を出す。Python の集計（pivot.query_many）・窓（desktop/src/capacity.rs）の答えと比べる係（tests/test_capacity.py・tools/ui-eval-capacity.mjs）。
+（日を跨ぐ直の跨いだ後は日付補正。未設定は -1）、設備 × 作業日 × 直を数えて、仕様（前の版の capacity の冒頭・利用者に見せる定義）どおりに
+数を出す。窓（desktop/src/capacity.rs）の答えと比べる係（tools/ui-eval-capacity.mjs。版 3.119.0 までは前の版の Python の集計の試験も）。
 
     python tools/capacity-truth.py 入力.json      → 答えの JSON を標準出力へ
 

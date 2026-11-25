@@ -1,5 +1,5 @@
 //! 置き場の読めない行を隔てる決まり（版 3.107.0。src/row_check.rs と src/held.rs）を、人が仕様から書いた事例の表
-//! program/tests/fixtures/row_cases.json と突き合わせる（Python は program/tests/test_row_cases.py が同じ表を読む）。
+//! program/tests/fixtures/row_cases.json と突き合わせる（Python は 前の版の試験 test_row_cases が同じ表を読む）。
 
 use da_core::row_check;
 use serde_json::{json, Value};
@@ -47,7 +47,7 @@ fn next_id_counts_isolated_rows() {
 }
 
 /// 置き場の行・設定・控えの形（版 3.113.0。採点の指摘 1）: 人が仕様から書いた正しい答えと版 3.112.0 の Python の答え（py）を並べた
-/// program/tests/fixtures/rowshape_cases.json を、窓が正しい答えのとおりに答えるか（Python は tests/test_row_cases.py の RowShape）
+/// program/tests/fixtures/rowshape_cases.json を、窓が正しい答えのとおりに答えるか（Python は 前の版の試験 test_row_cases の RowShape）
 #[test]
 fn rowshape_like_the_table() {
     let text = include_str!("../../program/tests/fixtures/rowshape_cases.json");

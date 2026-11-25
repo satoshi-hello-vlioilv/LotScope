@@ -1,9 +1,9 @@
-//! 画面（GET /）を窓が描く（版 3.85.0。Python の routes/system.py の index と web.py の小さな型を写した物）。
+//! 画面（GET /）を窓が描く（版 3.85.0。Python の 前の版の system の index と 前の版の web の小さな型を写した物）。
 //! Python が答えなくても、画面の HTML は窓が出す（最初の画面が尋ねる /api/config・/api/dashboard/sources も窓。lot.rs）。
 //!
-//! 決まりは Python と同じ（評価関数: tests/page_parity.rs ← program/tests/settings_oracle.py の reads）:
+//! 決まりは Python と同じ（評価関数: tests/page_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 settings） の reads）:
 //! - 型（app/templates/index.html）は {{ 式 }} だけ（式: 名前・名前.名前・url_for('static', filename='…')・字と数）と |tojson・|safe。
-//!   {% %}・{# #}・知らない式・知らないフィルタは描かずに Python に任せる（None）。値は & < > " ' を逃がす。最後の改行 1 つは出さない
+//!   {% %}・{# #}・知らない式・知らないフィルタは描かずに 答えない（製品では 503）（None）。値は & < > " ' を逃がす。最後の改行 1 つは出さない
 //! - |tojson は web.dumps（鍵を並べる・日本語は \u・区切り ", " ": "）のあと < > & ' を \u003c などに替えた字
 //! - build は app_build.fingerprint（版＋app/ の下の .py .html .js .css .json の名前・大きさ・mtime_ns の sha1 の頭 12 字）。
 //!   窓は ?v= の付いたファイルを長く覚えるので、Python と 1 字も違えない。プログラムの置き場ごとに 1 度だけ数える（Python も起動のときに 1 度）
@@ -120,7 +120,7 @@ fn str_lit(s: &str) -> Option<String> {
     (!inner.contains(q) && !inner.contains('\\') && !inner.contains('\n')).then(|| inner.to_string())
 }
 
-/// 窓が読める式だけ（ほかは None＝Python に任せる）
+/// 窓が読める式だけ（ほかは None＝答えない（製品では 503））
 fn parse_expr(e: &str) -> Option<Expr> {
     let e = e.trim();
     if let Some(s) = str_lit(e) {
@@ -321,7 +321,7 @@ pub fn csp(nonce: &str) -> String {
 }
 
 // ------------------------------------------------------------------ 画面
-/// 画面に埋める材料（routes/system.py の index の中身）
+/// 画面に埋める材料（前の版の system の index の中身）
 pub struct Parts {
     pub ui_state: Value,
     pub ui_profile: Value,
@@ -373,7 +373,7 @@ impl Page {
         tpl
     }
 
-    /// GET /（HEAD は本文なし）。窓が描けなければ None（Python に任せる）
+    /// GET /（HEAD は本文なし）。窓が描けなければ None（答えない（製品では 503））
     pub fn index(&self, program: &Path, parts: Parts, head: bool) -> Option<Html> {
         let tpl = self.template(program)?;
         let brand: Value = serde_json::from_slice(&std::fs::read(program.join("app").join("brand.json")).ok()?).ok()?;
@@ -403,7 +403,7 @@ impl Page {
 }
 
 impl Page {
-    /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0。型 app/templates/lotdsp_link.html。routes/lots.py の lotdsp_link_page と同じ:
+    /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0。型 app/templates/lotdsp_link.html。前の版の lots の lotdsp_link_page と同じ:
     /// brand・app_version・url_for・CSP の印・Cache-Control: no-store）。型を描けなければ None
     pub fn lotdsp_link(&self, program: &Path, head: bool) -> Option<Html> {
         let tpl = self.template_named(program, "lotdsp_link.html")?;
@@ -429,7 +429,7 @@ impl Page {
     }
 }
 
-/// 変換表の画面の形（conversions.view を ordered の順に）と版。読めない形は Err（Python に任せる）
+/// 変換表の画面の形（conversions.view を ordered の順に）と版。読めない形は Err（答えない（製品では 503））
 pub fn conversion_views(rows: &[Value], revision: i64) -> R<Value> {
     Ok(json!({"items": crate::bundle::conv_views(rows)?, "revision": revision}))
 }
@@ -515,7 +515,7 @@ mod tests {
         assert_eq!(Template::parse(&universal_newlines("x\r\n")).unwrap().render(&Map::new(), "").unwrap(), "x");
         // 最後の改行は 1 つだけ落とす
         assert_eq!(Template::parse("x\n\n").unwrap().render(&Map::new(), "").unwrap(), "x\n");
-        // 表を字にする・字の属性・_Undefined を JSON にするのは Python に任せる
+        // 表を字にする・字の属性・_Undefined を JSON にするのは 答えない（製品では 503）
         assert!(Template::parse("{{ v }}").unwrap().render(&ctx(json!({"v": {}})), "").is_none());
         assert!(Template::parse("{{ v.upper }}").unwrap().render(&ctx(json!({"v": "x"})), "").is_none());
         assert!(Template::parse("{{ v|tojson }}").unwrap().render(&Map::new(), "").is_none());

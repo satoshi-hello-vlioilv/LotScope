@@ -257,19 +257,8 @@
   /* ---------------- 描く ---------------- */
   // パネルの中の札で見せ方を替えた（ABC 分析の設備の札など。版 3.46.0）: そのパネルだけ描き直す（数は引き直さない）
   document.addEventListener("dash:repaint", (e) => { const el = e.target.closest && e.target.closest(".db-p"); if (el) paintPanel(el.dataset.id, true); });
-  /* グリッドの段の高さ（版 3.111.0。作った後の採点の減点 1）: 中身（Python）が止まった知らせの段（38px）が出ている間も、数字のパネルの段は
-     ふだんの高さのまま（主の数の字が縮まない・並べ方が替わらない）。縮めるのはほかの段（グラフ・表）だけ。数字のパネルの段しか無ければ皆で縮める */
-  function rowTemplate(g) {
-    const n = S.layout.rows, even = `repeat(${n}, minmax(0, 1fr))`;
-    const band = parseFloat(getComputedStyle(document.body).getPropertyValue("--pyband-h")) || 0;
-    if (!band) return even;
-    const keep = new Set();
-    S.layout.panels.forEach((p) => { if (p.visual === "kpi") for (let r = p.y; r < p.y + p.h; r++) keep.add(r); });
-    if (!keep.size || keep.size >= n || !g.clientHeight) return even;   // 隠れている間は測れない（出すときの paint で決め直す）
-    const gap = parseFloat(getComputedStyle(g).rowGap) || 0, h = (g.clientHeight + band - gap * (n - 1)) / n;
-    return Array.from({ length: n }, (_, i) => (keep.has(i) ? `${h.toFixed(2)}px` : "minmax(0, 1fr)")).join(" ");
-  }
-  document.addEventListener("tpa:pyband", () => { const g = $("#dashGrid"); if (g && S.layout) g.style.gridTemplateRows = rowTemplate(g); });
+  /* グリッドの段の高さ: 段の数で等しく割る（版 3.119.0 で中身〈Python〉が止まった知らせの段の分の手当てを外した） */
+  const rowTemplate = () => `repeat(${S.layout.rows}, minmax(0, 1fr))`;
   function paint() {
     const box = $("#dashScreen");
     if (!box) return;
@@ -381,7 +370,7 @@
      印は 1 つ: 待っている間だけ、題の左のデータの色の点が、字の n/m と同じだけ満ちる 16px の円になる（n/m の無い段は輪だけ。
      前回より長くかかると、円の内側に茶色の輪と「前回 n.n 秒より長くかかっています」）。終われば元の点に戻る。
      字は添え書きの段（数字のパネルは数の横の添え書き）に「段 → 何を → あとどのくらい」。数がまだ無い背の高いパネルは中身の真ん中に同じ円と字。
-     段はサーバーが知らせる（GET /api/dashboard/progress。窓 desktop/src/progress.rs・Python services/dash_progress.py）。円の量と字の n/m は同じ数から出す。
+     段はサーバーが知らせる（GET /api/dashboard/progress。窓 desktop/src/progress.rs・Python 前の版の dash_progress）。円の量と字の n/m は同じ数から出す。
      狭くて入らなければ（前回）→ データの名前（画面ぜんぶで）→ あとどのくらい → 段の言葉を短く の順に省き、最後まで n/m と「写した n/m 台分」を残す。
      道具の行は「2 / 6 枚 済み・待っている 4 枚・あと約 2 秒」の字と、写している間だけデータ元の札（同じ円）。
      数え直しで 0.7 秒より早く済む物は出さない（1 分ごとの引き直しでちらつかない） */
@@ -406,8 +395,8 @@
   function waitInfo(a, p) {
     if (!a) return null;
     const d = a.d || {}, g = a.prog && !a.prog.done ? a.prog : null, vis = (p && p.visual) || "";
-    // 前回と比べる時間は、数えている段（読む・集計・ガント・ABC）にいた時間だけ（countMs）。写しを待つ・準備・順番待ちの間は比べず、
-    // あとどのくらいも言わない（作った後の採点: 順番を待っているだけのパネルに「前回より長くかかっています」が出た）
+    // 前回と比べる時間は、数えている段（読む・集計・ガント・ABC）にいた時間だけ（countMs）。写しを待つ・準備の間は比べず、
+    // あとどのくらいも言わない（作った後の採点: 待っているだけのパネルに「前回より長くかかっています」が出た）
     const counting = !!g && ["read", "count", "gantt", "abc"].includes(g.stage);
     const sec = g ? (counting && g.countMs != null ? g.countMs : g.elapsedMs) / 1000 : a.since ? (Date.now() - a.since) / 1000 : 0;
     const prev = counting && g.prevMs ? g.prevMs / 1000 : null;
@@ -427,21 +416,19 @@
       return ref ? { ...base, kind: "refresh", verb: "写し直し待ち", what: `いまの数は前の写しの分（${ref} 台）` } : null;
     }
     if (!g) return { ...base, kind: "busy", verb: a.d ? "数え直し" : "数えています" };
-    if (g.stage === "python") return { ...base, prev: null, over: false, kind: "python", verb: "Python が数えています" };
     const grp = g.group && (vis === "board" || (p && p.link)) ? g.group : null;
     if (grp) return { ...base, kind: "group", calc: vis === "board" ? "合わせた表を" : "データを", verb: vis === "board" ? "組む" : "合わせる", n: grp[0], of: grp[1], what: `${grp[0]}/${grp[1]} 済み` };
     const nof = g.of > 1 ? { n: g.n, of: g.of, what: `${g.n}/${g.of}${unitOf(g.stage)}` } : {};
     const src = srcName(p && p.source);
     const by = {
       plan: { verb: "準備" },
-      queue: { verb: "順番待ち", what: "ほかのパネルを数えています" },
       copy: { data: src ? `${src}を` : "", verb: "写す" },
       read: { data: src ? `${src}を` : "", verb: "読む" },
       count: { verb: "集計する" },
       gantt: { calc: "稼働のガントを", verb: "組む" },
       abc: { calc: "ABC 分析の品種を", verb: "並べる" },
     }[g.stage] || { verb: "数えています" };
-    return { ...base, kind: g.stage, ...by, ...(["plan", "queue", "count", "abc"].includes(g.stage) ? {} : nof) };
+    return { ...base, kind: g.stage, ...by, ...(["plan", "count", "abc"].includes(g.stage) ? {} : nof) };
   }
   const waitShown = (w) => !!w && (!w.busy || w.sec >= WAIT_SHOW || w.kind === "copy");
   /** あとどのくらい（前回からの見込みは「まもなく」「あと約 n 秒」まで。前回が無ければ経過の秒だけ） */
@@ -455,7 +442,7 @@
   function waitText(w, lv, noData) {
     if (w.kind === "copy") return lv >= 3 || (lv >= 2 && w.of) ? esc(w.short) : `<b>写し待ち</b> ${esc(noData && w.of ? w.what.replace(/^いまの数は/, "") : w.what)}`;
     const step = `<b>${esc((lv >= 3 ? "" : w.calc) + (lv >= 3 || noData ? "" : w.data) + w.verb)}</b>`;
-    // n/m を持たない「何を」（順番待ちの「ほかのパネルを数えています」など）は、段の言葉を短くする所（lv 3）で省く。n/m は最後まで残す
+    // n/m を持たない「何を」は、段の言葉を短くする所（lv 3）で省く。n/m は最後まで残す
     const what = lv >= 3 && !/\d/.test(w.what) ? "" : lv >= 4 ? w.what.replace(/ (台|済み)$/, "") : w.what;
     // 前回より長いことは、lv 3 まで字で言う（lv 4 は円の茶色の輪・説明・道具の行の「前回より長い n 枚」に任せる）
     const eta = w.over ? (lv >= 4 ? "" : lv >= 2 ? '<i class="db-wover">前回より長い</i>' : etaOf(w)) : lv >= 2 ? "" : etaOf(w);

@@ -1,5 +1,5 @@
 /* lotdsp_direct.js: このアプリだけで LotDsp を読むときに、裏で開いた LotDsp のページの中で動かす手順
-   （lotdsp_direct.py が Chrome DevTools Protocol の Runtime.evaluate で入れる。__LOT__ はロット番号に置き換わる）。
+   （前の版の lotdsp_direct が Chrome DevTools Protocol の Runtime.evaluate で入れる。__LOT__ はロット番号に置き換わる）。
 
    手順は LotData-Link の lotdsp-relay.js（docs/DESIGN.md §3）と同じ道——人と同じにロット番号の欄へ入れて
    「検索」を1回押し、「進度情報」タブの実績の表が描き終わったら画面の HTML をそのまま返す。
@@ -7,7 +7,7 @@
    （VPN ではログインが要る。ログインするのは利用者だけ（LotDsp の窓）。このアプリはパスワードを扱わない）。
 
    入れるとすぐ戻り、手順は裏で進む。途中経過と結果は window.__tpaDirect = { stage, result } に置き、
-   lotdsp_direct.py が 0.25 秒ごとに尋ねる（画面のモーダルの段階表示・中止のため）。
+   前の版の lotdsp_direct が 0.25 秒ごとに尋ねる（画面のモーダルの段階表示・中止のため）。
      stage … search（検索している）／ read（進度情報を読んでいる）
      result … { ok: true, html } ／ { ok: false, kind, error }
        kind … login（ログインが要る）／ not_found（該当なし）／ screen（画面が想定と違う・出ない）

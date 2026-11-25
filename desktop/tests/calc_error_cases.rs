@@ -1,5 +1,5 @@
 //! 転写距離・ピッチ計算の誤りの言葉（版 3.115.0。src/calc.rs の error_message）が、人の書いた事例の表
-//! program/tests/fixtures/calc_error_cases.json と同じか（Python は tests/test_calc_errors.py が同じ表を読む）
+//! program/tests/fixtures/calc_error_cases.json と同じか（Python は 前の版の試験 test_calc_errors が同じ表を読む）
 
 use serde_json::Value;
 

@@ -1,5 +1,5 @@
 //! アクセス権限（版 3.65.0）: 窓（src/access.rs）が Python の道（routes/common.me・routes/access._access_guard）と同じ me・同じ門番の答えを出すか。
-//! program/tests/access_oracle.py が組ごとに置き場（共有・壊れた共有と写し・写しだけ・手元だけ・BOM・読めない写し）・権限の行・タブの権限・
+//! 前の版の答え合わせ役 access が組ごとに置き場（共有・壊れた共有と写し・写しだけ・手元だけ・BOM・読めない写し）・権限の行・タブの権限・
 //! 切断の指示・名乗りを置いて Python で答え、置き場のファイルを残したまま窓が同じ置き場から読んで答える。
 //! Python が me を決められない組は、窓も決めず（見出しを載せない）、門番は止めない（Python も止めない）。
 //! 版 3.76.0 から、読む 2 本（GET /api/access/me・/api/masters/access）の窓の答えも Python が自分で決めた答えと突き合わせる。
@@ -17,7 +17,7 @@ fn same_me_and_guard_as_python() {
     let mut bk = common::bake::Bake::open("access", &dir);
     bk.strip = ["me", "reads", "status", "body"].map(String::from).to_vec();
     bk.strip_in = vec!["conf", "method"];
-    let o = bk.oracle("access_oracle.py", &["--keep", dir.to_str().unwrap()]);
+    let o = bk.table_oracle();
     let cases = o["cases"].as_array().unwrap();
     assert!(cases.len() >= 25, "組が足りません: {}", cases.len());
     let mut bad: Vec<String> = vec![];
@@ -90,7 +90,7 @@ fn same_me_and_guard_as_python() {
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// 権限を書いたら（一覧の設定に効くマスタを書く道の後: Lot::after_python）すぐ読み直す・名乗りが違えば覚えた me を使わない・
+/// 権限を書いたら（一覧の設定に効くマスタを書く道の後: Lot::after_write）すぐ読み直す・名乗りが違えば覚えた me を使わない・
 /// 切断の指示は PC ごと（鍵の違う覚えを使わない）・百分率符号で書いた道も同じ門番
 #[test]
 fn lot_gate_forgets_after_writes() {
@@ -118,10 +118,10 @@ fn lot_gate_forgets_after_writes() {
     assert!(role("POST", "/api/masters/equipment").is_err(), "設備作業者は書けない");
     put("メンテナンス者");
     assert!(role("POST", "/api/masters/equipment").is_err(), "覚えている間は前の答え");
-    lot.after_python("GET", "/api/masters/access", 200);
-    lot.after_python("POST", "/api/masters/access", 403);
+    lot.after_write("GET", "/api/masters/access", 200);
+    lot.after_write("POST", "/api/masters/access", 403);
     assert!(role("POST", "/api/masters/equipment").is_err(), "読むだけ・断られた書き込みでは捨てない");
-    lot.after_python("PUT", "/api/masters/access/2", 200);
+    lot.after_write("PUT", "/api/masters/access/2", 200);
     assert_eq!(role("POST", "/api/masters/equipment").unwrap(), "メンテナンス者", "権限を書いた後は読み直す");
     for (p, r) in [
         ("/api/masters/tabaccess", "設備作業者"),
@@ -129,7 +129,7 @@ fn lot_gate_forgets_after_writes() {
         ("/api/settings/lot_list", "メンテナンス者"),
     ] {
         put(r);
-        lot.after_python("POST", p, 200);
+        lot.after_write("POST", p, 200);
         assert_eq!(role("GET", "/api/access/me").unwrap(), r, "{p} を書いた後も読み直す");
     }
     // 切断の指示は PC（鍵）ごと: u1 の切断を覚えたまま boss に替えても、boss は切断されていない
@@ -163,7 +163,7 @@ fn revocation_reads_like_python() {
     let dir = common::work("access-revoke");
     let mut bk = common::bake::Bake::open_part("access", "revoke", &dir);
     (bk.strip, bk.strip_in) = (vec!["want".into()], vec!["label"]);
-    let o = bk.oracle("access_oracle.py", &["--revocations", dir.to_str().unwrap()]);
+    let o = bk.table_oracle();
     let now = NaiveDateTime::parse_from_str(o["now"].as_str().unwrap(), "%Y-%m-%dT%H:%M:%S%.f").unwrap();
     let mut bad = vec![];
     for c in o["cases"].as_array().unwrap() {
@@ -207,7 +207,7 @@ fn revocation_is_laid_over_the_remembered_me() {
 }
 
 /// 段取りの材料（lists）の出さないタブと勤務体系を直せるかは、窓の me から決める（版 3.65.1。Python が自分で作った値を上書き）。
-/// 窓が me を決められないとき・Python も決めていないときは答えない（Python に任せる）。前の版の Python の値はそのまま
+/// 窓が me を決められないとき・Python も決めていないときは答えない（答えない（製品では 503））。前の版の Python の値はそのまま
 #[test]
 fn lists_take_hidden_tabs_from_the_shell_me() {
     use da_core::lot::Settings;
@@ -239,7 +239,7 @@ fn lists_take_hidden_tabs_from_the_shell_me() {
     assert_eq!((boss["hidden"].clone(), boss["work"]["canEditShifts"].clone()), (json!([]), json!(true)), "開発者は全部のタブ・直せる");
     // 材料が無く、Python が決めた値がある（窓が権限を受け持たない前の版の Python）: その値のまま
     assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": python_lists}))), Some(python_lists.clone()));
-    // 材料が無く、Python も決めていない（権限を受け持つ窓と組んだ Python が置き場を読めなかった）: 窓は答えず Python に任せる
+    // 材料が無く、Python も決めていない（権限を受け持つ窓と組んだ Python が置き場を読めなかった）: 窓は答えず 答えない（製品では 503）
     let undecided = json!({"hidden": null, "sources": [], "work": {"canEditShifts": null, "rows": []}});
     assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": undecided}))), None, "null を「出さないタブ無し」と読まない");
     // 共有が壊れていて写しも壊れている（Python も me を決められない形。共有だけが壊れていれば写し・同梱で読む）
@@ -281,67 +281,5 @@ fn remembered_me_expires() {
     put("メンテナンス者"); // ほかの PC が書いた（この窓は書いていない＝forget しない）
     assert_eq!(role(&long), json!("設備作業者"), "覚えている間は前の答え");
     assert_eq!(role(&short), json!("メンテナンス者"), "覚えの長さが切れたら読み直す");
-    std::fs::remove_dir_all(&d).ok();
-}
-
-/// 権限の表が共有・写しとも読めない PC の読む道（版 3.118.0 の作った後の採点の割れ 1）: 窓の答えの状態と、続ける道の権限の欄（canEdit など）・
-/// 断る道の本文が、Python（TPA_FROZEN_PY=1 なら凍らせた 3.117.3 の Python。program/tests/access_unreadable_answers.py）と同じ。
-/// 読む道は止めない形で続け（出さないタブ無し・書けない）、Python も断った道は同じ言葉の 503
-#[test]
-fn unreadable_permissions_answer_like_the_frozen_python() {
-    // Python 無しの形（TPA_NO_PYTHON=1）では、凍らせた写しを相手にするとき（TPA_FROZEN_PY=1）だけ流す
-    if !common::bake::frozen_python("access_parity の読めない権限の表（Python の道の答え）") {
-        return;
-    }
-    let d = common::work("access-unreadable");
-    let scene = d.join("scene");
-    let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-    let out = std::process::Command::new(&py)
-        .arg(common::program().join("tests").join("access_unreadable_answers.py"))
-        .arg(common::py_program())
-        .arg(&scene)
-        .env("PYTHONIOENCODING", "utf-8")
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .current_dir(common::py_program())
-        .output()
-        .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    let o: Value = serde_json::from_slice(&out.stdout).unwrap();
-    let conf = json!({"who": {"login": "u1", "pc": "PC-1", "pcSource": "試験", "key": "PC-1@u1"},
-                      "place": {"shareDir": scene.join("share"), "shared": ["access_permissions", "tab_access"], "data": scene.join("app").join("data"),
-                                "defaults": common::program().join("app").join("master_defaults"), "cache": scene.join("local").join("master_cache"),
-                                "presence": scene.join("share").join("presence_tpa"), "lockTtl": 20.0}});
-    let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone(), "uiProfileKeys": ["tpa.a"]}));
-    let lot = Lot::new(scene.join("local").join("db_cache"));
-    lot.set_program(common::program()); // 利用状況・権限の読む道が名乗る版（program/app/version.py）
-    let mut bad = vec![];
-    let (mut kept, mut refused) = (0, 0);
-    for (k, want) in o["answers"].as_object().unwrap() {
-        let path = k.strip_prefix("GET ").unwrap();
-        let got = lot.access_read_with("GET", path, &ask).or_else(|| lot.handle_body_with("GET", path, "", b"", &ask));
-        let Some((st, v)) = got else {
-            bad.push(format!("{k}: 窓が答えない（Python {}）", want["status"]));
-            continue;
-        };
-        if st as i64 != want["status"].as_i64().unwrap() {
-            bad.push(format!("{k}: Python {} / 窓 {st} {}", want["status"], v.to_string().chars().take(160).collect::<String>()));
-            continue;
-        }
-        if st == 503 {
-            refused += 1;
-            if v != want["body"] {
-                bad.push(format!("{k}: Python {} / 窓 {v}", want["body"]));
-            }
-        } else {
-            kept += 1;
-            for f in ["canEdit", "canEditCommon", "canEditDefault", "hidden"] {
-                if want["body"].get(f).is_some() && want["body"][f] != v[f] {
-                    bad.push(format!("{k} の {f}: Python {} / 窓 {}", want["body"][f], v[f]));
-                }
-            }
-        }
-    }
-    assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
-    assert!(kept >= 5 && refused >= 5, "続けた道 {kept}・断った道 {refused}");
     std::fs::remove_dir_all(&d).ok();
 }

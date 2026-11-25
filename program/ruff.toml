@@ -1,4 +1,1 @@
-# ruff の設定（版 3.117.3 で足した。決まりは ruff の既定のまま）。
-# 凍らせた Python の写し（tests/legacy/<版>。tools/freeze-legacy.py が 1 回だけ作り、tests/test_baked_tables.py が sha256 を見る）は
-# lint の範囲の外: 書き換えないので、ruff の版が上がって決まりが増えても直さない（直すと指紋が変わる）。compileall は写しも確かめる
-extend-exclude = ["tests/legacy"]
+# ruff の設定（版 3.117.3 で足した。決まりは ruff の既定のまま。版 3.119.0 で凍らせた写しを消したので、外す範囲は無い）。

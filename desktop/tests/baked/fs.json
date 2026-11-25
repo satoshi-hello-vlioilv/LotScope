@@ -1204,10 +1204,7 @@
    "fs/tree/link_file.sqlite3": "@WORK/fs/tree/x.sqlite3"
   }
  },
- "sources": {
-  "tests/fs_oracle.py": "f221bd94a9bb359e",
-  "tests/oracle_gate.py": "74d8effb19f3211d"
- },
+ "sources": {},
  "variant": "root",
  "variants": {
   "user": {"#43":{"json":{"asked":"@WORK/fs/tree/locked","crumbs":[],"entries":[],"exists":false,"file":"","kind":"folder","mark":null,"more":0,"others":0,"parent":"","path":"","problem":"読めません: @WORK/fs/tree/locked（Permission denied）"},"status":200},"#44":{"json":{"asked":"@WORK/fs/tree/locked/in.txt","crumbs":[],"entries":[],"exists":false,"file":"","kind":"folder","mark":null,"more":0,"others":0,"parent":"","path":"","problem":"読めません: @WORK/fs/tree/locked/in.txt（Permission denied）"},"status":200}}

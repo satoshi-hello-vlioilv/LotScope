@@ -1,14 +1,14 @@
 //! 試験と撮る道具だけの「遅くする口」（版 3.118.3。段 ④ の 4 つ目。採点 `program/tools/ui-proposals/2026-11-stage4d.json` の案 A）。
 //!
 //! 待っている所（ダッシュボードの待ちの印・写している間の札）を本物の段の道（GET /api/dashboard/progress）で撮る・確かめるため、
-//! Python の開発用サーバー（tools/ui_server.py の slow_down）と**同じ 4 つの差し込み口・同じ鍵**を置く:
+//! Python の開発用サーバー（前の Python の開発用サーバー の slow_down）と**同じ 4 つの差し込み口・同じ鍵**を置く:
 //!
 //! - `"open": 秒` … 集計の 1 ファイルを開く前（pivot.rs の open_part）に待つ
 //! - `"ops": 秒` … 稼働・ABC 分析の 1 設備を読む前（operation.rs の read_ops）に待つ
 //! - `"only": [設備名…]` … open・ops をその設備（Part の名前と完全一致）だけに効かせる。**窓では nocache と copy も only に絞る**
 //!   （copy は元のファイル名から頭の「実績_」と拡張子を外した名前と完全一致。実績_L-10 は only ["L-1"] に当たらない）。
-//!   Python（ui_server.py の slow_down）は nocache・copy で only を見ない。窓だけ絞る理由: lib の試験は 1 つのプロセスで並んで流れるので、
-//!   ほかの試験の数え方・写しを遅くしない。Python に合わせて直さないのは、ui_server.py が焼いた本の元で、⑤ で消すため。
+//!   Python（前の Python の開発用サーバー の slow_down）は nocache・copy で only を見ない。窓だけ絞る理由: lib の試験は 1 つのプロセスで並んで流れるので、
+//!   ほかの試験の数え方・写しを遅くしない。Python に合わせて直さないのは、前の Python の開発用サーバー が焼いた本の元で、⑤ で消すため。
 //!   **⑤ まで両方の相手で比べる道具は only と nocache・copy を一緒に使わない**（ui-eval-dashwait.mjs は only を使わない＝Python と同じ答え）
 //! - `"nocache": true` … ダッシュボードのパネル・稼働の答えの控え（dashboard.rs）を使わない（ファイルが替わった後の数え直しと同じ形）
 //! - `"copy": バイト/秒` … 共有から手元へ写す（mirror.rs の copy_shared）のを 16 KB ずつ書いて眠る。名前が「実績_」で始まる元だけ（Python と同じ）

@@ -1,5 +1,5 @@
 {
- "about": "答え合わせ役 36 本の行き先（版 3.117.0）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。案と採点は program/tools/ui-proposals/2026-11-stage3f.json）・keep は段 ④ の配布の間だけ凍らせた最後の Python を相手に残す本。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）。windows（版 3.117.3）は Windows の表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る段 ④ の後の形）の札: table は焼いた表（posix の答えに tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす本、measure はまだ測るだけの本（Windows の CI の測りの記録を tools/bless.py --take-nt で取り込むと table になる）",
+ "about": "焼いた本 35 本の行き先（版 3.117.0。版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉と keep の本を消した）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。採点 2026-11-stage3f の記録は版 3.119.0 で片付けた）。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる。版 3.119.0 から消した答え合わせ役は入れない: 残るのは場面の台本・作り物・画面の型など）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）。windows（版 3.117.3）は Windows の表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る段 ④ の後の形）の札: table は焼いた表（posix の答えに tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす本、measure はまだ測るだけの本（Windows の CI の測りの記録を tools/bless.py --take-nt で取り込むと table になる）",
  "bakedPhases": [
   "3.115.0",
   "3.116.0",
@@ -14,19 +14,7 @@
    "tests": [
     "name_key_cases"
    ],
-   "sources": [
-    "tests/name_key_oracle.py"
-   ]
-  },
-  "share_reader": {
-   "phase": "keep",
-   "tests": [
-    "appsettings_cases"
-   ],
-   "sources": [
-    "tests/share_reader_oracle.py"
-   ],
-   "why": "前の版の Python の読み手そのもの（共有のファイルの形）。段 ④ の配布の間は前の版の PC が同じ共有を読むので、凍らせた最後の Python を相手に残し、配布が終わった版で消す"
+   "sources": []
   },
   "seeds": {
    "phase": "3.115.0",
@@ -34,10 +22,8 @@
    "tests": [
     "seeds_parity"
    ],
-   "sources": [
-    "tests/seeds_oracle.py"
-   ],
-   "why": "場面の答え 2 試験を焼く。錠の取り合い 3 試験（窓と Python・前の版の Python）は配布の間だけ凍らせた Python を相手に残す。人の表 seeds_cases.json は第 2 の線"
+   "sources": [],
+   "why": "場面の答え 2 試験を焼く。錠の取り合い 3 試験（窓と前の版の Python）は版 3.119.0 で凍らせた写しと一緒に消した（最後に流した記録は採点 2026-11-stage5 の built_plan）。人の表 seeds_cases.json は第 2 の線"
   },
   "mirror": {
    "phase": "3.115.0",
@@ -45,9 +31,7 @@
    "tests": [
     "mirror_parity"
    ],
-   "sources": [
-    "tests/mirror_oracle.py"
-   ],
+   "sources": [],
    "why": "場面の 41 歩を焼く。受け身の読み手・台帳の 2 試験は配布の間だけ凍らせた Python"
   },
   "builder": {
@@ -57,8 +41,6 @@
     "builder_parity"
    ],
    "sources": [
-    "tests/builder_oracle.py",
-    "tests/oracle_gate.py",
     "tests/schedule_fixture.py",
     "tests/fakes_serve.py",
     "tests/fakes_builder.py",
@@ -73,10 +55,7 @@
    "tests": [
     "settings_write_parity"
    ],
-   "sources": [
-    "tests/settings_write_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "access_write": {
    "phase": "3.115.0",
@@ -84,10 +63,7 @@
    "tests": [
     "access_write_parity"
    ],
-   "sources": [
-    "tests/access_write_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "equip_rows": {
    "phase": "3.115.0",
@@ -95,10 +71,7 @@
    "tests": [
     "equip_rows_parity"
    ],
-   "sources": [
-    "tests/equip_rows_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "sources_write": {
    "phase": "3.115.0",
@@ -106,10 +79,7 @@
    "tests": [
     "sources_write_parity"
    ],
-   "sources": [
-    "tests/sources_write_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "shifts": {
    "phase": "3.115.0",
@@ -117,10 +87,7 @@
    "tests": [
     "shifts_parity"
    ],
-   "sources": [
-    "tests/shifts_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "sets": {
    "phase": "3.115.0",
@@ -128,10 +95,7 @@
    "tests": [
     "sets_parity"
    ],
-   "sources": [
-    "tests/sets_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "cards": {
    "phase": "3.115.0",
@@ -139,10 +103,7 @@
    "tests": [
     "cards_parity"
    ],
-   "sources": [
-    "tests/cards_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "dashboards": {
    "phase": "3.115.0",
@@ -150,10 +111,7 @@
    "tests": [
     "dashboards_parity"
    ],
-   "sources": [
-    "tests/dashboards_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "presets": {
    "phase": "3.115.0",
@@ -161,10 +119,7 @@
    "tests": [
     "presets_parity"
    ],
-   "sources": [
-    "tests/presets_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "worklog_write": {
    "phase": "3.115.0",
@@ -172,10 +127,7 @@
    "tests": [
     "worklog_write_parity"
    ],
-   "sources": [
-    "tests/worklog_write_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "formats": {
    "phase": "3.115.0",
@@ -183,10 +135,7 @@
    "tests": [
     "formats_parity"
    ],
-   "sources": [
-    "tests/formats_oracle.py",
-    "tests/oracle_gate.py"
-   ]
+   "sources": []
   },
   "seed_reads": {
    "phase": "3.115.0",
@@ -194,9 +143,7 @@
    "tests": [
     "seed_reads_parity"
    ],
-   "sources": [
-    "tests/seed_reads_oracle.py"
-   ]
+   "sources": []
   },
   "fs": {
    "phase": "3.115.0",
@@ -204,10 +151,7 @@
    "tests": [
     "fs_parity"
    ],
-   "sources": [
-    "tests/fs_oracle.py",
-    "tests/oracle_gate.py"
-   ],
+   "sources": [],
    "why": "root でない利用者で違う歩は variants.user。OS で決まる歩（/ の中身・~nobody）は焼かず ospath_cases に任せる。Windows は 2 版目の nt の上書き"
   },
   "release_place": {
@@ -216,10 +160,7 @@
    "tests": [
     "release_parity"
    ],
-   "sources": [
-    "tests/release_place_oracle.py",
-    "tests/oracle_gate.py"
-   ],
+   "sources": [],
    "why": "1 台の PC の場面を焼く。2 つの PC が同じ置き場を写す場面は配布の間だけ凍らせた Python"
   },
   "place": {
@@ -228,10 +169,7 @@
    "tests": [
     "place_parity"
    ],
-   "sources": [
-    "tests/place_oracle.py",
-    "tests/oracle_gate.py"
-   ],
+   "sources": [],
    "why": "場面の 77 歩を焼く（独立の答え place-truth.py・事例の表 place_cases.json が第 2 の線）。種まきの競い合いと --follow は配布の間だけ凍らせた Python"
   },
   "masters": {
@@ -240,10 +178,8 @@
    "tests": [
     "masters_parity"
    ],
-   "sources": [
-    "tests/masters_oracle.py"
-   ],
-   "why": "場面の 25 を焼く。py と rs の同時書き・前の版の Python との錠の取り合いは配布の間だけ凍らせた Python"
+   "sources": [],
+   "why": "場面の 25 を焼く。py と rs の同時書き・前の版の Python との錠の取り合いは版 3.119.0 で凍らせた写しと一緒に消した"
   },
   "access": {
    "phase": "3.115.0",
@@ -252,7 +188,6 @@
     "access_parity"
    ],
    "sources": [
-    "tests/access_oracle.py",
     "tests/scene_files.py"
    ],
    "why": "41 組 × 25 道と切断の指示 69 組を焼く（場面の置き場は同じ中身を 1 つに）"
@@ -264,8 +199,6 @@
     "equipgroups_write_parity"
    ],
    "sources": [
-    "tests/equipgroups_oracle.py",
-    "tests/oracle_gate.py",
     "tests/fakes_serve.py",
     "tests/fakes_equipgroups.py",
     "tests/schedule_fixture.py"
@@ -279,8 +212,6 @@
     "routes_parity"
    ],
    "sources": [
-    "tests/routes_oracle.py",
-    "tools/ui_server.py",
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
@@ -288,7 +219,7 @@
     "data/roll_master.json",
     "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。登録の後にファイルが無くなる SL3 は消さずに keep/ へ握ったまま移す（前は消した SL3 のファイル番号を後で作る BAD が ext4 と tmpfs で使い回すかが違い、SL3 は 404・BAD は 503 の答えが入れ替わった。名前つきの歩で言う）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる。HOT は書いた後も 40 時間前のまま（名前つきの歩: 一覧の写しの様子が stale=true）"
+   "why": "開発用サーバー（前の Python の開発用サーバーの build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。登録の後にファイルが無くなる SL3 は消さずに keep/ へ握ったまま移す（前は消した SL3 のファイル番号を後で作る BAD が ext4 と tmpfs で使い回すかが違い、SL3 は 404・BAD は 503 の答えが入れ替わった。名前つきの歩で言う）。かかった ms（timing.server）は親の鍵が timing のときだけそろえる。HOT は書いた後も 40 時間前のまま（名前つきの歩: 一覧の写しの様子が stale=true）"
   },
   "pivot": {
    "phase": "3.117.2",
@@ -297,8 +228,6 @@
     "pivot_parity"
    ],
    "sources": [
-    "tests/pivot_oracle.py",
-    "tools/ui_server.py",
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
@@ -306,7 +235,7 @@
     "data/roll_master.json",
     "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。ひげの端の近くの値を作る四分位は台本が標準の部品で数え、答え合わせ役が pivot.describe と同じかを確かめる"
+   "why": "開発用サーバー（前の Python の開発用サーバーの build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。ひげの端の近くの値を作る四分位は台本が標準の部品で数え、答え合わせ役が pivot.describe と同じかを確かめる"
   },
   "schedule": {
    "phase": "3.117.1",
@@ -315,9 +244,6 @@
     "schedule_parity"
    ],
    "sources": [
-    "tests/schedule_oracle.py",
-    "tests/equipgroups_oracle.py",
-    "tests/oracle_gate.py",
     "tests/fakes_serve.py",
     "tests/fakes_schedule.py",
     "tests/schedule_fixture.py",
@@ -331,9 +257,7 @@
    "tests": [
     "conversions_write_parity"
    ],
-   "sources": [
-    "tests/conversions_oracle.py"
-   ],
+   "sources": [],
    "why": "54 場面の歩の答えと終わった後のファイルを詰めた形で焼く（同じ中身の一覧が多い）"
   },
   "presence": {
@@ -342,9 +266,7 @@
    "tests": [
     "presence_parity"
    ],
-   "sources": [
-    "tests/presence_oracle.py"
-   ],
+   "sources": [],
    "why": "11 場面の歩の答えと終わった後のファイルを詰めた形で焼く（時計は差し替えた固定の時刻。4 MB の境の本文と控えは繰り返しの字の作り方で持つ）"
   },
   "ui_defaults": {
@@ -353,10 +275,7 @@
    "tests": [
     "ui_defaults_parity"
    ],
-   "sources": [
-    "tests/ui_defaults_oracle.py",
-    "tests/oracle_gate.py"
-   ],
+   "sources": [],
    "why": "9 場面の歩の答えと終わった後のファイルを詰めた形で焼く（2 MB の境の本文は繰り返しの字の作り方で持つ）"
   },
   "ops": {
@@ -366,13 +285,11 @@
     "ops_parity"
    ],
    "sources": [
-    "tests/ops_oracle.py",
-    "tools/ops-bench.py",
     "tests/ui_scene.py",
     "tests/scene_files.py"
    ],
    "maxMB": 2.5,
-   "why": "稼働（ガント）・ABC の本（版 3.117.2 で焼いた）。場面の SQLite（tools/ops-bench.py の 9 つの書き方・分かれ道・足した設備〈当たる行の上限を超える 400,001 行の HUGE も〉）は標準の部品だけの台本 tests/ui_scene.py の ops が作業フォルダの下に作り（前は /tmp/tpa-ops-*）、表は指紋だけを持つ。ops-bench.py と答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から・変換表の版の印は @REV。詰めた形。表が 1.5 MB を超えるのは 150 を超える組の答え（ガントの棒と ABC の品種）と、段ごとに尋ね直す設定の答え（いまを替える 10 組）"
+   "why": "稼働（ガント）・ABC の本（版 3.117.2 で焼いた）。場面の SQLite（9 つの書き方・分かれ道・足した設備〈当たる行の上限を超える 400,001 行の HUGE も〉）は標準の部品だけの台本 tests/ui_scene.py の ops が作業フォルダの下に作り（前は /tmp/tpa-ops-*）、表は指紋だけを持つ。版 3.119.0 までは前の版の稼働の評価関数と答え合わせ役も同じ台本の関数を呼んだ。キーは呼んだ順の番号から・変換表の版の印は @REV。詰めた形。表が 1.5 MB を超えるのは 150 を超える組の答え（ガントの棒と ABC の品種）と、段ごとに尋ね直す設定の答え（いまを替える 10 組）"
   },
   "dashboard": {
    "phase": "3.117.2",
@@ -381,8 +298,6 @@
     "dash_parity"
    ],
    "sources": [
-    "tests/dashboard_oracle.py",
-    "tools/ui_server.py",
     "tests/ui_scene.py",
     "tests/lotlist_fixture.py",
     "tests/schedule_fixture.py",
@@ -390,7 +305,7 @@
     "data/roll_master.json",
     "data/roll_master.csv"
    ],
-   "why": "開発用サーバー（tools/ui_server.build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。更新が止まった HOT の更新時刻は台本を流した時の 40 時間前（古さのしきい 36 時間を越える。決めた暦の日にすると古さの時間 ageHours が流す日ごとに替わる）。写しの様子は元の場所・間隔・しきい・写したか・古いか（stale）・届かないか・理由を比べ、時刻と ageHours の数は比べない（common::mirror_part）。HOT の写しの様子は窓と比べる相手のどちらも stale=true を名前つきの確かめで見る"
+   "why": "開発用サーバー（前の Python の開発用サーバーの build）の場面の本（版 3.117.2 で焼いた）。場面の SQLite は標準の部品だけの台本 tests/ui_scene.py が作業フォルダの下に作り（前は /tmp/tpa-ui-*）、表は指紋だけを持つ。開発用サーバーと答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から（ui_scene.key_makers）・作り物の CM3 は起こさない（閉じた口 :1）・場面のファイルID は @FID・変換表の版の印は @REV（取り出した時刻から作る字）。Python だけの写し（cache・local）・Python の MasterStore の instance_id・同梱を写しただけの roll_master は場面の宣言に持たない（台本が写す。同梱を変えたら --check が古いと言うよう sources に入れた）。詰めた形。更新が止まった HOT の更新時刻は台本を流した時の 40 時間前（古さのしきい 36 時間を越える。決めた暦の日にすると古さの時間 ageHours が流す日ごとに替わる）。写しの様子は元の場所・間隔・しきい・写したか・古いか（stale）・届かないか・理由を比べ、時刻と ageHours の数は比べない（common::mirror_part）。HOT の写しの様子は窓と比べる相手のどちらも stale=true を名前つきの確かめで見る"
   },
   "settings": {
    "phase": "3.116.0",
@@ -401,7 +316,6 @@
     "route_reach"
    ],
    "sources": [
-    "tests/settings_oracle.py",
     "app/templates/index.html",
     "app/brand.json"
    ],
@@ -415,8 +329,6 @@
     "calc_parity"
    ],
    "sources": [
-    "tests/calc_oracle.py",
-    "tests/test_calculator.py",
     "tests/scene_files.py"
    ],
    "maxMB": 9.0,
@@ -429,7 +341,6 @@
     "lists_parity"
    ],
    "sources": [
-    "tests/lists_oracle.py",
     "tests/lists_scene.py",
     "tests/lotlist_fixture.py"
    ],
@@ -443,7 +354,6 @@
     "lotlist_parity"
    ],
    "sources": [
-    "tests/lotlist_oracle.py",
     "tests/lotlist_fixture.py"
    ],
    "maxMB": 5.0,
@@ -456,7 +366,6 @@
     "lotdsp_parity"
    ],
    "sources": [
-    "tests/lotdsp_oracle.py",
     "tests/fakes_serve.py",
     "tests/fakes_lotdsp.py",
     "tests/lotdsp_samples.py",

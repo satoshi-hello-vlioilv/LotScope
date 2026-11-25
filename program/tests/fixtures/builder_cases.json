@@ -1,5 +1,5 @@
 {
- "about": "組む所の読み 7 本（版 3.99.0）の事例の表。仕様（services/builder.py の冒頭の決まり）から人が書いた答え。Python（tests/test_builder_cases.py）と窓（desktop/tests/builder_cases.rs）が同じ表を読み、同じ答えを出すかを見る。答えは tools/builder-truth.py（app を import しない sqlite3 だけの独立の答え）でも作り直して突き合わせる。値の書き方: {\"blob\": \"16 進\"} は BLOB・{\"real\": 数} は小数・行の {\"range\": [頭, 始め, 終わり]} は 頭＋番号 の行（頭が null なら整数）を広げる。表は「実績」（作業実績の候補）。 結合の「試す」（joins）: 作業実績の設備ごとのファイル（parts）に相手（right の表「仕掛」）を鍵 on で合わせ、設備ごとに数えて足す。組めない設備は failed（設備名）で、数えた設備の数は counted。",
+ "about": "組む所の読み 7 本（版 3.99.0）の事例の表。仕様（前の版の builder の冒頭の決まり）から人が書いた答え。Python（前の版の試験 test_builder_cases）と窓（desktop/tests/builder_cases.rs）が同じ表を読み、同じ答えを出すかを見る。答えは tools/builder-truth.py（app を import しない sqlite3 だけの独立の答え）でも作り直して突き合わせる。値の書き方: {\"blob\": \"16 進\"} は BLOB・{\"real\": 数} は小数・行の {\"range\": [頭, 始め, 終わり]} は 頭＋番号 の行（頭が null なら整数）を広げる。表は「実績」（作業実績の候補）。 結合の「試す」（joins）: 作業実績の設備ごとのファイル（parts）に相手（right の表「仕掛」）を鍵 on で合わせ、設備ごとに数えて足す。組めない設備は failed（設備名）で、数えた設備の数は counted。",
  "fields": [
   {
    "name": "2 台で値の重なりあり（合わせた種類）",

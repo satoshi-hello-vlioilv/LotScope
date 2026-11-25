@@ -4506,10 +4506,8 @@
   "links": {}
  },
  "sources": {
-  "tests/ops_oracle.py": "e71571699f5ed718",
   "tests/scene_files.py": "f8e007c61ffd9495",
-  "tests/ui_scene.py": "6946b292dd4cd481",
-  "tools/ops-bench.py": "d458294331bdccdf"
+  "tests/ui_scene.py": "8b1997acb4ae4ca8"
  },
  "variant": "root"
 }

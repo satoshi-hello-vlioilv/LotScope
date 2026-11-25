@@ -1,6 +1,6 @@
 //! 転写距離・ピッチ計算の、人が手で確かめた値の事例の表（program/tests/fixtures/calc_cases.json。版 3.116.0）を窓の calc::calculate が
-//! 満たすか。Python は tests/test_calc_cases.py が同じ表を読む。焼いた表（tests/baked/calc.json。窓が自分の答えを焼いた物）とは別の、
-//! bless が書き換えない第 2 の線（段 ④ で Python の test_calculator.py が消えても残る）。Python を呼ばない。
+//! 満たすか。Python は 前の版の試験 test_calc_cases が同じ表を読む。焼いた表（tests/baked/calc.json。窓が自分の答えを焼いた物）とは別の、
+//! bless が書き換えない第 2 の線（段 ④ で Python の 前の版の試験 test_calculator が消えても残る）。Python を呼ばない。
 
 use da_core::calc::{calculate, Masters};
 use serde_json::{json, Map, Value};
@@ -11,7 +11,7 @@ fn rows(file: &str) -> Vec<Value> {
     v.get("rows").cloned().unwrap_or(v).as_array().unwrap().clone()
 }
 
-/// 見本 L6183D0（program/tests/test_calculator.py の lot_l6183d0 と同じ）
+/// 見本 L6183D0（前の版の試験 test_calculator の lot_l6183d0 と同じ）
 fn lot_l6183d0(unwind: &str) -> Value {
     let rows: [(&str, f64, f64, f64, i64, i64, i64); 10] = [
         ("HOT", 7.0, 1200.0, 6214.0, 1, 0, 0),

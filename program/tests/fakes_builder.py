@@ -3,7 +3,7 @@
 
 参照先・データ元の「確かめる」（CM3 に届くか）が問い合わせる相手: どの道にも 404 を答える CM3 の http（cm3）・作り物の CA の証明書の https（cm3tls）・
 信頼しない CA の https（cm3bad）と、プロキシ（中継 relay・CONNECT を 403 で断る deny・407 で認証を求める auth）。
-起こすのは tests/fakes_serve.py（python tests/fakes_serve.py builder）と、答え合わせ役 tests/builder_oracle.py。https は
+起こすのは tests/fakes_serve.py（python tests/fakes_serve.py builder）と、前の版の答え合わせ役 builder。https は
 tests/fixtures/tls の作り物の証明書（試験は SSL_CERT_FILE で作り物の CA を信頼させる。Windows の CI は LocalMachine\\Root に入れる）。
 """
 import fakes_schedule  # （標準の部品だけ）

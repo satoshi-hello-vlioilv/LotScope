@@ -1,5 +1,5 @@
 //! 作業実績を「作業」でまとめ、日ごと・日＋直ごとに数える（作業実績の画面の「作業でまとめる」。版 3.60.0 で Python から移した）。
-//! 答えは Python の app/services/work_summary.py・shifts.py と同じ（desktop/tests/lotlist_parity.rs が突き合わせる）。
+//! 答えは Python の 前の版の work_summary・前の版の shifts と同じ（desktop/tests/lotlist_parity.rs が突き合わせる）。
 //!
 //! - 1 作業: 作業開始（既定の列 BOX実績_作業開始_日付）が同じ行（幅・丈で分割したロット）。作業開始が空の行はまとめない
 //! - 日・直: その設備の勤務体系（マスタ shift_patterns。設備を書いた体系 → 全設備共通）の区分に作業開始の時刻を当てる。
@@ -102,7 +102,7 @@ pub fn normalize_part(s: &str) -> String {
     crate::access::py_key(s) // 窓の 1 か所（Python 3.13 と同じ答え。Unicode の版の違いも扱う）
 }
 
-// ------------------------------------------------------------------ 勤務体系（Python の shifts.py）
+// ------------------------------------------------------------------ 勤務体系（Python の 前の版の shifts）
 /// 'H:MM'・'HH:MM' → 0 時からの分（^([01]?\d|2[0-3]):([0-5]\d)$。読めなければ None）
 pub fn hm(v: &str) -> Option<u32> {
     let cs: Vec<char> = strip(v).chars().collect();
@@ -166,7 +166,7 @@ pub fn truthy(v: &Value) -> bool {
 
 /// Python の str(値)（JSON の値）。整数は桁のまま（版 3.105.0 から i64 に入らない u64 の整数も。前は as_i64 だけを見て
 /// 12345678901234567890 を小数の字 1.2345678901234567e+19 にした）、小数は float.__repr__（pyfmt::float_repr）。
-/// serde は u64 を超える整数の字を小数に読むので、その字は呼ぶ側が先に master_rows::unreadable（split_number）で Python に任せる。
+/// serde は u64 を超える整数の字を小数に読むので、その字は呼ぶ側が先に master_rows::unreadable（split_number）で 答えない（製品では 503）。
 /// 事例は program/tests/fixtures/pyfloat_cases.json の fields（cargo test --test pyfloat_cases）
 pub fn py_str(v: &Value) -> String {
     match v {
@@ -361,7 +361,7 @@ impl Clock {
     }
 }
 
-// ------------------------------------------------------------------ 作業でまとめる（Python の work_summary.py）
+// ------------------------------------------------------------------ 作業でまとめる（Python の 前の版の work_summary）
 /// 作業開始の列: 選んだ列（あれば）→ 既定の名前 → 「作業開始」を含み日付・日時の列。無ければ ""
 pub fn start_column(cs: &[String], preferred: &str) -> String {
     if !preferred.is_empty() && cs.iter().any(|c| c == preferred) {

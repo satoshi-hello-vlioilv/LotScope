@@ -1,10 +1,10 @@
-//! 組む所の読み 7 本（src/builder.rs）が Python の道（routes/dashboard.py の dashboard_fields・data_columns、routes/sources.py の
+//! 組む所の読み 7 本（src/builder.rs）が Python の道（前の版の dashboard の dashboard_fields・data_columns、前の版の sources の
 //! sources_columns・sources_check・sources_join_preview・sources_conn_check）と同じ答えか（版 3.99.0）。
-//! program/tests/builder_oracle.py を起こしたままにし、場面ごとに同じ中身のフォルダの py に Python の道で当てた答えを受け取る。
+//! 前の版の答え合わせ役 builder を起こしたままにし、場面ごとに同じ中身のフォルダの py に Python の道で当てた答えを受け取る。
 //! ここでは rs に同じ並びを本物の窓の道（Lot::handle_body → builder_route。材料は窓の束の材料・門番）で当て、1 歩ごとの答え
-//! （状態・本文。確かめるの ms・更新時刻の小数・SQLite の英語の字だけ伏せる）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、
+//! （状態・本文。確かめるの ms・更新時刻の小数・SQLite の英語の字だけ伏せる）を突き合わせる。窓が答えない（製品では 503）歩（delegates）は、
 //! 窓が答えないことを見る。Python に頼らない独立の答え（tools/builder-truth.py。"truth"）とも窓の答えを比べる（Python と窓が同じ誤りを
-//! 持っていても見つかる）。決め（services/builder.py と src/builder.rs の定数）も突き合わせる。
+//! 持っていても見つかる）。決め（前の版の builder と src/builder.rs の定数）も突き合わせる。
 //! 最後に、窓と Python が同じ作業場所で同時に「試す」（作業実績 14 台の try-work-<キー>）を組んでも、答えが同じで、答えのファイルが壊れないかを見る。
 
 mod common;
@@ -76,7 +76,7 @@ fn builder_reads_match_python_and_the_truth() {
     // 作り物の CM3 とプロキシ（http・https・中継・断る・認証。版 3.117.1 の作った後の直し・割れ 2）は app を import しない台本
     // （program/tests/fakes_serve.py builder）。Python 無しの形では窓の試験がその台本を起こしたままにする。URL は名前つきの @URL(名前)
     bk.fakes = Some(("fakes_serve.py", vec!["builder".to_string()]));
-    let (mut live, o) = bk.live("builder_oracle.py", &[base.to_str().unwrap()]);
+    let (mut live, o) = bk.live_table();
     common::trust_test_ca();
     let mut bad = vec![];
     // 決め（主のセッションの決め 1〜7）が Python と窓で同じ値
@@ -137,7 +137,7 @@ fn builder_reads_match_python_and_the_truth() {
             delegated += 1;
             if let Some((status, got)) = call(&lot, st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {}?{} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {}?{} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["query"], st["body"]
                 ));
             }

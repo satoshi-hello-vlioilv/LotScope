@@ -1,12 +1,12 @@
-//! LotDsp（ロット問い合わせ）の 9 本の道（版 3.98.0。窓がただ 1 つの係: sidecar.rs の SERVES に lotdsp。Python は答えない）。
+//! LotDsp（ロット問い合わせ）の 9 本の道（版 3.98.0。窓がただ 1 つの係: shell::SERVES に lotdsp。Python は答えない）。
 //!
-//! 写した Python（program/app）: routes/lots.py の 9 本・services/lotdsp_progress.py（画面の表 → ロットと工程）・lotdsp_api.py
-//! （API を引く・項目名を学ぶ・調べる）・lotdsp_link.py（調べる道具の紐づけ）・lotdsp_rules.py（9 本が共にする決まり）。
+//! 写した Python（program/app）: 前の版の lots の 9 本・前の版の lotdsp_progress（画面の表 → ロットと工程）・前の版の lotdsp_api
+//! （API を引く・項目名を学ぶ・調べる）・前の版の lotdsp_link（調べる道具の紐づけ）・前の版の lotdsp_rules（9 本が共にする決まり）。
 //! 画面の表の読み方は src/lotdsp_html.rs、見えない Edge と LotDsp の窓は src/lotdsp_direct.rs。
 //!
 //! 窓は Python に任せない: 本文の端（字でない html・数や null のロット番号・NaN・並び・表でない本文）も、Python と同じ答えか
 //! 同じ字で断る（rules::read_body）。答えは Python の道（Python を答えの見本にした突き合わせ: desktop/tests/lotdsp_parity.rs ←
-//! program/tests/lotdsp_oracle.py）と、Python に頼らない独立の答え（DOM で読んだ表・仕様から書いた事例の表・作り物の DevTools と
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 lotdsp））と、Python に頼らない独立の答え（DOM で読んだ表・仕様から書いた事例の表・作り物の DevTools と
 //! 差し替えた時計: desktop/tests/lotdsp_cases.rs）の両方で確かめる。
 //!
 //! 学びの覚え（作業場所の lotdsp_api_map.json）の書き手は窓の 1 つ（KeyMap の Mutex）。状態の道・/api/config（bundle.rs が同じファイルを
@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use unicode_normalization::UnicodeNormalization;
 
-// ================================================================== 9 本が共にする決まり（lotdsp_rules.py と同じ）
+// ================================================================== 9 本が共にする決まり（前の版の lotdsp_rules と同じ）
 pub mod rules {
     use super::J;
     use unicode_normalization::UnicodeNormalization;
@@ -412,7 +412,7 @@ fn pyfloat(s: &str) -> Option<f64> {
     pyfmt::py_float(s).ok()
 }
 
-// ================================================================== 進度情報の表 → ロット（lotdsp_progress.py）
+// ================================================================== 進度情報の表 → ロット（前の版の lotdsp_progress）
 const DEFAULT_ACTUAL: [(&str, &str); 10] = [
     ("no", "№"),
     ("equipment", "設備"),
@@ -911,7 +911,7 @@ pub fn read_html(html: &str, master: &Master, cfg: &Value, expect: &str) -> Resu
     Ok((to_models(&data, expect), report.to_value(), tables, actual, design))
 }
 
-// ================================================================== LotDsp の API（lotdsp_api.py）
+// ================================================================== LotDsp の API（前の版の lotdsp_api）
 #[derive(Debug, Clone)]
 pub struct ApiCfg {
     pub enabled: bool,
@@ -1945,7 +1945,7 @@ pub fn survey(result: &J, km: &KeyMap, cfg: &ApiCfg, values: bool) -> Map<String
     out
 }
 
-// ================================================================== 調べる道具（lotdsp_link.py）
+// ================================================================== 調べる道具（前の版の lotdsp_link）
 const LABEL_MAX: usize = 24;
 const COLUMN_MATCH: f64 = 0.8;
 const COLUMN_MIN_PAIRS: i64 = 2;
@@ -2406,7 +2406,7 @@ pub fn link_files(files: &[J], km: &KeyMap, cfg: &ApiCfg, call_api: &dyn Fn(&str
     })
 }
 
-// ================================================================== 道（routes/lots.py の 9 本）
+// ================================================================== 道（前の版の lots の 9 本）
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Route {
     Import,

@@ -1,4 +1,4 @@
-//! 作業実績の登録の道（版 3.91.0）。Python の `routes/worklog.py` のマスタ管理の 5 本と、作業実績のタブが開くたびに呼ぶ 1 本を窓が受ける:
+//! 作業実績の登録の道（版 3.91.0）。Python の `前の版の worklog` のマスタ管理の 5 本と、作業実績のタブが開くたびに呼ぶ 1 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/worklog          … 登録の行（いま結んでいるファイル・状態）と、まだ登録していないファイル（?fresh=1 はフォルダを読み直す）
@@ -9,11 +9,11 @@
 //! GET    /api/worklog/files            … 作業実績のタブで選べる設備（?all=1 は表示しない行も・?fresh=1）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/worklog_write_parity.rs ← program/tests/worklog_write_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/worklog_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 worklog_write））:
 //! services/work_log の view・match（同じ名前 → 同じファイルID〈same_fid。Python と同じ決まり〉の順・taken つき）・ordered・order_numbers・
 //! mark_stale と、master_repository の work_log_sync・update・delete・order。フォルダの中身と 10 秒の覚えは src/lists.rs の 1 つ（found_fresh）。
 //!
-//! 窓が答えず Python に任せる形: 読めない・空の本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文（500）・
+//! 窓が答えない（製品では 503）形: 読めない・空の本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文（500）・
 //! 並びや表の値（Python の str() の repr）・版の番号に 10 進でない数の字・i64 に入らない id・置き場の行を窓が同じに読めない・
 //! 古さの警告の時間が数で読めない・百分率符号の道。
 
@@ -39,7 +39,7 @@ pub enum Route {
     Files,
 }
 
-/// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（Python に任せる）。
+/// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（答えない（製品では 503））。
 /// 版 3.93.0 から変換表の道（src/conversions_write.rs）も使う
 pub(crate) fn id_of(s: &str) -> Option<PyInt> {
     pyfmt::path_int(s)
@@ -236,7 +236,7 @@ fn settings_warn(work: &Value) -> Value {
     work.get("settingsWarn").cloned().unwrap_or(json!([]))
 }
 
-/// 古さの警告の時間（float(stale_hours or 0)）。読めなければ Python に任せる
+/// 古さの警告の時間（float(stale_hours or 0)）。読めなければ 答えない（製品では 503）
 fn stale_of(work: &Value) -> D<f64> {
     let v = &work["stale_hours"];
     if !truthy(v) {
@@ -305,8 +305,8 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
     let flag = |k: &str| q.iter().any(|(n, v)| n == k && v == "1");
     let rows = normalized(cx.rows);
     let ok = |v: D<Value>| v.ok().map(|v| (200, v));
-    // 書いた後の答え（_master_view）は古さの時間を読む。読めない形は書く前に Python に任せる（書いた後に任せると Python がもう一度書き、版が 2 つ上がる）
-    // 並びの番号（ordered）も同じ（39 桁を超える並びは Python に任せる）
+    // 書いた後の答え（_master_view）は古さの時間を読む。読めない形は書く前に 答えない（製品では 503）（書いた後に任せると Python がもう一度書き、版が 2 つ上がる）
+    // 並びの番号（ordered）も同じ（39 桁を超える並びは 答えない（製品では 503））
     if matches!(route, Route::Scan | Route::Order) && (stale_of(cx.work).is_err() || ordered(&rows).is_err()) {
         return None;
     }

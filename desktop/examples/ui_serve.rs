@@ -21,7 +21,6 @@
 //!   411 で断る（黙って空の本文にしない。版 3.118.2 の作った後の採点の割れ C13）
 
 use da_core::bundle::Env;
-use da_core::presence::PythonNow;
 use da_core::shell::{self, Ctx, Reply, Req};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -171,9 +170,8 @@ fn answer_head(head: &Head, port: u16, r: &mut impl Read, route: impl Fn(&Req) -
 
 /// 製品の振り分けと同じ順（lib の shell::dev_route。窓そのもの〈Tauri〉だけが答える道は作り物）
 fn route(lot: &da_core::lot::Lot, req: &Req, static_dir: &Path, program: &Path) -> Reply {
-    let python_now = PythonNow::absent;
     let log = |line: &str| eprintln!("{line}");
-    let ctx = Ctx { program, python_now: &python_now, absent: true, log: &log };
+    let ctx = Ctx { program, log: &log };
     shell::dev_route(lot, req, &ctx, static_dir)
 }
 

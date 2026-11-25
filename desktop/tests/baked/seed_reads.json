@@ -804,8 +804,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/seed_reads_oracle.py": "f75f4e9928cd65f9"
- },
+ "sources": {},
  "variant": "root"
 }

@@ -2851,8 +2851,6 @@
   "files": {},
   "links": {}
  },
- "sources": {
-  "tests/name_key_oracle.py": "db44eecb0ee9124f"
- },
+ "sources": {},
  "variant": "root"
 }

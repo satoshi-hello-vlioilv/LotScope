@@ -1,10 +1,10 @@
-//! ダッシュボードのパネルの数（版 3.62.0。Python の routes/dashboard.py の /api/dashboard/query と services/dashboard.py の確かめと同じ答え）。
+//! ダッシュボードのパネルの数（版 3.62.0。Python の 前の版の dashboard の /api/dashboard/query と 前の版の dashboard の確かめと同じ答え）。
 //!
 //! 1 枚のパネル（本文 {panel}。送った順の木で読む）を確かめ（保存の道と同じ layout_clean::clean_panel。版 3.83.0）、段取り（どのファイルを読むか: lists.rs）をして、集計（pivot.rs の query_many）で数え、
 //! 形に合わせて組み立てる: 設備の分け方（重ねる series・並べる facet・合算 sum）・別のデータを合わせる（link）・合わせた表（board）。
 //! スケジュール（CM3）は版 3.96.0 から窓が係（lists.rs の src_plan_eq → schedule.rs）。窓の束の設定が無い形・係を降りた設定は Python が答える（None）。
 //! 材料（データ元・作業実績の登録・勤務体系・設備の名前・設備グループ・試験の「いま」）は、一覧の設定の答え（lists）で受け取る。
-//! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（program/tests/dash_oracle.py）と突き合わせて確かめる。
+//! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（焼いた表 desktop/tests/baked（前の版の答え合わせ役 dash））と突き合わせて確かめる。
 
 use crate::formula::{self, Calc, Tables};
 use crate::jsontree::Tree;
@@ -25,7 +25,7 @@ use std::time::Duration;
 const MAX_EQUIPS: usize = 200;
 const MAX_FACETS: usize = 24;
 /// ダッシュボードが作業実績の最初の写しを待つ長さ（版 3.92.0。前は 30 秒: 遅い設備が混ざると最初の数まで 12 秒かかった。
-/// Python の routes/dashboard.py の DASH_FIRST_WAIT_SEC と同じ）。写し終えていない設備は「写しています」で、画面が引き直す
+/// Python の 前の版の dashboard の DASH_FIRST_WAIT_SEC と同じ）。写し終えていない設備は「写しています」で、画面が引き直す
 const FIRST_WAIT: Duration = Duration::from_secs(2);
 const CACHE_MAX: usize = 96;
 const OPS_VISUALS: &[&str] = &["gantt", "abc"];
@@ -48,7 +48,7 @@ fn arr(v: Option<&Value>) -> &[Value] {
     v.and_then(Value::as_array).map(|a| a.as_slice()).unwrap_or(&[])
 }
 
-// ------------------------------------------------------------------ 確かめ（services/dashboard.py）
+// ------------------------------------------------------------------ 確かめ（前の版の dashboard）
 
 fn names(v: Option<&Value>, n: usize) -> Vec<String> {
     let mut out: Vec<String> = vec![];
@@ -68,8 +68,8 @@ pub(crate) fn is_screen_source(s: &str) -> bool {
             .is_some_and(|k| (1..=16).contains(&k.len()) && k.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
 }
 
-/// 画面から来たパネル → 数える形。確かめは保存の道と同じ 1 か所（layout_clean::clean_panel。Python も services/dashboard.py の
-/// clean_panel を問い合わせと保存の両方で使う。版 3.83.0 で 1 つにした）。Err(None) は窓が Python と同じに読めない形（Python に任せる）
+/// 画面から来たパネル → 数える形。確かめは保存の道と同じ 1 か所（layout_clean::clean_panel。Python も 前の版の dashboard の
+/// clean_panel を問い合わせと保存の両方で使う。版 3.83.0 で 1 つにした）。Err(None) は窓が Python と同じに読めない形（答えない（製品では 503））
 fn clean_panel(p: &Tree) -> Result<Map<String, Value>, Option<String>> {
     match layout_clean::clean_panel(p, 0, layout_clean::ROWS_MAX) {
         Ok(mut m) => {
@@ -309,7 +309,7 @@ impl Ctx<'_> {
 
     /// 組む所の読み（版 3.99.0。src/builder.rs）: パネルのデータ → (数えるファイル, 読めなかった設備, データの名前)。
     /// 作業実績の最初の写しを wait まで待つ（札・当てる列は Python の db_mirror.FIRST_WAIT_SEC と同じ 30 秒。パネルの数は 2 秒）。
-    /// Ok(None) は Python に任せる形（スケジュールを窓が答えない）・Err は失敗の答え {error, kind, status}
+    /// Ok(None) は 答えない（製品では 503）形（スケジュールを窓が答えない）・Err は失敗の答え {error, kind, status}
     /// Err は段取りの失敗の答えそのもの（状態・本文。Python の _Fail の resp）
     #[allow(clippy::type_complexity)]
     pub(crate) fn parts_for(
@@ -1122,7 +1122,7 @@ fn facets_of(a: &Value, measures: &[Value]) -> Vec<Value> {
 
 /// 本文の字 → 確かめに渡すパネル（Python の body = get_json(silent=True) or {}・body.get("panel") or {}）。中身は送った順の木で読む
 /// （色・系列の先頭 40 個を残す所が送った順に効く）。None は窓が Python と同じに読めない本文（NaN・大きな数・入れ子の深い字・
-/// 表でない真の本文〈Python は .get で落ちる〉）で、Python に任せる
+/// 表でない真の本文〈Python は .get で落ちる〉）で、答えない（製品では 503）
 fn panel_of(body: &[u8]) -> Option<Tree> {
     if crate::master_rows::unreadable(body) {
         return None;
@@ -1142,8 +1142,8 @@ fn panel_of(body: &[u8]) -> Option<Tree> {
 }
 
 /// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュールを窓が答えない形・読めない本文）
-/// GET /api/dashboard/sources（routes/dashboard.py の dashboard_sources・source_items）: パネルに使えるデータの並びと、作業実績の表示する設備・
-/// 期間の種類・設備グループのまとめ方。材料は一覧の設定の答え（lists）。役割（role）の無い答え（前の版の Python）なら None（Python に任せる）
+/// GET /api/dashboard/sources（前の版の dashboard の dashboard_sources・source_items）: パネルに使えるデータの並びと、作業実績の表示する設備・
+/// 期間の種類・設備グループのまとめ方。材料は一覧の設定の答え（lists）。役割（role）の無い答え（前の版の Python）なら None（答えない（製品では 503））
 pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
     let work_rows = arr(conf.v["work"].get("rows"));
     let shown: Vec<&Value> = crate::bundle::work_order(
@@ -1229,7 +1229,7 @@ pub fn equipment_seen(cx: &Ctx, known: &[(String, &str)]) -> Option<Vec<Value>> 
 }
 
 /// GET /api/dashboard/equip-tree（dashboard_equip_tree）: 実際に出てくる設備（equipment_seen。作業実績の設備 → 設備マスタは一覧の設定の
-/// 設備の名前の並び）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュールを窓が答えない形）があれば None（Python に任せる）
+/// 設備の名前の並び）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュールを窓が答えない形）があれば None（答えない（製品では 503））
 pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
     let known: Vec<(String, &str)> = cx.dash().names().into_iter().map(|n| (n, "")).collect();
     let names: Vec<String> = equipment_seen(cx, &known)?.iter().map(|x| json_str(&x["name"])).collect();
@@ -1749,7 +1749,7 @@ mod tests {
         assert_eq!(panel_of(b"[]"), Some(Tree::Obj(vec![])));
         assert_eq!(panel_of(br#"{"panel": 0}"#), Some(Tree::Obj(vec![])));
         assert_eq!(panel_of(br#"{"panel": {"id": "a"}}"#), Tree::parse(r#"{"id": "a"}"#));
-        assert_eq!(panel_of(b"[1]"), None, "表でない真の本文は Python が .get で落ちる: Python に任せる");
+        assert_eq!(panel_of(b"[1]"), None, "表でない真の本文は Python が .get で落ちる: 答えない（製品では 503）");
         assert_eq!(panel_of(b"\"x\""), None);
         assert_eq!(panel_of(br#"{"panel": {"top": NaN}}"#), None, "NaN は Python だけが読む");
         assert_eq!(panel_of(b"{"), None, "読めない本文");

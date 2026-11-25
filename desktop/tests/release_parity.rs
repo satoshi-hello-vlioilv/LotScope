@@ -1,10 +1,10 @@
-//! 配布の置き場を変える 3 本（src/release_place.rs の handle・plan・Mover）が Python の道（routes/settings.py の
-//! POST /api/release/place/check・move・GET progress と services/release_place.py）と同じ答えか（版 3.95.0）。
-//! program/tests/release_place_oracle.py が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
+//! 配布の置き場を変える 3 本（src/release_place.rs の handle・plan・Mover）が Python の道（前の版の settings の
+//! POST /api/release/place/check・move・GET progress と 前の版の release_place）と同じ答えか（版 3.95.0）。
+//! 前の版の答え合わせ役 release_place が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを窓の道（Lot::release_route と同じ順: ?engine=python → 道 → move は門番 gate → plan → 写す係）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、写し終えた後の進み具合（final）、終わった後のフォルダの中身
 //! （ファイルの中身・大きさ・更新時刻〈copy2 と同じく元の時刻〉・権限）を突き合わせる。写しかけの一時フォルダが残らないことも見る。
-//! 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
+//! 窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。
 //! 比べない所: 道の字の場面のフォルダ（@ROOT にそろえる）・時刻（started・finished・elapsed）・一時フォルダの名前の pid と秒・
 //! 権限を読めない理由（Python の例外の字。言葉の形は比べる）・Windows の OS の言葉（Python は errno と WinError で書き分ける）。
 //! 権限の場面（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場）は、root で流すと意味を持たない
@@ -109,7 +109,7 @@ fn wait_done(m: &Mover) -> Value {
     m.progress()
 }
 
-/// 窓の道で 1 歩答える。None は窓が答えない（Python に任せる）。GET /api/update/settings は窓の me から who を組み、
+/// 窓の道で 1 歩答える。None は窓が答えない（答えない（製品では 503））。GET /api/update/settings は窓の me から who を組み、
 /// source は Python の答えの字を使う（効いている設定の重ね方は page_parity が突き合わせる）
 fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover, source: &str) -> Option<(u16, Value)> {
     let (method, path) = (st["method"].as_str().unwrap(), st["path"].as_str().unwrap());
@@ -152,7 +152,7 @@ fn mode_of(m: &std::fs::Metadata) -> Option<String> {
     }
 }
 
-/// フォルダの中身（release_place_oracle.py の listing と同じ形）
+/// フォルダの中身（前の版の答え合わせ役 release_place の listing と同じ形）
 fn listing(root: &Path) -> Map<String, Value> {
     let mut out = Map::new();
     fn walk(dir: &Path, root: &Path, out: &mut Map<String, Value>) {
@@ -193,7 +193,7 @@ fn joined_paths_match_python() {
     let base = common::work("release-tables");
     let mut bk = common::bake::Bake::open_part("release_place", "tables", &base);
     (bk.strip, bk.strip_in) = (["posix", "win", "posixBase", "winBase", "str"].map(String::from).to_vec(), vec!["parent", "errno"]);
-    let oracle = bk.oracle("release_place_oracle.py", &["--tables"]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     for (n, c) in oracle["joins"].as_array().unwrap().iter().enumerate() {
         let up = da_core::pyfmt::strip(c["parent"].as_str().unwrap()).trim_matches('"').to_string();
@@ -264,7 +264,7 @@ fn release_place_matches_python() {
     bk.strip = ["status", "json", "final", "files", "filesPd"].map(String::from).to_vec();
     bk.strip_in = vec!["method", "sync", "roots"];
     bk.drop = vec!["rootUser", "root"];
-    let oracle = bk.oracle("release_place_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     // 焼いた表と比べる流し方（Python 無し）では、表の答え（読む順で変わる数を伏せてある）と同じ形にして比べる。Python と比べるときは数のまま
     let with_python = bk.python();
@@ -323,7 +323,7 @@ fn release_place_matches_python() {
             delegated += 1;
             if let Some((status, got)) = answer(&sc["conf"], st, rs, &mover, "") {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

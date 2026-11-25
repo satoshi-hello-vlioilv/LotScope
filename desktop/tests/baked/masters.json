@@ -644,8 +644,6 @@
   "files": {},
   "links": {}
  },
- "sources": {
-  "tests/masters_oracle.py": "550c72fee5f607fc"
- },
+ "sources": {},
  "variant": "root"
 }

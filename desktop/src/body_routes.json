@@ -1,5 +1,5 @@
 {
- "about": "本文の門を当てる道（Python の道の並びのまま。tools/body-routes.py が services/body_rules.py の ROUTES と、版 3.106.0 から欄の型の TYPES〈道 → [欄の道, 型] の並び。見る順もこの並び〉から焼く）",
+ "about": "本文の門を当てる道（Python の道の並びのまま。前の版の道具 body-routes が 前の版の body_rules の ROUTES と、版 3.106.0 から欄の型の TYPES〈道 → [欄の道, 型] の並び。見る順もこの並び〉から焼く）",
  "rules": [
   {
    "rule": "/api/masters/conversions/defaults",

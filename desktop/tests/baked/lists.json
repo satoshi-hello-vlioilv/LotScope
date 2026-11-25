@@ -5904,9 +5904,8 @@
   "links": {}
  },
  "sources": {
-  "tests/lists_oracle.py": "dcb494862f9c234e",
-  "tests/lists_scene.py": "1d44b524807852c7",
-  "tests/lotlist_fixture.py": "2bb8ea3b0a45d69d"
+  "tests/lists_scene.py": "608f0e51d6688739",
+  "tests/lotlist_fixture.py": "4061d4970a286395"
  },
  "variant": "root"
 }

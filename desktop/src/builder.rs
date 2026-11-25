@@ -1,5 +1,5 @@
-//! 組む所の読み 7 本（版 3.99.0。Python の routes/dashboard.py の dashboard_fields・data_columns と、routes/sources.py の sources_columns・
-//! sources_check・sources_join_preview・sources_conn_check。決まりは services/builder.py）を窓が答える。
+//! 組む所の読み 7 本（版 3.99.0。Python の 前の版の dashboard の dashboard_fields・data_columns と、前の版の sources の sources_columns・
+//! sources_check・sources_join_preview・sources_conn_check。決まりは 前の版の builder）を窓が答える。
 //!
 //! - GET・POST /api/dashboard/fields … パネルを組む所の左のカラムの札（pivot.rs の field_sets・merge_fields・fields_many）
 //! - GET /api/data/columns … 変換表の当てる列（pivot.rs の column_names。見本は samples_of の 1 か所）
@@ -8,7 +8,7 @@
 //! - POST /api/sources/join/preview … 結合の「試す」（作業実績は表示する全部の設備で数えて足す）
 //! - POST /api/sources/<key>/conn/check … 接続の設定の 1 項目の「確かめる」
 //!
-//! 決め（主のセッションが決めた。Python の services/builder.py と同じ名前・同じ値。desktop/tests/builder_parity.rs が突き合わせる）:
+//! 決め（主のセッションが決めた。Python の 前の版の builder と同じ名前・同じ値。desktop/tests/builder_parity.rs が突き合わせる）:
 //!   1 KINDS_UNION … すべての設備の札の種類は、値を合わせた本当の数（和集合）
 //!   2 EQUIP_LIMIT … 合わせる設備の上限（None は全部。前は 12 台）
 //!   3 種類はスライサー・集計と同じ見分け（SortKey: 空欄を 1 つ・0 と '0' を同じ。pivot::field_sets・merge_fields の 1 か所）
@@ -20,7 +20,7 @@
 //!   7 札を待つ間は、ダッシュボードの待ちの段（progress.rs。?ask=）に写した・読んだ設備 n/m で載せる
 //!   SQLite の英語の誤りの字は答えを変えない（日本語に読み替えるかは分からない。計画書）
 //!
-//! 窓が答えず Python に任せる形（Python と同じ字にできない・Python も落ちる形）: ?engine=python・窓の束の設定や一覧の材料を組めない・
+//! 窓が答えない（製品では 503）形（Python と同じ字にできない・Python も落ちる形）: ?engine=python・窓の束の設定や一覧の材料を組めない・
 //! 窓が同じに読めない本文（NaN・Infinity・大きな数など: master_rows::unreadable）・表でない本文（並び・数・字。Python は 500）・
 //! 字でない欄（source・equip・key・base・place など。Python は str() の字にするか落ちる）・字でない設備の並び・
 //! スケジュールを窓が答えない形（panel_parts の Ok(None)）・道の鍵に百分率符号・結合の決まりの窓の読めない形（sources_write の Delegate）・
@@ -115,7 +115,7 @@ pub fn body_of(body: &[u8]) -> Option<Tree> {
     }
 }
 
-/// str(本文の欄 or "")（字・偽の値だけ。ほかは None＝Python に任せる）
+/// str(本文の欄 or "")（字・偽の値だけ。ほかは None＝答えない（製品では 503））
 fn text_of(t: Option<&Tree>) -> Option<String> {
     match t {
         None => Some(String::new()),
@@ -143,7 +143,7 @@ fn err(status: u16, msg: &str, kind: &str) -> Answer {
 }
 
 // ------------------------------------------------------------------ 札（GET・POST /api/dashboard/fields）
-/// 組む所の左のカラムの札（Python の dashboard_fields）。None は Python に任せる
+/// 組む所の左のカラムの札（Python の dashboard_fields）。None は 答えない（製品では 503）
 pub fn fields(cx: &Ctx, post: bool, query: &str, body: &[u8]) -> Option<Answer> {
     let (source, equip, equips, calc) = if post {
         let t = body_of(body)?;
@@ -444,7 +444,7 @@ pub fn try_each(
     (Some(out), failed, status)
 }
 
-/// 「試す」（Python の sources_join_preview）。None は Python に任せる
+/// 「試す」（Python の sources_join_preview）。None は 答えない（製品では 503）
 pub fn join_preview(cx: &Ctx, items: &[Map<String, Value>], body: &[u8]) -> Option<Answer> {
     let t = body_of(body)?;
     let v = t.to_value();
@@ -636,7 +636,7 @@ fn ok_msg(ok: bool, message: impl Into<String>) -> Answer {
     (200, json!({"ok": ok, "message": message.into()}))
 }
 
-/// POST /api/sources/<key>/conn/check（Python の sources_conn_check）。None は Python に任せる
+/// POST /api/sources/<key>/conn/check（Python の sources_conn_check）。None は 答えない（製品では 503）
 pub fn conn_check(inp: &ConnInputs, key: &str, body: &[u8]) -> Option<Answer> {
     let t = body_of(body)?;
     let field = text_or_num(t.get("field"))?;
@@ -781,7 +781,7 @@ pub fn check_value(item: &Value, value: &Value, picks: &Picks) -> Value {
 }
 
 /// POST /api/settings/check（Python の settings_check）。eff は参照先を重ねた設定（lot_list.table）・settings は配った設定（既定）・
-/// pattern はいま効いている作業実績のファイル名の決まり。None は Python に任せる（窓が同じに読めない本文・値）
+/// pattern はいま効いている作業実績のファイル名の決まり。None は 答えない（製品では 503）（窓が同じに読めない本文・値）
 pub fn settings_check(body: &[u8], settings: &Value, eff: &Value, pattern: &str) -> Option<Answer> {
     let t = body_of(body)?;
     let key = text_or_num(t.get("key"))?;

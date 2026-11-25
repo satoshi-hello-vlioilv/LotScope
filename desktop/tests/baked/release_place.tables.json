@@ -871,10 +871,7 @@
   "files": {},
   "links": {}
  },
- "sources": {
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/release_place_oracle.py": "aece687ca37b7e07"
- },
+ "sources": {},
  "variant": "root",
  "variants": {
   "user": {}

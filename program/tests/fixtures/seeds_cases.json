@@ -1,5 +1,5 @@
 {
- "note": "起動の初期値（services/master_seeds.py・desktop/src/seeds.rs）の決まりを、人が仕様から書いた事例の表（版 3.110.0）。期待値は app を使わずに決めた。cases は当て方の 1 つずつ（rows に当てた後の行。stamp は下の stamp を重ねる）、runs は置き場ごとに走らせた結果。Python は tests/test_seeds_cases.py、窓は cargo test --test seeds_cases が同じ表を読む",
+ "note": "起動の初期値（前の版の master_seeds・desktop/src/seeds.rs）の決まりを、人が仕様から書いた事例の表（版 3.110.0）。期待値は app を使わずに決めた。cases は当て方の 1 つずつ（rows に当てた後の行。stamp は下の stamp を重ねる）、runs は置き場ごとに走らせた結果。Python は 前の版の試験 test_seeds_cases、窓は cargo test --test seeds_cases が同じ表を読む",
  "stamp": {
   "updated_at": "T",
   "updated_by": {

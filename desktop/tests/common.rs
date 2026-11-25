@@ -1,4 +1,4 @@
-//! 突き合わせの試験の共通: Python（program/tests の「正しい答えを出す係」）を呼ぶ。
+//! 突き合わせの試験の共通（版 3.119.0 から答え合わせ役〈Python の道〉は無い。焼いた表と、標準の Python だけの台本・独立の答えを使う）。
 #![allow(dead_code)]
 
 use std::path::PathBuf;
@@ -23,25 +23,6 @@ pub fn re(pattern: &str) -> &'static regex::Regex {
 
 pub fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
-}
-
-/// 凍らせた Python の写しの版（program/tests/legacy/<版>。tools/freeze-legacy.py が 1 回だけ作った。版 3.117.3）
-pub const FROZEN_VERSION: &str = "3.117.3";
-
-/// 凍らせた Python の写しを相手にするか（TPA_FROZEN_PY=1。段 ④ で program/app を消した後、凍らせた最後の Python を相手にする試験
-/// 〈bake::frozen_python〉と keep の本が、この写しの app と答え合わせ役を流す）
-pub fn frozen_py() -> bool {
-    std::env::var("TPA_FROZEN_PY").is_ok_and(|v| !v.is_empty() && v != "0")
-}
-
-/// 答え合わせ役（app を import する Python の台本）を流す置き場: いつもは program、TPA_FROZEN_PY=1 なら凍らせた写し
-/// program/tests/legacy/<版>（中は program と同じ形: app/・tests/・config/・data/）
-pub fn py_program() -> PathBuf {
-    if frozen_py() {
-        program().join("tests").join("legacy").join(FROZEN_VERSION)
-    } else {
-        program()
-    }
 }
 
 /// 場面のフォルダの道の書き方の候補（版 3.117.3）: 書いたままの字・長い名前（canonicalize。Windows の一時フォルダは 8.3 の短い名前
@@ -200,56 +181,16 @@ pub fn work(name: &str) -> PathBuf {
 pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
     let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
     let out = clean_command(&mut Command::new(&py))
-        .arg(py_program().join("tests").join(script))
+        .arg(program().join("tests").join(script))
         .args(args)
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONDONTWRITEBYTECODE", "1")
-        .current_dir(py_program())
+        .current_dir(program())
         .output()
         .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
     assert!(out.status.success(), "{script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
     let v: serde_json::Value = json_keep(&out.stdout).expect("Python の答えが JSON ではありません");
-    check_budget(script, args, &v);
     v
-}
-
-/// 窓が答えず Python に任せる歩の数（版 3.102.0。program/tools/delegate-count.py と同じ数え方: "delegates" の並びの中身・
-/// "delegate": true の歩・"expect": "delegate" の場面）
-pub fn delegate_count(v: &serde_json::Value) -> usize {
-    use serde_json::Value;
-    match v {
-        Value::Object(o) => {
-            let me =
-                usize::from(o.get("expect").and_then(Value::as_str) == Some("delegate") || o.get("delegate") == Some(&Value::Bool(true)));
-            me + o
-                .iter()
-                .map(|(k, x)| match (k.as_str(), x) {
-                    ("delegates", Value::Array(a)) => a.len(),
-                    (_, Value::Object(_) | Value::Array(_)) => delegate_count(x),
-                    _ => 0,
-                })
-                .sum::<usize>()
-        }
-        Value::Array(a) => a.iter().map(delegate_count).sum(),
-        _ => 0,
-    }
-}
-
-/// 任せる歩の予算（program/tests/fixtures/delegates_budget.json。答えの元ごとの上限）を超えていないか。作業フォルダを 1 つ渡す形だけ見る
-fn check_budget(script: &str, args: &[&str], v: &serde_json::Value) {
-    let budget: serde_json::Value = serde_json::from_str(include_str!("../../program/tests/fixtures/delegates_budget.json")).unwrap();
-    let name = script.trim_end_matches(".py");
-    let Some(max) = budget["per"][name].as_u64() else { return };
-    // 環境で増える歩（root でない利用者・Windows でだけ任せる形。理由は envWhy）。per は手元で数えた数なので、その分を足して上限にする
-    let max = max + budget["envExtra"][name].as_u64().unwrap_or(0);
-    if args.len() != 1 || args[0].starts_with("--") {
-        return;
-    }
-    let n = delegate_count(v) as u64;
-    assert!(
-        n <= max,
-        "{script}: Python に任せる歩が {n}（予算 {max}）。新しく任せる歩を足すときは理由を書いて tests/fixtures/delegates_budget.json を上げる（数えるのは python tools/delegate-count.py）"
-    );
 }
 
 /// 2つの JSON の違い（最初の 1 か所の道筋）。数は値で比べる（1.0 と 1 は別・整数と小数の書き分けも見る）。
@@ -310,8 +251,7 @@ impl Live {
     fn start_with(flags: &[&str], script: &str, args: &[&str]) -> (Live, serde_json::Value) {
         use std::io::BufRead;
         let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-        // app を import する台本は凍らせた写しを相手にできる（py_program）。標準の部品だけの台本（-I）は program のまま（④ の後も残る）
-        let root = if flags.contains(&"-I") { program() } else { py_program() };
+        let root = program();
         let mut child = clean_command(&mut Command::new(&py))
             .args(flags)
             .arg(root.join("tests").join(script))

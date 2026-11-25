@@ -1,5 +1,5 @@
 {
- "_about": "起動の決め（版 3.111.0。desktop/src/boot.rs の window_ready・decide・failed_blocks）の事例の表。仕様（2026-11-stage2b.json の版の案 B と採点の指摘）から人が書いた。desktop/tests/boot_cases.rs が読む（Python には頼らない。独立の答えは表そのもの）。setup は本物の program の写しに当てる変え方（op: write・remove・app_id）、window は窓の準備の答え（ok か壊れの種類）、page・python は決めの材料、acts は行うこと（並べた順）、revert は人が決めた「戻す／戻さない」。clock は画面の様子を boot::page_of で決める時刻（秒。open は画面を開いてから・asked は /api/config を最初に尋ねてから・answered は最後に答えてから・beat は最初の心拍が来たか）。verify は画面の心拍が来る・来ないを本物の窓で確かめる desktop/bundle/verify.py の場面",
+ "_about": "起動の決め（版 3.111.0。desktop/src/boot.rs の window_ready・decide・failed_blocks）の事例の表。仕様（採点 2026-11-stage2b（記録は版 3.119.0 で片付けた） の版の案 B と採点の指摘）から人が書いた。desktop/tests/boot_cases.rs が読む（Python には頼らない。独立の答えは表そのもの）。setup は本物の program の写しに当てる変え方（op: write・remove・app_id）、window は窓の準備の答え（ok か壊れの種類）、page・python は決めの材料、acts は行うこと（並べた順）、revert は人が決めた「戻す／戻さない」。clock は画面の様子を boot::page_of で決める時刻（秒。open は画面を開いてから・asked は /api/config を最初に尋ねてから・answered は最後に答えてから・beat は最初の心拍が来たか）。verify は画面の心拍が来る・来ないを本物の窓で確かめる desktop/bundle/verify.py の場面",
  "beatLimitSec": 60,
  "cases": [
   {

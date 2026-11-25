@@ -832,9 +832,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/cards_oracle.py": "51034151f40547e7",
-  "tests/oracle_gate.py": "74d8effb19f3211d"
- },
+ "sources": {},
  "variant": "root"
 }

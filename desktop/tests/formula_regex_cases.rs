@@ -1,5 +1,5 @@
 //! 式の正規表現が読めるか（版 3.106.0。作った後の採点の割れ 4。版 3.113.0 から正しい答え want と比べる）: program/tests/fixtures/formula_regex_cases.json
-//! （tools/formula-regex-cases.py が Python の formula.js_regex と画面の JavaScript から焼いた形）を、窓の formula::js_regex が want と同じに
+//! （前の版の道具 formula-regex-cases が Python の formula.js_regex と画面の JavaScript から焼いた形）を、窓の formula::js_regex が want と同じに
 //! 「読める・読めない」と答えるか。want は「画面の JavaScript が読み、サーバーも計算できる」（js かつ ok）。変換表の道（conversions_write）は
 //! 式の正規表現の読めない理由を Python の re の言葉なしで答え、版 3.113.0 から後読みの式も Python に任せない（前の formula::regex_split）
 use da_core::formula::js_regex;

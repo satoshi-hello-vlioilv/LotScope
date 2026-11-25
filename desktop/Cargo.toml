@@ -1,12 +1,12 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.118.3"
+version = "3.119.0"
 description = "LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"
 publish = false
 
-# exe の名前は program/app/brand.json の exe と同じ（tests/test_brand.py が食い違いを止める）
+# exe の名前は program/app/brand.json の exe と同じ（program/tests/test_brand_names.py と src/brand.rs の試験が食い違いを止める）
 # 窓に依らない処理（一覧・写し・Python と同じ書き方）。試験（tests/）からも使う
 [lib]
 name = "da_core"

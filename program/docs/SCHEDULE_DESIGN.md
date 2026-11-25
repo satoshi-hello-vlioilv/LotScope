@@ -1,5 +1,9 @@
 # 設計: スケジュール（ScheduleView を移した。版 3.57.0）
 
+> 版 3.119.0（段 ⑤）で前の版の Python の部品（program/app の .py・試験・道具）を消した。この文書は済んだ版の設計の記録（歴史の節）。今の係は窓（desktop/src）で、確かめは焼いた表と事例の表（CLAUDE.md の評価関数の行）。
+
+<!-- history -->
+
 利用者の依頼（2026-10-26）: 「別リポジトリの ScheduleView の機能を、スケジュールというタブを新設して移植実装してください」。
 
 この文書は「何を移し、何を LotScope の仕組みに置き換えたか・なぜか・何で確かめたか」を残す。
@@ -101,3 +105,4 @@ file:///C:/…/db_cache/schedule/L-1-4cfbc7.g2.sqlite3?mode=ro」で読めない
 - 本物の CM3（`http://nlmfangyweb1a:9085`）には、この開発の環境からは届かない。答えの形は ScheduleView の仕様書（`CM3_API_spec.md`）と旧版の記録に合わせた。
 - 本物の仕掛台帳の HOT の列（実績_設備ｺｰｽ・残仕掛設備ｺｰｽ・設計_PIT炉番炉順）の名前は ScheduleView の既定のまま。違えば設定 `schedule.hot` で直す。
 - ScheduleView の「列の設定」で作った設定ファイル（`view_settings.json`）は、LotScope の表示列の形と違うため読み込めない（列は表示列で作り直す）。
+<!-- /history -->

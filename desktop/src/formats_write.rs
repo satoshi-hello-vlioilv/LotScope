@@ -1,4 +1,4 @@
-//! 共有の書式の道（版 3.80.0）。Python の routes/formats.py の 4 本を窓が受ける:
+//! 共有の書式の道（版 3.80.0）。Python の 前の版の formats の 4 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/formats        … 書式の一覧（?source= でその一覧の分だけ・名前の順）・この PC が書けるか・共有か・版
@@ -7,11 +7,11 @@
 //! DELETE /api/masters/formats/<id>   … 消す（?rev= は開いたときの行の版）
 //! ```
 //!
-//! 決まりは services/display_formats.py と同じ（評価関数: tests/formats_parity.rs ← program/tests/formats_oracle.py）。書けるのは
+//! 決まりは 前の版の display_formats と同じ（評価関数: tests/formats_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 formats））。書けるのは
 //! 現場のマスタと同じ（門番 access::guard。呼ぶ側が通す）。中身は送った順のまま json.dumps(separators=(',', ':')) の字で置く
 //! （送った順を保つ木 src/jsontree.rs）。名前は元ごとに 1 つ（名前の比べ方は access::py_key）。
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
+//! 窓が答えない（製品では 503）形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
 //! 本文の name・table・origin・note が並び・表（Python の str() の repr の字。小数と u64 の整数は版 3.105.0 から窓が答える）・中身を字で送り、その字を窓が Python と同じに読めない（text_split）・置き場の行の形が違う
 //! （中身の部品の形・字でない項目）・道の id が ASCII の数字でない。
 
@@ -56,7 +56,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -147,7 +147,7 @@ fn str_or_empty(v: Option<&Value>) -> String {
     }
 }
 
-/// 中身 → 置く字（display_formats.clean_body。送った順のまま・知らない部品と形の違う部品は外す）。Ok(None) は Python に任せる
+/// 中身 → 置く字（display_formats.clean_body。送った順のまま・知らない部品と形の違う部品は外す）。Ok(None) は 答えない（製品では 503）
 pub(crate) fn clean_body(body: Option<&Tree>) -> Result<Option<String>, String> {
     let parsed;
     let body = match body {
@@ -177,7 +177,7 @@ pub(crate) fn clean_body(body: Option<&Tree>) -> Result<Option<String>, String> 
     Ok(Some(text))
 }
 
-/// 画面から来た値 → マスタの行（display_formats.clean_row）。Ok(None) は Python に任せる
+/// 画面から来た値 → マスタの行（display_formats.clean_row）。Ok(None) は 答えない（製品では 503）
 fn clean_row(d: &Map<String, Value>, tree: &Tree, partial: bool) -> Result<Option<Map<String, Value>>, String> {
     let mut out = Map::new();
     if !partial || d.contains_key("name") {

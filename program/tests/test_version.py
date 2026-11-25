@@ -8,7 +8,10 @@ import unittest
 from datetime import date
 
 import app_build
-from app.version import APP_VERSION, CHANGELOG, RELEASE, version_key
+
+# 版 3.119.0（段 ⑤）: app を import しない（program/app の .py は version.py だけ。原文から読む）
+_V = app_build._version_module(app_build.BASE)
+APP_VERSION, CHANGELOG, RELEASE, version_key = _V["APP_VERSION"], _V["CHANGELOG"], _V["RELEASE"], _V["version_key"]
 
 
 class Changelog(unittest.TestCase):
@@ -42,7 +45,12 @@ class Release(unittest.TestCase):
         files = app_build.release_files()
         self.assertNotIn("app/version.py", files, "RELEASE を書くと要約が変わってしまう")
         self.assertIn("app/static/js/app.js", files)
-        self.assertIn("sidecar.py", files, "窓とのつなぎも配る物（入口の exe は desktop/ で作り、版は Desktop で比べる）")
+        # 版 3.119.0（段 ⑤）: sidecar.py は前の版（3.117.x まで）の窓が取り込みの確かめで見る 1 行の印（中身は無い）。配る物に入れ、要約にも数える
+        self.assertIn("sidecar.py", files, "前の版の窓が見る印も配る物")
+        mark = files["sidecar.py"].read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(mark), 1, "印は 1 行")
+        self.assertTrue(mark[0].startswith("#"), "印はコメントだけ（中身は無い）")
+        self.assertFalse(any(k.startswith("app/") and k.endswith(".py") for k in files), "app の .py は配らない（版の version.py は要約の外）")
         self.assertFalse(any(k.endswith(".vbs") for k in files), "入口は exe だけ（版 3.1.0）")
         self.assertFalse(any(k.startswith(("tests/", "docs/")) or k.endswith(".md") for k in files), "説明とテストは含めない")
 
@@ -72,18 +80,12 @@ class ChangelogJson(unittest.TestCase):
         path = app_build.BASE / app_build.CHANGELOG_JSON
         want = app_build.changelog_text(app_build._version_module(app_build.BASE))
         self.assertTrue(path.exists(), "app/changelog.json がありません。`python app_build.py --release`（--amend）で焼いてください")
-        self.assertNotIn(b"\r", path.read_bytes(), "改行が CRLF です（窓は字のまま返すので Python と 1 バイト違う）。.gitattributes の -text を確かめてください")
+        self.assertNotIn(b"\r", path.read_bytes(), "改行が CRLF です（窓は字のまま返すので前の版の答えと 1 バイト違う）。.gitattributes の -text を確かめてください")
         self.assertEqual(path.read_text(encoding="utf-8"), want,
                          "app/changelog.json が app/version.py の更新履歴と違います。`python app_build.py --release`（--amend）で焼き直してください")
 
-    def test_baked_changelog_is_the_same_bytes_as_python(self):
-        # 窓は焼いた字をそのまま返す。Python の答え（jsonify）と 1 バイトも違わないこと
-        from app import create_app
-        body = create_app({"TESTING": True}).test_client().get("/api/changelog").get_data()
-        self.assertEqual(body, (app_build.BASE / app_build.CHANGELOG_JSON).read_bytes())
-
     def test_baked_changelog_is_tracked_by_git(self):
-        # 配る ZIP（desktop/bundle の program_files）は git が知るファイルだけを入れる。commit し忘れると窓は Python に任せたまま
+        # 配る ZIP（desktop/bundle の program_files）は git が知るファイルだけを入れる。commit し忘れると窓は更新履歴を答えられない
         import shutil
         import subprocess
         if not shutil.which("git"):

@@ -1,4 +1,4 @@
-//! 権限のマスタを書く道（版 3.68.0。順 5 の 2 段目 b）。Python の `routes/access.py` の 4 本を窓が受ける:
+//! 権限のマスタを書く道（版 3.68.0。順 5 の 2 段目 b）。Python の `前の版の access` の 4 本を窓が受ける:
 //!
 //! ```text
 //! POST   /api/masters/access          … 権限の行を足す（201・足した行）
@@ -7,7 +7,7 @@
 //! PUT    /api/masters/tabaccess       … タブの権限を置く（{ok, revision}。本文 base_rev は開いたときのマスタの版）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/access_write_parity.rs ← program/tests/access_write_oracle.py。同じ問い合わせの並びを
+//! 決まりは Python と同じ（評価関数: tests/access_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 access_write）。同じ問い合わせの並びを
 //! Python の道と窓に当て、答え・断る言葉・できたファイルを突き合わせる）:
 //! - 本文の読み方（routes/access._perm_payload）・権限の門（_perm_gate: 区分の上限・区分を変えてよいか）・消してよいか（delete_check）
 //! - 行の書き方（repositories/master_repository の _create・_update・_delete・tab_access_put: 版の無い行は 1・ログインID と PC名 の組は 1 行・行の版）
@@ -17,10 +17,10 @@
 //!
 //! Python と違う所（どれも画面が送る形〈application/json・数の base_rev・字の項目〉では起きない。作った後の採点で確かめた）:
 //! - 本文の Content-Type を見ない（Python は application/json でなければ {} と読む。画面はいつも application/json）
-//! - 窓が読めない本文（NaN・Infinity・1e400・片割れの代用字など）は、窓は答えず Python に任せる（needs_python。{} と読んで空の行を作らない）
+//! - 窓が読めない本文（NaN・Infinity・1e400・片割れの代用字など）は、窓は答えない（製品では 503）（needs_python。{} と読んで空の行を作らない）
 //! - 足す道の本文が並び・字・数のとき・rules の値が数のとき、Python は例外で 500、窓は 400（error）。言葉は型によらず同じ
 //!   （直す・消す道の本文が表でないときは、Python と同じく 500 で書かない）
-//! - 版の番号に窓の表に無い系統の数字（数学の太字の数字・クメールなど）があれば、窓は答えず Python に任せる
+//! - 版の番号に窓の表に無い系統の数字（数学の太字の数字・クメールなど）があれば、窓は答えない（製品では 503）
 //! - u64 を超える整数の項目は小数の字になる（Python は桁のまま）。行の rev が null の壊れた表は 1 と読む（Python は 400）
 //! - Python の出さないタブの覚え（_TAB_CACHE・2 秒）は窓が書いても捨てない（窓が me を載せる間は使われない）
 
@@ -48,7 +48,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), p) => {
             let id = p.strip_prefix("/api/masters/access/")?;
             // Python の <int:item_id>（数字だけ）
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -376,7 +376,7 @@ fn ordered_rules(body: &[u8]) -> Option<Ordered> {
 }
 
 /// 窓では読めない本文か（空でない本文を serde_json が読めない: NaN・Infinity・1e400・片割れの代用字など）。そのときは窓は答えず
-/// Python に任せる（Python は読める物は読み、読めない物は {} と読む。窓が {} と読むと、だれにでも当たる行を作ってしまう）
+/// 答えない（製品では 503）（Python は読める物は読み、読めない物は {} と読む。窓が {} と読むと、だれにでも当たる行を作ってしまう）
 /// GET /api/masters/tabaccess（版 3.101.0。Python の tabaccess_get）: 区分ごとの決まり・タブの並び（決まった画面 → データ元の並び）・
 /// 人ごとの例外の数（効く行だけ）・書けるか・版・共有か。tabs はタブの権限の行、sources はいま効いているデータ元の並び（GET /api/sources と同じ）。
 /// 行の形が違う（Python が落ちる）なら None
@@ -406,7 +406,7 @@ pub fn needs_python(body: &[u8]) -> bool {
 }
 
 /// 窓が受ける 4 本を答える。me は窓が決めた me（門番は呼ぶ側が通した）。rows は me の権限の行
-/// 窓が答えない（Python に任せる）なら None: 版の番号に窓の表に無い系統の数字がある
+/// 窓が答えない（答えない（製品では 503））なら None: 版の番号に窓の表に無い系統の数字がある
 /// tabs はタブの権限の置き場の行（タブの権限を書く道の確かめに使う）
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], tabs: &[Value]) -> Option<Answer> {
     // 置き場の行の id・版・型が読めない行は、版 3.107.0 から書く道を断る（row_check::refuse_strict。master_rows::prepare が書く前に）。

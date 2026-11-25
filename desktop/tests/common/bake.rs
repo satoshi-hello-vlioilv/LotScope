@@ -1,18 +1,15 @@
 //! 窓が自分の答えを焼く係（bless。版 3.115.0。Rust 化の段 ③ の 4 つ目・案 G の 1 版目）。
 //!
-//! 段 ④ で Python（program/app）を外すと、突き合わせの試験は答えの元（program/tests/*_oracle.py）を失う。そこで窓の答えを
+//! 段 ④ で Python（program/app）を外すと、突き合わせの試験は答えの元（前の版の答え合わせ役）を失う。そこで窓の答えを
 //! 焼いた表（desktop/tests/baked/<本>.json）に持ち、試験は毎回その表と比べる。
 //!
-//! 流し方（環境変数）:
-//! - 何も付けない（Linux）: 今までどおり答え合わせ役（Python）と比べ、そのうえ焼いた表とも比べる（3 回目の比べ）。表が古ければ落ちる。
-//!   Windows は表を posix の答えとして持つので比べない（nt の上書きは 2 版目。Windows の CI は ④ まで Windows の Python と比べ続ける）
-//! - TPA_NO_PYTHON=1: Python を呼ばない（段 ④ の後の形）。場面のフォルダは表の宣言（scene）から作り、焼いた答えとだけ比べる
-//! - TPA_BLESS=1: 焼く。答え合わせ役と比べて、試験の食い違いが 0 で、そろえた後の窓の答え＝そろえた後の Python の答えのときだけ書く
-//! - TPA_BLESS=道の型,…（TPA_NO_PYTHON=1 と一緒に。④ の後）: 範囲を宣言して焼き直す。範囲の外の答えが変わったら書かずに止める
-//! - TPA_BAKE_OUT=フォルダ: 表を desktop/tests/baked でなくそこへ書く（tools/bless.py が 2 回目を流して 1 回目と比べるため）
-//! - TPA_MEASURE=フォルダ（表と比べない PC＝Windows）: 測るだけ。表と違う歩を落とさずに数えて <フォルダ>/<表>.json に書く。
-//!   何も付けなければ Python と比べる形（form: python）、TPA_NO_PYTHON=1 と一緒なら表の宣言から場面を作る形（form: table。段 ④ の後の形。
-//!   版 3.117.0。試験そのものは表の答えと比べて落ちるので、CI の段は落ちても続ける）の数
+//! 流し方（環境変数。版 3.119.0〈段 ⑤〉で答え合わせ役を消し、表だけの形がいつもの形になった）:
+//! - 何も付けない（TPA_NO_PYTHON=1 も同じ）: Python（program/app）を呼ばない。場面のフォルダは表の宣言（scene）から作り、焼いた答えとだけ比べる
+//! - TPA_BLESS=道の型,…: 範囲を宣言して焼き直す。範囲の外の答えが変わったら書かずに止める
+//! - TPA_BAKE_OUT=フォルダ: 表を desktop/tests/baked でなくそこへ書く
+//! - TPA_MEASURE=フォルダ（表と比べない PC＝Windows の札 measure の本）: 測るだけ。表と違う歩を落とさずに数えて <フォルダ>/<表>.json に書く
+//!   （形は table。試験そのものは表の答えと比べて落ちるので、CI の段は落ちても続ける）
+//! - Python と比べる形（Mode::Python）と Python と同じときだけ焼く形（Mode::Bless）は、焼く係そのものの試験（bake_selftest の Bake::with）だけが使う
 //!
 //! そろえる決まり（tests/baked/settle.json）は「鍵の名前の表＋字の形」で、揺れなくても常に当てる。焼いた表と比べるときは、窓の答えも
 //! 同じ決まりでそろえてから比べる。独立の答え（tools/*-truth.py）と人が書いた事例の表（tests/fixtures/*_cases.json）は bless が書き換えない
@@ -1118,7 +1115,7 @@ pub fn snapshot_with(base: &Path, ctx: &Ctx, exclude: &[&str], made: &[String]) 
     json!({"files": files, "dirs": dirs, "links": links, "blobs": blobs})
 }
 
-/// 何を尋ねられても 404 を答える作り物のサーバー（組む所の CM3。答え合わせ役 builder_oracle.py の _Cm3 と同じ）→ URL
+/// 何を尋ねられても 404 を答える作り物のサーバー（組む所の CM3。前の版の答え合わせ役 builder の _Cm3 と同じ）→ URL
 pub fn serve_404() -> String {
     use std::io::{Read, Write};
     let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1511,30 +1508,6 @@ pub struct Bake {
     bad: Vec<String>,
 }
 
-/// 段 ④ の配布の間だけ凍らせた最後の Python を相手にする試験（競い合い・受け身・前の版の読み手）か。TPA_NO_PYTHON=1（④ の後の形）では
-/// 流さない（配布が終わった版で試験ごと消す。決めは tools/ui-proposals/2026-11-stage3d.json の frozen_python）
-/// 流さなかった試験は target/tmp/frozen-skipped.txt に 1 行ずつ書く（版 3.115.0 の作った後の直し: 前は中身を流さずに ok と出るだけだった。
-/// tools/bless.py --no-python が流す前に消し、流した後に「流さなかった試験 n 本」を test result の数と別に出す）
-pub fn frozen_python(why: &str) -> bool {
-    // 凍らせた写し（TPA_FROZEN_PY=1。program/tests/legacy/<版>。版 3.117.3）を相手にするなら、Python 無しの形でも流す
-    if env_on("TPA_NO_PYTHON") && super::frozen_py() {
-        eprintln!("凍らせた Python の写し（program/tests/legacy/{}）を相手に流します: {why}", super::FROZEN_VERSION);
-        return true;
-    }
-    if env_on("TPA_NO_PYTHON") {
-        eprintln!("凍らせた Python を相手にする試験なので流しません（TPA_NO_PYTHON）: {why}");
-        use std::io::Write;
-        let p = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("frozen-skipped.txt");
-        // 1 行を 1 回の write で書く（版 3.117.0 の作った後の直し: writeln! は名前と改行を別の write にし、糸の間で混ざって
-        // 名前が 2 つつながり、bless.py --no-python が 6 本を 5 本と数えた。O_APPEND の小さな 1 回の書き込みは混ざらない）
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
-            let _ = f.write_all(format!("{why}\n").as_bytes());
-        }
-        return false;
-    }
-    true
-}
-
 /// 独立の答え（tools/*-truth.py。app を import しない標準の Python の台本）を流す Python。TPA_NO_PYTHON は「program/app を使わない」形で、
 /// 標準の Python は独立の答えにだけ要る（段 ④ の後も残す）。起こせなければ分かる言葉で落とす
 pub fn stdlib_python() -> String {
@@ -1572,14 +1545,11 @@ impl Bake {
             // SAFETY: 焼く係を開くのは試験の最初（窓・答え合わせ役を起こす前）。同じ試験の実行ファイルのほかの試験も同じ値にするだけ
             unsafe { std::env::set_var("TZ", "UTC") };
         }
+        // 版 3.119.0（段 ⑤）: 答え合わせ役（Python の道）を消したので、いつも表だけの形（TPA_NO_PYTHON の有る無しによらない）。
+        // TPA_BLESS=道の型,… なら範囲を宣言して焼き直す（範囲の外が変わったら書かない）。Python と比べる形・Python と同じときだけ焼く形は
+        // 試験の変異（Bake::with）だけが使う
         let bless = std::env::var("TPA_BLESS").unwrap_or_default();
-        let no_py = env_on("TPA_NO_PYTHON");
-        let mode = match (bless.as_str(), no_py) {
-            ("" | "0", false) => Mode::Python,
-            ("" | "0", true) => Mode::Baked,
-            (_, false) => Mode::Bless,
-            (_, true) => Mode::BlessScope,
-        };
+        let mode = if matches!(bless.as_str(), "" | "0") { Mode::Baked } else { Mode::BlessScope };
         let scope = if mode == Mode::BlessScope { bless.split(',').map(|s| s.trim().to_string()).collect() } else { vec![] };
         let path = baked_dir().join(format!("{file}.json"));
         let table = std::fs::read(&path)
@@ -1682,6 +1652,18 @@ impl Bake {
             Value::Array(a) => Value::Array(a.iter().map(|x| self.strip_answers(x)).collect()),
             _ => v.clone(),
         }
+    }
+
+    /// 焼いた表の問い合わせと場面（版 3.119.0。答え合わせ役を消したので、突き合わせの試験はいつもこれ: 表の宣言から場面のフォルダを作る）
+    pub fn table_oracle(&mut self) -> Value {
+        assert!(!self.python(), "答え合わせ役（Python の道）は版 3.119.0 で消した。表だけの形で流す");
+        self.rebuild_from_table()
+    }
+
+    /// 起こしたままの相手（作り物の台本 fakes。app を import しない）を起こし、焼いた表の問い合わせと場面を作る（版 3.119.0）
+    pub fn live_table(&mut self) -> (Option<super::Live>, Value) {
+        assert!(!self.python(), "答え合わせ役（Python の道）は版 3.119.0 で消した。表だけの形で流す");
+        self.live("", &[])
     }
 
     /// 答え合わせ役の答え（Python）か、焼いた表から作り直した物（場面のフォルダも作る）

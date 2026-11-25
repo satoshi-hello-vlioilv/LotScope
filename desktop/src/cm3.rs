@@ -1,9 +1,9 @@
-//! CM3 の答えを整える（版 3.96.0。Python の services/cm3_schedule.py の _decode_body・fix_text・行の区分・_stop_text・normalize・
+//! CM3 の答えを整える（版 3.96.0。Python の 前の版の cm3_schedule の _decode_body・fix_text・行の区分・_stop_text・normalize・
 //! table_rows を写した）。字の決まり（CP932・Shift_JIS・CP1252・HTML の文字参照・charset の名前）は Python から焼いた表
 //! （src/cm3_tables.json。program/tools/cm3-tables.py が焼き、tests/test_cm3_tables.py が古い表を止める）で読む。
 //!
-//! 答えは Python と同じ。Python が落ちる形（例外で 500）と、窓が同じに整えられない形（窓の持たない codec の charset・NaN の数・
-//! 読みの割れる JSON・印字できない字の repr など）は Fail::Python で「Python に任せる」（src/schedule.rs が係を降りる）。
+//! 答えは前の版の Python と同じ。Python が落ちた形（例外で 500）と、窓が同じに整えられない形（窓の持たない codec の charset・NaN の数・
+//! 読みの割れる JSON・印字できない字の repr など）は Fail::Unreadable（windowed が窓の言葉の失敗にする）。
 
 use crate::jsontree::Tree;
 use serde_json::{json, Map, Value};
@@ -15,18 +15,18 @@ use std::sync::OnceLock;
 pub enum Fail {
     /// Python の Cm3Error（利用者に見せる言葉）
     Cm3(String),
-    /// 窓は Python と同じに答えられない（Python が落ちる・窓の持たない決まり）。理由は記録のため
-    Python(&'static str),
+    /// 窓が読めない形（前の版の Python が落ちた・窓の持たない決まり）。理由は利用者の言葉
+    Unreadable(&'static str),
 }
 
 pub type R<T> = Result<T, Fail>;
 
 impl Fail {
-    /// 利用者に見せる字（Cm3 はその言葉・Python は記録の理由）
+    /// 利用者に見せる字（Cm3 はその言葉・Unreadable は理由）
     pub fn text(&self) -> String {
         match self {
             Fail::Cm3(m) => m.clone(),
-            Fail::Python(why) => why.to_string(),
+            Fail::Unreadable(why) => why.to_string(),
         }
     }
 }
@@ -67,12 +67,12 @@ impl Unread {
     }
 }
 
-/// 段 ④（版 3.118.0）: 窓が同じに答えられない形（Fail::Python。理由は利用者の言葉: cm3.rs・cm3_http.rs の py の字）を、窓の言葉の失敗
-/// （Cm3: 「頭（理由）」）にする 1 か所。スケジュールの係（schedule.rs）は答えを返す前にここを通し、係を降りない（中身〈Python〉は起こさないので
-/// 任せる先が無い）。断った回数は利用状況の unanswered に「unanswered schedule <種類>」で数える（段 ⑤ の前に「現場で 0 か」を見る）。型は段 ⑤ まで残す
+/// 段 ④（版 3.118.0）: 窓が同じに答えられない形（Fail::Unreadable。理由は利用者の言葉: cm3.rs・cm3_http.rs の py の字）を、窓の言葉の失敗
+/// （Cm3: 「頭（理由）」）にする 1 か所。スケジュールの係（schedule.rs）は答えを返す前にここを通し、係を降りない。断った回数は利用状況の
+/// unanswered に「unanswered schedule <種類>」で数える（503 → 404 を決める材料。利用者の決めの既定 (2)）
 pub fn windowed(f: Fail, kind: Unread) -> Fail {
     match f {
-        Fail::Python(why) => {
+        Fail::Unreadable(why) => {
             crate::delegate::note(&format!("unanswered schedule {}", kind.name()));
             Fail::Cm3(format!("{}（{why}）", kind.head()))
         }
@@ -82,7 +82,7 @@ pub fn windowed(f: Fail, kind: Unread) -> Fail {
 
 /// 窓が同じに答えられない形（理由は利用者の言葉。cm3_net_cases.json の unread）
 fn py<T>(why: &'static str) -> R<T> {
-    Err(Fail::Python(why))
+    Err(Fail::Unreadable(why))
 }
 
 // ------------------------------------------------------------------ 焼いた表
@@ -239,7 +239,7 @@ pub fn decode_body(raw: &[u8], content_type: Option<&str>) -> R<String> {
 }
 
 // ------------------------------------------------------------------ Python の値の字
-/// Python の str(値)（JSON から読んだ値）。印字できるか分からない字を含む並び・表の repr は Python に任せる
+/// Python の str(値)（JSON から読んだ値）。印字できるか分からない字を含む並び・表の repr は 答えない（製品では 503）
 pub fn py_str(v: &Tree) -> R<String> {
     match v {
         Tree::Str(s) => Ok(s.clone()),

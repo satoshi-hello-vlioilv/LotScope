@@ -1,5 +1,5 @@
 //! 本文の読み方が事例の表と同じか（版 3.104.0）。program/tests/fixtures/body_cases.json（仕様から人が書いた答え。Python は
-//! tests/test_body_cases.py で同じ表を読む）を、窓の src/body.rs の read が門の引数ごと（read・need・lotdsp）に同じに読むかを突き合わせる。
+//! 前の版の試験 test_body_cases で同じ表を読む）を、窓の src/body.rs の read が門の引数ごと（read・need・lotdsp）に同じに読むかを突き合わせる。
 //! 読んだ値は json.dumps(ensure_ascii=False) の字（pyjson::J::dumps）で比べる。
 
 use da_core::body::{mode_of, read, unquote, GATE_NEED, GATE_READ, LOTDSP};
@@ -34,7 +34,7 @@ fn bodies_read_like_the_table() {
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// 道ごとの門と、百分率符号を戻した道（版 3.104.0 の作った後の採点: <path:…> の 2 字目から先の改行・「%+1」）。Python は test_body_cases.py
+/// 道ごとの門と、百分率符号を戻した道（版 3.104.0 の作った後の採点: <path:…> の 2 字目から先の改行・「%+1」）。Python は 前の版の試験 test_body_cases
 #[test]
 fn routes_and_unquote_like_the_table() {
     let t: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/body_cases.json")).unwrap();
@@ -57,7 +57,7 @@ fn routes_and_unquote_like_the_table() {
 }
 
 /// 本文の欄の型と中身の欄の門（版 3.106.0。D2・A2）: program/tests/fixtures/body_type_cases.json（仕様から人が書いた答え）を窓の門
-/// （body::gate。表は Python の body_rules.TYPES を焼いた src/body_routes.json）が同じに答えるか。Python は tests/test_body_types.py。
+/// （body::gate。表は Python の body_rules.TYPES を焼いた src/body_routes.json）が同じに答えるか。Python は 前の版の試験 test_body_types。
 /// passed は窓が部品へ渡す本文の欄（中身の字の整数の -0 を 0 に書き直した字）
 #[test]
 fn types_like_the_table() {

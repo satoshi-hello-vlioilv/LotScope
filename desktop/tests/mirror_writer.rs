@@ -1,4 +1,4 @@
-//! 写しの係（src/mirror.rs）が、共有の書き手（DataRelay）と干渉しないか。Python の program/tests/test_mirror_writer.py と同じ筋書き。
+//! 写しの係（src/mirror.rs）が、共有の書き手（DataRelay）と干渉しないか。Python の 前の版の試験 test_mirror_writer と同じ筋書き。
 //! DataRelay の公開: 隠しファイル .<名前>.<番号>.incoming を書き切り、置き換え（Windows の MoveFileEx・os.replace と同じ）で
 //! 丸ごと入れ替える。ほかが開いていると「使用中」で拒まれ、20 秒粘ってだめなら .pending_ に保留する。
 //! Windows の本物の規則は CI（desktop.yml の cargo test）で確かめる。

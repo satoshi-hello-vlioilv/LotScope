@@ -1,4 +1,4 @@
-//! 設備グループの道（版 3.94.0）。Python の `routes/equipgroups.py` のマスタ管理の 4 本を窓が受ける:
+//! 設備グループの道（版 3.94.0）。Python の `前の版の equipgroups` のマスタ管理の 4 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/equipgroups          … 一覧（表示順・まとめ方ごとの組・選べる設備〈実際に出てくる設備と、どこで見たか・件数〉・
@@ -8,13 +8,13 @@
 //! DELETE /api/masters/equipgroups/<id>     … 消す（?rev= は開いたときの行の版）
 //! ```
 //!
-//! 決まりは services/equip_groups.py と master_repository の equip_group_* と同じ（評価関数: tests/equipgroups_write_parity.rs ←
-//! program/tests/equipgroups_oracle.py）。行の書き方は共通の型（src/master_rows.rs）、一覧の形は束と同じ bundle::group_views、
+//! 決まりは 前の版の equip_groups と master_repository の equip_group_* と同じ（評価関数: tests/equipgroups_write_parity.rs ←
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 equipgroups））。行の書き方は共通の型（src/master_rows.rs）、一覧の形は束と同じ bundle::group_views、
 //! 当てはまる設備は dashboard::members_in、選べる設備は dashboard::equipment_seen（設備の木〈/api/dashboard/equip-tree〉と同じ 1 か所。
 //! データ元の設備はダッシュボードの数え方で数える）。字は Python の `str(v or "")`（0・false は空）、比べ方は normalize_part
 //! （NFKC・前後の空白を除く・大文字）。ルールの字は json.dumps の既定の区切り（", "・": "）で書く。
 //!
-//! 窓が答えず Python に任せる形: 空・読めない本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文のうち Python が
+//! 窓が答えない（製品では 503）形: 空・読めない本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文のうち Python が
 //! 道の外で落ちる物（直す・消す。500）・値が並び・表（Python の repr）・i64 に入らない数・正規表現のルール（re の言葉と重さの決まりは
 //! Python。置き場の行にあっても任せる）・op が並び・表（unhashable）・表示順が i64 に入らない・置き場の行を窓が同じに読めない
 //! （id・版・値の形・ルールの JSON の字・まとめ方が字でない）・置き場のファイルを窓が同じに読めない・選べる設備を窓が数えられない
@@ -59,7 +59,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
 
 type Answer = (u16, Value);
 
-/// 確かめで止まる理由: Python に任せる（Delegate）か、設備グループの誤り（GroupError の言葉）
+/// 確かめで止まる理由: 答えない（製品では 503）（Delegate）か、設備グループの誤り（GroupError の言葉）
 enum Bad {
     Delegate,
     Group(String),
@@ -358,7 +358,7 @@ pub fn handle(
     };
     // 選べる設備を数える（Some(Some)）。書く係が断ると読んだ行から分かる歩（無い行・版の食い違い・名前の重なり）は、Python も一覧を組まずに
     // 断る（選べる設備を数えない）ので、数えずに書く係へ渡す（Some(None)。版 3.94.0: スケジュールの元があって数えられない PC でも、無い行を
-    // 直す・消すは Python と同じ 404 を窓が答える）。書けると見込む歩で数えられなければ None（書かずに Python に任せる）
+    // 直す・消すは Python と同じ 404 を窓が答える）。書けると見込む歩で数えられなければ None（書かずに答えない（製品では 503））
     let count = |refused: bool| -> Option<Option<Vec<Value>>> {
         if refused {
             Some(None)

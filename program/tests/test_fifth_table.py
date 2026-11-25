@@ -1,90 +1,116 @@
-"""計画書の段 ⑤ の入口の表（program/docs/RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」）の数える命令（版 3.118.3 の作った後の採点の割れ 1）。
+"""段 ⑤（版 3.119.0。不要になったファイルの片付け）の門: 消した物の名を名指す所が 0（採点 tools/ui-proposals/2026-11-stage5.json の first_fixes 9）。
 
-- 命令は git が追跡しているファイルだけを数える（`find`・`du`・`ls` を使わない。試験を流した PC で増える __pycache__ を数えない）
-- 追跡していないファイル（program/app の __pycache__ の .pyc）を置いても、命令の答えは変わらない
-- 表を書いた版（3.118.3）の間は、表の数と命令の答えが同じ（版が上がったら ⑤ の版を作る係が流し直す。文書の数〈CLAUDE.md の行・採点の記録〉は除く）
+消したファイルの名の全部（tests/fixtures/fifth_removed.json の 544。版 3.119.0 の作った後の直し 3: 前は 11 の字だけを見て、消した道具・試験の名を
+今の案内として名指す所が残った）と、消した口の名（TPA_FROZEN_PY・frozen_python・locate::python・Fail::Py・delegates_budget・delegate-count・
+tests/legacy）を、git が追跡しているファイルの中から探し、名指す所が 0 であることを見る。ファイルの名は前後が字・数字・_・-・. でない所だけで
+当たる（fakes_schedule.py は schedule.py に当たらない）。
+例外は歴史の節だけ:
+- 文書（*.md）の印 `<!-- history -->` 〜 `<!-- /history -->` の中（計画書・設計書の済んだ版の記録）
+- 更新履歴（program/app/version.py の CHANGELOG・焼いた program/app/changelog.json）
+- 採点の記録（program/tools/ui-proposals。残した記録は済んだ版の決めの記録）
+- 焼いた表（desktop/tests/baked の books.json 以外。答えは凍った答えで、字を替えると焼き直しが要る）
+- この門の試験と名の表そのもの
+名を 1 つ戻すと落ちる（test_a_name_put_back_is_found）。app を import しない（標準の部品だけ）
 """
 
+import json
 import re
 import subprocess
 import unittest
-import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAN = ROOT / "program" / "docs" / "RUST_PORT_PLAN.md"
-TABLE_VERSION = "3.118.3"
-
-
-def table_pairs():
-    """表の行の「`命令` → 数」の組（表の中の \\| は | に戻す）"""
-    text = PLAN.read_text(encoding="utf-8")
-    a = text.index("2. **⑤ 不要になったファイルの片付け**")
-    b = text.index("   - **⑤ の入口に足す**", a)
-    rows = [line for line in text[a:b].splitlines() if line.startswith("   | ") and "` → " in line]
-    pairs = []
-    for line in rows:
-        for cmd, want in re.findall(r"`([^`]+)` → ([^・|\s]+)", line):
-            pairs.append((cmd.replace("\\|", "|"), want))
-    return pairs
+TABLE = ROOT / "program" / "tests" / "fixtures" / "fifth_removed.json"
+REMOVED = json.loads(TABLE.read_text(encoding="utf-8"))
+WORDS = ("ui_server", "_oracle.py", "tests/legacy", "TPA_FROZEN_PY", "frozen_python", "delegates_budget", "delegate-count", "locate::python", "Fail::Py")
+NAMES = tuple(REMOVED["names"]) + WORDS
+FILE_RE = re.compile(r"(?<![\w.-])(" + "|".join(map(re.escape, sorted(REMOVED["names"], key=len, reverse=True))) + r")(?![\w-])")
+SELF = "program/tests/test_fifth_table.py"
+HISTORY = re.compile(r"<!-- history -->.*?<!-- /history -->", re.S)
+EXEMPT = (SELF, "program/tests/fixtures/fifth_removed.json", "program/app/version.py", "program/app/changelog.json")
+EXEMPT_DIRS = ("program/tools/ui-proposals/",)
 
 
 def run(cmd):
-    return subprocess.run(["bash", "-c", cmd], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False)
 
 
 def has_git():
-    try:
-        return run("git rev-parse --is-inside-work-tree") == "true"
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+    r = run(["git", "rev-parse", "--is-inside-work-tree"])
+    return r.returncode == 0 and r.stdout.strip() == "true"
+
+
+def found_in(path: str, text: str) -> list[str]:
+    """1 つのファイルの中で名指す所（「道:行: 名」）。歴史の節は伏せる"""
+    if path in EXEMPT or path.startswith(EXEMPT_DIRS) or (path.startswith("desktop/tests/baked/") and path != "desktop/tests/baked/books.json"):
+        return []
+    if path.endswith(".md"):
+        text = HISTORY.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    out = []
+    for i, line in enumerate(text.splitlines(), 1):
+        out += [f"{path}:{i}: {m.group(1)}" for m in FILE_RE.finditer(line)]
+        out += [f"{path}:{i}: {n}" for n in WORDS if n in line]
+    return out
+
+
+def tracked_hits() -> list[str]:
+    """追跡しているファイルのうち、名を含む物（git grep -l -F）の中の名指す所"""
+    args = ["git", "grep", "-l", "-I", "-F"]
+    for n in NAMES:
+        args += ["-e", n]
+    r = run(args)
+    assert r.returncode in (0, 1), r.stderr
+    out = []
+    for path in r.stdout.splitlines():
+        try:
+            text = (ROOT / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        out += found_in(path, text)
+    return out
 
 
 @unittest.skipUnless(has_git(), "git の作業フォルダでない")
-class FifthTable(unittest.TestCase):
-    def test_commands_count_only_tracked_files(self):
-        pairs = table_pairs()
-        self.assertGreaterEqual(len(pairs), 20, pairs)
-        for cmd, _ in pairs:
-            with self.subTest(cmd=cmd):
-                self.assertIsNone(re.search(r"(^|[\s|;(])(find|du|ls)\s", cmd), "追跡していないファイルまで数える命令")
-                if re.search(r"program/(app|tests/legacy|tools/ui-proposals)(\s|'|$)", cmd):  # フォルダそのものを数える命令
-                    self.assertRegex(cmd, r"git (ls-files|grep)", "フォルダは git が追跡している物だけを数える")
+class FifthGate(unittest.TestCase):
+    def test_nothing_names_what_was_removed(self):
+        hits = tracked_hits()
+        self.assertEqual(hits, [], "消した物の名を名指す所があります（歴史の節〈<!-- history -->〉の外）:\n" + "\n".join(hits[:40]))
 
-    def test_untracked_files_do_not_change_the_answers(self):
-        cache = ROOT / "program" / "app" / "__pycache__"
-        made = not cache.exists()
-        cache.mkdir(exist_ok=True)
-        probe = cache / f"_fifth_probe_{uuid.uuid4().hex}.pyc"
-        legacy = ROOT / "program" / "tests" / "legacy" / "__pycache__"
-        made_l = not legacy.exists()
-        legacy.mkdir(exist_ok=True)
-        probe_l = legacy / f"_fifth_probe_{uuid.uuid4().hex}.pyc"
-        try:
-            before = {c: run(c) for c, _ in table_pairs() if "program/app" in c or "legacy" in c}
-            probe.write_bytes(b"x" * 100)
-            probe_l.write_bytes(b"x" * 100)
-            after = {c: run(c) for c in before}
-            self.assertEqual(before, after)
-        finally:
-            probe.unlink(missing_ok=True)
-            probe_l.unlink(missing_ok=True)
-            if made:
-                cache.rmdir()
-            if made_l:
-                legacy.rmdir()
+    def test_the_table_is_every_removed_file_name(self):
+        """名の表は、消した 2 つの commit の消したファイルの名から今も追跡している名を除いた物（取り出しが浅く commit が無ければ形だけ見る）"""
+        names = REMOVED["names"]
+        self.assertEqual(names, sorted(set(names)))
+        self.assertGreaterEqual(len(names), 540)
+        live = {Path(f).name for f in run(["git", "ls-files"]).stdout.splitlines()}
+        self.assertEqual(sorted(set(names) & live), [], "今も追跡している名を表に入れない")
+        r = run(["git", "diff", "--name-only", "--diff-filter=D", REMOVED["base"], REMOVED["removed"]])
+        if r.returncode != 0:
+            self.skipTest("消した commit が取り出しに無い（浅い取り出し）")
+        want = sorted({Path(f).name for f in r.stdout.splitlines()} - live)
+        self.assertEqual(names, want)
 
-    def test_numbers_are_the_answers_while_the_version_is_the_table_version(self):
-        # 版は字で読む（app を import しない: この試験が表の「app を import する試験」の数を変えない）
-        version = re.search(r'^APP_VERSION = "([^"]+)"', (ROOT / "program/app/version.py").read_text(encoding="utf-8"), re.M).group(1)
-        if version != TABLE_VERSION:
-            self.skipTest(f"表は版 {TABLE_VERSION} の数（今は {version}。⑤ の版を作る係が流し直す）")
-        for cmd, want in table_pairs():
-            # 文書の数（CLAUDE.md の行・採点の記録の数）は版を上げずに文書だけ直しても変わるので、突き合わせない（表の数は版の commit の上の数）
-            if "CLAUDE.md" in cmd or "ui-proposals" in cmd:
-                continue
-            with self.subTest(cmd=cmd):
-                self.assertEqual(run(cmd), want)
+    def test_a_name_put_back_is_found(self):
+        """変異: 名を 1 つ戻すと落ちる（歴史の節の中なら落ちない・節を閉じた後なら落ちる）。ファイルの名は前後の字で区切る"""
+        self.assertEqual(found_in("desktop/src/x.rs", "// tests/fakes_schedule.py と schedule_fixture.py\n"), [], "長い名の一部には当たらない")
+        self.assertEqual(len(found_in("desktop/src/x.rs", "// 前は app/routes/schedule.py が答えた\n")), 1)
+        for n in ["web.py", "bundle-tables.py", "test_formula_parity.py", "2026-10-shortcut.mjs", *WORDS]:
+            with self.subTest(n):
+                self.assertEqual(len(found_in("desktop/src/x.rs", f"// 前の {n} の代わり\n")), 1)
+                self.assertEqual(found_in("program/docs/x.md", f"<!-- history -->\n{n}\n<!-- /history -->\n"), [])
+                self.assertEqual(len(found_in("program/docs/x.md", f"<!-- history -->\na\n<!-- /history -->\n{n}\n")), 1)
+                self.assertEqual(found_in("program/tools/ui-proposals/x.json", n), [])
+
+    def test_removed_files_are_gone(self):
+        """消した物そのものが追跡されていない（印の program/sidecar.py は 1 行で残す）"""
+        files = set(run(["git", "ls-files"]).stdout.splitlines())
+        gone = ["desktop/src/sidecar.rs", "desktop/src/frame.rs", "program/tools/ui_server.py", "program/tools/delegate-count.py",
+                "program/tools/freeze-legacy.py", "program/tests/fixtures/delegates_budget.json", "program/app/web.py", "program/app/app_icon.py"]
+        self.assertEqual([f for f in gone if f in files], [])
+        self.assertEqual([f for f in files if f.startswith("program/tests/legacy/") or f.endswith("_oracle.py")], [])
+        py = sorted(f for f in files if f.startswith("program/app/") and f.endswith(".py"))
+        self.assertEqual(py, ["program/app/version.py"], "program/app の .py は版の 1 つだけ")
+        self.assertIn("program/sidecar.py", files)
+        self.assertEqual(len((ROOT / "program" / "sidecar.py").read_text(encoding="utf-8").splitlines()), 1, "印は 1 行")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
-//! 異常ロット一覧の速さを測る（Rust）。program/tests/lotlist_bench.py（Python）と同じ問い合わせ・同じ回数。
+//! 異常ロット一覧の速さを測る（Rust）。前の版の Python の測り（版 3.119.0 で消した）と同じ問い合わせ・同じ回数。
 //!     cargo run --release --example lotbench -- <品質データ.sqlite3>
 use da_core::formula::Tables;
 use da_core::lotlist::{query, Args, Opts};
 use std::sync::Arc;
 use std::time::Instant;
 
-/// 計算列で並べ替える問い合わせ（版 3.59.0。式の 5 つの形。program/tests/lotlist_bench.py の CALC と同じ）
+/// 計算列で並べ替える問い合わせ（版 3.59.0。式の 5 つの形）
 const CALC: [(&str, &str); 5] = [
     ("計算列で並べ替え: 四則", "[重量] * 2 + 1"),
     ("計算列で並べ替え: 条件", "if([重量] > 3000, '重', '軽')"),

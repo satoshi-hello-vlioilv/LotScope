@@ -1,4 +1,4 @@
-//! 更新と配布の流れ（版 3.95.0。services/release_place.py と routes/settings.py の GET /api/update/settings・/api/release/place/*）を窓が答える。
+//! 更新と配布の流れ（版 3.95.0。前の版の release_place と 前の版の settings の GET /api/update/settings・/api/release/place/*）を窓が答える。
 //!
 //! - GET /api/update/settings … 更新の置き場（参照先を重ねた update.source）・だれが（me の login・pc・区分・版を置けるか）・
 //!   この PC のマスタの置き場。窓の更新の係（updater.rs）・配布の画面と操作（main.rs の /__desktop/release*）もここから読む
@@ -10,9 +10,9 @@
 //! 「同じ所・中」は Python の Path.resolve(strict=False)＋os.path.normcase と同じ解き方で比べる。POSIX は posixpath.realpath（3.13）と同じく
 //! 道を 1 つずつたどって記号リンクを解く。Windows は ntpath.realpath と同じく字で整えた（abspath・normpath）後、在る所までを OS に解かせ
 //! （canonicalize。記号リンク・junction・subst・8.3・割り当てたドライブ。付く \\?\ と \\?\UNC\ は外す）、残り（まだ無い名前）を字でつなぐ。
-//! 解けない形（権限で読めない・輪など、無い・届かない以外の誤り）は答えず Python に任せる（move は製品では Python が断る＝置けない側）。
+//! 解けない形（権限で読めない・輪など、無い・届かない以外の誤り）は答えない（製品では 503）（move は置けない側）。
 //! 上のフォルダと名前のつなぎ方・Path の字は posixpath.join・ntpath.join・PureWindowsPath（3.13）と同じ（根・ドライブだけ・UNC の形も）。
-//! 写す係は 1 つだけ（このプロセスに 1 つ）。窓が受けるので Python の Mover は動かさない（窓は sidecar.rs の SERVES に release を名乗り、
+//! 写す係は 1 つだけ（このプロセスに 1 つ）。窓が受けるので Python の Mover は動かさない（窓は shell::SERVES に release を名乗り、
 //! Python は move を断る）。写すのは shutil.copy2 と同じく中身・更新時刻・権限（Linux の std::fs::copy は更新時刻を写さない）。名前付きパイプは
 //! 開く前に「… is a named pipe」で断る（開くと止まる）。誤りの字は Python の OSError の str と同じ形（[Errno n] 文: '元' -> '先'）。
 //! 写している最中に窓を閉じた残り物（一時フォルダ）は、この PC の作業場所の印（release_move.json）を見て次に開いたとき・次に写すときに消す
@@ -190,7 +190,7 @@ pub(crate) fn at(cwd: &Path, p: &str) -> PathBuf {
 
 /// Path(x).resolve()（strict=False）の字。POSIX は posixpath.realpath（Python 3.13）と同じたどり方。Windows は ntpath.realpath と同じく
 /// 字で整えた（abspath・normpath）後、在る所までを OS に解かせ（記号リンク・junction・subst・8.3・割り当てたドライブ）、残りを字でつなぐ。
-/// None は窓が Python と同じに解けない形（権限で読めない・届かない以外の誤り）: 呼ぶ側は答えず Python に任せる
+/// None は窓が Python と同じに解けない形（権限で読めない・届かない以外の誤り）: 呼ぶ側は答えない（製品では 503）
 pub fn py_resolve(x: &str, cwd: &Path) -> Option<String> {
     let p = py_path(x);
     if cfg!(windows) {
@@ -351,7 +351,7 @@ fn win_abspath(p: &str, cwd: &Path) -> String {
     format!("{root}{}", parts.join("\\"))
 }
 
-/// release_place._same（resolve と normcase で比べる）。None は窓が解けない形（Python に任せる）
+/// release_place._same（resolve と normcase で比べる）。None は窓が解けない形（答えない（製品では 503））
 pub(crate) fn same(a: &str, b: &str, cwd: &Path) -> Option<bool> {
     Some(normcase(&py_resolve(a, cwd)?) == normcase(&py_resolve(b, cwd)?))
 }
@@ -524,7 +524,7 @@ fn with(out: &Map<String, Value>, more: Value) -> Value {
 }
 
 /// plan: 新しい置き場（parent\name）へ変えられるか。cwd は Python の今のフォルダ（相対の道の見方。中身のフォルダ）。
-/// None は Python が落ちる形（Path.exists・is_dir・iterdir の「無い」でない誤り。窓は答えず Python に任せる）
+/// None は Python が落ちる形（Path.exists・is_dir・iterdir の「無い」でない誤り。窓は答えない（製品では 503））
 pub fn plan(src: &str, parent: &str, name: &str, copy: bool, cwd: &Path) -> Option<Value> {
     let name = match check_name(name) {
         Ok(n) => n,
@@ -972,7 +972,7 @@ pub struct Args {
 }
 
 /// 本文 → Args（get_json(force=True, silent=True) or {}）。窓が Python と同じ字にできない値（並び・表〈Python は repr の字〉・
-/// 読みの割れる数）・表でない真の本文（Python は .get で落ちる）は None（Python に任せる）
+/// 読みの割れる数）・表でない真の本文（Python は .get で落ちる）は None（答えない（製品では 503））
 pub fn args_of(body: &[u8]) -> Option<Args> {
     // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む（src/held.rs。str() は桁の字）
     let b = crate::master_rows::py_body_held(body)?;
@@ -1040,7 +1040,7 @@ fn gated(a: Args, rule: &str, cwd: &Path) -> Result<Args, String> {
     })
 }
 
-/// 配布の置き場の 3 本（check・move・progress）。me は move の門番だけが読む。None は Python に任せる（?engine=python も。
+/// 配布の置き場の 3 本（check・move・progress）。me は move の門番だけが読む。None は 答えない（製品では 503）（?engine=python も。
 /// 製品では Python は move で写さずに断る: 写す係は窓の 1 つ）
 pub fn handle(
     route: Route,
@@ -1133,7 +1133,7 @@ mod tests {
             let abs = format!("{real}/{x}");
             assert_eq!(resolve_by_prefix(&abs, false), Ok(realpath_posix(&abs, "/")), "{x}");
         }
-        assert_eq!(resolve_by_prefix(&format!("{real}/l1/x"), false), Err(()), "輪は解けない: Python に任せる");
+        assert_eq!(resolve_by_prefix(&format!("{real}/l1/x"), false), Err(()), "輪は解けない: 答えない（製品では 503）");
         let _ = std::fs::remove_dir_all(&d);
     }
 

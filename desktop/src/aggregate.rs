@@ -1,4 +1,4 @@
-//! 集計の値の決め方（Python の services/aggregate.py と同じ答え。集計 src/pivot.rs の値〈measures〉の 1 か所）。
+//! 集計の値の決め方（Python の 前の版の aggregate と同じ答え。集計 src/pivot.rs の値〈measures〉の 1 か所）。
 //!
 //! 値の種類（agg）は、ためる物で分かれる（要る物だけをためる。1 つの値に 1 つの器 Acc）:
 //!     数え方   … count（行の数）・lots（ロット数: pivot がロットの鍵の集まりで数える）

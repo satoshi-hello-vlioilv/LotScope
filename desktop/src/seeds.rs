@@ -1,9 +1,9 @@
-//! 起動の初期値（版 3.110.0。Python の services/master_seeds.py を写した。段 ② の 1 歩目）。
+//! 起動の初期値（版 3.110.0。Python の 前の版の master_seeds を写した。段 ② の 1 歩目）。
 //!
 //! 配った版で決めたマスタの初期値を、共有のマスタへ一度だけ当て、当てたことを共有のマスタ app_seeds に記録する（2 回目からは当てない。
 //! あとで人が直した値を戻さない）。当てる中身も「まだ決まっていないときだけ」（記録が消えても人の決めた値を上書きしない）。
 //!
-//! 係は窓の 1 つ（sidecar.rs の SERVES に seeds を名乗り、Python の boot.start は名乗られると当てない。engine の設定によらない）。
+//! 係は窓の 1 つ（shell::SERVES に seeds を名乗り、Python の boot.start は名乗られると当てない。engine の設定によらない）。
 //! 窓は置き場が決まってから（束の材料 bundle::Builder::inputs が引っ越しの印をたどった後）裏の糸で 1 回だけ走らせる（main.rs・
 //! Lot::run_seeds）。書くのは種まきと同じ書く係（master_store::shared_store。同じ置き場・同じ名乗りで 1 つ。この窓の書き込みと
 //! serialized で 1 本）。手元のみの PC は Store::write_changed → write_local（data/ に行の配列）で当てる。

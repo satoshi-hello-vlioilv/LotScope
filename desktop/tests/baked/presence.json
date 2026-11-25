@@ -830,8 +830,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/presence_oracle.py": "12bf77fb732105ef"
- },
+ "sources": {},
  "variant": "root"
 }

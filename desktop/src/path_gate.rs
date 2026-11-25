@@ -1,4 +1,4 @@
-//! 道の字の門（版 3.114.0。Rust 化の段 ③ の 3 つ目。Python の services/path_rules.py と同じ決まりを 1 か所に持つ）。
+//! 道の字の門（版 3.114.0。Rust 化の段 ③ の 3 つ目。Python の 前の版の path_rules と同じ決まりを 1 か所に持つ）。
 //!
 //! 道を受ける欄（path_routes.json: 「参照…」の path・配布の置き場の name・parent・from・マスタの置き場の name・parent）の字を、道の頭で
 //! 1 回決める: 通す・整えて通す・理由つきで断る。門を通った字だけが道の部品（folder_browse・release_place・master_place）へ届くので、
@@ -6,7 +6,7 @@
 //! ドライブだけの道。予算 11 → 5〈口だけ〉）。
 //!
 //! 決めは事例の表 tests/fixtures/ospath_cases.json（形 × posix・nt → want と、版 3.113.0 の Python の答え py。人が仕様と OS の決まりから
-//! 書いた。desktop/tests/ospath_cases.rs と Python の tests/test_ospath_cases.py が同じ表を読む）と path_rules.py の冒頭:
+//! 書いた。desktop/tests/ospath_cases.rs と Python の 前の版の試験 test_ospath_cases が同じ表を読む）と 前の版の path_rules の冒頭:
 //! 制御文字（NUL はどの OS も・U+0001〜U+001F は Windows）・装置の道（\\?\X:\・\\?\UNC\ は書き直して通す。後ろに「.」「..」・空白や「.」で
 //! 終わる名前があれば断る。そのほかの装置の道は断る）・~名前（Python 3.13 の expanduser。POSIX は /etc/passwd）・file: の [IPv6]
 //! （ipv6-literal.net。そのほかの [ ] は断る）・ASCII でないサーバー名（NFKC で区切りの字が出れば断る）・ドライブ（C: は C:\、C:x は断る）・
@@ -663,7 +663,7 @@ pub fn stops(kind: Kind, text: &str) -> bool {
 
 // ------------------------------------------------------------------ 欄の表（path_routes.json）
 
-/// 道 → [(欄, 種類)]（tools/path-routes.py が Python の path_rules.ROUTES から焼いた表）
+/// 道 → [(欄, 種類)]（前の版の道具 path-routes が Python の path_rules.ROUTES から焼いた表）
 /// (方法, 道の型, [(欄, 種類)])
 pub type Route = (String, String, Vec<(String, Kind)>);
 

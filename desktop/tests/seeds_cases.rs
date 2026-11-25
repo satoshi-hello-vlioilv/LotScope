@@ -1,5 +1,5 @@
 //! 起動の初期値の事例の表（program/tests/fixtures/seeds_cases.json。人が仕様から書いた答え）を窓の src/seeds.rs で確かめる（版 3.110.0）。
-//! Python は tests/test_seeds_cases.py が同じ表を読む。
+//! Python は 前の版の試験 test_seeds_cases が同じ表を読む。
 mod common;
 
 use da_core::seeds;

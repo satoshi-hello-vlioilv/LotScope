@@ -1,4 +1,4 @@
-//! 数の読み方が Python と同じか（版 3.75.0）。program/tests/fixtures/pynum_cases.json（program/tools/pynum-cases.py が
+//! 数の読み方が Python と同じか（版 3.75.0）。program/tests/fixtures/pynum_cases.json（前の版の道具 pynum-cases が
 //! 同梱と同じ Python で焼いた表）を、窓の pyfmt（int()・float()・\d の数字）と worksum::hm（勤務体系の時刻）が同じに読むかを突き合わせる。
 //! 版 3.104.0: i64 に入らない数は桁の字（pyfmt::PyInt::Big。前は端へ丸めた）・読めない字の誤りの文（ASCII の印字できる字だけの事例）・
 //! str.isspace の全部の字を前後に付けた事例（int()・float() は U+001C〜U+001F を空白に読まない）・4,300 桁の上限。

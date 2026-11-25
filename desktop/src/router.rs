@@ -1,146 +1,47 @@
-//! 画面（WebView）からの問い合わせの振り分け。得意なほうが答える:
-//!   - /static/…           … Rust がディスク（program/app/static）から直接返す（JS・CSS・three.js。Python を通さず速い）
-//!   - 窓そのものの操作      … Rust（終了・窓の情報・自己診断。main.rs が native として渡す）
-//!   - それ以外（画面・API） … Python（サイドカー）へそのまま渡す
+//! 画面（WebView）からの問い合わせの振り分け。どれも窓（Rust）が答える（版 3.119.0。段 ⑤ で中身〈Python〉へ回す枝を消した）:
+//!   - 窓そのものの操作と Lot が答える道 … main.rs が native として渡す（終了・窓の情報・自己診断・画面・API）
+//!   - /static/…                          … ディスク（program/app/static）から直接返す（JS・CSS・three.js）
+//!   - それ以外                            … 門番（src/access.rs）を通し、窓の言葉で断る（503 window_unanswered。戻したキーに / がある道は 404）。
+//!     回数は形の名前ごとに数える（利用状況のいま使っている印の unanswered。src/delegate.rs。404 にするかの材料: 利用者の決めの既定 (2)）
 //!
 //! 画面の JS は fetch("/api/...") のまま（同じ置き場への問い合わせ）で、ポートも CORS も要らない。
 
-use crate::sidecar::{Ask, Reply, RequestError, Supervisor};
-use da_core::access::ME_HEADER;
 // 答えの形・静的ファイル・窓が答えなかった道の断りは lib の 1 か所（版 3.118.2。開発用サーバー examples/ui_serve.rs も同じ物を通る）
-pub use da_core::shell::{delegate_form, error_reply, percent_decode, static_file, window_unanswered, Req};
+pub use da_core::shell::{error_reply, percent_decode, static_file, window_unanswered, Reply, Req};
 use std::path::PathBuf;
-use std::time::Duration;
 use tauri::http::{Request, Response};
 
-/// 問い合わせを答えに変える係（試験では作り物に差し替える）。
-pub trait Backend: Send + Sync {
-    fn ask(&self, ask: &Ask) -> Reply;
-    /// 中身（Python）のいまの様子（版 3.111.0。心拍の答えの python・利用状況・/api/health）。待たずに今を答え、
-    /// 止まっていれば裏で起こし直しを始める（心拍が呼び続ける。前は alive() の副作用）
-    fn python_now(&self) -> da_core::presence::PythonNow {
-        da_core::presence::PythonNow::ready()
-    }
-    /// 中身が準備できたときの知らせ（窓の情報に載せる。版 3.86.0。動いていなければ null）
-    fn ready(&self) -> serde_json::Value {
-        serde_json::Value::Null
-    }
-    /// 中身がいま答えられるか（起こしている最中は偽。画面の既定の形を選ぶ。版 3.86.0）
-    fn ready_now(&self) -> bool {
-        true
-    }
-    /// 起こせなかった理由を忘れて起こし直す（画面の帯の「もう一度起こす」）
-    fn retry(&self) {}
-    /// 中身を起こさない形か（版 3.118.0。段 ④: 製品の窓はいつも真。中身へ回さず、振り分けが窓の言葉で断る〈window_unanswered〉）
-    fn absent(&self) -> bool {
-        false
-    }
-}
+/// 窓そのものが答える問い合わせ。None なら静的ファイルか、門番を通して窓の言葉で断る。
+pub type Native = Box<dyn Fn(&Req) -> Option<Reply> + Send + Sync>;
 
-/// 長い問い合わせ（見えない Edge で LotDsp を読む・共有の写し直し）を待てる長さ。
-const ASK_WAIT: Duration = Duration::from_secs(600);
+/// 窓が答えない道を断る前に見る門番（版 3.65.0。src/access.rs の書き込みの門番）。Err は門番の断り（403 など）。
+pub type Guard = Box<dyn Fn(&Req) -> Result<(), Reply> + Send + Sync>;
 
-impl Backend for Supervisor {
-    /// 待たない（版 3.86.0）: 起きている・起こしている最中・止まった（理由）。止まっていれば裏で起こし直しを始める（Supervisor::now）
-    fn python_now(&self) -> da_core::presence::PythonNow {
-        self.now()
-    }
-    fn ready(&self) -> serde_json::Value {
-        Supervisor::ready(self)
-    }
-    fn ready_now(&self) -> bool {
-        self.up().is_some()
-    }
-    fn retry(&self) {
-        Supervisor::retry(self);
-    }
-    fn absent(&self) -> bool {
-        Supervisor::absent(self)
-    }
-
-    fn ask(&self, ask: &Ask) -> Reply {
-        // 送る前に止まっていた（Dead）なら起こし直して1度だけ送り直す。送った後に止まったものは送り直さない（二重に書かない）
-        for attempt in 0..2 {
-            let side = match self.get() {
-                Ok(s) => s,
-                Err(e) => return error_reply(503, "backend_unavailable", &e),
-            };
-            match side.request(ask, ASK_WAIT) {
-                Ok(r) => return r,
-                Err(RequestError::Dead) if attempt == 0 => continue,
-                Err(RequestError::Timeout) => {
-                    return error_reply(504, "backend_timeout", &format!("アプリの中身が {} 秒たっても答えません。", ASK_WAIT.as_secs()))
-                }
-                Err(_) => {
-                    return error_reply(
-                        503,
-                        "backend_stopped",
-                        "アプリの中身（Python）が途中で止まりました。もう一度お試しください（自動で起こし直します）。",
-                    )
-                }
-            }
-        }
-        error_reply(503, "backend_stopped", "アプリの中身（Python）を起こし直せませんでした。")
-    }
-}
-
-/// 窓そのものが答える問い合わせ。None ならほかへ回す。中身（Python）に尋ねたいときは backend を使う
-/// （例: 品質異常は設定を Python に尋ねてから Rust が答える・lot.rs）。
-pub type Native = Box<dyn Fn(&Req, &dyn Backend) -> Option<Reply> + Send + Sync>;
-
-/// 中身（Python）へ回す前に窓が見る（版 3.65.0。src/access.rs の権限の判定と書き込みの門番）。Ok(Some(字)) は見出し X-TPA-Me に
-/// 載せる me・Ok(None) は載せない（Python が自分で決める）・Err は回さずに断る答え。
-pub type Guard = Box<dyn Fn(&Req, &dyn Backend) -> Result<Option<String>, Reply> + Send + Sync>;
-
-/// Python が答えたあとに窓が見る（終了ボタンのあと、中身が片付けて終わったら窓も閉じる等）。
-pub type After = Box<dyn Fn(&str, &str, u16) + Send + Sync>;
-
-pub struct Router<B: Backend> {
+pub struct Router {
     pub static_dir: PathBuf,
-    pub backend: B,
     pub native: Native,
     pub guard: Guard,
-    pub after: After,
 }
 
-impl<B: Backend> Router<B> {
+impl Router {
     pub fn handle(&self, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
         let uri = req.uri();
         let path = uri.path();
         let query = uri.query().unwrap_or("");
         let method = req.method().as_str();
-        let (reply, by) = if let Some(r) = (self.native)(&Req { method, path, query, body: req.body() }, &self.backend) {
-            (r, "shell")
+        let reply = if let Some(r) = (self.native)(&Req { method, path, query, body: req.body() }) {
+            r
         } else if let (true, Some(rest)) = (method == "GET" || method == "HEAD", path.strip_prefix("/static/")) {
-            (static_file(&self.static_dir, rest, query), "shell")
+            static_file(&self.static_dir, rest, query)
         } else {
-            // 画面から来た X-TPA-Me は必ず捨てる（画面が権限を名乗れない。載せるのは窓が決めた me だけ）
-            let mut headers: Vec<(String, String)> = req
-                .headers()
-                .iter()
-                .filter(|(k, _)| !k.as_str().eq_ignore_ascii_case(ME_HEADER))
-                .filter_map(|(k, v)| Some((k.as_str().to_string(), v.to_str().ok()?.to_string())))
-                .collect();
-            // 門番と後始末は、Python が道を合わせる形（百分率符号を戻した道。web.App.handle の unquote）で見る
-            // （生の道で見ると /api/masters/%61ccess が門番を抜け、Python では /api/masters/access の書き込みになる）
+            // 門番は百分率符号を戻した道で見る（生の道で見ると /api/masters/%61ccess が門番を抜ける）
             let decoded = percent_decode(path);
-            match (self.guard)(&Req { method, path: &decoded, query, body: req.body() }, &self.backend) {
-                Err(no) => (no, "shell"),
-                // 段 ④（版 3.118.0）: 中身を起こさない窓は中身へ回さず、窓の言葉で断る（503 window_unanswered。戻したキーに / がある道は 404）。
-                // 回数は形の名前ごとに数える（利用状況のいま使っている印の unanswered。src/delegate.rs）
-                Ok(_) if self.backend.absent() => (window_unanswered(method, path, &decoded, query), "shell"),
-                Ok(me) => {
-                    headers.extend(me.map(|m| (ME_HEADER.to_string(), m)));
-                    // 窓が答えず Python へ回した回数を、道の型ごとに数える（版 3.102.0 の作った後の採点の足りない所。src/delegate.rs。
-                    // 形の名前は道の型だけ〈数・キー・字の段は {n}・{key}・{s}〉で、引数・本文・PC 名・ログイン ID は書かない）
-                    da_core::delegate::note(&delegate_form(method, &decoded, query));
-                    let r = self.backend.ask(&Ask { method, path, query, headers, body: req.body() });
-                    (self.after)(method, &decoded, r.status);
-                    (r, "python")
-                }
+            match (self.guard)(&Req { method, path: &decoded, query, body: req.body() }) {
+                Err(no) => no,
+                Ok(()) => window_unanswered(method, path, &decoded, query),
             }
         };
-        to_response(reply, by)
+        to_response(reply, "shell")
     }
 }
 
@@ -149,7 +50,7 @@ pub fn to_response(r: Reply, by: &str) -> Response<Vec<u8>> {
     for (k, v) in &r.headers {
         b = b.header(k.as_str(), v.as_str());
     }
-    // どちらが答えたか（自己診断・不具合の切り分けに使う）
+    // どちらが答えたか（自己診断・不具合の切り分けに使う。版 3.119.0 からいつも shell）
     b = b.header("X-TPA-By", by);
     b.body(r.body).unwrap_or_else(|_| Response::builder().status(500).body(Vec::new()).unwrap())
 }
@@ -158,77 +59,20 @@ pub fn to_response(r: Reply, by: &str) -> Response<Vec<u8>> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use std::sync::Mutex;
-
-    struct Echo(Mutex<Vec<String>>, Mutex<Vec<Vec<(String, String)>>>);
-    impl Backend for Echo {
-        fn ask(&self, a: &Ask) -> Reply {
-            self.0.lock().unwrap().push(format!("{} {}?{} {}", a.method, a.path, a.query, String::from_utf8_lossy(a.body)));
-            self.1.lock().unwrap().push(a.headers.clone());
-            Reply { status: 201, headers: vec![("Content-Type".into(), "text/plain".into())], body: b"py".to_vec() }
-        }
-    }
-
-    fn router(dir: &Path) -> Router<Echo> {
-        Router {
-            static_dir: dir.to_path_buf(),
-            backend: Echo(Mutex::default(), Mutex::default()),
-            native: Box::new(|r, _| (r.method == "GET" && r.path == "/__desktop/info").then(|| error_reply(200, "info", "窓"))),
-            guard: Box::new(|r, _| match r.path {
-                "/api/masters/access" if r.method == "POST" => Err(error_reply(403, "forbidden", "書けません")),
-                "/api/lost" => Ok(None),
-                _ => Ok(Some("{\"flags\":{}}".into())),
-            }),
-            after: Box::new(|_, _, _| {}),
-        }
-    }
-
-    /// 準備に時間がかかる中身（版 3.86.0 の作った後の採点: 窓の道が中身を待たずに答えるか）
-    struct Slow;
-    impl Backend for Slow {
-        fn ask(&self, _: &Ask) -> Reply {
-            std::thread::sleep(Duration::from_millis(500));
-            error_reply(200, "py", "中身")
-        }
-        fn python_now(&self) -> da_core::presence::PythonNow {
-            da_core::presence::PythonNow { state: "starting", why: String::new() }
-            // 起こしている最中
-        }
-        fn ready_now(&self) -> bool {
-            false
-        }
-    }
-
-    #[test]
-    fn the_window_answers_while_the_backend_is_slow() {
-        let dir = std::env::temp_dir().join(format!("da-router-slow-{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("js")).unwrap();
-        std::fs::write(dir.join("js").join("app.js"), "x=1").unwrap();
-        let r = std::sync::Arc::new(Router {
-            static_dir: dir.clone(),
-            backend: Slow,
-            native: Box::new(|q, b| {
-                (q.path == "/__desktop/info").then(|| error_reply(200, if b.ready_now() { "ready" } else { "starting" }, "窓"))
-            }),
-            guard: Box::new(|_, _| Ok(None)),
-            after: Box::new(|_, _, _| {}),
-        });
-        let r1 = r.clone();
-        let py = std::thread::spawn(move || r1.handle(&req("GET", "tpa://localhost/api/schedule", b"")));
-        std::thread::sleep(Duration::from_millis(50));
-        let at = std::time::Instant::now();
-        let info = r.handle(&req("GET", "tpa://localhost/__desktop/info", b""));
-        let js = r.handle(&req("GET", "tpa://localhost/static/js/app.js", b""));
-        assert!(at.elapsed() < Duration::from_millis(200), "窓の道は中身を待たない: {:?}", at.elapsed());
-        assert_eq!((info.headers()["x-tpa-by"].to_str().unwrap(), js.status().as_u16()), ("shell", 200));
-        assert!(String::from_utf8_lossy(info.body()).contains("starting"));
-        let py = py.join().unwrap();
-        assert_eq!(py.headers()["x-tpa-by"], "python", "中身の道は準備のあとに答える");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 
     fn req(method: &str, uri: &str, body: &[u8]) -> Request<Vec<u8>> {
         Request::builder().method(method).uri(uri).body(body.to_vec()).unwrap()
+    }
+
+    fn router(dir: &Path) -> Router {
+        Router {
+            static_dir: dir.to_path_buf(),
+            native: Box::new(|r| (r.method == "GET" && r.path == "/__desktop/info").then(|| error_reply(200, "info", "窓"))),
+            guard: Box::new(|r| match r.path {
+                "/api/masters/access" if r.method == "POST" => Err(error_reply(403, "forbidden", "書けません")),
+                _ => Ok(()),
+            }),
+        }
     }
 
     #[test]
@@ -246,94 +90,25 @@ mod tests {
         assert!(s.headers()["cache-control"].to_str().unwrap().contains("immutable"), "版付きは使い回す");
         assert_eq!(r.handle(&req("GET", "tpa://localhost/static/js/app.js", b"")).headers()["cache-control"], "no-cache");
         assert_eq!(r.handle(&req("GET", "tpa://localhost/static/js/%E6%97%A5%E6%9C%AC.css", b"")).status(), 200, "日本語の名前");
-
         for bad in ["/static/../secret.txt", "/static/js/%2e%2e/%2e%2e/x", "/static//etc/passwd", "/static/js/none.js"] {
             assert_eq!(r.handle(&req("GET", &format!("tpa://localhost{bad}"), b"")).status(), 404, "{bad}");
         }
-
-        let p = r.handle(&req("POST", "http://tpa.localhost/api/lotdsp/import?a=1", "本文".as_bytes()));
-        assert_eq!((p.status().as_u16(), p.headers()["x-tpa-by"].to_str().unwrap()), (201, "python"));
-        assert_eq!(r.backend.0.lock().unwrap().last().unwrap(), "POST /api/lotdsp/import?a=1 本文", "本文・問い合わせ文字はそのまま");
-
         let n = r.handle(&req("GET", "tpa://localhost/__desktop/info", b""));
         assert_eq!((n.status().as_u16(), n.headers()["x-tpa-by"].to_str().unwrap()), (200, "shell"), "窓のことは Rust");
-        assert_eq!(r.handle(&req("GET", "tpa://localhost/", b"")).headers()["x-tpa-by"], "python", "画面は Python が作る");
+        let p = r.handle(&req("POST", "tpa://localhost/static/js/app.js", b""));
         assert_eq!(
-            r.handle(&req("POST", "tpa://localhost/static/js/app.js", b"")).headers()["x-tpa-by"],
-            "python",
-            "/static でも GET・HEAD 以外は Python へ"
+            (p.status().as_u16(), p.headers()["x-tpa-by"].to_str().unwrap()),
+            (503, "shell"),
+            "/static でも GET・HEAD 以外は窓の言葉で断る"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    #[test]
-    fn me_header_comes_only_from_the_shell() {
-        let seen = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
-        let mut r = router(&std::env::temp_dir());
-        let s2 = seen.clone();
-        r.after = Box::new(move |m, p, _| s2.lock().unwrap().push(format!("{m} {p}")));
-        r.handle(&req("PUT", "tpa://localhost/api/masters/%61ccess/2", b"{}"));
-        r.handle(&req("POST", "tpa://localhost/api/masters/%61ccess", b"{}"));
-        assert_eq!(
-            seen.lock().unwrap().as_slice(),
-            ["PUT /api/masters/access/2"],
-            "後始末も戻した道で見る（断った問い合わせは後始末しない）"
-        );
-        // Python へは画面が送った道のまま渡す（Python がもう一度戻す。戻した道を渡すと %2561 が門番では %61・Python では a になり、門番を抜ける）
-        assert!(r.backend.0.lock().unwrap().iter().any(|x| x.starts_with("PUT /api/masters/%61ccess/2?")), "Python へは元の道");
-        r.handle(&req("POST", "tpa://localhost/api/masters/%2561ccess", b"{}"));
-        assert!(r.backend.0.lock().unwrap().last().unwrap().starts_with("POST /api/masters/%2561ccess?"), "二重の符号も元のまま渡す");
-        let forged = Request::builder()
-            .method("POST")
-            .uri("tpa://localhost/api/masters/rolls")
-            .header("x-tpa-me", "{\"flags\":{\"masterEdit\":\"編集可\"}}");
-        r.handle(&forged.body(Vec::new()).unwrap());
-        let me = |h: &Vec<(String, String)>| {
-            h.iter().filter(|(k, _)| k.eq_ignore_ascii_case(ME_HEADER)).map(|(_, v)| v.clone()).collect::<Vec<_>>()
-        };
-        assert_eq!(me(r.backend.1.lock().unwrap().last().unwrap()), ["{\"flags\":{}}"], "画面の見出しは捨て、窓の me だけ");
-        let lost = Request::builder().method("GET").uri("tpa://localhost/api/lost").header("X-TPA-Me", "{}").body(Vec::new()).unwrap();
-        r.handle(&lost);
-        assert!(me(r.backend.1.lock().unwrap().last().unwrap()).is_empty(), "決められないときは何も載せない（名乗らせない）");
-        let n = r.backend.0.lock().unwrap().len();
-        for p in ["/api/masters/access", "/api/masters/%61ccess", "/api/m%61sters/%61ccess", "/api/masters/acces%73"] {
-            let no = r.handle(&req("POST", &format!("tpa://localhost{p}"), b"{}"));
-            assert_eq!(
-                (no.status().as_u16(), no.headers()["x-tpa-by"].to_str().unwrap()),
-                (403, "shell"),
-                "門番が断る（百分率符号で書いても）: {p}"
-            );
-        }
-        assert_eq!(r.backend.0.lock().unwrap().len(), n, "断った問い合わせは Python へ回さない");
-    }
-
-    /// 中身を起こさない窓（版 3.118.0。段 ④）: 中身の道は答えを作り物に回さない
-    struct Absent(Mutex<u32>);
-    impl Backend for Absent {
-        fn ask(&self, _: &Ask) -> Reply {
-            *self.0.lock().unwrap() += 1;
-            error_reply(200, "py", "中身")
-        }
-        fn absent(&self) -> bool {
-            true
-        }
-        fn python_now(&self) -> da_core::presence::PythonNow {
-            da_core::presence::PythonNow::absent()
-        }
-    }
-
+    /// 窓が答えない道（版 3.118.0 から。段 ⑤〈版 3.119.0〉で中身の係そのものを消した）: 窓の言葉の 503 と道の型、戻したキーに / がある道は 404。
+    /// 門番は前のまま先に見る（百分率符号で書いても抜けない）。回数は形の名前ごとに数える
     #[test]
     fn an_absent_backend_is_never_asked_and_the_window_answers_why() {
-        let r = Router {
-            static_dir: std::env::temp_dir(),
-            backend: Absent(Mutex::new(0)),
-            native: Box::new(|_, _| None),
-            guard: Box::new(|r, _| match r.path {
-                "/api/masters/access" if r.method == "POST" => Err(error_reply(403, "forbidden", "書けません")),
-                _ => Ok(None),
-            }),
-            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
-        };
+        let r = router(&std::env::temp_dir());
         for (m, p) in [("GET", "/api/lotlist/settings"), ("GET", "/api/dashboard/fields?source=lot&engine=python"), ("POST", "/api/x/12")] {
             let a = r.handle(&req(m, &format!("tpa://localhost{p}"), b"{}"));
             let v: serde_json::Value = serde_json::from_slice(a.body()).unwrap();
@@ -341,6 +116,7 @@ mod tests {
             assert_eq!(v["kind"], "window_unanswered", "{p} {v}");
             assert!(v["error"].as_str().unwrap().contains("窓"), "窓の言葉: {v}");
             assert!(!v["error"].as_str().unwrap().contains("起こし直"), "中身を起こし直すとは言わない: {v}");
+            assert!(!v["error"].as_str().unwrap().contains("Python"), "中身（Python）の名を出さない: {v}");
         }
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(r.handle(&req("POST", "tpa://localhost/api/x/12", b"")).body()).unwrap()["route"],
@@ -353,8 +129,14 @@ mod tests {
             (404, "shell"),
             "戻したキーに / がある道は道なしの 404"
         );
-        assert_eq!(r.handle(&req("POST", "tpa://localhost/api/masters/access", b"{}")).status(), 403, "門番は前のまま");
-        assert_eq!(*r.backend.0.lock().unwrap(), 0, "中身へ 1 度も回さない");
+        for p in ["/api/masters/access", "/api/masters/%61ccess", "/api/m%61sters/%61ccess", "/api/masters/acces%73"] {
+            let no = r.handle(&req("POST", &format!("tpa://localhost{p}"), b"{}"));
+            assert_eq!(
+                (no.status().as_u16(), no.headers()["x-tpa-by"].to_str().unwrap()),
+                (403, "shell"),
+                "門番が断る（百分率符号で書いても）: {p}"
+            );
+        }
         let n = da_core::delegate::counts();
         assert!(n["unanswered GET /api/lotlist/settings"].as_u64().unwrap_or(0) >= 1, "回数を数える: {n}");
         assert!(n["unanswered_404 GET /api/sources/{s}/columns"].as_u64().unwrap_or(0) >= 1, "{n}");

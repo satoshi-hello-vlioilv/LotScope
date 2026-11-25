@@ -2,12 +2,11 @@
 """LotDsp の見本（版 3.117.0。標準の部品だけ。app を import しない）。
 
 進度情報の画面の見本（tests/fixtures/lotdsp_progress_L7150C0.html）と、それを崩して別のロット・別の値の画面を作る係。
-前は app を import する試験（tests/test_lotdsp_api.py・test_lotdsp_rules.py）の中にあり、答え合わせ役（tests/lotdsp_oracle.py）が
-そこから借りていた。作り物の LotDsp（tests/fakes_lotdsp.py）を app なしで起こすために、ここへ移した（試験もここから読む）。
+版 3.117.0 に、前の版の app を import する試験の中から移した（作り物の LotDsp〈tests/fakes_lotdsp.py〉を app なしで起こすため）。
 
-作り物の API が返す JSON（entity）は、画面の見本を app の読み手（lotdsp_progress）で読んで作る物（tests/test_lotdsp_api.py の entity_of）
-なので、ここには置けない。ロット番号ごとの答えは焼いた表 tests/fixtures/lotdsp_fake_tables.json に持つ（焼くのは
-python program/tools/lotdsp-fake-tables.py。古い表は tests/test_lotdsp_fake_tables.py が止める）。
+作り物の API が返す JSON（entity）は、前の版の app の読み手で画面の見本を読んで作った物なので、ここには置けない。ロット番号ごとの答えは
+焼いた表 tests/fixtures/lotdsp_fake_tables.json に持つ（版 3.119.0 から凍った答え: 焼き直す道具は app と一緒に消した。見本を変えるときは
+答えも手で直し、窓の試験 cargo test --test lotdsp_parity で確かめる）。
 """
 import json
 import re
@@ -18,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = (ROOT / "tests" / "fixtures" / "lotdsp_progress_L7150C0.html").read_text(encoding="utf-8")
 ACTUAL_ROW = re.compile(r'<tr ng-repeat="meisaiInfo in staffProgressJBoxInfos[^"]*"[^>]*>.*?</tr>', re.S)
 OFF_CELL = re.compile(r'<span class="prog-jb(?:fo|bo) ng-binding">[^<]*</span>')
-# アプリは日本時間で読む（app/services/lotdsp_rules.TZ と同じ決め。tests/test_lotdsp_rules.py が同じ値かを見る）
+# アプリは日本時間で読む（窓の lotdsp.rs の rules と同じ決め）
 TZ = timezone(timedelta(hours=9), "JST")
-# 答え合わせ役の場面の前オフ・後オフ（行の順）
+# 場面の前オフ・後オフ（行の順）
 OFFS = [("12.5", "3.0"), ("", "4.5"), ("7.2", ""), ("1.1", "2.2")] + [("", "")] * 6
 # 応答の書き方の違いの場面: (場面の名前, 札〈作り物の API の道の頭〉, entity_of に渡す書き方)
 STYLES = (("項目名 b", "v2", {"key_style": "b"}), ("経過ミリ秒", "v3", {"date_style": "epoch"}), ("ずれつき", "v4", {"date_style": "utc"}),

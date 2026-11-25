@@ -48,7 +48,7 @@ const warns = [["yyyy/mm/dd", true], ['0"kg"', false], ["0 kg", true], ["[緑]0"
 for (const [code, want] of warns) if ((N.check(code).length > 0) !== want) { bad++; console.log(`NG check ${code}: ${N.check(code)}`); }
 if (!N.hasLiteral('#,##0"本"') || N.hasLiteral("#,##0;(#,##0)")) { bad++; console.log("NG hasLiteral"); }
 // 値の計算（版 3.45.0）: 演算子から書くと前に値・全角・かっこ・累乗・0 で割る（null）・読めない式は知らせ
-// 事例はサーバー（services/num_expr.py。tests/test_num_expr.py）と同じ表（tests/fixtures/num_expr_cases.json）
+// 事例は窓（desktop/src/num_expr.rs）と同じ表（tests/fixtures/num_expr_cases.json）
 const exprs = JSON.parse(fs.readFileSync(path.resolve(JS, "../../../tests/fixtures/num_expr_cases.json"), "utf8")).cases;
 for (const [src, x, want] of exprs) {
   const r = N.expr(src), got = want === "err" ? (r.error ? "err" : r.fn(x)) : want === "none" ? (r.fn ? "fn" : "none") : r.fn ? r.fn(x) : r.error;

@@ -5,7 +5,7 @@
 //! 決まりは Python と同じ: 同じ鍵が 2 つあれば後ろの値を前の位置に入れる（どの段でも）・字は ensure_ascii=False で、逃がすのは
 //! 「"」「\」と 0x20 未満だけ（U+007F・U+2028 は逃がさない）・数は整数は桁のまま、小数は float.__repr__（join::py_number）。
 //! 窓が Python と同じに読めない字（NaN・Infinity・1e400・整数の -0・片割れの代用字）は、呼ぶ側が先に
-//! master_rows::unreadable・text_split で Python に任せる。i64・u64 に入らない整数は版 3.108.0 から src/held.rs の印の字（Tree::Str）で持ち、
+//! master_rows::unreadable・text_split で 答えない（製品では 503）。i64・u64 に入らない整数は版 3.108.0 から src/held.rs の印の字（Tree::Str）で持ち、
 //! 桁のまま書く（parse は J で読む）。
 
 use serde_json::{Number, Value};

@@ -262,8 +262,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/mirror_oracle.py": "4f439b149cda4781"
- },
+ "sources": {},
  "variant": "root"
 }

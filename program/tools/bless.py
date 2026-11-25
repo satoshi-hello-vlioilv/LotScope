@@ -1,21 +1,12 @@
 """窓が自分の答えを焼く（bless。版 3.115.0。Rust 化の段 ③ の 4 つ目・案 G の 1 版目）。app を import しない（標準の部品だけ）。
 
-    python tools/bless.py 本 …            … 本ごとに TPA_BLESS=1 で窓の突き合わせの試験を流して焼き（Python と同じときだけ書く）、
-                                            時刻の境（次の分）をまたいでからもう 1 度焼いて、1 回目と同じかを見る（違えば元の表に戻して止める）。
-                                            2 回目は「別の PC の形」で流す（版 3.117.0。tools/ci-shape.py の runner の形: PC の名前を替えた名前空間・
-                                            TMPDIR は別のファイル系・SQLite の版が違う Python・取り出しは 5 日前の 775/664・プロキシと TLS の根の
-                                            環境変数。利用者は root のまま）。焼いた PC に頼る葉があれば、CI でなく焼くときに止まる。
-                                            同じだったら、焼いた表を runner の形の root でない利用者（daemon）で表と比べるだけでもう 1 度流す
-                                            （3 回目。版 3.117.0 の作った後の直し: 利用者に頼る葉〈名前を書く欄の利用者の名前など〉を焼くときに止める。落ちたら元の表に戻す）。
-                                            流せない PC（root でない・unshare が無い）では焼かない。終わりに焼いた PC の指紋が表に無いかも見る
-    python tools/bless.py --all           … 焼く本すべて（desktop/tests/baked/books.json の phase が 3.115.0・3.116.0）
+    （版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉を消したので、Python と比べて焼く形・root でない利用者で焼く形・凍らせた写しを相手にする形は外した。
+      焼き直すのは --scope だけ。元のコメントだけを直したときは --re-source）
     python tools/bless.py --stats [--base 版] … 本ごとの表の大きさ（UTF-8 のバイト）・歩・葉・そろえた印（@T・@URL・@WORK など）の数を出す
                                             （--base は git の版〈例 origin/main〉。前の表から増えた分も出す。PR の説明に貼る）
-    python tools/bless.py --user 本 …     … root でない利用者（nobody）で試験の実行ファイルを流し、root と違う歩を variants.user に焼く（fs・place・release_place）
-    python tools/bless.py --no-python 本 … … TPA_NO_PYTHON=1 で流す（段 ④ の後の形: 表の宣言から場面を作り、焼いた答えとだけ比べる）
-    python tools/bless.py --no-python --frozen 本 … … そのうえ、凍らせた Python を相手にする試験を凍らせた写し（program/tests/legacy/<版>。
-                                            tools/freeze-legacy.py）を相手に流す（TPA_FROZEN_PY=1。段 ④ で program/app を消した後の形。版 3.117.3）
-    python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（答え合わせ役など）の指紋が今の元と同じかを見る（古さを止める。
+    python tools/bless.py --no-python 本 …｜--all … 表だけの形で流す（表の宣言から場面を作り、焼いた答えとだけ比べる。--no-python は前の書き方のまま受ける）
+    python tools/bless.py --re-source 本 …｜--all … 答えを替えずに、表の元の指紋（sources）だけを今の元で書き直す（版 3.119.0。書いた後に表だけの形の試験で確かめる）
+    python tools/bless.py --check         … cargo を流さずに、焼いた表の形と、焼いた時の元（場面の台本・作り物など）の指紋が今の元と同じかを見る（古さを止める。
                                             tests/test_baked_tables.py からも流れる）。焼いた PC の指紋（名乗りの欄の PC の名前・名前を書く欄の利用者の名前・
                                             一時フォルダ・ポート・ファイルID）も見る。違えば終了コード 1
     python tools/bless.py --measured フォルダ … [--json] … Windows の測るだけの仕事（.github/workflows/desktop.yml の TPA_MEASURE）が残した記録を読み、
@@ -25,7 +16,7 @@
                                             焼いた表の一覧と比べ、形ごとに「記録の無い表 n（名前）」も出す（--skip-test 試験,… で流さなかった試験だけが焼く表は除く）
     python tools/bless.py --from-log 記録 出力フォルダ … 仕事の記録（--json の行）から測りの記録を <出力フォルダ>/<形>/<表>.json に戻す（読めなかった行の数も言う）
     python tools/bless.py --no-python --all --skip-test 試験,… … Python 無しの形で流すが、名前を挙げた試験は流さない（Windows の測り: route_reach は長い）
-    python tools/bless.py --scope 道の型 本 … … 段 ④ の後: 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
+    python tools/bless.py --scope 道の型 本 … … 範囲を宣言して焼き直す（TPA_NO_PYTHON=1・TPA_BLESS=道の型）。範囲の外が変わったら書かない
     python tools/bless.py --nonbook-args … … 焼いた本の試験でない窓の試験を流す cargo test の引数（--lib --bins --test …。版 3.118.0。Windows の CI）
     python tools/bless.py --no-python --all --windows table|measure … … Windows の表だけの形で、books.json の windows の札が table の本だけ・
                                             measure の本だけを流す（版 3.117.3。desktop.yml は table の本を落とす段・measure の本を測るだけの段に分ける）
@@ -44,11 +35,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
@@ -315,7 +304,7 @@ def check(baked=None):
         now = sources_of(book)
         for rel, h in now.items():
             if t.get("sources", {}).get(rel) != h:
-                bad.append(f"{name}: 元 {rel} が焼いた時と違う（表が古い。python tools/bless.py {book} で焼き直す）")
+                bad.append(f"{name}: 元 {rel} が焼いた時と違う（表が古い。答えが同じ直しなら python tools/bless.py --re-source {book}、答えが変わるなら --scope 道の型 {book} で焼き直す）")
         for rel in set(t.get("sources", {})) - set(now):
             bad.append(f"{name}: 表に知らない元 {rel}")
         scene = t.get("scene", {})
@@ -333,7 +322,7 @@ def check(baked=None):
             bad.append(f"{name}: 答えが 1 つもありません")
     for book, b in sorted(BOOKS.items()):
         if b["phase"] in PHASES and book not in tabs.values():
-            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
+            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py --scope all {book} で焼く）")
         if b["phase"] in PHASES and b.get("windows") not in WINDOWS:
             bad.append(f"{book}: books.json の windows の札が {b.get('windows')!r}（table か measure）")
     # Windows の上書きの表（版 3.117.3）: 形・上書きの元の posix の答えの指紋。大きさは本の表に足して上限を見る
@@ -504,157 +493,24 @@ def ci_shape():
     return m
 
 
-def second_pass(tests, out):
-    """2 回目の焼き: 別の PC の形（ci-shape の runner の形・利用者は root のまま）で試験の実行ファイルを流し、表を out へ書く → 落ちた試験の並び"""
-    ci = ci_shape()
-    logs = Path(tempfile.mkdtemp(prefix="bless-pass2-"))
-    extra = {"TPA_BLESS": "1", "TPA_BAKE_OUT": str(out)}
-    if os.environ.get("TPA_SETTLE_DROP"):
-        extra["TPA_SETTLE_DROP"] = os.environ["TPA_SETTLE_DROP"]       # 変異（そろえる決まりを 1 つ外して焼く）は 2 回目にも渡す
-    bins = {t: exe for t, exe in ci.test_bins(tests).items() if t in tests}
-    _, failed, why = ci.run_shape("runner", bins, logs, False, extra, as_root=True)
-    if why:
-        sys.exit(f"2 回目の焼き（別の PC の形）を流せません（{why}）")
-    for t in failed:
-        sys.stderr.write((logs / f"runner-{t}.log").read_text(encoding="utf-8", errors="replace")[-6000:])
-    shutil.rmtree(logs, ignore_errors=True)
-    return failed
-
-
-def user_pass(tests):
-    """3 回目（版 3.117.0 の作った後の直し・割れ 2）: 焼いた表を、ci-shape の runner の形で root でない利用者（daemon）のまま、
-    表と比べるだけ（TPA_BLESS なし）で流す → 落ちた試験の並び。2 回目までは利用者が root のままなので、利用者に頼る葉
-    （名前を書く欄の利用者の名前・家の道・権限）は、ここで止める"""
-    ci = ci_shape()
-    logs = Path(tempfile.mkdtemp(prefix="bless-pass3-"))
-    os.chmod(logs, 0o755)
-    extra = {k: os.environ[k] for k in ("TPA_SETTLE_DROP",) if os.environ.get(k)}
-    bins = {t: exe for t, exe in ci.test_bins(tests).items() if t in tests}
-    _, failed, why = ci.run_shape("runner", bins, logs, False, extra)
-    if why:
-        sys.exit(f"3 回目（root でない利用者の形）を流せません（{why}）")
-    for t in failed:
-        sys.stderr.write((logs / f"runner-{t}.log").read_text(encoding="utf-8", errors="replace")[-6000:])
-    shutil.rmtree(logs, ignore_errors=True)
-    return failed
-
-
-def bless(books):
-    tests = tests_of(books)
-    why = ci_shape().cannot_run()
-    if why:
-        sys.exit(f"焼きません: 2 回目の焼きを別の PC の形（tools/ci-shape.py の runner の形）で流せない PC です（{why}）。root で流してください")
-    near = [x for b in books for x in near_dates(b)]
-    if near:
-        sys.exit("答え合わせ役の元に今日から 3 日の内の固定の日付があります（焼くと今に近い時刻と読まれ、日がたつと表が古くなる）。遠い日付に替えてください:\n"
-                 + "\n".join(near))
-    keep = {p.name: p.read_bytes() for b in books for p in files_of(b)}
-    if cargo(tests, {"TPA_BLESS": "1"}):
-        restore(books, keep)
-        sys.exit("1 回目の焼きが止まりました（Python と違う・試験の食い違い）。元の表に戻しました")
-    # 2 回目は時刻の境（次の分）をまたいでから（同じ分の 2 回では時刻の揺れを見落とす。採点の指摘 3）
-    wait = 62 - time.time() % 60
-    print(f"時刻の境をまたぐまで {wait:.0f} 秒待ちます", flush=True)
-    time.sleep(wait)
-    with tempfile.TemporaryDirectory() as out:
-        os.chmod(out, 0o755)
-        failed = second_pass(tests, out)
-        if failed:
-            restore(books, keep)
-            sys.exit(f"2 回目の焼き（別の PC の形）が止まりました: {' '.join(failed)}。元の表に戻しました")
-        bad = []
-        for b in books:
-            for p in files_of(b):
-                if not (Path(out) / p.name).exists():
-                    bad.append(f"{p.stem}: 2 回目の表がありません")
-                    continue
-                one, two = (json.loads(f.read_text(encoding="utf-8")) for f in (p, Path(out) / p.name))
-                d = first_diff(comparable(one), comparable(two))
-                if d:
-                    bad.append(f"{p.stem}: 1 回目と 2 回目（別の PC の形）が違う（焼いた PC かその瞬間に頼る葉がある。場面で決めるか、"
-                               f"そろえる決まりを狭く足す）: {d}")
-        if bad:
-            restore(books, keep)
-            sys.exit("\n".join(bad) + "\n元の表に戻しました")
-    # 焼いた PC の指紋（PC の名前・一時フォルダの下の作業フォルダ・流すたびに変わるポート・ファイルID）が表に残っていないか
-    names = {p.stem for b in books for p in files_of(b)}
-    left = [x for x in check() if x.split(":")[0] in names and "焼いた PC" in x]
-    if left:
-        restore(books, keep)
-        sys.exit("\n".join(left) + "\n元の表に戻しました")
-    # 3 回目: root でない利用者（ci-shape の runner の形・表と比べるだけ）。落ちたら表を戻す
-    failed = user_pass(tests)
-    if failed:
-        restore(books, keep)
-        sys.exit(f"焼いた表を root でない利用者（ci-shape の runner の形）で比べると落ちました: {' '.join(failed)}"
-                 "（利用者に頼る葉がある。名前を書く欄は settle.json の nameKeys で @USER にそろえる）。元の表に戻しました")
-    print("2 回の焼き（2 回目は別の PC の形）が同じで、root でない利用者の形でも表と同じです:", " ".join(books))
-    print("続けて、CI に似せたほかの形（nopy・nodns）でも流してください: python program/tools/ci-shape.py --shape nopy,nodns --book " + ",".join(books))
-
-
-def restore(books, keep):
-    for b in books:
-        for p in files_of(b):
-            if p.name not in keep:
-                p.unlink()
-    for name, data in keep.items():
-        (BAKED / name).write_bytes(data)
-
-
-def test_bins(tests):
-    r = subprocess.run(["cargo", "test", "--locked", "--no-run", "--message-format=json"] + [x for t in tests for x in ("--test", t)],
-                       cwd=DESKTOP, capture_output=True, text=True, check=True)
-    out = {}
-    for line in r.stdout.splitlines():
-        m = json.loads(line)
-        if m.get("reason") == "compiler-artifact" and m.get("executable") and m["target"]["kind"] == ["test"]:
-            out[m["target"]["name"]] = m["executable"]
+def re_source(books):
+    """答えを替えずに、本の表の元の指紋（sources）だけを今の元で書き直す（版 3.119.0。段 ⑤ で答え合わせ役を元から外したとき・元のコメントだけを
+    直したとき）。表の最上段の "sources" の欄の字だけを書き換え、ほかの字は 1 字も替えない（窓の焼く係 bake.rs の lines と同じ形: 1 項目 1 行・
+    空なら {}）。書いた後に表だけの形の試験（cargo test --test 本の試験）で答えが同じことを確かめる → 書き直した表の名前"""
+    out = []
+    for book in books:
+        now = sources_of(book)
+        body = "{}" if not now else "{\n" + ",\n".join(f"  {json.dumps(k, ensure_ascii=False)}: {json.dumps(v)}" for k, v in sorted(now.items())) + "\n }"
+        for p in files_of(book):
+            text = p.read_text(encoding="utf-8")
+            m = re.search(r'(?ms)^ "sources": (\{\}|\{\n.*?\n \})', text)
+            if not m:
+                raise SystemExit(f"{p.name}: 最上段の sources の欄が見つかりません")
+            new = text[:m.start()] + f' "sources": {body}' + text[m.end():]
+            if new != text:
+                p.write_text(new, encoding="utf-8", newline="\n")
+                out.append(p.stem)
     return out
-
-
-# root でない利用者で焼くときの一時の利用者（版 3.115.0 の作った後の直し: 前は nobody で流し、場面の login「nobody」と名前の置き換えが重なった）
-BLESS_USER = "tpabless"
-
-
-def bless_user(books):
-    """root でない利用者（場面に出ない名前の一時の利用者 tpabless。無ければ作り、終わったら消す）で流して、root と違う歩を variants.user に焼く
-    （root で焼いた答えは変えない）"""
-    if os.geteuid() != 0:
-        sys.exit("--user は root で流す（一時の利用者に替えて流す）")
-    for b in books:
-        for rel in BOOKS[b]["sources"]:
-            if BLESS_USER in (PROGRAM / rel).read_text(encoding="utf-8"):
-                sys.exit(f"一時の利用者の名前 {BLESS_USER} が場面に出ます（{rel}）。名前を替えてください")
-    made = subprocess.run(["id", BLESS_USER], capture_output=True).returncode != 0
-    if made:
-        subprocess.run(["useradd", "-M", "-r", "-s", "/usr/sbin/nologin", BLESS_USER], check=True)
-    try:
-        _bless_user(books)
-    finally:
-        if made:
-            subprocess.run(["userdel", BLESS_USER], check=False)
-
-
-def _bless_user(books):
-    home = Path(tempfile.mkdtemp(prefix="bless-user-"))
-    out = home / "out"
-    out.mkdir()
-    for d in (home, out):
-        os.chmod(d, 0o777)
-    bins = test_bins(tests_of(books))
-    for t in tests_of(books):
-        env = ["env", f"HOME={home}", f"USER={BLESS_USER}", f"LOGNAME={BLESS_USER}", "TPA_BLESS=1", f"TPA_BAKE_OUT={out}", f"TPA_PYTHON={shutil.which('python3')}", "PYTHONDONTWRITEBYTECODE=1"]
-        r = subprocess.run(["runuser", "-u", BLESS_USER, "--"] + env + [bins[t], "--test-threads=1"], cwd=DESKTOP, capture_output=True, text=True)
-        sys.stderr.write(r.stderr[-3000:])
-        if r.returncode:
-            sys.exit(f"{t}: root でない利用者で止まりました")
-    for b in books:
-        for p in files_of(b):
-            if (out / p.name).exists():
-                shutil.copyfile(out / p.name, p)
-                n = len(json.loads(p.read_text(encoding="utf-8")).get("variants", {}).get("user", {}))
-                print(f"{p.stem}: root でない利用者で違う歩 {n}")
-    shutil.rmtree(home, ignore_errors=True)
 
 
 NT = BAKED / "nt"
@@ -1087,15 +943,15 @@ def main():
         # 〈全部の試験〉を流して段の上限 20 分で切られた。cargo の --test が 1 つも無いと全部を流す）
         print(f"流す本がありません（{'札が ' + windows + ' の本 0' if windows else '本 0'}）。cargo は流しません")
         return
-    if "--user" in args:
-        bless_user(books)
-    elif "--no-python" in args:
-        # Python 無し＝program/app を使わない形（独立の答え tools/*-truth.py の標準の Python は残す）。凍らせた Python を相手にする試験は流さず、
-        # その名前を test result の数と別に出す（desktop/tests/common/bake.rs の frozen_python が target/tmp/frozen-skipped.txt に書く）
+    if "--re-source" in args:
+        done = re_source(books)
+        print(f"元の指紋を書き直した表 {len(done)}: " + " ".join(done) + "（答えは替えていない。表だけの形の試験で確かめる）")
+        return
+    if True:  # 版 3.119.0（段 ⑤）から流すのは表だけの形（--no-python は前の書き方のまま受ける）
+        # 表だけの形＝program/app を使わない形（独立の答え tools/*-truth.py・作り物の標準の Python は残す）
         skipped = Path(os.environ.get("CARGO_TARGET_DIR", DESKTOP / "target")) / "tmp" / "frozen-skipped.txt"
         skipped.unlink(missing_ok=True)
-        # --frozen（版 3.117.3）: 凍らせた Python を相手にする試験も、凍らせた写し program/tests/legacy/<版> を相手に流す（TPA_FROZEN_PY=1）
-        env = {"TPA_NO_PYTHON": "1", **({"TPA_FROZEN_PY": "1"} if "--frozen" in args else {})}
+        env = {"TPA_NO_PYTHON": "1"}
         # --as-windows（版 3.117.3 の作った後の直し・割れ 2）: Linux の上で Windows の形（TPA_BAKE_OS=nt。nt の表の読み方・札・作れない物の数え方は
         # 本番と同じ）。答えは Linux の窓の答えなので、--windows table（札が table の本）と一緒に流す（check-all の段 nt-shape）
         if "--as-windows" in args:
@@ -1103,10 +959,9 @@ def main():
         rc = cargo([t for t in tests_of(books) if t not in skip], env)
         # 1 行に 1 つ（窓の試験が 1 回の write で書く）。同じ名前は 1 本に数える
         names = list(dict.fromkeys(x.strip() for x in skipped.read_text(encoding="utf-8").splitlines() if x.strip())) if skipped.exists() else []
-        print(f"流さなかった試験（凍らせた Python を相手にする） {len(names)} 本: " + " ".join(names))
+        if names:
+            print(f"流さなかった試験 {len(names)} 本: " + " ".join(names))
         sys.exit(rc)
-    else:
-        bless(books)
 
 
 if __name__ == "__main__":

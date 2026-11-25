@@ -1,9 +1,9 @@
-//! スケジュール（CM3。src/schedule.rs・cm3.rs・cm3_http.rs）が Python の道（routes/schedule.py・services/schedule.py・cm3_schedule.py）と
-//! 同じ答えか（版 3.96.0）。program/tests/schedule_oracle.py serve が作り物の CM3（tests/schedule_fixture.Cm3Server）を起こし、場面ごとに
+//! スケジュール（CM3。src/schedule.rs・cm3.rs・cm3_http.rs）が Python の道（前の版の schedule・前の版の schedule・前の版の cm3_schedule）と
+//! 同じ答えか（版 3.96.0）。前の版の答え合わせ役 schedule serve が作り物の CM3（tests/schedule_fixture.Cm3Server）を起こし、場面ごとに
 //! Python の道（窓の無い形＝Python が係）の答え・置いた世代と状態のファイル・CM3 が受けた要求を書く。ここでは同じ作り物の CM3 に
 //! 本物の窓の道（Lot::handle_body。設定は窓の束の材料）で同じ並びを当て、1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）・
 //! 世代の表（列・行・値の型）と状態のファイル（seq・error・整えた答え。時刻と指紋は伏せる）・CM3 への要求（要求の行・見出しの並びと値・本文）を
-//! 突き合わせる。窓が答えず Python に任せる歩（delegate）は、窓が答えず、状態に「係を降りた」と書いたことを見る。
+//! 突き合わせる。窓が答えない（製品では 503）歩（delegate）は、窓が答えず、状態に「係を降りた」と書いたことを見る。
 //! 続けて、錠を待つ問い合わせが先に済んだ結果を使う形（黙る CM3 に 4 本同時）と、2 つのプロセス（窓と受け身の Python が rrprrp・prrrpp の
 //! 順に取り直す）で、相手の今の世代が消えない・Python が世代を置かない・CM3 への問い合わせが 1 回ずつであることを見る。
 //! 字の読み（CP932・Shift_JIS・CP1252 の 1・2 バイトの全部・UTF-8 の置き換え・charset の名前）は codecs で Python と比べる。
@@ -149,7 +149,7 @@ fn schedule_matches_python() {
     bk.exclude.push("fakes");
     // 答え合わせ役の答えの上の段の作り物のポート（流すたびに変わる。URL は名前つきの @URL で持つ）
     bk.drop.push("port");
-    let (live, oracle) = bk.live("schedule_oracle.py", &["serve", base.to_str().unwrap()]);
+    let (live, oracle) = bk.live_table();
     let mut live = live.expect("作り物の CM3 を起こしたままにする相手");
     common::trust_test_ca();
     // 走る係ごとの中継のプロキシ（答えと状態の via.proxy の名前:番号）は Python の側の物にそろえる
@@ -179,7 +179,7 @@ fn schedule_matches_python() {
                 delegated += 1;
                 if let Some((status, v)) = got {
                     bad.push(format!(
-                        "{name} [{i}] 窓が答えた（Python に任せるはず）: {status} {}",
+                        "{name} [{i}] 窓が答えた（答えない（製品では 503）はず）: {status} {}",
                         v.to_string().chars().take(200).collect::<String>()
                     ));
                 }
@@ -323,71 +323,6 @@ fn schedule_matches_python() {
         bad.push(format!("同時に 4 本: 答え {answers:?}・CM3 への要求 {n} 本・{took:.2} 秒（1 本・2.2 秒未満のはず）"));
     }
 
-    // 2 つのプロセス（窓と受け身の Python）は、受け身の Python（app）を相手にする（段 ④ の配布の間だけ。Python 無しの形では流さない: bake::frozen_python）
-    if common::bake::frozen_python("schedule_parity の 2 つのプロセス（受け身の Python）") {
-        // 2 つのプロセス（窓と受け身の Python）: 再現した順で取り直しても、相手の今の世代が消えない・Python は世代を置かない・CM3 へ 1 回ずつ
-        let change = scenarios.iter().find(|s| s["scene"] == "change").unwrap();
-        for (k, order) in ["rrprrp", "prrrpp"].iter().enumerate() {
-            let e = &change["env"];
-            let root = base.join(format!("two{k}"));
-            let local = root.join("local");
-            std::fs::create_dir_all(&local).unwrap();
-            std::fs::copy(Path::new(e["local"].as_str().unwrap()).join("instance_id"), local.join("instance_id")).unwrap();
-            let runner = format!("t{k}");
-            let text = std::fs::read_to_string(e["config"].as_str().unwrap()).unwrap().replace("/rs/change", &format!("/{runner}/change"));
-            let cfg_path = root.join("config.json");
-            std::fs::write(&cfg_path, &text).unwrap();
-            let env = json!({"base": e["base"], "program": e["program"], "local": local, "config": cfg_path});
-            let lot = lot_for(&env);
-            let url = serde_json::from_str::<Value>(&text).unwrap()["schedule"]["cm3_base_url"].as_str().unwrap().to_string();
-            let sroot = local.join("db_cache").join("schedule");
-            let (mut py, _) = common::Live::start("schedule_oracle.py", &["passive", sroot.to_str().unwrap(), &url]);
-            let mut seen = 0;
-            for (i, c) in order.chars().enumerate() {
-                if c == 'r' {
-                    let got = lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &no_python);
-                    if got.as_ref().map(|x| x.0) != Some(200) {
-                        bad.push(format!("2 つのプロセス {order} [{i}] 窓の取り直し {got:?}"));
-                    }
-                } else {
-                    py.send("p");
-                    loop {
-                        let v = py.read();
-                        if v["event"] == "schedule" {
-                            lot.notice(&v);
-                        } else {
-                            if v["result"]["error"].as_str().is_some_and(|s| !s.is_empty()) {
-                                bad.push(format!("2 つのプロセス {order} [{i}] Python {v}"));
-                            }
-                            break;
-                        }
-                    }
-                }
-                let st: Value =
-                    serde_json::from_slice(&std::fs::read(sroot.join(format!("{}.state.json", da_core::schedule::safe("L-1")))).unwrap())
-                        .unwrap();
-                let cur = PathBuf::from(st["path"].as_str().unwrap_or(""));
-                let py_files: Vec<String> = std::fs::read_dir(&sroot)
-                    .unwrap()
-                    .flatten()
-                    .map(|e| e.file_name().to_string_lossy().into_owned())
-                    .filter(|n| n.contains(".py."))
-                    .collect();
-                let n = live.ask(&format!("count {runner} change")).as_i64().unwrap();
-                if !cur.exists() || !py_files.is_empty() || n != i as i64 + 1 || st["writer"] != "rs" {
-                    bad.push(format!(
-                        "2 つのプロセス {order} [{i}]: 今の世代 {} ある {}・Python の世代 {py_files:?}・CM3 への要求 {n}（{} のはず）・書き手 {}",
-                        cur.display(),
-                        cur.exists(),
-                        i + 1,
-                        st["writer"]
-                    ));
-                }
-                seen += 1;
-            }
-            assert_eq!(seen, 6);
-        }
-    }
     // 段 ④（版 3.118.0）: 降りない（前の「降りる → Python が取る → 窓が戻る」。Python を使わないので、Python 無しの形でも流す）
     let change = scenarios.iter().find(|s| s["scene"] == "change").unwrap();
     no_resign(&base, change, &mut live, &mut bad);
@@ -396,63 +331,6 @@ fn schedule_matches_python() {
     bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
-}
-
-/// 字の読み: CP932・Shift_JIS・CP1252 の 1・2 バイトの全部、UTF-8 の strict と置き換え、charset の名前の引き方と見出しの読み
-#[test]
-fn codecs_match_python() {
-    // Python の codecs そのもの（標準の Python）と窓の焼いた字の表（src/cm3_tables.json。tools/cm3-tables.py が焼き、tests/test_cm3_tables.py が
-    // 古さを見る）を比べる。Python 無しの形では流さない
-    if !common::bake::frozen_python("schedule_parity の codecs（Python の codecs と窓の字の表）") {
-        return;
-    }
-    let v = common::python_json("schedule_oracle.py", &["codecs"]);
-    let mut bad = vec![];
-    let mut n = 0;
-    for enc in ["cp932", "shift_jis", "cp1252"] {
-        for (b, want) in v[enc]["one"].as_array().unwrap().iter().enumerate() {
-            n += 1;
-            let got = da_core::cm3::decode(&[b as u8], enc).unwrap();
-            if got.as_deref() != want.as_str() {
-                bad.push(format!("{enc} {b:02X}: Python {want} / 窓 {got:?}"));
-            }
-        }
-        for (lead, row) in v[enc]["two"].as_object().unwrap() {
-            let l = u8::from_str_radix(lead, 16).unwrap();
-            for (t, want) in row.as_array().unwrap().iter().enumerate() {
-                n += 1;
-                let got = da_core::cm3::decode(&[l, t as u8], enc).unwrap();
-                if got.as_deref() != want.as_str() {
-                    bad.push(format!("{enc} {lead}{t:02X}: Python {want} / 窓 {got:?}"));
-                }
-            }
-        }
-    }
-    for x in v["utf8"].as_array().unwrap() {
-        n += 1;
-        let b: Vec<u8> = (0..x[0].as_str().unwrap().len() / 2)
-            .map(|i| u8::from_str_radix(&x[0].as_str().unwrap()[i * 2..i * 2 + 2], 16).unwrap())
-            .collect();
-        let strict = da_core::cm3::decode(&b, "utf-8").unwrap();
-        if strict.as_deref() != x[1].as_str() || String::from_utf8_lossy(&b) != x[2].as_str().unwrap() {
-            bad.push(format!("utf-8 {}: Python {} {} / 窓 {strict:?} {}", x[0], x[1], x[2], String::from_utf8_lossy(&b)));
-        }
-    }
-    for (name, want) in v["lookup"].as_object().unwrap() {
-        n += 1;
-        if da_core::cm3::codec_of(name) != want.as_str() {
-            bad.push(format!("lookup {name}: Python {want} / 窓 {:?}", da_core::cm3::codec_of(name)));
-        }
-    }
-    for (ct, want) in v["charset"].as_object().unwrap() {
-        n += 1;
-        if da_core::cm3::charset_of(ct).as_deref() != want.as_str() {
-            bad.push(format!("charset {ct}: Python {want} / 窓 {:?}", da_core::cm3::charset_of(ct)));
-        }
-    }
-    eprintln!("比べた読み {n}");
-    assert!(n > 65_000, "比べた読みが少ない: {n}");
-    assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.iter().take(40).cloned().collect::<Vec<_>>().join("\n"));
 }
 
 /// 1 つの場面の置き場（change の場面の設定を、走る係の名前〈runner〉と作り物の CM3 の場面〈scene〉だけ替えて写す）

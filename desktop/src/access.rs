@@ -1,5 +1,5 @@
-//! アクセス権限の判定と書き込みの門番（版 3.65.0。順 5 の 1 段目 a。program/app/services/access.py・routes/access.py の _access_guard・
-//! routes/common.py の me を移したもの。同じ決まり・同じ言葉）。
+//! アクセス権限の判定と書き込みの門番（版 3.65.0。順 5 の 1 段目 a。前の版の access・前の版の access の _access_guard・
+//! 前の版の common の me を移したもの。同じ決まり・同じ言葉）。
 //!
 //! - 窓は中身（Python）へ回す問い合わせごとに、この PC・このログインの me（名乗り・権限の行・効く権限・できること・切断）を決め、
 //!   見出し X-TPA-Me に載せて渡す（router.rs の gate）。画面から来た同じ名前の見出しは必ず捨てる（画面が権限を名乗れない）
@@ -8,7 +8,7 @@
 //! - 読めないとき（マスタが壊れている・置き場に届かない）は me を載せない。Python が今までどおり自分で決め、門番も自分で見る
 //!   （止めない側へ倒す決まりは Python と同じ: 権限を読めないときは書き込みを止めない）
 //!
-//! 評価関数: tests/access_parity.rs（← program/tests/access_oracle.py。行の組・名乗り・タブ・切断・道ごとに Python と同じ答え）。
+//! 評価関数: tests/access_parity.rs（← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 access）。行の組・名乗り・タブ・切断・道ごとに Python と同じ答え）。
 
 use crate::pyfmt;
 use crate::worksum::{py_str, truthy};
@@ -480,7 +480,7 @@ impl Place {
     }
 
     /// 共有に置くマスタで、共有のフォルダはあるのにそのファイルがまだ無いか（版 3.79.0）。Python は読むだけで写しから共有に最初の版を
-    /// 作る（MasterStore._maybe_refresh）。版 3.105.0 から窓の読む道も Store::seed_absent で同じく置いてから読む（置けなければ Python に任せる）
+    /// 作る（MasterStore._maybe_refresh）。版 3.105.0 から窓の読む道も Store::seed_absent で同じく置いてから読む（置けなければ 答えない（製品では 503））
     pub fn share_absent(&self, name: &str) -> bool {
         self.share_dir
             .as_ref()

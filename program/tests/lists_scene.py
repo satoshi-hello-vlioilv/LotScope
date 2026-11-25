@@ -3,7 +3,7 @@
 
     python tests/lists_scene.py 作業フォルダ
 
-作業実績・仕掛・品質の SQLite と、結合の相手のマスタを作業フォルダに作る。答え合わせ役（tests/lists_oracle.py）と、Python 無しの形
+作業実績・仕掛・品質の SQLite と、結合の相手のマスタを作業フォルダに作る。前の版の答え合わせ役（lists）と、Python 無しの形
 （TPA_NO_PYTHON=1）の窓の試験（desktop/tests/lists_parity.rs。焼いた表は指紋だけを持ち、ここが作り直した物と比べる）が同じ台本を呼ぶ。
 結合の基（quality_s・wip_s）と重なりマスタは小さくしてある（結合の答えの行を表に全部持つため。版 3.116.0 の採点の first_fixes 3）。
 """

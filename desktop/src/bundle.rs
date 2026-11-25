@@ -2,17 +2,17 @@
 //!
 //! 前は窓が 10 秒ごとに Python へ束を尋ね、窓が受け持つ道（一覧・集計・ダッシュボード・保存の道・権限・使用の履歴・計算）も、
 //! Python が答えないと全部 Python へ回していた（lot.rs の settings が Err）。この部品は同じ束を、配った設定（config/appsettings.json）と
-//! マスタの置き場から組む。決まりの元は Python の 1 か所で、窓は Python から焼いた表（bundle_tables.json。program/tools/bundle-tables.py が焼き、
-//! 古い表は tests/test_bundle_tables.py が止める）と、ここに写した組み方を持つ。答えが Python と同じことは desktop/tests/bundle_parity.rs が
-//! program/tests/settings_oracle.py と突き合わせて確かめる。
+//! マスタの置き場から組む。決まりの元は Python の 1 か所で、窓は Python から焼いた表（bundle_tables.json。前の版の道具 bundle-tables が焼き、
+//! 古い表は 前の版の試験 test_bundle_tables が止める）と、ここに写した組み方を持つ。答えが Python と同じことは desktop/tests/bundle_parity.rs が
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 settings） と突き合わせて確かめる。
 //!
-//! 組む物（routes/lotlist.py の lotlist_settings・lists_settings・_access_place・_conversions と同じ）:
+//! 組む物（前の版の lotlist の lotlist_settings・lists_settings・_access_place・_conversions と同じ）:
 //! - source・refresh_seconds・stale_hours・table・page_size … 配った設定に参照先マスタ（path_settings）を重ねた lot_list（path_settings.effective）
 //! - engine … 配った設定の desktop.lotlist_engine（既定 rust）
 //! - conversions … 変換表の表（conversions.tables）と版の印（窓が読み直すかを決める字。Python の字とは別の形で、比べない）
 //! - lists … hidden・work.canEditShifts は窓が権限を受け持つので null。dash（設備の名前・設備グループ・試験の「いま」）・sources（データ元の並び）・
 //!   work（作業実績の決まりと登録）・shifts（勤務体系）
-//! - access … who（名乗り。services/identity.py と同じ順）と place（マスタ・利用状況の置き場）。置き場の引っ越しの印をたどる係は窓の 1 つ
+//! - access … who（名乗り。前の版の identity と同じ順）と place（マスタ・利用状況の置き場）。置き場の引っ越しの印をたどる係は窓の 1 つ
 //!   （follow_moved。Python は窓が名乗ると印をたどらず、この PC の覚え master_share.json を読み直すだけ）
 //! - calculation・uiProfileKeys
 //!
@@ -20,7 +20,7 @@
 //! 配った設定は Python の json.loads と同じく 1 か所（read_settings。src/held.rs の印の字で NaN・Infinity・大きな整数・代用字）で読み、
 //! 段が表でない形（Python も落ちた形を含む）は、その段だけ組まず理由（settingsBroken・節の broken の stage）を付ける。置き場・名乗り・権限・
 //! 更新の置き場は、どの段が壊れても組む。決めは仕様から人が書いた事例の表 program/tests/fixtures/appsettings_cases.json
-//! （cargo test --test appsettings_cases。Python は tests/test_appsettings_cases.py）。束を組まないのは、配った設定が読めず、この PC の
+//! （cargo test --test appsettings_cases。Python は 前の版の試験 test_appsettings_cases）。束を組まないのは、配った設定が読めず、この PC の
 //! 覚えた置き場も無い（置き場が決まらない）ときだけ。
 
 use crate::access::Place;
@@ -181,7 +181,7 @@ fn kind_name(v: &Value) -> String {
     }
 }
 
-/// 数でない値（NaN・Infinity の印の字）を null にした写し（Python の答え〈web.py の _finite〉と同じ。版 3.112.0）
+/// 数でない値（NaN・Infinity の印の字）を null にした写し（Python の答え〈前の版の web の _finite〉と同じ。版 3.112.0）
 fn finite(v: Value) -> Value {
     match v {
         x if crate::held::is_nonfinite(&x) => Value::Null,
@@ -395,7 +395,7 @@ pub fn expandvars(x: &str) -> String {
     out
 }
 
-// ------------------------------------------------------------------ 名乗り（services/identity.py）
+// ------------------------------------------------------------------ 名乗り（前の版の identity）
 /// SHA-1（presence.terminal_key の 6 字に使う。依存を増やさないためにここで数える）
 pub fn sha1_hex(data: &[u8]) -> String {
     let mut h: [u32; 5] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
@@ -564,7 +564,7 @@ pub fn pc_name(over: &str) -> (String, String) {
     v
 }
 
-// ------------------------------------------------------------------ 置き場（repositories/master_store.py の MasterStore）
+// ------------------------------------------------------------------ 置き場（前の版の master_store の MasterStore）
 /// 束を組む材料の置き場。base は MasterStore の base（data/ の親。製品では program）・program は同梱の最初の中身
 /// （app/master_defaults）と配った設定の置き場・local はこの PC の作業場所（master_share.json・want.json・master_cache）
 #[derive(Debug, Clone)]
@@ -581,7 +581,7 @@ pub struct Env {
 impl Env {
     /// 製品の形（窓が中身〈program〉と作業場所から決める。app_env.config_path と同じ順）
     pub fn production(program: &Path, local: &Path) -> Env {
-        // 相対の道は中身のフォルダから（Python は中身のフォルダで動く: sidecar.rs の current_dir）
+        // 相対の道は中身のフォルダから（前の版の Python は中身のフォルダで動いた）
         let config = std::env::var_os("TRANSFER_APP_CONFIG")
             .map(|v| program.join(v))
             .unwrap_or_else(|| program.join("config").join("appsettings.json"));
@@ -871,9 +871,9 @@ impl Builder {
     }
 }
 
-// ------------------------------------------------------------------ 参照先の重ね（services/path_settings.py の effective・parse）
+// ------------------------------------------------------------------ 参照先の重ね（前の版の path_settings の effective・parse）
 /// 画面から来た字 → その項目の値（Ok(None) は空・合わない値で、既定のまま。Python の parse の ValueError と同じ）。
-/// 読み方は書く道と同じ 1 つの関数（settings_write::parse_value。版 3.89.0）。ブラウザの欄・並びの値は Python に任せる
+/// 読み方は書く道と同じ 1 つの関数（settings_write::parse_value。版 3.89.0）。ブラウザの欄・並びの値は 答えない（製品では 503）
 fn parse_item(item: &Value, raw: Option<&Value>) -> Option<Value> {
     use crate::settings_write::{parse_value, Bad};
     // 並び・表の値は Python の str()（repr）の字として読む（版 3.112.0。前は Python に読ませた）
@@ -968,7 +968,7 @@ fn settings_stage_kind(settings: &Value, key: &str) -> String {
     String::new()
 }
 
-// ------------------------------------------------------------------ データ元の並び（services/data_sources.py の sources）
+// ------------------------------------------------------------------ データ元の並び（前の版の data_sources の sources）
 fn num_of(v: Option<&Value>, dflt: &Value) -> R<Value> {
     let x = s(v)?;
     let Ok(n) = pyfmt::py_float(&x) else { return Ok(dflt.clone()) };
@@ -1415,7 +1415,7 @@ fn groups_and_uses(out: &mut [Map<String, Value>]) {
     }
 }
 
-// ------------------------------------------------------------------ 設備グループ（services/equip_groups.py の view・ordered）
+// ------------------------------------------------------------------ 設備グループ（前の版の equip_groups の view・ordered）
 /// 設備グループの行のルール（equip_groups.rules_of）→ (当てる決まり, 除く設備, 当てていない決まり〈{op, value, why}〉)。
 /// 読めない・重い・窓で写せない正規表現の決まりは、その決まりだけを当てずに理由を添えて残し、ほかは残す（版 3.102.0。Python と同じ。
 /// 前は Python が 1 つでも断る決まりがあると全部を消し、窓は正規表現があると束を Python に尋ねた）
@@ -1531,7 +1531,7 @@ pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
     Ok(out)
 }
 
-// ------------------------------------------------------------------ 変換表（services/conversions.py の tables）
+// ------------------------------------------------------------------ 変換表（前の版の conversions の tables）
 /// conversions._j: 並び・表はそのまま、空でない字は JSON として読み、型が既定と違えば既定
 fn conv_j(v: Option<&Value>, list: bool, keep_big: bool) -> R<Value> {
     let dflt = if list { json!([]) } else { json!({}) };
@@ -1952,7 +1952,7 @@ fn schedule_equips(eff: &Value) -> R<usize> {
 }
 
 impl Inputs {
-    /// GET /api/sources のマスタと設定から決まる部分（routes/sources.py の sources_list）。Python と同じに組めなければ Err
+    /// GET /api/sources のマスタと設定から決まる部分（前の版の sources の sources_list）。Python と同じに組めなければ Err
     pub fn sources_parts(&self) -> R<SourcesParts> {
         for name in ["path_settings", "data_sources", "work_log_files"] {
             self.check(name)?;
@@ -2038,7 +2038,7 @@ impl Builder {
         &self.env
     }
 
-    /// GET /api/config（routes/system.py の config）→ (状態, 答え)。版 3.113.0 から窓はどの形も答える（採点の指摘 4。前は LotDsp の学びの
+    /// GET /api/config（前の版の system の config）→ (状態, 答え)。版 3.113.0 から窓はどの形も答える（採点の指摘 4。前は LotDsp の学びの
     /// 形・待つ秒の読めない字などで Err にして中身へ回した）: lotdsp_import が表でなければ Python の StageBroken と同じ理由つきの 503、
     /// api・direct の段が表でない・秒が読めない・request_fields が表でない・extra_args が並びでない形は既定で読む（Python も同じに直した。
     /// 事例は tests/fixtures/rowshape_cases.json の config）。学びの覚えは lotdsp::KeyMap の 1 か所で読む（/api/lotdsp/status と同じ答え）
@@ -2106,7 +2106,7 @@ impl Builder {
     /// 基の置き場は create_app の BASE_DIR〈中身を解いた道〉）。GET /api/settings の config_file（版 3.89.0）
     pub fn config_file(&self) -> String {
         let base = resolved(&self.env.program);
-        // str(Path(字)) は字のまま（相対の道も）。有るかは Python の今のフォルダ＝中身のフォルダ（sidecar.rs の current_dir）から見る
+        // str(Path(字)) は字のまま（相対の道も）。有るかは Python の今のフォルダ＝中身のフォルダから見る
         let (text, at) = match std::env::var_os("TRANSFER_APP_CONFIG") {
             Some(v) => (PathBuf::from(&v), base.join(&v)),
             None => {
@@ -2468,7 +2468,7 @@ mod tests {
         assert!(retired_settings(&quiet).is_empty() && retired_settings(&json!({"schedule": {"fetch_engine": null}})).is_empty());
     }
 
-    /// 数の設定の読み方（版 3.106.0）: program/tests/fixtures/num_setting_cases.json（Python は tests/test_num_setting.py）を、束の num_setting・
+    /// 数の設定の読み方（版 3.106.0）: program/tests/fixtures/num_setting_cases.json（Python は 前の版の試験 test_num_setting）を、束の num_setting・
     /// num_warn と一覧の lists::num（写しの係へ渡す数）が同じに読むか
     #[test]
     fn num_setting_like_the_table() {

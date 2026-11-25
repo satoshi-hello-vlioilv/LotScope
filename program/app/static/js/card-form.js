@@ -1,7 +1,7 @@
 "use strict";
 /* =========================================================================
    カードの設計（版 3.55.0。利用者の要望 2026-10-25: Access のフォームのように、カードを見た目のまま設計する。
-   置き場は services/card_forms.py・/api/card-forms。カードの窓は lotlist-card.js。決め方: ui-proposals/2026-10-cardform*）
+   置き場は 前の版の card_forms・/api/card-forms。カードの窓は lotlist-card.js。決め方: ui-proposals/2026-10-cardform*）
    - 設計の形（body）: {cols: 方眼の列, row: 1 段の高さ px, theme: {accent, density, radius}, tabs?: [{id, name}],
        items: [{id, kind, tab?, col|expr|text|cols, label, x, y, w, h, st, fold?, shut?}]}
      kind … field（列の値）・combo（組み合わせた項目: 表示列の作り方と同じ式 list-formula.js）・text（決まった字）・section（見出しの線）・

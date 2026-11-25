@@ -1,5 +1,5 @@
 //! 大きな整数の事例の表（program/tests/fixtures/bigint_cases.json。版 3.108.0・Rust 化の段 ① の 5 歩目・案 H2）を窓が同じに答えるか。
-//! 表は Python 3 の int で焼いた答え（program/tools/bigint-cases.py。Python は tests/test_bigint_cases.py が古い表を止める）。
+//! 表は Python 3 の int で焼いた答え（前の版の道具 bigint-cases。Python は 前の版の試験 test_bigint_cases が古い表を止める）。
 //! 比べ方・並べ方（pyfmt::PyInt の Ord）・+1 と +10（succ・master_rows::add_small）・int(小数)（pyfmt::py_int_of）・
 //! 次の id（master_store::next_id）・次の表示順（master_rows::next_order）・読んで書き戻す字（held::parse → held::reply_bytes）
 

@@ -1,5 +1,5 @@
-//! 利用状況・使用の履歴・画面の設定の控え（src/presence.rs）が Python の道（心拍・routes/access.py の利用状況・/api/ui-state）と
-//! 同じ答えか（版 3.71.0。順 5 の 3 段目）。program/tests/presence_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、
+//! 利用状況・使用の履歴・画面の設定の控え（src/presence.rs）が Python の道（心拍・前の版の access の利用状況・/api/ui-state）と
+//! 同じ答えか（版 3.71.0。順 5 の 3 段目）。前の版の答え合わせ役 presence が場面ごとに同じ中身のフォルダを 2 つ作り、
 //! 片方に Python の道で歩みの並びを当てる（1 歩ごとに時計を差し替える）。ここではもう片方に同じ並びを窓の道で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（中身・字下げ・改行。書きかけの残りが無いこと）を突き合わせる。
 //! 版 3.116.0 から窓の答えと終わった後のファイルを焼いた表（tests/baked/presence.json。詰めた形）にも持ち、Python 無しでは表とだけ比べる。
@@ -63,13 +63,7 @@ fn presence_matches_python() {
     bk.pack = true;
     // 歩（op を持つ表）の status・json は焼かない。Python の終わった後のファイル（files）も表の問い合わせには持たない
     bk.strip_in = vec!["op"];
-    let oracle = bk.oracle_with("presence_oracle.py", &[base.to_str().unwrap()], |v| {
-        let mut o = v.clone();
-        for sc in o["scenarios"].as_array_mut().unwrap() {
-            sc.as_object_mut().unwrap().remove("files");
-        }
-        o
-    });
+    let oracle = bk.table_oracle();
     let version = oracle["version"].as_str().unwrap();
     let mut bad = vec![];
     let mut steps = 0;
@@ -154,10 +148,12 @@ fn presence_matches_python() {
                             } else {
                                 let m = me();
                                 let r = pres.handle(&m, place.share_dir.is_some(), method, path, st["query"].as_str().unwrap_or(""), body);
-                                // 窓が答えず Python に任せる歩（Python は例外で 500。版 3.104.0 の作った後の採点: 月の名前の年が datetime の外）
+                                // 窓が答えない（製品では 503）歩（Python は例外で 500。版 3.104.0 の作った後の採点: 月の名前の年が datetime の外）
                                 if st["delegate"] == true {
                                     if let Some((status, got)) = r {
-                                        bad.push(format!("{name}: 窓が答えた（Python に任せるはず） {method} {path}: 窓 {status} {got}"));
+                                        bad.push(format!(
+                                            "{name}: 窓が答えた（答えない（製品では 503）はず） {method} {path}: 窓 {status} {got}"
+                                        ));
                                     }
                                     None
                                 } else {

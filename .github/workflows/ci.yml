@@ -1,5 +1,6 @@
 # CLAUDE.md の「push 前の確かめ」を GitHub でも回す（型・構文・lint〔ruff・clippy〕・試験）。
-# - program: アプリは Python の標準の部品だけで動く（版 3.8.0 で Flask を外した）ので、部品は入れずに試す（入れないこと自体が確かめ）
+# - program: 版 3.119.0（段 ⑤）でアプリの中身（Python。program/app の .py）を消した。残る Python は作り手の道具・場面の台本・独立の答えで、
+#   標準の部品だけで動くので、部品は入れずに試す（入れないこと自体が確かめ）
 # - desktop: 窓（Rust・Tauri）の書式・作成・試験と、本物の窓（WebKitGTK）での自己診断（Windows の WebView2 は desktop.yml）
 name: CI
 
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13.18"          # 修正版まで決める（版 3.98.0: html.parser の答えが修正版で替わる。焼いた表 tests/test_lotdsp_html_cases.py は Linux のここだけで流す）
+          python-version: "3.13.18"          # 修正版まで決める（版 3.98.0: html.parser の答えが修正版で替わる。版 3.119.0 から LotDsp の HTML の事例表は凍った答えで、窓の lotdsp_cases が読む）
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -32,7 +33,7 @@ jobs:
         run: |
           pip install ruff==0.15.20
           ruff check program
-      - name: test（Python・アプリ）
+      - name: test（Python・道具と台本。app を import しない）
         working-directory: program
         run: python -m unittest discover -s tests -t .
       - name: test（Python・配る ZIP の組み立て）
@@ -68,6 +69,15 @@ jobs:
       - name: typecheck（Rust）
         working-directory: desktop
         run: cargo build --locked
+      # 版 3.119.0（段 ⑤。採点の first_fixes 8）: 組むのに Python が要らない（build.rs はアイコンを Python で描かない。焼いた絵 desktop/icons）。
+      # PATH の先に、呼ばれたら落ちる python・python3 を置き、build.rs を流し直して組む
+      - name: 組むのに Python が要らない
+        working-directory: desktop
+        run: |
+          mkdir -p "$RUNNER_TEMP/nopy"
+          for n in python python3; do printf '#!/bin/sh\necho "build で $0 が呼ばれました" >&2\nexit 97\n' > "$RUNNER_TEMP/nopy/$n"; chmod +x "$RUNNER_TEMP/nopy/$n"; done
+          touch build.rs
+          PATH="$RUNNER_TEMP/nopy:$PATH" TPA_PYTHON="$RUNNER_TEMP/nopy/python3" cargo build --locked
       # 版 3.118.3（作った後の採点の割れ 2）: 窓に遅くする口（desktop/src/slow.rs。feature testing の下だけ）が入っていない
       # （exe の中に口の印の字が無い・組んだ記録の features に testing が無い。配る release の exe は desktop.yml の windows-exe で同じ物を見る）
       - name: 窓に遅くする口が無い
@@ -81,18 +91,12 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       # --no-fail-fast: 落ちた本で止めず、全部の本を流す（落ちた所を 1 回の CI で全部見る。落ちた本があれば終了コードは 0 でない。
       # 版 3.115.0 の PR #115 は、最初に落ちた本で止まるので落ちる所が 1 回に 1 つずつしか分からず、4 往復になった）
-      # Python と比べる形（環境変数なし。CLAUDE.md の「push 前の確かめ」の命令そのまま。段 ⑤ まで残す）
-      - name: test（Rust・Python と比べる形）
-        working-directory: desktop
-        run: cargo test --locked --no-fail-fast
-      # 版 3.118.0（段 ④。採点の first_fixes 9）: 表だけの形も流す（TPA_NO_PYTHON=1: 焼いた本は表の宣言から場面を作り焼いた答えと比べる・
-      # TPA_FROZEN_PY=1: 凍らせた Python を相手にする試験は凍らせた写し program/tests/legacy/3.117.3 を相手に流す）。check-all.sh も両方
+      # 版 3.119.0（段 ⑤）: 表だけの形（TPA_NO_PYTHON=1: 焼いた本は表の宣言から場面を作り焼いた答えと比べる）だけ。Python と比べる形は
+      # 答え合わせ役と一緒に消した。CLAUDE.md の「push 前の確かめ」・check-all.sh も同じ
       - name: test（Rust・表だけの形）
-        if: ${{ !cancelled() }}
         working-directory: desktop
         env:
           TPA_NO_PYTHON: "1"
-          TPA_FROZEN_PY: "1"
         run: cargo test --locked --no-fail-fast
       # 自己診断（desktop/src/selftest.js。版 3.118.1 から項目は全部窓だけの確かめ: 答えの形・道どうしの数・場面の値・決めた答え。中身〈Python〉とは比べない）。
       # 一覧の数を道どうしで見るため、試験用の品質データ（3000 行）を参照先にした設定で起こす

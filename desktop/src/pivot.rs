@@ -1,12 +1,12 @@
-//! ピボット集計（Python の services/pivot.py と同じ答え。版 3.61.0 で移した）。
+//! ピボット集計（Python の 前の版の pivot と同じ答え。版 3.61.0 で移した）。
 //!
-//! 一覧と同じ絞り込み（検索・条件・列で絞り込む・スライサー）に当たる全件を数える。答えの形・決め方は pivot.py の説明と同じ:
+//! 一覧と同じ絞り込み（検索・条件・列で絞り込む・スライサー）に当たる全件を数える。答えの形・決め方は 前の版の pivot の説明と同じ:
 //! 行・列（dims）は最大 3 段（値のまま・日付のまとめ・数の区間・作業日・直・設備・設備グループ）、値（measures）は最大 6 つ
 //! （src/aggregate.rs）、小計・総計は段の頭の組すべて、箱ひげ（box）・月で絞る（month）・期間（period）・計算列（calc）・
 //! いくつかのファイル（query_many。ダッシュボードの「作業実績 すべての設備」など）・設備で絞る（equips）・設備のまとめ（egroups）・
 //! 設備グループの段（sets）。
 //! 答えが同じことは desktop/tests/routes_parity.rs（一覧の集計の道）と pivot_parity.rs（いくつかのファイル・期間・設備のまとめ・
-//! 計算列・箱ひげ。← program/tests/pivot_oracle.py）が Python の答えと突き合わせて確かめる。
+//! 計算列・箱ひげ。← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 pivot））が Python の答えと突き合わせて確かめる。
 
 use crate::aggregate::{self, Acc, OutCell, N};
 use crate::capacity::{self, Cells, OwnBase};

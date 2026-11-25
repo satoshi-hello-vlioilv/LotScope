@@ -197,7 +197,7 @@
     `compile().run`が受ける）。長すぎる書き方は断り、作った正規表現は使い回す
     （行ごとに作り直すと200行×列で効いてくる）。 */
  const RE_MAX=200;
- /* 重すぎる正規表現・長すぎる答えを断る（版 3.52.1。サーバーの services/formula.py の regex_risk・RE_TEXT_MAX・STR_MAX と同じ決まり）:
+ /* 重すぎる正規表現・長すぎる答えを断る（版 3.52.1。サーバーの 前の版の formula の regex_risk・RE_TEXT_MAX・STR_MAX と同じ決まり）:
     ① 繰り返しを含むかっこを、さらに繰り返す（(a+)+ の形） ② 「.」の繰り返しが 3 つ以上。調べる字は 2000 字まで・答えは 10 万字まで */
  const RE_TEXT_MAX=2000,STR_MAX=100000,DOT_REPEAT_MAX=2,QUANT=/[*+]|\{[0-9]+(?:,[0-9]*)?\}/y;
  function quantAt(src,i){QUANT.lastIndex=i;const m=QUANT.exec(src);return m?QUANT.lastIndex:-1}
@@ -281,7 +281,7 @@
  /* ---------- 変換表（版 3.42.0。LotScope だけ。マスタ「変換表」: コードの読み替え・条件の判定表） ----------
     conv('表の名前', 値1, 値2, …) … 値を表の「入力」の順に渡すと、上から順に見て最初に当たった行の「出す値」を返す。
     どの行にも当たらなければ「その他」。出す値が = で始まれば式（[入力の名前] で入力の値を読む。例: =[地取区分] は元の値のまま）。
-    表は画面が変換表のマスタを読んで setTables で渡す（サーバーは services/formula.py の use_tables。同じ決まり・同じ答え）。
+    表は画面が変換表のマスタを読んで setTables で渡す（サーバーは 前の版の formula の use_tables。同じ決まり・同じ答え）。
     表の形: {inputs:[{name, type:'text'|'num'}], rows:[{when:{入力の名前:[試し…]}, out}], other}
       行の when は 入力ごとの試しの並び（並びの中は「または」・入力どうしは「かつ」。書いていない入力は不問。when が空なら必ず当たる）
       試し {op, v:[値…]}: eq（どれかと同じ）・ne（どれとも違う）・starts・nstarts（で始まる／始まらない）・ends・nends・contains・ncontains・
@@ -355,7 +355,7 @@
  /* 位置は**1から数える**（Excelの MID／FIND と同じ・現場の数え方）。 */
  const posOf=v=>{const n=numOf(v);return n===null?1:Math.max(1,Math.floor(n))};
  /* ---------- 版 3.46.0 で足した関数（利用者の要望「文字列カウント・ほかの便利な関数」）。
-    サーバー（services/formula.py）と同じ決まり・同じ答え（tests/test_formula_parity.py が突き合わせる） ---------- */
+    サーバー（前の版の formula）と同じ決まり・同じ答え（前の版の試験 test_formula_parity が突き合わせる） ---------- */
  const nums=a=>a.map(numOf).filter(n=>n!==null);
  const digitsOf=v=>Math.trunc(Math.max(0,Math.min(8,numOf(v)||0)));
  /* Excel の ROUNDUP（0 から遠い側）・ROUNDDOWN（0 の側）。x×10^桁 の小さな誤差は 15 桁で丸めてから切る */

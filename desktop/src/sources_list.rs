@@ -1,4 +1,4 @@
-//! データ元の並び（GET /api/sources。routes/sources.py の sources_list）を窓が答える（版 3.87.0）。
+//! データ元の並び（GET /api/sources。前の版の sources の sources_list）を窓が答える（版 3.87.0）。
 //!
 //! マスタと設定から決まる部分（並び・接続の設定・参照先の項目の答え）は bundle.rs の `Inputs::sources_parts`。ここは動く部分:
 //! - 写しの様子（mirror）: 品質は窓の写しの係・ほかの元は窓の写しの係（まだ開いていない元も、写さずに台帳から様子を読む。
@@ -32,7 +32,7 @@ pub struct Live<'a> {
     pub card: &'a dyn Fn() -> Option<Value>,
 }
 
-/// 手元の写しの行の数（routes/sources.py の _rows_of。読めなければ null）
+/// 手元の写しの行の数（前の版の sources の _rows_of。読めなければ null）
 fn rows_of(m: Option<&Arc<DbMirror>>, d: &Map<String, Value>) -> Value {
     // 待たない（最初の周回の途中でも、見出しのタブを止めない。受け身の Python の read_path も待たない）
     let Some(path) = m.and_then(|m| m.read_path_wait(false)) else { return Value::Null };
@@ -82,7 +82,7 @@ fn built_at(m: &Map<String, Value>) -> Result<f64, ()> {
 }
 
 /// 最後に組んだ結合の覚え（data_join.Joiner.recent のファイルの読み方）。決まり items が今と同じ物のうち、いちばん新しい物。
-/// Python が落ちる形（比べられない builtAt）は Err（窓は答えず Python に任せる）
+/// Python が落ちる形（比べられない builtAt）は Err（窓は答えない（製品では 503））
 fn recent(root: &Path, key: &str, items: &Value) -> Result<Option<Map<String, Value>>, ()> {
     let head = format!("{key}_");
     let mut best: Option<Map<String, Value>> = None;
@@ -143,7 +143,7 @@ fn view_rows(root: &Path, d: &Map<String, Value>) -> Result<Value, ()> {
     Ok(stats_of(&got)?.last().and_then(|x| x.get("out")).cloned().unwrap_or(Value::Null))
 }
 
-/// GET /api/sources の答え。組めなければ None（Python に任せる）
+/// GET /api/sources の答え。組めなければ None（答えない（製品では 503））
 pub fn answer(inp: &Inputs, me: &Value, store: &Store, live: &Live) -> Option<Value> {
     let parts = inp.sources_parts().ok()?;
     let by_key: Vec<(String, Map<String, Value>)> =
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn python_crashes_are_left_to_python() {
-        // Python が落ちる（500）形は窓も答えない（Err → GET /api/sources を Python に任せる）
+        // Python が落ちる（500）形は窓も答えない（Err → GET /api/sources を 答えない（製品では 503））
         let rule = json!([{"with": "wip", "how": "left", "on": [], "cols": []}]);
         let it = item(rule.clone());
         for (name, files) in [

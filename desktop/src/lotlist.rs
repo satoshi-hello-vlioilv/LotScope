@@ -1,9 +1,9 @@
-//! 品質異常を品質データ（SQLite）から引く。Python 版（program/app/services/lot_list.py）と**同じ答え**を作る。
+//! 品質異常を品質データ（SQLite）から引く。Python 版（前の版の lot_list）と**同じ答え**を作る。
 //!
 //! 絞り込み・並べ替え・ページ・まとめ（ロット番号）・日付の列・0 件の手がかりの決まりは Python 版の写し。SQL の文も同じ物を作り、
 //! SQL の中の CStr・Val・ToDate・Nz は Rust の関数（pyfmt）として SQLite に入れる（Python 版は行×列の回数だけ Python の関数を
 //! 呼ぶので、検索・0 件の手がかりが遅かった。DESKTOP_MIGRATION_DESIGN.md §7.1）。
-//! 答えが同じことは desktop/tests/lotlist_parity.rs が Python の答え（program/tests/lotlist_oracle.py）と比べて確かめる。
+//! 答えが同じことは desktop/tests/lotlist_parity.rs が Python の答え（焼いた表 desktop/tests/baked（前の版の答え合わせ役 lotlist））と比べて確かめる。
 
 use crate::formula::{self, Tables};
 use crate::pyfmt::{self, Py};
@@ -1338,7 +1338,7 @@ mod tests {
 
     #[test]
     fn like_pattern_like_python() {
-        // 事例の表は Python の試験（tests/test_lot_list_wildcard.py）と同じ物
+        // 事例の表は Python の試験（前の版の試験 test_lot_list_wildcard）と同じ物
         let cases: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/like_cases.json")).unwrap();
         for x in cases["patterns"].as_array().unwrap() {
             let got = like_pattern(x["value"].as_str().unwrap(), x["mode"].as_str().unwrap());

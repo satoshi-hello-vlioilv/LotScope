@@ -1,4 +1,4 @@
-//! このアプリで LotDsp の進度情報を読む（見えない Edge・LotDsp の窓）。版 3.98.0 で Python の services/lotdsp_direct.py を写した
+//! このアプリで LotDsp の進度情報を読む（見えない Edge・LotDsp の窓）。版 3.98.0 で Python の 前の版の lotdsp_direct を写した
 //! （窓がただ 1 つの係: 見えない Edge・錠・中止・LotDsp の窓のプロファイルはプロセスに 1 つしか持てないので、Python は答えない）。
 //!
 //! 写した決まりと、版 3.98.0 で Python と一緒に直した所:

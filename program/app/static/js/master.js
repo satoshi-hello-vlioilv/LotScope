@@ -85,23 +85,23 @@ const MASTER_DEFS = {
   },
 };
 
-/* 勤務体系（直の時間帯。services/shifts.py）: 作業実績を「日＋直ごと」に数える決まり。WaveLog の勤務体系マスタの編集画面を移した（現場のマスタ）。
+/* 勤務体系（直の時間帯。前の版の shifts）: 作業実績を「日＋直ごと」に数える決まり。WaveLog の勤務体系マスタの編集画面を移した（現場のマスタ）。
    ナビは定義の順に見出しを作るので、同じ「データ」の設備・ロールの直後に置く。 */
 MASTER_DEFS.shifts = { name: "shift_patterns", label: "勤務体系", group: "データ", api: "/api/masters/shifts", custom: true, render: () => renderShifts() };
-/* 設備グループ（版 3.39.0。services/equip_groups.py）: いくつかの設備を 1 つのグループにして、ダッシュボードのパネルで合算して出す（現場のマスタ）。
+/* 設備グループ（版 3.39.0。前の版の equip_groups）: いくつかの設備を 1 つのグループにして、ダッシュボードのパネルで合算して出す（現場のマスタ）。
    勤務体系と同じ形（左に登録済み・右に直す所）。まとめ方（ライン別・工場別など）ごとにグループを並べる */
 MASTER_DEFS.egroups = { name: "equipment_groups", label: "設備グループ", group: "データ", api: "/api/masters/equipgroups", custom: true, render: () => renderEquipGroups() };
 /* 参照先（読みに行く場所）。表ではなくカードで出す特別なタブ（custom）。中身は /api/settings の items */
 /* 版 3.58.0: 参照先・作業実績の頁はナビに出さない（中身は「データ元」の接続の設定・設備の段と「そのほかの接続」で直す）。定義は読み込みと保存の見張りに使う */
 MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true, visible: () => false };
 /* 作業実績（設備ごとの実績ファイル）: フォルダを探して設備を見つけ、設備ごとに表示する・しない・結ぶファイルを決める（管理のマスタ）。
-   表示ルール（表示列・条件など）は行のキーに結ぶので、ファイルの名前が変わっても設備ごとの見え方は続く（services/work_log.py） */
+   表示ルール（表示列・条件など）は行のキーに結ぶので、ファイルの名前が変わっても設備ごとの見え方は続く（前の版の work_log） */
 MASTER_DEFS.worklog = { name: "work_log_files", label: "実績の設備", group: "つなぎ先", api: "/api/masters/worklog", custom: true, admin: true,
   render: () => renderWorklog(), visible: () => false };
 /* マスタの置き場（共有フォルダ）。見るのはだれでも、変えるのは開発者・メンテナンス者（サーバーの門番 _release_place_gate）。
    ナビの項目には、頁を開かなくても分かるように今の状態の札（手元・共有・届かない）を添える。 */
 MASTER_DEFS.place = { name: "master_place", label: "マスタの置き場", group: "管理", api: "/api/masters/place", custom: true, render: () => renderMasterPlace() };
-/* アクセス権限（管理のマスタ）。判定はサーバー（services/access.py）の1箇所。画面は選択欄と印を出すだけ。 */
+/* アクセス権限（管理のマスタ）。判定はサーバー（前の版の access）の1箇所。画面は選択欄と印を出すだけ。 */
 MASTER_DEFS.access = {
   name: "access_permissions", label: "アクセス権限", group: "管理", api: "/api/masters/access", idField: "ログインID", admin: true,
   parse: (d) => { mstate.meta.access = d; return d.items || []; },
@@ -132,7 +132,7 @@ MASTER_DEFS.access = {
 MASTER_DEFS.presence = { name: "presence", label: "利用状況", group: "管理", api: "/api/presence", custom: true, render: () => renderPresence(),
   visible: (me) => !!me.canViewPresence };
 /* アプリの配布（版 3.4.0・WaveLog と同じ流れ）: ① 版を置く → ② 配る版を選ぶ → ③ 各 PC がそろう。
-   答えるのは窓（desktop/src/distribute.rs）。置く・配るは開発者・メンテナンス者だけ（決めるのは services/access.py）。 */
+   答えるのは窓（desktop/src/distribute.rs）。置く・配るは開発者・メンテナンス者だけ（決めるのは 前の版の access）。 */
 MASTER_DEFS.release = { name: "release", label: "アプリの配布", group: "管理", api: "/__desktop/release", custom: true, render: () => renderRelease() };
 
 const TA = {};      // アクセス権限の「見出しのタブ」の部品（master-tabaccess.js が renderTabAccess・accessToolbar を置く）
@@ -1298,7 +1298,7 @@ async function paintNoPython() {
 }
 /* ---------------- 配布の置き場を変える（場所・フォルダの名前） ----------------
    ① 上のフォルダと名前を入れる（いまの置き場から始める）。打つたびにサーバーが確かめ、写す量・切り替えるだけか・使えない理由を出す。
-   ② 変える: いまの置き場を新しい場所の隣の一時フォルダへ写し、写し終えてから名前を付ける（services/release_place.py）
+   ② 変える: いまの置き場を新しい場所の隣の一時フォルダへ写し、写し終えてから名前を付ける（前の版の release_place）
       → 参照先「更新の置き場」（update.source）を新しい場所に書き換える（全員の PC に効く・行の版と書き込みの門番が効く）。
    前の置き場は消さない（ほかの PC が持っている前の入口のアドレス・戻すときのため）。 */
 const splitPath = (p) => {
@@ -1418,7 +1418,7 @@ async function moveReleasePlace(d, a, pl, say) {
     + "\n新しい PC へ渡すアドレスも変わりました（下の「アドレスをコピー」で写し直してください）。"
     + (r.data.started ? `\n前の置き場（${d.found}）は残しています。要らなければ、全員がそろったあとで手で消してください。` : ""));
 }
-/* ---------------- マスタの置き場（共有フォルダ）を変える（services/master_place.py） ----------------
+/* ---------------- マスタの置き場（共有フォルダ）を変える（前の版の master_place） ----------------
    頁は上から「いまの置き場」→「置き場を変える」→「これまでの置き場」。形は配布の置き場を変えると同じ（上のフォルダ＋名前・木・確かめる）。
    変える: いまのマスタを新しい場所へ写してから、この PC を切り替える。ほかの PC は前の置き場の印（_MOVED.json）をたどって移る。 */
 async function renderMasterPlace() {

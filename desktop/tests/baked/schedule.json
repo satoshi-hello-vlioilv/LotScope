@@ -4528,13 +4528,10 @@
   "links": {}
  },
  "sources": {
-  "tests/equipgroups_oracle.py": "66828ffb3cb09c69",
-  "tests/fakes_schedule.py": "bdb1246b14050148",
-  "tests/fakes_serve.py": "fc71085077c6898b",
-  "tests/lotlist_fixture.py": "2bb8ea3b0a45d69d",
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/schedule_fixture.py": "c040571ff4fff91c",
-  "tests/schedule_oracle.py": "20b41ee0cf986f98"
+  "tests/fakes_schedule.py": "521c29571fcb2f9c",
+  "tests/fakes_serve.py": "b5faa043efa143de",
+  "tests/lotlist_fixture.py": "4061d4970a286395",
+  "tests/schedule_fixture.py": "d5703c248324aa2f"
  },
  "variant": "root"
 }
