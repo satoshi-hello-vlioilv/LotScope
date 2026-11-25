@@ -90,7 +90,7 @@ fn same_me_and_guard_as_python() {
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// 権限を書いたら（一覧の設定に効くマスタを書く道の後: Lot::after_python）すぐ読み直す・名乗りが違えば覚えた me を使わない・
+/// 権限を書いたら（一覧の設定に効くマスタを書く道の後: Lot::after_write）すぐ読み直す・名乗りが違えば覚えた me を使わない・
 /// 切断の指示は PC ごと（鍵の違う覚えを使わない）・百分率符号で書いた道も同じ門番
 #[test]
 fn lot_gate_forgets_after_writes() {
@@ -118,10 +118,10 @@ fn lot_gate_forgets_after_writes() {
     assert!(role("POST", "/api/masters/equipment").is_err(), "設備作業者は書けない");
     put("メンテナンス者");
     assert!(role("POST", "/api/masters/equipment").is_err(), "覚えている間は前の答え");
-    lot.after_python("GET", "/api/masters/access", 200);
-    lot.after_python("POST", "/api/masters/access", 403);
+    lot.after_write("GET", "/api/masters/access", 200);
+    lot.after_write("POST", "/api/masters/access", 403);
     assert!(role("POST", "/api/masters/equipment").is_err(), "読むだけ・断られた書き込みでは捨てない");
-    lot.after_python("PUT", "/api/masters/access/2", 200);
+    lot.after_write("PUT", "/api/masters/access/2", 200);
     assert_eq!(role("POST", "/api/masters/equipment").unwrap(), "メンテナンス者", "権限を書いた後は読み直す");
     for (p, r) in [
         ("/api/masters/tabaccess", "設備作業者"),
@@ -129,7 +129,7 @@ fn lot_gate_forgets_after_writes() {
         ("/api/settings/lot_list", "メンテナンス者"),
     ] {
         put(r);
-        lot.after_python("POST", p, 200);
+        lot.after_write("POST", p, 200);
         assert_eq!(role("GET", "/api/access/me").unwrap(), r, "{p} を書いた後も読み直す");
     }
     // 切断の指示は PC（鍵）ごと: u1 の切断を覚えたまま boss に替えても、boss は切断されていない

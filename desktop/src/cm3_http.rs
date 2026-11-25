@@ -8,7 +8,7 @@
 //! 「CM3の応答がタイムアウトしました」、OS の誤りは Python の OSError の str の形〈Linux は [Errno n] 理由、Windows は [WinError n] 文〉）。
 //!
 //! 窓が取れない設定（ftp など・URL に空白や ASCII でない字）と、Python が落ちる答え
-//! （壊れた状態の行・途中で切れた本文・壊れた chunked）は Fail::Python（schedule.rs が係を降りて Python に任せる）。
+//! （壊れた状態の行・途中で切れた本文・壊れた chunked）は Fail::Unreadable（cm3::windowed が窓の言葉の失敗にする）。
 //!
 //! 版 3.117.1（段 ③-6）: スケジュールは https（native-tls。Linux は OpenSSL・Windows は schannel と OS の証明書の置き場）とシステムのプロキシ
 //! （src/sysproxy.rs。http は「POST http://… HTTP/1.1」、https は CONNECT の中継）も取る。届かない言葉は種類ごとに決めた字（src/cm3_net.rs）。
@@ -53,7 +53,7 @@ pub const USER_AGENT: &str = "Python-urllib/3.13";
 const MAXLINE: usize = 65536;
 
 fn py<T, E: From<Fail>>(why: &'static str) -> Result<T, E> {
-    Err(Fail::Python(why).into())
+    Err(Fail::Unreadable(why).into())
 }
 
 fn connect_err(reason: String) -> Fail {
@@ -544,7 +544,7 @@ fn open(t: &Target, route: &Route, timeout: Duration) -> H<Stream> {
         };
         // 読めない答え（Python の _tunnel は http.client の HTTPException）は ProxyBad。中継の答えを読む前の timeout も、ほかの所と同じ時間切れ
         let bad = |e: X| match e {
-            X::F(Fail::Python(why)) => net(Kind::ProxyBad, hp.clone(), Fail::Python(why)),
+            X::F(Fail::Unreadable(why)) => net(Kind::ProxyBad, hp.clone(), Fail::Unreadable(why)),
             X::N { kind: Kind::Timeout, legacy, .. } => net(Kind::Timeout, String::new(), legacy),
             x => x,
         };
@@ -929,7 +929,7 @@ pub fn reach(url: &str, timeout: Duration, n: &Net) -> Result<(), String> {
     let note = n.proxy.as_ref().map(crate::sysproxy::pac_note).unwrap_or("");
     let said = |e: X| match e {
         X::F(Fail::Cm3(m)) => m,
-        X::F(Fail::Python(_)) => REACH_UNKNOWN.to_string(),
+        X::F(Fail::Unreadable(_)) => REACH_UNKNOWN.to_string(),
         X::N { kind, detail, .. } => crate::cm3_net::message(kind, &detail, note),
     };
     let t = target_with(url, true).map_err(|f| said(X::F(f)))?;
@@ -1023,9 +1023,9 @@ mod tests {
         assert_eq!(target("http://h:").unwrap().port, 80);
         assert_eq!(target("nlmfangyweb1a:9085/x"), Err(Fail::Cm3("予定の元に接続できません: unknown url type: nlmfangyweb1a".into())));
         assert_eq!(target("http:///x"), Err(Fail::Cm3("予定の元に接続できません: no host given".into())));
-        assert!(matches!(target("https://h/x"), Err(Fail::Python(_))));
-        assert!(matches!(target("nohost"), Err(Fail::Python(_))));
-        assert!(matches!(target("http://h:99999/"), Err(Fail::Python(_))));
+        assert!(matches!(target("https://h/x"), Err(Fail::Unreadable(_))));
+        assert!(matches!(target("nohost"), Err(Fail::Unreadable(_))));
+        assert!(matches!(target("http://h:99999/"), Err(Fail::Unreadable(_))));
         assert_eq!(split3("HTTP/1.1  200   OK  then "), ["HTTP/1.1", "200", "OK  then "]);
     }
 }

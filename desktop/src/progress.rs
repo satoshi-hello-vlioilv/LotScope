@@ -12,11 +12,11 @@
 //!   count … 集計（n/of なし）
 //!   gantt … 稼働のガントを組み終えた設備 n / of
 //!   abc   … ABC 分析の品種を並べる（n/of なし）
-//!   python … 窓が答えない形を Python に任せた（段は分からない。経過だけ）
 //!   group … 合わせた表のまとまり・別のデータを合わせるのデータ（k / m 済み。read などと別に持つ）
 //! 前回の時間は、組み（送られた本文。ファイルの印は入らない）ごとに、数えた時（控えに当たらなかった時）だけ覚える。
 //! 前回と比べる時間（countMs）と覚える時間は「数えている段」（read・count・gantt・abc）にいた時間だけを足した物。写しを待つ（copy）・
-//! 準備（plan）・順番待ち（queue。Python）の間は入れない（作った後の採点: 順番を待っているだけのパネルに「前回より長くかかっています」が出た）。
+//! 準備（plan）の間は入れない（作った後の採点: 待っているだけのパネルに「前回より長くかかっています」が出た）。窓が答えない形は段を済みにする
+//! （版 3.119.0 で前の版の Python の段 python・順番待ち queue を外した）。
 use serde_json::{json, Map, Value};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -170,35 +170,12 @@ fn prune(m: &mut HashMap<String, Entry>) {
     }
 }
 
-impl Guard {
-    /// 窓は答えなかった（Python に任せる）: 段は分からないので python（経過だけ）
-    pub fn python(self) {
-        self.edit(|e| {
-            e.count_ms = count_ms(e);
-            e.stage_at = Instant::now();
-            e.stage = "python";
-            e.n = 0;
-            e.of = 0;
-            e.group = None;
-        });
-    }
-
-    fn edit(&self, f: impl FnOnce(&mut Entry)) {
-        if let Some(e) = self.p.asks.lock().unwrap().get_mut(&self.ask) {
-            f(e);
-        }
-    }
-}
-
 impl Drop for Guard {
     /// 答え終えた: 段を「済み」に。数えた（控えに当たらなかった）時だけ、かかった時間を前回として覚える
     fn drop(&mut self) {
         CUR.with(|c| *c.borrow_mut() = None);
         let mut m = self.p.asks.lock().unwrap();
         let Some(e) = m.get_mut(&self.ask) else { return };
-        if e.stage == "python" {
-            return; // Python が答えるまで、経過を数え続ける（画面は答えを受け取れば尋ねない）
-        }
         let ms = count_ms(e);
         e.count_ms = ms;
         e.stage_at = Instant::now();
@@ -324,19 +301,18 @@ mod tests {
         }
         let took = p.took_of(b"W").unwrap();
         assert!((40..120).contains(&took), "前回は数えた時間だけ（写しを待った 120ms は入れない）: {took}");
-        assert!(counting("abc") && counting("gantt") && !counting("queue") && !counting("copy") && !counting("python"));
+        assert!(counting("abc") && counting("gantt") && !counting("copy") && !counting("plan"));
     }
 
     #[test]
-    fn python_keeps_counting_and_unknown_asks_are_not_answered() {
+    fn unanswered_asks_end_done_and_unknown_asks_are_not_answered() {
         let p = Arc::new(Progress::default());
-        let g = p.begin("py-1", b"Z").unwrap();
-        step("read", 2, 5);
-        g.python();
+        {
+            let _g = p.begin("py-1", b"Z").unwrap();
+            step("read", 2, 5);
+        } // 窓が答えない形も、問い合わせの糸が終われば済み（版 3.119.0。前は前の版の Python に任せて経過を数え続けた）
         let v = get(&p, "py-1");
-        assert_eq!(v["stage"], "python");
-        assert!(v.get("n").is_none(), "Python に任せた形は n/m を推して作らない");
-        assert_eq!(v["done"], false);
+        assert_eq!(v["done"], true, "{v}");
         assert_eq!(p.answer("ask=nope,py-1")["asks"].as_object().unwrap().len(), 1);
         assert!(p.begin("bad ask", b"Z").is_none());
         assert!(p.begin(&"x".repeat(81), b"Z").is_none());

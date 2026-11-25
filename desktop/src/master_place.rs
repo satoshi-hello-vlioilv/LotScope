@@ -8,7 +8,7 @@
 //! - POST /api/masters/place/check … 新しい置き場（上のフォルダ＋名前）へ変えられるか（plan。門番なし: Python と同じ）
 //! - POST /api/masters/place/move … 門番（配布の置き場と同じ release_place::gate）→ plan → 写して切り替える
 //!
-//! 写す係（引っ越し）は窓の 1 つ（sidecar.rs の SERVES に place を名乗り、Python は move を 409 で断る。配布の置き場と同じ型）。
+//! 写す係（引っ越し）は窓の 1 つ（shell::SERVES に place を名乗り、Python は move を 409 で断る。配布の置き場と同じ型）。
 //! 引っ越しは、利用状況の記録（もともと錠の外で書かれる物）を錠の外で先に写し、マスタだけを錠の中で写す。錠は延ばさない
 //! （理由は docs/RUST_PORT_PLAN.md の版 3.100.0 の割れ 2）。錠の長さの半分を過ぎたら・読んだマスタが変わったら、切り替えずに止める。
 //!
@@ -256,15 +256,15 @@ pub struct Item {
 pub enum Fail {
     /// OSError（道があれば Python の str と同じ字にする）
     Os(io::Error, Option<PathBuf>),
-    /// Python も落ちる・窓が同じに読めない形（Python に任せる）
-    Py,
+    /// 窓が同じに読めない形（版 3.119.0 で中身の係を消した。答えない）
+    Unreadable,
 }
 
 impl Fail {
     fn text(&self) -> String {
         match self {
             Fail::Os(e, p) => os_error(e, p.as_deref(), None),
-            Fail::Py => String::new(),
+            Fail::Unreadable => String::new(),
         }
     }
 }
@@ -335,11 +335,14 @@ fn docs(store: &Store) -> Result<Vec<(String, Vec<u8>)>, Fail> {
         }
         let mirror = store.mirror(&name);
         let path = if store.is_shared(&name) && mirror.exists() { mirror } else { store.initial_file(&name) };
-        let doc =
-            if path.exists() { as_doc(read_json_j(&path).ok_or(Fail::Py)?).ok_or(Fail::Py)? } else { as_doc(J::Arr(vec![])).unwrap() };
+        let doc = if path.exists() {
+            as_doc(read_json_j(&path).ok_or(Fail::Unreadable)?).ok_or(Fail::Unreadable)?
+        } else {
+            as_doc(J::Arr(vec![])).unwrap()
+        };
         let has_rows = matches!(doc.get("rows"), Some(J::Arr(a)) if !a.is_empty());
         let in_share = match store.share_file(&name) {
-            Some(p) => crate::release_place::py_stat(&p).map_err(|_| Fail::Py)?.is_some(),
+            Some(p) => crate::release_place::py_stat(&p).map_err(|_| Fail::Unreadable)?.is_some(),
             None => false,
         };
         if has_rows || store.bundled_file(&name).exists() || in_share {
@@ -473,7 +476,7 @@ pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value
     }
     let (place, items) = match sources(store) {
         Ok(x) => x,
-        Err(Fail::Py) => return None,
+        Err(Fail::Unreadable) => return None,
         Err(Fail::Os(e, _)) => return Some(fail_at(&dest, format!("いまの置き場を読めません（{}）。", strerror(&e)))),
     };
     let note = match place {
@@ -636,7 +639,7 @@ pub fn move_to(store: &Store, parent: &str, name: &str, cwd: &Path, read: Reader
         tmp = Some(t.clone());
         let first = (|| {
             let (_, items) = sources(store).map_err(|f| match f {
-                Fail::Py => MoveError::Py,
+                Fail::Unreadable => MoveError::Py,
                 f => MoveError::Invalid(format!("写せませんでした: {}", f.text())),
             })?;
             let pres: Vec<&Item> = items.iter().filter(|i| presence_rel(&i.rel)).collect();
@@ -691,7 +694,7 @@ fn locked(
         let os = |e: io::Error, a: &Path, b: Option<&Path>| MoveError::Invalid(format!("写せませんでした: {}", os_error(&e, Some(a), b)));
         // **錠を取ってから**読み直す（plan の後にほかの PC が保存した分も写す）
         let (place, items) = sources(store).map_err(|f| match f {
-            Fail::Py => MoveError::Py,
+            Fail::Unreadable => MoveError::Py,
             f => MoveError::Invalid(format!("写せませんでした: {}", f.text())),
         })?;
         let masters: Vec<&Item> = items.iter().filter(|i| !presence_rel(&i.rel)).collect();

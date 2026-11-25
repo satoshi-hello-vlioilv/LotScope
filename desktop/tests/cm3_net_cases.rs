@@ -113,7 +113,7 @@ fn unread_words_like_the_table() {
             "table" => Unread::Table,
             k => panic!("知らない種類 {k}"),
         };
-        let got = windowed(Fail::Python(why), kind).text();
+        let got = windowed(Fail::Unreadable(why), kind).text();
         if got != r["want"].as_str().unwrap() {
             bad.push(format!("{why}: 表 {} / 窓 {got}", r["want"]));
         }

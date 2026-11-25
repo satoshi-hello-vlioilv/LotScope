@@ -219,7 +219,7 @@ pub struct Lot {
     dash: Mutex<dashboard::Cache>,
     /// ダッシュボードのパネルの問い合わせの段（版 3.97.0。src/progress.rs。GET /api/dashboard/progress）
     progress: Arc<crate::progress::Progress>,
-    /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_python）に覚えを捨てる
+    /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_write）に覚えを捨てる
     gate: Gate,
     /// 利用状況・使用の履歴・心拍（版 3.71.0。src/presence.rs。書き手は窓の 1 つ）
     presence: Arc<Presence>,
@@ -395,7 +395,7 @@ impl Lot {
 
     /// 変換表の 8 本（版 3.93.0。src/conversions_write.rs）を窓が受ける。材料は窓の束の材料（名乗り・置き場。Python が居なくても読める）、
     /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定（式の conv の表・画面の埋める物）を捨てる
-    /// （Python が書いたときの after_python と同じ。書けずに断った答えでも、取り込みは前の書き込みが残りうるので捨てる）。
+    /// （外から書いたときの after_write と同じ。書けずに断った答えでも、取り込みは前の書き込みが残りうるので捨てる）。
     /// 組めない・窓が答えない形は None（Python が答える）
     fn conversions_route(
         &self,
@@ -508,7 +508,7 @@ impl Lot {
         self.invalidate();
     }
 
-    /// 起動の初期値（版 3.110.0。src/seeds.rs。係は窓の 1 つ: sidecar.rs の SERVES に seeds）。束の材料で置き場を決め（引っ越しの印を
+    /// 起動の初期値（版 3.110.0。src/seeds.rs。係は窓の 1 つ: shell::SERVES に seeds）。束の材料で置き場を決め（引っ越しの印を
     /// たどった後）、種まきと同じ書く係（master_store::shared_store）で当てる。Python に尋ねない（Python が居なくても当たる）。
     /// 束の材料を組めなければ当てずに次の起動へ（理由を返す）。wait は錠を待つ間（main.rs の裏の糸は 1 秒眠る。試験は数えるだけ）
     pub fn run_seeds(&self, wait: &dyn Fn(std::time::Duration)) -> Result<crate::seeds::Outcome, String> {
@@ -810,7 +810,7 @@ impl Lot {
         let store = self.store_for(&s.access)?;
         let (status, v) = crate::equip_write::handle(&store, route, query, body, &rows)?;
         if method != "GET" && (200..300).contains(&status) {
-            self.invalidate(); // 一覧の設定（設備名の読み替え）を捨てる（Python が書いたときの after_python と同じ）
+            self.invalidate(); // 一覧の設定（設備名の読み替え）を捨てる（外から書いたときの after_write と同じ）
         }
         Some((status, v))
     }
@@ -1047,7 +1047,7 @@ impl Lot {
             }));
         }
         let builder = self.bundle.lock().unwrap().clone();
-        // Python の今のフォルダ（中身のフォルダ。sidecar.rs の current_dir）から相対の道を見る
+        // Python の今のフォルダ（中身のフォルダ）から相対の道を見る
         let cwd = builder.as_ref().map(|b| b.env().program.clone()).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
         let me = || -> Result<Value, String> {
             let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
@@ -1200,7 +1200,7 @@ impl Lot {
     }
 
     /// データ元の書く道の 7 本（版 3.90.0。src/sources_write.rs）を窓が受ける。材料は窓の束の材料（GET /api/sources と同じ並び）、
-    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（Python が書いたときの after_python と同じ）。
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（外から書いたときの after_write と同じ）。
     /// 接続の設定で参照先の項目を書いたときは、参照先を書いたときと同じ後始末（品質の写し・実績のフォルダの覚え）。組めない・窓が答えない形は None
     /// 組む所の読み 7 本（版 3.99.0。src/builder.rs）。None は Python に任せる
     pub fn builder_route(&self, method: &str, route: crate::builder::Route, query: &str, body: &[u8]) -> Option<(u16, Value)> {
@@ -1254,10 +1254,7 @@ impl Lot {
                 let tag = qs.iter().find(|(k, _)| k == "ask").map(|(_, v)| v.clone()).unwrap_or_default();
                 let guard = self.progress.begin(&tag, body);
                 if python {
-                    if let Some(g) = guard {
-                        g.python(); // Python が数える（段は分からない）
-                    }
-                    return None;
+                    return None; // 前の版の比べる口（答えない。段は guard を捨てて済みに）
                 }
                 let r = self.with_dash(&need, |cx| {
                     if route == B::Fields {
@@ -1266,11 +1263,7 @@ impl Lot {
                         builder::data_columns(cx)
                     }
                 });
-                if r.is_none() {
-                    if let Some(g) = guard {
-                        g.python();
-                    }
-                }
+                drop(guard);
                 r
             }
         }
@@ -1326,7 +1319,7 @@ impl Lot {
         let (status, v) = done.answer;
         if (200..300).contains(&status) {
             self.invalidate(); // 一覧の設定（データ元の並び・場所・結合）を次の問い合わせで組み直す
-            self.gate.forget(); // データ元を書いた: 次の問い合わせで me を読み直す（after_python と同じ）
+            self.gate.forget(); // データ元を書いた: 次の問い合わせで me を読み直す（after_write と同じ）
             match done.setting.as_deref().map(crate::settings_write::after_of) {
                 Some("lot_list.") => self.warm(),
                 Some("work_log.") => self.lists.forget_listing(),
@@ -1356,13 +1349,13 @@ impl Lot {
         method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p))
     }
 
-    /// 中身（Python）が答えたあと（main.rs の after）: 一覧の設定に効くマスタを書いたなら、次の問い合わせで設定を尋ね直す
-    pub fn after_python(&self, method: &str, path: &str, status: u16) {
+    /// 外から（ほかの PC・前の版）マスタを書いたあと: 一覧の設定に効くマスタなら、次の問い合わせで設定を尋ね直し、権限の覚えを捨てる
+    /// （版 3.119.0 で前の名前 after_write〈中身が答えたあとの後始末〉から替えた。試験が外からの書き込みを作るときに呼ぶ）
+    pub fn after_write(&self, method: &str, path: &str, status: u16) {
         if Self::changes_settings(method, path, status) {
             self.invalidate();
-            self.gate.forget(); // 権限・タブの権限・置き場を書いた: 次の問い合わせで me を読み直す
-                                // 参照先・データ元の接続を Python が書いた（実績のフォルダ・決まりかもしれない）: フォルダの覚えも捨てる
-                                // （版 3.91.0。Python の _listing が参照先の印で捨てるのと同じ。A → B → A と置き直した 10 秒の内に古い中身を返さない）
+            self.gate.forget();
+            // 参照先・データ元の接続を書いた（実績のフォルダ・決まりかもしれない）: フォルダの覚えも捨てる（A → B → A と置き直した 10 秒の内に古い中身を返さない）
             if path.starts_with("/api/settings/") || path.starts_with("/api/sources") || path.starts_with("/api/masters/place") {
                 self.lists.forget_listing();
             }
@@ -1476,7 +1469,8 @@ impl Lot {
         }
     }
 
-    /// 受け身の Python からの知らせ（作業実績・データ元の「写して」。版 3.60.0）
+    /// 受け身の Python からの知らせ（作業実績・データ元の「写して」。版 3.60.0）。版 3.119.0 の製品は受けない（中身の係を消した）。
+    /// 凍らせた試験が前の版の Python の知らせを当てるのに使う（段 ⑤ の 2 つ目の commit で試験と一緒に消す）
     pub fn notice(&self, v: &Value) {
         self.lists.notice(v);
     }
@@ -1777,10 +1771,7 @@ impl Lot {
         let tag = qs.iter().find(|(k, _)| k == "ask").map(|(_, v)| v.clone()).unwrap_or_default();
         let guard = self.progress.begin(&tag, body);
         if qs.iter().any(|(k, v)| k == "engine" && v == "python") {
-            if let Some(g) = guard {
-                g.python();
-            }
-            return None;
+            return None; // 前の版の比べる口（答えない。段は guard を捨てて済みに）
         }
         // パネルと合わせる別のデータの元が使う節だけ（版 3.112.0 の作った後の採点の割れ 4。前はどのパネルも全部の節を要った）
         let need = sections_for_body(body);
@@ -1788,11 +1779,7 @@ impl Lot {
             return Some(r);
         }
         let r = self.with_dash(&need, |cx| dashboard::query(cx, body));
-        if r.is_none() {
-            if let Some(g) = guard {
-                g.python(); // 窓が答えない形は Python が数える（段は分からない）
-            }
-        }
+        drop(guard); // 答えた・答えない形のどちらも段を済みに
         r
     }
 
@@ -4235,16 +4222,16 @@ mod tests {
         assert_eq!(lot_v.handle_body_with("POST", "/api/masters/access", "", &body, &ask_boss).unwrap().0, 201);
         let n_rows = |l: &Lot| l.access_read_with("GET", "/api/masters/access", &ask_boss).unwrap().1["items"].as_array().map(Vec::len);
         let after_window = n_rows(&lot_v).unwrap();
-        // Python が書いた（窓は書いていない）: 覚えている 2 秒のあいだは前の行、after_python の後は読み直す
+        // Python が書いた（窓は書いていない）: 覚えている 2 秒のあいだは前の行、after_write の後は読み直す
         let doc: Value = serde_json::from_slice(&std::fs::read(share.join("access_permissions.json")).unwrap()).unwrap();
         let mut doc2 = doc.clone();
         doc2["rows"].as_array_mut().unwrap().push(json!({"id": 99, "ログインID": "py", "PC名": "", "権限区分": "一般ユーザー", "rev": 1}));
         std::fs::write(share.join("access_permissions.json"), doc2.to_string()).unwrap();
         assert_eq!(n_rows(&lot_v), Some(after_window), "覚えている間は前の答え（Python も同じ覚えの me で答える）");
-        lot_v.after_python("POST", "/api/masters/access", 201);
+        lot_v.after_write("POST", "/api/masters/access", 201);
         assert_eq!(n_rows(&lot_v), Some(after_window + 1), "Python が書いた後は読み直す");
         std::fs::write(share.join("access_permissions.json"), doc.to_string()).unwrap();
-        lot_v.after_python("DELETE", "/api/masters/access/99", 200);
+        lot_v.after_write("DELETE", "/api/masters/access/99", 200);
         assert!(lot_v.access_read_with("POST", "/api/access/me", &ask_boss).is_none(), "読む道は GET だけ");
         assert!(lot_v.access_read_with("GET", "/api/access/me/", &ask_boss).is_none(), "ほかの字の道は Python");
         // 名乗りを読めない（me を決められない）・判定の材料が無いときは Python
@@ -4325,8 +4312,8 @@ mod tests {
         let admin = json!({"id": 9, "ログインID": "boss", "PC名": "", "権限区分": "開発者"});
         let work = |lot: &Lot| lot.handle_with("GET", "/api/worklog", "equip=a&work=1", &ask).unwrap();
         let shifts = |v: &Value| v["work"]["canEditShifts"].clone();
-        let renew = |lot: &Lot| lot.after_python("PUT", "/api/masters/access/1", 200); // 権限を書いた後と同じく覚えを捨てる
-                                                                                       // ① 設備作業者: 区分の決まりで実績を出さない（Python の hidden は空なのに、窓が断る）。ダッシュボードの実績のパネルも
+        let renew = |lot: &Lot| lot.after_write("PUT", "/api/masters/access/1", 200); // 権限を書いた後と同じく覚えを捨てる
+                                                                                      // ① 設備作業者: 区分の決まりで実績を出さない（Python の hidden は空なのに、窓が断る）。ダッシュボードの実績のパネルも
         perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "設備作業者"}]));
         let (st, v) = work(&lot);
         assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "一覧は窓の me の出さないタブで断る: {v}");
@@ -4433,24 +4420,21 @@ mod tests {
         // 印の無い問い合わせ・知らない印は記録しない／答えない
         lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).unwrap();
         assert_eq!(progress("ask=zz,p-1").1["asks"].as_object().unwrap().len(), 1);
-        // ?engine=python・窓が答えない中身は Python が数える: 段は「python」、n/m を推して作らない
+        // ?engine=python（前の版の比べる口）・窓が答えない形は答えず、段は済みにする（版 3.119.0。前は Python に任せて経過を数え続けた）
         assert!(lot.handle_body_with("POST", "/api/dashboard/query", "ask=p-5&engine=python", &body, &ask).is_none());
         let e = progress("ask=p-5").1["asks"]["p-5"].clone();
-        assert_eq!((e["stage"].as_str(), e["done"].as_bool(), e.get("n")), (Some("python"), Some(false), None), "{e}");
+        assert_eq!(e["done"].as_bool(), Some(true), "{e}");
         let old = || Ok(json!({"source": "", "engine": "python", "lists": lists.clone()}));
         let lot2 = Lot::new(dir.join("cache2")); // 設定の覚えを持たない窓（前の版の中身は段取りの材料を答えない）
         assert!(lot2.handle_body_with("POST", "/api/dashboard/query", "ask=p-6", &body, &old).is_none());
-        assert_eq!(
-            lot2.handle_body_with("GET", "/api/dashboard/progress", "ask=p-6", b"", &old).unwrap().1["asks"]["p-6"]["stage"],
-            "python"
-        );
+        assert_eq!(lot2.handle_body_with("GET", "/api/dashboard/progress", "ask=p-6", b"", &old).unwrap().1["asks"]["p-6"]["done"], true);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn the_window_answers_the_builder_reads() {
         // 版 3.99.0: 組む所の札（すべての設備）を窓が答え、合わせた本当の種類・値の無い設備を数えない数・13 台目からの列を出す。
-        // 印（ask）を付けると読んだ設備 n/m を待ちの段に載せる。?engine=python・窓が答えない形は Python（段は「python」）
+        // 印（ask）を付けると読んだ設備 n/m を待ちの段に載せる。?engine=python・窓が答えない形は答えない（段は済み）
         let dir = std::env::temp_dir().join(format!("da-lot-builder-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let folder = dir.join("実績");
@@ -4485,12 +4469,9 @@ mod tests {
         assert_eq!((p["asks"]["f-1"]["stage"].as_str(), p["asks"]["f-1"]["of"].as_u64()), (Some("read"), Some(14)), "{p}");
         // 2 回目は合わせた答えを覚えている（同じ答え）
         assert_eq!(lot.handle_body_with("GET", "/api/dashboard/fields", "source=work", b"", &ask).unwrap().1, v);
-        // Python に任せる形
+        // 前の版の比べる口（答えない。段は済み）
         assert!(lot.handle_body_with("GET", "/api/dashboard/fields", "source=work&engine=python&ask=f-2", b"", &ask).is_none());
-        assert_eq!(
-            lot.handle_body_with("GET", "/api/dashboard/progress", "ask=f-2", b"", &ask).unwrap().1["asks"]["f-2"]["stage"],
-            "python"
-        );
+        assert_eq!(lot.handle_body_with("GET", "/api/dashboard/progress", "ask=f-2", b"", &ask).unwrap().1["asks"]["f-2"]["done"], true);
         // 版 3.115.0 から本文の門が断る（前は Python に任せた）
         assert_eq!(lot.handle_body_with("POST", "/api/dashboard/fields", "", b"[1]", &ask).unwrap().0, 400, "表でない本文");
         assert_eq!(lot.handle_body_with("POST", "/api/sources/check", "", br#"{"place": ["x"]}"#, &ask).unwrap().0, 400, "字でない場所");
@@ -4639,7 +4620,7 @@ mod tests {
         ] {
             assert!(!Lot::changes_settings(m, p, s), "{m} {p} {s}");
         }
-        // つなぎ（after_python）: マスタを書いたあとは設定を尋ね直し、画面の状態の保存では尋ね直さない
+        // つなぎ（after_write）: マスタを書いたあとは設定を尋ね直し、画面の状態の保存では尋ね直さない
         let dir = std::env::temp_dir().join(format!("da-lot7-{}", std::process::id()));
         let lot = Lot::new(dir.join("cache"));
         let asked = Cell::new(0);
@@ -4648,10 +4629,10 @@ mod tests {
             Ok(json!({"source": "", "engine": "rust"}))
         };
         lot.handle_with("GET", "/api/lotlist", "", &ask);
-        lot.after_python("PUT", "/api/ui-state", 200);
+        lot.after_write("PUT", "/api/ui-state", 200);
         lot.handle_with("GET", "/api/lotlist", "", &ask);
         assert_eq!(asked.get(), 1, "画面の状態の保存では尋ね直さない");
-        lot.after_python("PUT", "/api/sources/wip", 200);
+        lot.after_write("PUT", "/api/sources/wip", 200);
         lot.handle_with("GET", "/api/lotlist", "", &ask);
         assert_eq!(asked.get(), 2, "データ元を書いたら尋ね直す");
         let _ = std::fs::remove_dir_all(&dir);

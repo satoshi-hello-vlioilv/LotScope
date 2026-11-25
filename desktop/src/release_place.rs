@@ -12,7 +12,7 @@
 //! （canonicalize。記号リンク・junction・subst・8.3・割り当てたドライブ。付く \\?\ と \\?\UNC\ は外す）、残り（まだ無い名前）を字でつなぐ。
 //! 解けない形（権限で読めない・輪など、無い・届かない以外の誤り）は答えず Python に任せる（move は製品では Python が断る＝置けない側）。
 //! 上のフォルダと名前のつなぎ方・Path の字は posixpath.join・ntpath.join・PureWindowsPath（3.13）と同じ（根・ドライブだけ・UNC の形も）。
-//! 写す係は 1 つだけ（このプロセスに 1 つ）。窓が受けるので Python の Mover は動かさない（窓は sidecar.rs の SERVES に release を名乗り、
+//! 写す係は 1 つだけ（このプロセスに 1 つ）。窓が受けるので Python の Mover は動かさない（窓は shell::SERVES に release を名乗り、
 //! Python は move を断る）。写すのは shutil.copy2 と同じく中身・更新時刻・権限（Linux の std::fs::copy は更新時刻を写さない）。名前付きパイプは
 //! 開く前に「… is a named pipe」で断る（開くと止まる）。誤りの字は Python の OSError の str と同じ形（[Errno n] 文: '元' -> '先'）。
 //! 写している最中に窓を閉じた残り物（一時フォルダ）は、この PC の作業場所の印（release_move.json）を見て次に開いたとき・次に写すときに消す

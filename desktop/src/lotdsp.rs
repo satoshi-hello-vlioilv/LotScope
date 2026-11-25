@@ -1,4 +1,4 @@
-//! LotDsp（ロット問い合わせ）の 9 本の道（版 3.98.0。窓がただ 1 つの係: sidecar.rs の SERVES に lotdsp。Python は答えない）。
+//! LotDsp（ロット問い合わせ）の 9 本の道（版 3.98.0。窓がただ 1 つの係: shell::SERVES に lotdsp。Python は答えない）。
 //!
 //! 写した Python（program/app）: routes/lots.py の 9 本・services/lotdsp_progress.py（画面の表 → ロットと工程）・lotdsp_api.py
 //! （API を引く・項目名を学ぶ・調べる）・lotdsp_link.py（調べる道具の紐づけ）・lotdsp_rules.py（9 本が共にする決まり）。

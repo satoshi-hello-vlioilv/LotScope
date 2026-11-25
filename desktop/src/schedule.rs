@@ -1,6 +1,6 @@
 //! スケジュール（CM3 の設備ごとの作業予定。版 3.96.0。Python の services/schedule.py を写した）。
 //!
-//! 係はただ 1 つ（窓）。窓は sidecar.rs の SERVES に schedule を名乗り、CM3 へ取りに行く・世代のファイルを置く・状態のファイルを書く。
+//! 係はただ 1 つ（窓）。窓は shell::SERVES に schedule を名乗り、CM3 へ取りに行く・世代のファイルを置く・状態のファイルを書く。
 //! Python の Schedules は受け身（窓の状態のファイルと世代を読むだけ。取りに行く要るときは知らせ {"event": "schedule", …} で窓に頼んで待つ）。
 //!
 //! 置き場（この PC の作業場所の db_cache/schedule。Python と同じ）:

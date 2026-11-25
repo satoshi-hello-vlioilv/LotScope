@@ -2,8 +2,8 @@
 //!
 //! 役割の分け方（得意な分野ごと）:
 //!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・画面と API（計算・LotDsp・マスタ・権限）・外のリンク
-//!   - Python（program/sidecar.py）: 段 ④（版 3.118.0）から製品の窓は起こさない（PC の Python も探さない）。ファイルは段 ⑤ まで残す
-//!     （前の版へ戻した PC の窓が起こす・突き合わせの試験の答えの元）
+//!   - 中身（Python）: 段 ④（版 3.118.0）から起こさず、段 ⑤（版 3.119.0）で中身の係と Python のファイルを消した。program/sidecar.py は
+//!     版 3.117.x までの窓が取り込みの確かめで見る 1 行の印だけ（da_core::update::is_dist の説明）
 //!   - 画面（WebView2）: program/app の HTML/JS/CSS。問い合わせは自前の仕組み（tpa）で Rust が受ける
 //!
 //! ポートを開かないので、プロキシ・ポートの取り合い・古いサーバーの残り・ハートビートによる推し量りが無い。
@@ -11,22 +11,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod brand;
-mod frame;
 mod lnk;
 mod locate;
 mod proc;
 mod router;
-mod sidecar;
 mod updater;
 
 use brand::brand;
 use da_core::install;
 use da_core::lot::Lot;
-use da_core::shell::json_reply;
+use da_core::shell::{json_reply, Reply};
 use da_core::update::{self, Paths};
-use router::{error_reply, After, Backend, Guard, Native, Router};
+use router::{error_reply, Guard, Native, Router};
 use serde_json::json;
-use sidecar::{Progress, Reply, Supervisor};
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -35,7 +32,7 @@ use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use updater::Updater;
 
-/// 自前の仕組みの名前。program/sidecar.py の BASE_URL（http://tpa.localhost/）と同じ（食い違うと URL の組み立てがずれる）。
+/// 自前の仕組みの名前（Windows の WebView2 では http://tpa.localhost/）。
 const SCHEME: &str = "tpa";
 const SELFTEST_JS: &str = include_str!("selftest.js");
 /// 自己診断が終わらないときの窓の見張り。窓の通し（desktop/bundle/verify.py の WAIT 480 秒）より短く、ふつうの自己診断（CI で約 130 秒・
@@ -85,8 +82,7 @@ fn selftest_on() -> bool {
     std::env::var_os("TPA_SELFTEST").is_some()
 }
 
-/// 窓の記録（この PC の作業場所の logs/desktop.log）。Python の記録（app.log・sidecar_stderr.log）とは別に、
-/// 窓が確かめた事実（探した Python・起動の秒・終わり方）だけを残す。
+/// 窓の記録（この PC の作業場所の logs/desktop.log）。窓が確かめた事実（起動の秒・終わり方）だけを残す。
 fn log(line: &str) {
     let dir = locate::local_root().join("logs");
     let _ = std::fs::create_dir_all(&dir);
@@ -96,7 +92,7 @@ fn log(line: &str) {
     }
 }
 
-type AppRouter = Router<Supervisor>;
+type AppRouter = Router;
 
 /// 起動画面へ伝えること。画面が読み終わる前の分はためておき、読み終わったら流す。
 #[derive(Default)]
@@ -136,28 +132,13 @@ impl Splash {
         self.say(app, format!("splash.version(...{})", json!([version])));
     }
     /// 窓が画面を開けない失敗（中身の置き場が無い・この PC へ写せない など）。自己診断はここで終える。
-    /// 版 3.111.0 から Python の失敗（見つからない・起きない・遅い）ではここへ来ない（画面を開き、帯と心拍の python で見せる）
     fn fail(&self, app: &AppHandle, title: &str, detail: &str) {
         log(&format!("FAIL {title}: {}", detail.replace('\n', " / ")));
-        // 画面を開いたあとの帯は、起こした結果の受け手（on_changed・band）が出す
         self.say(app, format!("splash.fail(...{})", json!([title, detail])));
         selftest_finish(app, &json!({"ok": false, "error": format!("{title}: {detail}")}));
     }
 }
 
-/// 中身（Python）を起こした結果を画面へ知らせる（版 3.111.0。2026-11-stage2b-ui.json で決めた I）。画面（app.js の setPython）が見出しのすぐ下の
-/// 知らせの段・見出しの札「中身 停止」を描く（前は窓が画面の下に赤い 2 段の帯を差し込み、表の下の行を覆った）。心拍を待たずに知らせ、
-/// 読み込み前の頁のためには window.__tpaPython にも置く。reason が None なら起きた
-fn band(w: &WebviewWindow, reason: Option<&str>) {
-    let detail = match reason {
-        Some(e) => json!({"state": "stopped", "why": e}),
-        None => json!({"state": "ready", "why": ""}),
-    };
-    let _ = w.eval(format!("window.__tpaPython={detail};window.dispatchEvent(new CustomEvent('tpa:python',{{detail:{detail}}}))"));
-}
-
-/// 中身の起こし直しの係（画面を読み直したときに帯を出し直す。版 3.86.0）
-static SUP: OnceLock<Supervisor> = OnceLock::new();
 /// 画面の JS が最初の心拍を送った時刻（版 3.111.0。入れ替えた直後の確かめの合図。src/boot.rs）。自己診断の心拍（X-TPA-Selftest）は数えない
 static FIRST_BEAT: OnceLock<Instant> = OnceLock::new();
 /// 画面の JS が /api/config を最初に尋ねた時刻と、最後に答えた時刻（版 3.111.0 の作った後の採点の割れ 2。boot::page_of の時計）
@@ -188,14 +169,15 @@ fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
 
 /// 窓の絵と窓の情報（版 3.118.1 の作った後の採点の割れ 7: 窓の試験〈下の tests〉が本物の振り分けを通して確かめられるよう、
 /// AppHandle の要らない 2 つをここに出した。native の頭で呼ぶ）
-fn window_reads(req: &router::Req, backend: &dyn Backend, info: &serde_json::Value) -> Option<Reply> {
+fn window_reads(req: &router::Req, info: &serde_json::Value) -> Option<Reply> {
     match (req.method, req.path) {
         // 窓の絵（/favicon.ico）は版 3.118.2 の作った後の採点の割れ C5 から lib の shell::answer（開発用サーバーも同じ答え）
-        // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py）。Python が起きていなくても載る（自己診断・verify.py が使う）
+        // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py。自己診断・verify.py が使う）。backend・python_state は前の版の
+        // 読み手のために残す（版 3.119.0 からいつも null・absent）
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
-            v["backend"] = backend.ready();
-            v["python_state"] = json!(backend.python_now().state);
+            v["backend"] = serde_json::Value::Null;
+            v["python_state"] = json!(da_core::presence::PythonNow::absent().state);
             // 窓が答えなかった問い合わせの形と回数（版 3.118.1。読むだけの自己診断の口: selftest.js の「窓が答えない道が無い」が読む）
             v["unanswered"] = da_core::delegate::unanswered_map();
             Some(json_reply(&v))
@@ -207,9 +189,9 @@ fn window_reads(req: &router::Req, backend: &dyn Backend, info: &serde_json::Val
 /// 窓そのものが答える問い合わせ（終了・窓の情報・自己診断の受け口・品質異常）。
 fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updater>) -> Native {
     let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
-    Box::new(move |req, backend| {
-        window_reads(req, backend, &info).or_else(|| match (req.method, req.path) {
-            // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
+    Box::new(move |req| {
+        window_reads(req, &info).or_else(|| match (req.method, req.path) {
+            // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる
             ("POST", "/api/shutdown") => {
                 let app = app.clone();
                 // 使い終わり（いま使っているの印を消し、記録を最後まで書く。版 3.71.0）。共有が遅くても終わるのは待たない（QUIT_DELAY が上限）
@@ -220,12 +202,6 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                     log("EXIT 画面の終了");
                     app.exit(0);
                 });
-                Some(json_reply(&json!({"ok": true})))
-            }
-            // 中身の準備の知らせ（backend）は、問い合わせのたびに今の物（版 3.86.0: 画面は中身の準備を待たずに開く）
-            // 画面の帯の「もう一度起こす」（版 3.86.0）
-            ("POST", "/__desktop/backend/retry") => {
-                backend.retry();
                 Some(json_reply(&json!({"ok": true})))
             }
             // 更新の係（updater.rs）
@@ -336,7 +312,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                 Some(json_reply(&json!({"received": true})))
             }
             // Lot が答える道（版 3.118.2 から lib の src/shell.rs の 1 か所。開発用サーバー examples/ui_serve.rs も同じ物を通る）
-            _ => lot_answer(req, backend, &lot, &program, &|| upd.wake()),
+            _ => lot_answer(req, &lot, &program, &|| upd.wake()),
         })
     })
 }
@@ -344,11 +320,10 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
 /// Lot が答える道（native の最後。版 3.118.2 の作った後の採点の割れ C12 で外へ出し、bin の試験が本物の振り分け〈Router::handle〉を通して
 /// 開発用サーバーの振り分け shell::dev_route と突き合わせる）: 窓の絵・版と更新履歴・生きているか・心拍・画面・LotDsp の調べる道具・
 /// 権限の読む 2 本・データ元の並び・窓の書く道と読む道。wake は更新の係を起こす（参照先の更新の置き場を書いた後）
-fn lot_answer(req: &router::Req, backend: &dyn Backend, lot: &Lot, program: &std::path::Path, wake: &dyn Fn()) -> Option<Reply> {
-    let python_now = || backend.python_now();
-    let ctx = da_core::shell::Ctx { program, python_now: &python_now, absent: backend.absent(), log: &log };
+fn lot_answer(req: &router::Req, lot: &Lot, program: &std::path::Path, wake: &dyn Fn()) -> Option<Reply> {
+    let ctx = da_core::shell::Ctx { program, log: &log };
     let r = da_core::shell::answer(lot, req, &ctx)?;
-    // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
+    // 参照先の更新の置き場を窓が書いた（版 3.89.0）: すぐ確かめる
     if req.method == "PUT" && r.status == 200 && req.path.starts_with("/api/settings/update.") {
         wake();
     }
@@ -361,21 +336,10 @@ fn update_settings(lot: &Lot) -> Result<serde_json::Value, String> {
     lot.update_settings().ok_or_else(|| "更新の置き場が決まりません（配った設定が読めない・update の段が表でない）".to_string())
 }
 
-/// 中身へ回す前: 権限を決めて門番に通し、決めた me を見出しに載せる（版 3.65.0。src/access.rs・Lot::access_check）
+/// 窓が答えない道を断る前: 権限を決めて門番に通す（版 3.65.0。src/access.rs・Lot::access_check）
 fn guard(lot: Arc<Lot>) -> Guard {
-    Box::new(move |req, _backend| {
-        lot.access_check(req.method, req.path).map_err(|(status, kind, message)| error_reply(status, kind, &message))
-    })
-}
-
-/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定と権限の覚えを捨てる（元ファイル・間隔・段取りの材料・権限をすぐ当て直す）。
-/// 更新の置き場を保存したら、すぐ確かめる。
-fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
-    Box::new(move |method, path, status| {
-        lot.after_python(method, path, status);
-        if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
-            upd.wake();
-        }
+    Box::new(move |req| {
+        lot.access_check(req.method, req.path).map(|_| ()).map_err(|(status, kind, message)| error_reply(status, kind, &message))
     })
 }
 
@@ -410,7 +374,7 @@ fn names() -> install::Names<'static> {
     install::Names { name: &b.name, exe: &b.exe, description: &b.subtitle, legacy: &b.legacy_names, icon: shortcut_icon().clone() }
 }
 
-/// exe に入れたアイコンの絵（build.rs が program/app/app_icon.py で描く）。
+/// exe に入れたアイコンの絵（焼いた絵。版 3.119.0 から追跡ファイル: desktop/icons）。
 const ICON: &[u8] = include_bytes!("../icons/icon.ico");
 
 /// ショートカットが指すアイコン: 作業場所の icon\<絵の指紋>.ico（絵が変わると場所も変わり、Windows が古い絵を出し続けない）。
@@ -468,14 +432,8 @@ fn window(app: &AppHandle, label: &str, url: WebviewUrl, splash: Arc<Splash>) ->
             }
             if is_splash(p.url()) {
                 splash.flush(&w);
-            } else if is_app_url(p.url()) && p.url().path() == "/" {
-                // 中身を起こせなかったままなら、読み直した画面にも知らせる（知らせの段）
-                if let Some(e) = SUP.get().and_then(|s| s.down_reason()) {
-                    band(&w, Some(&e));
-                }
-                if selftest_on() {
-                    let _ = w.eval(SELFTEST_JS);
-                }
+            } else if is_app_url(p.url()) && p.url().path() == "/" && selftest_on() {
+                let _ = w.eval(SELFTEST_JS);
             }
         });
     // 保存（書き出し）を見届け、置いた場所を画面へ知らせる（画面が「保存しました・フォルダを開く」を出す）。
@@ -534,8 +492,7 @@ fn record_download(ev: DownloadEvent<'_>) -> bool {
     true
 }
 
-/// 中身（program）を見つけ、入れ替えた直後なら窓の準備で確かめ（src/boot.rs）、中身（Python）を裏で起こし始めて、待たずに主の窓を画面へ
-/// 切り替える（裏の糸で。窓は先に出しておく）。版 3.111.0 から Python が見つからない・起きない・遅いときも画面を開く。
+/// 中身（program）を見つけ、入れ替えた直後なら窓の準備で確かめ（src/boot.rs）、待たずに主の窓を画面へ切り替える（裏の糸で。窓は先に出しておく）。
 fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     if let Some(j) = job().get() {
         if run_job(&app, &splash, j) {
@@ -547,7 +504,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         Err(e) => return splash.fail(&app, "アプリの中身が見つかりません", &e),
     };
     splash.step(&app, "program", "ok", &program.display().to_string());
-    // この PC のアプリ（app）で動いているなら、取り込み済みの版で入れ替える（Python を起こす前・updater.rs / update.rs）
+    // この PC のアプリ（app）で動いているなら、取り込み済みの版で入れ替える（updater.rs / update.rs）
     let paths = Paths::new(&locate::local_root());
     let installed = same_dir(&program, &paths.app().join("program"));
     let mut notes = vec![];
@@ -576,7 +533,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     if let Some(v) = &program_version {
         splash.version(&app, v);
     }
-    // 窓の準備（版 3.111.0。src/boot.rs）: 入れ替えた直後の版を、Python の準備ではなく窓が読む物だけで確かめる（数 ms）。
+    // 窓の準備（版 3.111.0。src/boot.rs）: 入れ替えた直後の版を、窓が読む物だけで確かめる（数 ms）。
     // 入れ替えた直後の印が残っている（前の起動が確かめる前に閉じた）起動も同じ。通らなければ画面を開く前に控えへ戻して開き直す
     let applied = installed && paths.applied().exists();
     let window = da_core::boot::window_ready(&program, &brand().app_id);
@@ -588,7 +545,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         applied,
         window_ok: window.is_ok(),
         page: da_core::boot::Page::NotOpened,
-        python: da_core::boot::Python::Starting,
+        python: da_core::boot::Python::Missing,
     });
     if applied || window.is_err() {
         log(&format!("BOOT installed={installed} applied={applied} → {}", plan.iter().map(|a| a.name()).collect::<Vec<_>>().join(",")));
@@ -604,27 +561,17 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         }
         log("BOOT 控えへ戻せないので、この版のまま開きます");
     }
-    // 段 ④（版 3.118.0）: 中身（Python）は起こさない。PC の Python も探さない（locate::python を呼ばない）。中身の係は起こさない形（sidecar::ABSENT）で
-    // 作り、様子は absent（窓の決めは止まった stopped と同じ・利用状況の印と画面の帯には出さない）。係の型は段 ⑤ で消すまで残す
-    let py_text = "（段 ④: 起こさない）".to_string();
+    // 中身（Python）は段 ④（版 3.118.0）から起こさず、段 ⑤（版 3.119.0）で中身の係を消した。様子はいつも absent（窓の決めは止まった stopped と同じ・
+    // 利用状況の印には書かない）。記録の python= と info の python は前の版の読み手のために残す
+    let py_text = "（版 3.119.0: 中身なし）".to_string();
     log(&format!("START program={} python={py_text}", program.display()));
     splash.step(&app, "backend", "now", "配った設定と置き場を窓が読んでいます…");
-    let progress: Progress = Arc::new(|_| {});
     let version = program_version.clone().unwrap_or_else(|| "?".into());
-    let sup = Supervisor::new(Err(sidecar::ABSENT.to_string()), program.clone(), locate::local_root().join("logs"), progress);
-    let _ = SUP.set(sup.clone());
-    let sup_for_boot = sup.clone();
     let t0 = Instant::now();
-    // 起こした結果の受け手（段 ④ では起こさないので呼ばれない。「もう一度起こす」も何もしない）
-    sup.on_changed(Arc::new(|r| {
-        if let Err(e) = r {
-            log(&format!("BACKEND 起こせません: {}", e.replace('\n', " / ")));
-        }
-    }));
 
     let info = json!({
-        "shell": "tauri", "app_id": brand().app_id, "shell_version": env!("CARGO_PKG_VERSION"), "commit": env!("TPA_BUILD_COMMIT"), "protocol": sidecar::PROTOCOL,
-        "serves": sidecar::SERVES, "program": program, "python": py_text, "local_root": locate::local_root(),
+        "shell": "tauri", "app_id": brand().app_id, "shell_version": env!("CARGO_PKG_VERSION"), "commit": env!("TPA_BUILD_COMMIT"), "protocol": da_core::shell::PROTOCOL,
+        "serves": da_core::shell::SERVES, "program": program, "python": py_text, "local_root": locate::local_root(),
         "exe": std::env::current_exe().unwrap_or_default(), "backend": null, "url": app_url("/").as_str(),
         "installed": installed, "app": paths.app(), "program_version": program_version,
         "window_ready": window.as_ref().err().map(|b| b.to_string()),
@@ -646,16 +593,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         Err(e) => log(&format!("SEEDS 当てずに次の起動へ: {e}")),
     });
     std::thread::spawn(da_core::lotdsp_direct::sweep_profiles); // 前に落ちた窓が残した見えない Edge の一時プロファイルを消す（版 3.98.0）
-                                                                // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
-    let told = lot.clone();
-    sup.on_notice(Arc::new(move |h| told.notice(h)));
-    let _ = slot.set(Router {
-        static_dir,
-        backend: sup,
-        native: native(app.clone(), info, lot.clone(), upd.clone()),
-        guard: guard(lot.clone()),
-        after: after(lot.clone(), upd.clone()),
-    });
+    let _ = slot.set(Router { static_dir, native: native(app.clone(), info, lot.clone(), upd.clone()), guard: guard(lot.clone()) });
     // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初。起動の最初にも確かめる: launch_update）
     // 置き場は窓が読む（版 3.95.0。版 3.112.0 から中身に尋ねない）
     let upd_lot = lot.clone();
@@ -667,18 +605,14 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     if let Some(w) = app.get_webview_window("main") {
         // 画面を開いたあとは、起動前の確認の進み具合を起動画面へ流さない（画面の中で splash は動かない）
         splash.left.store(true, Ordering::SeqCst);
-        log(&format!(
-            "OPEN 画面を開きます ms={} backend={}",
-            t0.elapsed().as_millis(),
-            slot.get().map(|r| if r.backend.ready_now() { "ready" } else { r.backend.python_now().state }).unwrap_or("?")
-        ));
+        log(&format!("OPEN 画面を開きます ms={} backend=absent", t0.elapsed().as_millis()));
         let _ = w.navigate(app_url("/"));
     }
-    // 入れ替えた直後: 画面の最初の心拍を待って確かめる。そうでなければ手入れはすぐ（版 3.111.0。前は Python の準備のあと）
+    // 入れ替えた直後: 画面の最初の心拍を待って確かめる。そうでなければ手入れはすぐ（版 3.111.0）
     if plan.contains(&da_core::boot::Act::AwaitBeat) {
-        let (a, s3) = (app.clone(), sup_for_boot);
+        let a = app.clone();
         let opened = Instant::now();
-        let _ = std::thread::Builder::new().name("boot-beat".into()).spawn(move || await_beat(a, paths, s3, opened));
+        let _ = std::thread::Builder::new().name("boot-beat".into()).spawn(move || await_beat(a, paths, opened));
     } else {
         settle(&paths, &plan);
     }
@@ -687,12 +621,13 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
 /// 入れ替えた直後の確かめ（版 3.111.0。src/boot.rs の decide）: 画面を開いたあと、画面の JS の最初の心拍を待つ。来れば確かめの印を消し・
 /// ショートカットを直し・写しを片付ける。来ないと決めたら（boot::page_of: 画面の JS が /api/config を尋ねもしない・答えの後に心拍が来ない）
 /// 控えへ戻して開き直す。答えを待つ間は待つ
-fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
+fn await_beat(app: AppHandle, paths: Paths, opened: Instant) {
     use da_core::boot::{decide, page_of, Act, Facts};
     loop {
         let answered = CONFIG_ANSWERED.lock().unwrap_or_else(|e| e.into_inner()).map(|t| t.elapsed());
         let page = page_of(opened.elapsed(), FIRST_BEAT.get().is_some(), CONFIG_ASKED.get().map(|t| t.elapsed()), answered);
-        let python = python_fact(&sup);
+        // 中身（Python）の様子は決めの材料に残す（boot::decide。版 3.119.0 からいつも Missing＝戻す理由にならない）
+        let python = da_core::boot::Python::Missing;
         let acts = decide(&Facts { installed: true, applied: paths.applied().exists(), window_ok: true, page, python });
         if acts == [Act::AwaitBeat] {
             std::thread::sleep(Duration::from_millis(250));
@@ -712,11 +647,9 @@ fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
                 None => "設定を尋ねもせず".to_string(),
             };
             let why = format!("画面の JS が起きません（開いて {} 秒・{since}最初の心拍が来ません）", opened.elapsed().as_secs());
-            // 画面を開いた後の戻し: 先に app を掴む物を止める（中身の Python は作業フォルダが app\program。LotDsp の見えない Edge も）。
+            // 画面を開いた後の戻し: 先に app を掴む物（LotDsp の見えない Edge）を止める。
             // Windows は掴まれたフォルダの名前を替えられない（版 3.111.0 の Windows の CI の 4e: 戻せず、壊れた版のまま開いていた）
             let stop = || {
-                log("BOOT 戻す前に中身（Python）を止めます");
-                sup.stop();
                 if let Some(lot) = LOT.get() {
                     lot.lotdsp.shutdown();
                 }
@@ -736,20 +669,6 @@ fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
         }
         settle(&paths, &acts);
         return;
-    }
-}
-
-/// 決めの材料の Python の様子（起こし直しはしない）
-fn python_fact(sup: &Supervisor) -> da_core::boot::Python {
-    use da_core::boot::Python;
-    if sup.up().is_some() {
-        Python::Ready
-    } else if sup.starting() {
-        Python::Starting
-    } else if !sup.has_python() {
-        Python::Missing
-    } else {
-        Python::Down
     }
 }
 
@@ -1091,13 +1010,9 @@ fn main() {
                 });
                 let _ = rx.recv_timeout(LEAVE_WAIT);
             }
-            // 中身の Python を止める（入力を閉じる → 片付けて自分で終わる。終わらなければ止める）
-            // 起こそうとした回数を記録に残す（版 3.118.0。段 ④ の窓は 0。窓の通し verify.py・CI の自己診断が見る）
-            let attempts = slot.get().map(|r| r.backend.attempts()).unwrap_or(0);
-            if let Some(r) = slot.get() {
-                r.backend.stop();
-            }
-            log(&format!("EXIT 窓を閉じた python_attempts={attempts}"));
+            // 中身（Python）を起こそうとした回数（版 3.118.0 から 0。版 3.119.0 で中身の係を消した）。前の版の窓の通しと CI の自己診断が
+            // 記録の python_attempts= を読むので、0 を残す
+            log("EXIT 窓を閉じた python_attempts=0");
         }
         _ => {}
     });
@@ -1135,21 +1050,7 @@ mod tests {
         assert!(is_splash(&Url::parse("http://tauri.localhost/index.html").unwrap()));
     }
 
-    /// 中身を起こさない窓（製品の形）の作り物
-    struct Absent;
-    impl Backend for Absent {
-        fn ask(&self, _: &sidecar::Ask) -> Reply {
-            panic!("中身へ回さない")
-        }
-        fn absent(&self) -> bool {
-            true
-        }
-        fn python_now(&self) -> da_core::presence::PythonNow {
-            da_core::presence::PythonNow::absent()
-        }
-    }
-
-    fn ask(r: &Router<Absent>, method: &str, path: &str) -> (u16, String, Vec<u8>) {
+    fn ask(r: &Router, method: &str, path: &str) -> (u16, String, Vec<u8>) {
         let q = tauri::http::Request::builder().method(method).uri(format!("tpa://localhost{path}")).body(Vec::new()).unwrap();
         let a = r.handle(&q);
         (a.status().as_u16(), a.headers()["x-tpa-by"].to_str().unwrap().to_string(), a.body().clone())
@@ -1172,21 +1073,17 @@ mod tests {
     }
 
     /// 製品の native の形（窓の情報・窓の絵 → Lot が答える道。Tauri に頼る道は除く）と製品の門番で組んだ本物の振り分け
-    fn product_router(lot: Arc<Lot>, program: std::path::PathBuf) -> Router<Absent> {
+    fn product_router(lot: Arc<Lot>, program: std::path::PathBuf) -> Router {
         let info = json!({"app_id": "test", "program_version": "0.0.0"});
         let l2 = lot.clone();
         Router {
             static_dir: da_core::page::static_dir(&program),
-            backend: Absent,
-            native: Box::new(move |req, backend| {
-                window_reads(req, backend, &info).or_else(|| lot_answer(req, backend, &l2, &program, &|| ()))
-            }),
+            native: Box::new(move |req| window_reads(req, &info).or_else(|| lot_answer(req, &l2, &program, &|| ()))),
             guard: guard(lot),
-            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
         }
     }
 
-    fn ask_with(r: &Router<Absent>, method: &str, path_query: &str, body: &[u8]) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    fn ask_with(r: &Router, method: &str, path_query: &str, body: &[u8]) -> (u16, Vec<(String, String)>, Vec<u8>) {
         let q = tauri::http::Request::builder().method(method).uri(format!("tpa://localhost{path_query}")).body(body.to_vec()).unwrap();
         let a = r.handle(&q);
         let mut h: Vec<(String, String)> =
@@ -1233,10 +1130,9 @@ mod tests {
         let (dwork, _, lot) = test_lot("dev-shell");
         let r = product_router(plot, program.clone());
         let static_dir = da_core::page::static_dir(&program);
-        let python_now = da_core::presence::PythonNow::absent;
         let lines = Mutex::new(vec![]);
         let logl = |l: &str| lines.lock().unwrap().push(l.to_string());
-        let ctx = da_core::shell::Ctx { program: &program, python_now: &python_now, absent: true, log: &logl };
+        let ctx = da_core::shell::Ctx { program: &program, log: &logl };
         let (pw, dw) = (work.to_string_lossy().into_owned(), dwork.to_string_lossy().into_owned());
         let nonce = |b: &[u8]| {
             let t = String::from_utf8_lossy(b).replace(&pw, "@WORK").replace(&dw, "@WORK");

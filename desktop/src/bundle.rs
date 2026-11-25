@@ -581,7 +581,7 @@ pub struct Env {
 impl Env {
     /// 製品の形（窓が中身〈program〉と作業場所から決める。app_env.config_path と同じ順）
     pub fn production(program: &Path, local: &Path) -> Env {
-        // 相対の道は中身のフォルダから（Python は中身のフォルダで動く: sidecar.rs の current_dir）
+        // 相対の道は中身のフォルダから（前の版の Python は中身のフォルダで動いた）
         let config = std::env::var_os("TRANSFER_APP_CONFIG")
             .map(|v| program.join(v))
             .unwrap_or_else(|| program.join("config").join("appsettings.json"));
@@ -2106,7 +2106,7 @@ impl Builder {
     /// 基の置き場は create_app の BASE_DIR〈中身を解いた道〉）。GET /api/settings の config_file（版 3.89.0）
     pub fn config_file(&self) -> String {
         let base = resolved(&self.env.program);
-        // str(Path(字)) は字のまま（相対の道も）。有るかは Python の今のフォルダ＝中身のフォルダ（sidecar.rs の current_dir）から見る
+        // str(Path(字)) は字のまま（相対の道も）。有るかは Python の今のフォルダ＝中身のフォルダから見る
         let (text, at) = match std::env::var_os("TRANSFER_APP_CONFIG") {
             Some(v) => (PathBuf::from(&v), base.join(&v)),
             None => {

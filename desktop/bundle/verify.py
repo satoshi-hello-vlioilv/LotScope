@@ -250,6 +250,11 @@ def stage_by_old_window(rel_dir: Path, local: Path, version: str) -> None:
     tmp = Path(tempfile.mkdtemp(prefix="da-oldstage-"))
     try:
         with zipfile.ZipFile(rel_dir / rel["zip"]) as z:
+            # 前の版（3.117.x まで）の窓は、ZIP の program/sidecar.py（版 3.119.0 から 1 行の印）がファイルであることを取り込みの確かめに使う
+            # （3.117.3 の update.rs の validate_dist・dist_root・distribute.rs の extract_exe）。印が無い ZIP を前の窓の形で取り込んだと言わない
+            marks = [n for n in z.namelist() if n.endswith("program/sidecar.py")]
+            if not marks or marks[0].count("/") != 2:
+                raise SystemExit(f"配る ZIP の根に program/sidecar.py（前の版の窓が見る印）がありません: {marks[:3]}")
             z.extractall(tmp)
         # 配る形の根（program/app/version.py の 3 つ上。凍らせた写し program/tests/legacy/…/app は program の下の app でないので選ばない）
         root = next(p.parents[2] for p in tmp.rglob("version.py") if p.parent.name == "app" and p.parents[1].name == "program")
@@ -714,8 +719,9 @@ def rename(old_exe: Path, old_repo: Path, exe: Path, work: Path) -> bool:
 
 def prev(old_zip: Path, exe: Path, work: Path) -> bool:
     """前の版と新しい版の境の通し（版 3.118.0。採点の first_fixes 10・14）。前の版（GitHub の Releases の v3.117.x の配る ZIP。Python を起こす）の
-    本物の窓で始めた PC が、置き場のいまの版（段 ④: Python を起こさない）を取り込み・入れ替え・開き直す。そのあと配る版を前の版に戻すと、
-    1 回開くだけで前の版で開く（前の版は Python を起こすので、戻した段は Python のある PATH。PC の Python は段 ⑤ まで消さない）"""
+    本物の窓で始めた PC が、置き場のいまの版（段 ④: Python を起こさない。段 ⑤〈版 3.119.0〉から program/sidecar.py は 1 行の印）を取り込み・
+    入れ替え・開き直す。1c は入れ替えた後に開き直せなかった前の窓が新しい program で開く形（戻さない）。そのあと配る版を前の版に戻すと、
+    1 回開くだけで前の版で開く（前の版は Python を起こすので、戻した段は Python のある PATH。3.117.x から直に上がった PC は戻すときに Python が要る）"""
     b = bundle.brand()
     if work.exists():
         shutil.rmtree(work)
@@ -758,6 +764,7 @@ def prev(old_zip: Path, exe: Path, work: Path) -> bool:
     ok &= check(r.get("ok") is True and info.get("version") == old_v, f"prev 1. 前の版 {old_v} で開き、自己診断が通る", r.get("error", "") or info.get("version"))
     ok &= check(upd.get("state") == "ready" and upd.get("ready") == v_new, f"prev 1. 前の版の窓が {v_new} を取り込んだ（sidecar.py の印を受ける）",
                 json.dumps(upd, ensure_ascii=False)[:300])
+    ok &= prev_relaunch_failed(work, local, env, old_v, v_new, b)
     # 2. Python の無い PATH で app の exe（前の版の入口）を開く → 前の窓が入れ替えて開き直し、いまの窓が Python を起こさずに開く
     before = len(desktop_log(local))
     r = no_py.open(app / b["exe"], "new")
@@ -777,6 +784,42 @@ def prev(old_zip: Path, exe: Path, work: Path) -> bool:
                 f"prev 3. 配る版を {old_v} に戻すと、1 回の起動で前の版（Python を起こす）で開く", f"{info.get('version')} python={r.get('python')} {r.get('error', '')}")
     left = leftover_python(work)
     ok &= check(not left, "終わったあと Python が残らない", left)
+    return ok
+
+
+def prev_relaunch_failed(work: Path, local: Path, env: dict, old_v: str, v_new: str, b: dict) -> bool:
+    """prev 1c（版 3.119.0。段 ⑤ の採点の first_fixes 2）: 前の版の窓が入れ替えた後に入口の exe で開き直せなかった形。前の窓が新しい program で
+    開き、前の窓の窓の準備（3.117.3 の boot::window_ready。画面の型を前の窓の Template::parse で読む・url_for('static', …)・指紋・同梱の既定）で決める。
+    1 の後の作業場所を写し、入れ替えだけを手で済ませる（app/program を取り込んだ版に・app の exe は前の版のまま・update/applied.json を置く）。
+    前の窓を開く → 記録に「戻しました」が無く、FAILED.json（mark_failed の versions）に新しい版が無い（前の窓が新しい版を「開けない版」と印を付けない）"""
+    import re
+    c_local = work / "local-1c"
+    shutil.rmtree(c_local, ignore_errors=True)
+    shutil.copytree(local, c_local, symlinks=True)
+    upd = c_local / "update"
+    stage, app = upd / "stage", c_local / "app"
+    ok = check((stage / "program" / "sidecar.py").is_file(), "prev 1c. 取り込んだ版に program/sidecar.py の印がある")
+    if not ok:
+        return False
+    shutil.rmtree(upd / "old", ignore_errors=True)
+    shutil.copytree(app, upd / "old", symlinks=True)              # 控え（前の版）
+    shutil.rmtree(app / "program")
+    shutil.copytree(stage / "program", app / "program")            # program は新しい版・app の exe は前の版のまま（開き直せなかった）
+    shutil.rmtree(stage, ignore_errors=True)
+    (upd / "stage.json").unlink(missing_ok=True)
+    (upd / "applied.json").write_text(json.dumps({"from": old_v, "to": v_new, "at": "verify"}), encoding="utf-8")
+    before = len(desktop_log(c_local))
+    r = Run(work, {**env, "TRANSFER_LOCAL_ROOT": str(c_local)}).open(app / b["exe"], "old-relaunch-failed")
+    lines = desktop_log(c_local)[before:]
+    reverted = [x[:200] for x in lines if re.search(r"戻しました|に戻し", x)]
+    failed = upd / "FAILED.json"
+    marked = json.loads(failed.read_text(encoding="utf-8")).get("versions", []) if failed.is_file() else []
+    ok &= check(not reverted, f"prev 1c. 開き直せなかった前の窓が新しい program（{v_new}）で開いても控えへ戻さない（窓の準備が通る）",
+                reverted or r.get("error", ""))
+    ok &= check(v_new not in marked, f"prev 1c. 前の窓が {v_new} を開けない版と印を付けない（FAILED.json の versions）", marked)
+    ok &= check((app / "program" / "app" / "version.py").is_file() and bundle.app_version(app / "program") == v_new,
+                f"prev 1c. app/program は {v_new} のまま", bundle.app_version(app / "program") if (app / "program").is_dir() else "")
+    shutil.rmtree(c_local, ignore_errors=True)
     return ok
 
 

@@ -373,39 +373,6 @@ async function closeAll(page) {
 }
 
 // 状態: [名前, そこへ行く操作, 次に押すべきもの（新しい画面の data-next → 前の画面の部品 の順に探す）]
-/** 中身（Python）が止まった形の 2 つ（版 3.111.0）。STATES の最後と ui-eval-narrow.mjs が使う */
-export const PY_WHY = "アプリの中身（Python）がすぐに終わりました。ModuleNotFoundError: No module named 'flask'";
-export function PYDOWN_STEPS() {
-  return [
-    ["pydown", async (p) => {
-      // 前の状態の窓（「保存していない変更があります」など）を残したまま撮らない: 一覧の頁を読み直してから（版 3.111.0 の作った後の採点の道具の不具合）
-      const accept = (d) => d.accept().catch(() => {});
-      p.on("dialog", accept);
-      await p.goto(new URL("/#screen=list", p.url()).href).catch(() => {});
-      await p.reload().catch(() => {});
-      p.off("dialog", accept);
-      await p.waitForSelector("#llBody tr[data-i]", { timeout: 30000 }).catch(() => {});
-      // 心拍の答えにも中身の様子「止まっている」を添える（撮り終わるまで。版 3.118.2 の作った後の採点の割れ C2: 窓の開発用サーバーの心拍は
-      // python=absent を答え、作り物の「中身停止」を次の心拍で「待機中」に戻していた。Python の開発用サーバーは python を答えないので残っていた）
-      await p.route("**/api/heartbeat", async (route) => {
-        const r = await route.fetch().catch(() => null);
-        const j = r ? await r.json().catch(() => ({})) : {};
-        await route.fulfill({ json: { ...j, python: { state: "stopped", why: PY_WHY } } });
-      });
-      await sleep(600);
-      await p.evaluate((why) => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "stopped", why } })), PY_WHY);
-      await sleep(400);
-    }, "[data-next], #pyBar [data-py]"],
-    ["pydown-fold", async (p) => {
-      await p.click('#pyBar [data-py="fold"]'); await sleep(300);
-      // 撮るはずの状態（段を畳んで見出しの札「中身停止」）になったかを確かめてから撮る（次の心拍の後も）
-      await sleep(3500);
-      const pill = await p.evaluate(() => { const e = document.querySelector("#pyPill"); return e && !e.hidden && e.offsetParent !== null ? e.textContent.trim() : ""; });
-      if (!/中身停止/.test(pill)) throw new Error(`pydown-fold: 見出しの札が「中身停止」ではありません（${pill || "出ていない"}）`);
-    }, "[data-next], #pyPill"],
-  ];
-}
-
 export const STATES = [
   ["list", async () => {}, "[data-next], #llBody .ll-lot"],
   // 版 3.45.0: 見出しの下の値で絞る段の ▾ で開く「値で絞る」（設備。CR1・DL2・L-1 を選び、条件で絞るを開いた所）
@@ -1046,9 +1013,6 @@ export const STATES = [
     await p.click('#llEquipBar [data-equip="__HOT__"]');
     await p.waitForSelector("#llSched[data-mode=hot] .sd-tl", { timeout: 20000 }); await sleep(900);
   }, "[data-next], #llSched [data-sd-pick], #llSched [data-sd-kama]"],
-  // 版 3.111.0: 中身（Python）が止まった形（窓が知らせる tpa:python。見出しの下の知らせの段）と、段を畳んで見出しの札「中身 停止」だけの形。
-  // 最後に置く（前の状態の見た目を変えない）。ui-eval-narrow.mjs は一覧から直にこの 2 つを当てる（PYDOWN_STATES）
-  ...PYDOWN_STEPS(),
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

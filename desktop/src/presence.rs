@@ -1,6 +1,6 @@
 //! 利用状況（だれが・どの PC で・どの版を使っているか）と画面の設定の控え（版 3.71.0。順 5 の 3 段目。program/app/services/presence.py・
 //! ui_state.py を写した物）。窓（デスクトップ版）が受け持つときは、心拍・利用状況の道・使用の履歴・画面の控えの書き手は窓の 1 つだけ
-//! （sidecar::SERVES の presence・ui_state。Python は心拍で書かない）。置き場とファイルの形は Python と同じ:
+//! （shell::SERVES の presence・ui_state。Python は心拍で書かない）。置き場とファイルの形は Python と同じ:
 //!     <key>.json          … いま使っている（心拍で at を更新。TTL を過ぎたら使っていない）
 //!     <key>.revoke.json   … 管理する人が書いた切断の指示（REVOKE_COOLDOWN のあいだ効く。読むのは access::revocation）
 //!     history/<key>.json  … 使った記録の要約（初めて・最後・回数・使った時間・版の移り変わり）
