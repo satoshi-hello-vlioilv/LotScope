@@ -1,5 +1,5 @@
 //! 設定の束（版 3.84.0）: 窓（src/bundle.rs）が自分で組んだ束が、Python の道（routes/lotlist.py の GET /api/lotlist/settings）の答えと
-//! 同じか。program/tests/settings_oracle.py が場面ごとのフォルダ（配った設定・共有・作業場所・同梱の data/）を作って Python に尋ね、
+//! 同じか。前の版の答え合わせ役 settings が場面ごとのフォルダ（配った設定・共有・作業場所・同梱の data/）を作って Python に尋ね、
 //! 尋ねる前の形に戻す。窓は同じフォルダから束を組み、答えを 1 字ずつ突き合わせる（conversions.rev は窓と Python で別の字なので比べない）。
 //! "delegate" の場面は窓が組まずに Python に尋ねること（束の材料を組めない）、"seed" の場面（版 3.105.0）は共有にまだ無いマスタに窓も
 //! Python と同じ最初の版を置いてから組み、束も置いた中身も Python と同じこと、"broken:節,…" の場面は窓がその節だけを
@@ -45,7 +45,7 @@ fn bundle_is_built_like_python() {
     let work = common::work("bundle");
     let mut bk = common::bake::Bake::open_part("settings", "bundle", &work);
     bk.pack = true;
-    let o = bk.oracle_with("settings_oracle.py", &[work.to_str().unwrap()], strip_python);
+    let o = bk.table_oracle();
     let mut bad = vec![];
     let (mut same, mut delegated, mut broken_n, mut seeded, mut tabled) = (0, 0, 0, 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {

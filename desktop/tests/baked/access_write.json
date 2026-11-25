@@ -566,9 +566,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/access_write_oracle.py": "b1fd3d68e911785d",
-  "tests/oracle_gate.py": "74d8effb19f3211d"
- },
+ "sources": {},
  "variant": "root"
 }

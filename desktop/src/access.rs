@@ -8,7 +8,7 @@
 //! - 読めないとき（マスタが壊れている・置き場に届かない）は me を載せない。Python が今までどおり自分で決め、門番も自分で見る
 //!   （止めない側へ倒す決まりは Python と同じ: 権限を読めないときは書き込みを止めない）
 //!
-//! 評価関数: tests/access_parity.rs（← program/tests/access_oracle.py。行の組・名乗り・タブ・切断・道ごとに Python と同じ答え）。
+//! 評価関数: tests/access_parity.rs（← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 access）。行の組・名乗り・タブ・切断・道ごとに Python と同じ答え）。
 
 use crate::pyfmt;
 use crate::worksum::{py_str, truthy};

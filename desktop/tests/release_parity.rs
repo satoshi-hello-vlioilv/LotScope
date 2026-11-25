@@ -1,6 +1,6 @@
 //! 配布の置き場を変える 3 本（src/release_place.rs の handle・plan・Mover）が Python の道（routes/settings.py の
 //! POST /api/release/place/check・move・GET progress と services/release_place.py）と同じ答えか（版 3.95.0）。
-//! program/tests/release_place_oracle.py が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 release_place が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを窓の道（Lot::release_route と同じ順: ?engine=python → 道 → move は門番 gate → plan → 写す係）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、写し終えた後の進み具合（final）、終わった後のフォルダの中身
 //! （ファイルの中身・大きさ・更新時刻〈copy2 と同じく元の時刻〉・権限）を突き合わせる。写しかけの一時フォルダが残らないことも見る。
@@ -152,7 +152,7 @@ fn mode_of(m: &std::fs::Metadata) -> Option<String> {
     }
 }
 
-/// フォルダの中身（release_place_oracle.py の listing と同じ形）
+/// フォルダの中身（前の版の答え合わせ役 release_place の listing と同じ形）
 fn listing(root: &Path) -> Map<String, Value> {
     let mut out = Map::new();
     fn walk(dir: &Path, root: &Path, out: &mut Map<String, Value>) {
@@ -193,7 +193,7 @@ fn joined_paths_match_python() {
     let base = common::work("release-tables");
     let mut bk = common::bake::Bake::open_part("release_place", "tables", &base);
     (bk.strip, bk.strip_in) = (["posix", "win", "posixBase", "winBase", "str"].map(String::from).to_vec(), vec!["parent", "errno"]);
-    let oracle = bk.oracle("release_place_oracle.py", &["--tables"]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     for (n, c) in oracle["joins"].as_array().unwrap().iter().enumerate() {
         let up = da_core::pyfmt::strip(c["parent"].as_str().unwrap()).trim_matches('"').to_string();
@@ -264,7 +264,7 @@ fn release_place_matches_python() {
     bk.strip = ["status", "json", "final", "files", "filesPd"].map(String::from).to_vec();
     bk.strip_in = vec!["method", "sync", "roots"];
     bk.drop = vec!["rootUser", "root"];
-    let oracle = bk.oracle("release_place_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     // 焼いた表と比べる流し方（Python 無し）では、表の答え（読む順で変わる数を伏せてある）と同じ形にして比べる。Python と比べるときは数のまま
     let with_python = bk.python();

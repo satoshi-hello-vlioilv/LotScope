@@ -8974,9 +8974,7 @@
   "links": {}
  },
  "sources": {
-  "tests/calc_oracle.py": "6677d99238797950",
-  "tests/scene_files.py": "f8e007c61ffd9495",
-  "tests/test_calculator.py": "9e5f3d00359ad27d"
+  "tests/scene_files.py": "f8e007c61ffd9495"
  },
  "variant": "root"
 }

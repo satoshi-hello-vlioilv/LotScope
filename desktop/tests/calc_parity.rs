@@ -1,5 +1,5 @@
 //! 転写距離・ピッチ計算（src/calc.rs）が Python の道（POST /api/calculate・POST /api/equipment/inspection）と同じ答えか
-//! （版 3.72.0。順 6 の 1 段目）。program/tests/calc_oracle.py が場面ごとに置き場と設定を作り、本文ごとの Python の答えを出す。
+//! （版 3.72.0。順 6 の 1 段目）。前の版の答え合わせ役 calc が場面ごとに置き場と設定を作り、本文ごとの Python の答えを出す。
 //! ここでは同じ置き場（access::Place の読み方）と設定で窓の道に同じ本文を当て、状態・本文が同じか（数は 0 と 0.0 を分けて比べる）を見る。
 //! 版 3.116.0 から窓はどの形も答える（Python が例外で答える形・大きな整数・答えに NaN の出る形。任せる歩は 0）。
 //! 2 乗は C の pow のまま（利用者の決め 2026-11-18）。窓の答えは焼いた表（tests/baked/calc.json。詰めた形）にも持ち、Python 無し
@@ -12,15 +12,6 @@ use da_core::access::Place;
 use da_core::calc::{handle, Masters};
 use serde_json::{json, Value};
 
-/// 表に焼く事例だけにした答え合わせ役の答え（"bake": false の事例を除く）
-fn baked_only(oracle: &Value) -> Value {
-    let mut o = oracle.clone();
-    for sc in o["scenarios"].as_array_mut().unwrap() {
-        sc["cases"].as_array_mut().unwrap().retain(|c| c["bake"] != false);
-    }
-    o
-}
-
 #[test]
 fn calc_matches_python() {
     let base = common::work("calc");
@@ -28,7 +19,7 @@ fn calc_matches_python() {
     bk.pack = true;
     // 事例（name・path・body）の status・json は焼かない（表は窓の答えを answers に持つ）
     bk.strip_in = vec!["body"];
-    let oracle = bk.oracle_with("calc_oracle.py", &[base.to_str().unwrap()], baked_only);
+    let oracle = bk.table_oracle();
     let (mut bad, mut answered, mut handed, mut typed) = (vec![], 0, 0, 0);
     let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/calc_error_cases.json")).unwrap();
     let kinds = table["kinds"].as_object().unwrap().clone();

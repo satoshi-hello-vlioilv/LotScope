@@ -5524,12 +5524,10 @@
  "sources": {
   "data/roll_master.csv": "e299eca2d33510f5",
   "data/roll_master.json": "1fd2eae98b4d5712",
-  "tests/dashboard_oracle.py": "1cf9c67b2b8d90ca",
-  "tests/lotlist_fixture.py": "2bb8ea3b0a45d69d",
+  "tests/lotlist_fixture.py": "e86db539c43a64ee",
   "tests/scene_files.py": "f8e007c61ffd9495",
-  "tests/schedule_fixture.py": "c040571ff4fff91c",
-  "tests/ui_scene.py": "6946b292dd4cd481",
-  "tools/ui_server.py": "d05857cc7f588adc"
+  "tests/schedule_fixture.py": "d5703c248324aa2f",
+  "tests/ui_scene.py": "a2c578fff32ded82"
  },
  "variant": "root"
 }

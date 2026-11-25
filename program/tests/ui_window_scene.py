@@ -3,9 +3,9 @@
 
     python -u tests/ui_window_scene.py serve 作業フォルダ 窓の開発用サーバーの実行ファイル
 
-撮る・採点する道具（tools/ui-harness.mjs）が起こす。Python の開発用サーバー（tools/ui_server.py の build。段 ⑤ で消す）と同じ場面を、
+撮る・採点する道具（tools/ui-harness.mjs）が起こす。Python の開発用サーバー（前の Python の開発用サーバー の build。段 ⑤ で消す）と同じ場面を、
 同じ場面の台本（tests/ui_scene.py の make・finish）で作業フォルダに作り、窓の開発用サーバーを起こして、登録（作業実績の設備・共有の書式 3・
-勤務体系 2・設備グループ 2・マスタのデータ元 2）は窓の書く道へ HTTP で当てる（ui_server.py は app の MasterRepository で書いた）。
+勤務体系 2・設備グループ 2・マスタのデータ元 2）は窓の書く道へ HTTP で当てる（前の Python の開発用サーバー は app の MasterRepository で書いた）。
 
 1. ui_scene.make（品質 1500 行・作業実績 12 台・仕掛 1200 ロット・共有の形・マスタのデータ元の元）
 2. 作り物の CM3（tests/fakes_uicm3.py。fakes_serve.start の入口）
@@ -13,7 +13,7 @@
    仕掛・マスタの置き場を差し替える。TPA_UI_WORK_STALE は作業実績の古さの時間・TPA_UI_SHARE=shared/down は共有のマスタの置き場）
 4. 権限の表に撮る人（この PC の名乗り getpass.getuser）を「開発者・編集可」で 1 行足す（Python の開発用サーバーは判定を差し替えた: as_role）
 5. 窓の開発用サーバーを起こし（TPA_DASHBOARD_NOW は試験データの翌日の 10 時）、登録を書く道で当てる
-6. TPA_UI_BAD_ROWS の読めない行・TPA_UI_SHARE=down の名前替え・ui_scene.finish（ui_server.py と同じ順と中身）
+6. TPA_UI_BAD_ROWS の読めない行・TPA_UI_SHARE=down の名前替え・ui_scene.finish（前の Python の開発用サーバー と同じ順と中身）
 7. 「LISTEN http://127.0.0.1:ポート」の 1 行を出し、標準入力が閉じるまで起こしておく（閉じたら窓と CM3 を止め、作業フォルダを消す）
 
 起動の初期値（検査計・最初の管理者・釜番日付）は当てない（Python の開発用サーバーと同じ）。キーは窓の乱数のまま（道具は画面と API から読む）。
@@ -38,10 +38,10 @@ sys.path.insert(0, str(PROGRAM))
 
 from tests import fakes_serve, lotlist_fixture, ui_scene  # noqa: E402  （標準の部品だけ）
 
-# 試験データの「いま」（ui_server.py の DASHBOARD_NOW と同じ: 試験用の作業実績は TODAY〈10/2〉までなので、その翌日の朝）
+# 試験データの「いま」（前の Python の開発用サーバー の DASHBOARD_NOW と同じ: 試験用の作業実績は TODAY〈10/2〉までなので、その翌日の朝）
 NOW = datetime.combine(lotlist_fixture.TODAY + timedelta(days=1), time(10)).strftime("%Y-%m-%d %H:%M:%S")
 
-# 共有の書式（作業実績）・勤務体系・設備グループ（ui_server.py の seed_formats・build と同じ中身）
+# 共有の書式（作業実績）・勤務体系・設備グループ（前の Python の開発用サーバー の seed_formats・build と同じ中身）
 FORMATS = [
     ("標準", "CR1・実績", "全設備の基本の並び", {
         "columns": {"order": ["作業日", "開始", "終了", "ロット番号", "作業区分", "作業者"], "hidden": ["備考", "速度"],
@@ -66,7 +66,7 @@ REGISTERED = {"work_log_files", "display_formats", "shift_patterns", "equipment_
 
 
 def bad_rows():
-    """置き場の読めない行（ui_server.py の TPA_UI_BAD_ROWS と同じ中身）"""
+    """置き場の読めない行（前の Python の開発用サーバー の TPA_UI_BAD_ROWS と同じ中身）"""
     return {"dashboards": [{"id": 900, "名前": 5, "元": "dash", "範囲": "共通", "中身": "{}", "rev": 1},
                            {"id": 903, "名前": "版の読めないダッシュボード", "元": "dash", "範囲": "共通", "中身": "{}", "rev": "二"},
                            {"id": 901, "名前": "壊れたカード", "元": "card:lot", "範囲": "共通", "中身": "{\"items\": [{\"w\": NaN}]}", "rev": 1},
@@ -86,7 +86,7 @@ def config_path():
 
 
 def settings_for(made, cm3_url, share):
-    """作業フォルダの配った設定（ui_server.py の build が create_app に渡した設定と同じ差し替え。マスタの置き場も設定に書く）"""
+    """作業フォルダの配った設定（前の Python の開発用サーバー の build が create_app に渡した設定と同じ差し替え。マスタの置き場も設定に書く）"""
     s = json.loads(config_path().read_text(encoding="utf-8-sig"))
     s["work_log"] = {**s.get("work_log", {}), "folder": str(made["folder"])}
     if os.environ.get("TPA_UI_WORK_STALE"):
@@ -141,7 +141,7 @@ class Window:
 
 
 def register(w, masters):
-    """登録（ui_server.py の build と同じ中身を、窓の書く道で）"""
+    """登録（前の Python の開発用サーバー の build と同じ中身を、窓の書く道で）"""
     w.call("POST", "/api/masters/worklog/scan")
     for name, origin, note, body in FORMATS:
         w.call("POST", "/api/masters/formats", {"name": name, "source": "work", "table": "実績", "origin": origin, "body": body, "note": note})

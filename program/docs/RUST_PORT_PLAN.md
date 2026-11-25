@@ -3,6 +3,30 @@
 「Python が相当に優位な場合を除き、Rust に書き換える」ための下ごしらえ。文章の見立てではなく、測った数で順を決める。
 数は `python program/tools/rust-port-bench.py --calibrate 20000` で出し直せる（下の数は Linux の開発機の 1 回分。Windows の数は CI の記録から）。
 
+## 段 ⑤ 版 3.119.0: 不要になったファイルの片付け（済んだ）
+
+採点は `tools/ui-proposals/2026-11-stage5.json`（決まり 2026-11-06。1 位は案 A「印 1 つで 1 版に全部」70.3 点。合格点に届かないので、採点の指摘
+first_fixes の 12 を入れた形で作った。作った形はファイルの `built_plan` の `built_3119_0`）。利用者の決め 2026-11-25 のとおり 1 版にまとめた。
+
+- **消した**: program/app の .py（版の version.py の 1 つを除く）と program/app_env.py・中身の係と枠（窓の Rust の 2 本）・振り分けの中身へ回す枝・
+  窓が Python を探す口・答え合わせ役（program/tests の答えの元 36 本と門・部品）・app を import する試験・凍らせた写しと凍らせた試験・任せる歩の予算と数える道具・
+  Python の開発用サーバー・app を import して焼く・測る道具・測る例（dash_bench・routes_bench・fields_bench）・画面の中身の知らせの段と札・待ちの段 python と順番待ち・
+  古い採点の記録（残したのは 2026-11-stage4d.json・2026-11-stage5.json と道具が読む 2026-11-stage2b.mjs）
+- **残した**: program/sidecar.py（1 行の印。前の版の窓が取り込みの確かめで見る）・program/app の画面の物（templates・static・master_defaults・brand.json・
+  changelog.json・version.py・services/lotdsp_direct.js。置き場は替えない: relaunch に失敗した前の窓の窓の準備が読む）・焼いた表と人の事例の表・独立の答え・作り物と場面の台本・
+  窓が答えない道の 503（window_unanswered）と回数の数え（利用者の決めの既定 (2)。現場で 0 を確かめたら 404 を決める）・/__desktop/info の protocol・serves と python: absent
+  （前の版の配布の画面と CI が読む。定数は lib の shell.rs）
+- **確かめ**: 窓の試験は表だけの形（`TPA_NO_PYTHON=1 cargo test`）・app を import しない Python の試験・ruff・compileall（CLAUDE.md の「push 前の確かめ」を書き直した）・
+  段 ⑤ の門 `tests/test_fifth_table.py`・前の版の窓の受け入れ `desktop/bundle/test_bundle.py` の OldWindowAccepts と `verify.py prev` の 1c・アイコンは焼いた絵（`desktop/tests/icon_files.rs`。
+  build.rs は Python を呼ばない）。凍らせた試験は消す前に最後に 1 回流した（記録は採点のファイルの built_plan）
+- **3.111.0 より前の窓**が新しい版を取り込み、入口の exe で開き直せなかったときは、前の窓が Python の準備で決めるので控えへ戻し、その版に印を付ける
+  （その 1 台はこの版を取り込まず、次の版を待つ。壊れはしない）
+- **利用者の PC の Python**: 控え（直前の版）が 3.118.0 以上になった PC から外してよい（3.117.x から直に上がった PC は、戻すときに前の版が Python を起こす）
+- 焼いた表の元（books.json の sources）から消した物を外し、表の元の指紋は `bless.py --re-source` で書き直した（答えは替えない。表だけの形の試験で確かめる）
+
+以下は済んだ版の記録（歴史の節。段 ⑤ の門は、この節の中の消した物の名を数えない）。
+
+<!-- history -->
 ## 1. いまの形（先に分かったこと）
 
 - Flask は版 3.8.0 で外してある。Python のアプリは**標準の部品だけ**で動き、pip で入れる物は無い（同梱の Python にも無い）。
@@ -2645,7 +2669,7 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
    ④ は小さい版 3 つに割る（採点 `tools/ui-proposals/2026-11-stage4.json` の built_plan。下の「段 ④」の節）: **3.118.0** 製品が Python を起こさない・
    **3.118.1** 自己診断の Python と比べる項目を窓だけの確かめに・**3.118.2** 撮る・採点する道具が窓を相手にする開発用サーバー。
    ④ では Python のファイル（program/app・program/sidecar.py・sidecar.rs・比べる口・Fail::Python の型）を**消さない**（消すのは ⑤。利用者に尋ねてから）
-2. **⑤ 不要になったファイルの片付け**（④ の次の版。ここで片付ける物の一覧はこの 1 か所。版 3.118.3 で箇条を下の表に書き直した〈採点
+2. **⑤ 不要になったファイルの片付け — 済んだ（版 3.119.0。下の「段 ⑤ 版 3.119.0」の節）**（④ の次の版。ここで片付ける物の一覧はこの 1 か所。版 3.118.3 で箇条を下の表に書き直した〈採点
    `tools/ui-proposals/2026-11-stage4d.json` の first_fixes 9・10。作った後の採点の割れ 1・4 で数え方と順番待ちの行を直した〉）。
    **版の割り（利用者の決め 2026-11-25）**: ⑤ の片付けは版をあまり分けずに進める。1 版でまとめるのを基本とし、分けるのは sidecar を消す条件
    （配布の画面の「要更新」が 0 台）がまだ満たせないときの 2 版目だけ。
@@ -2696,7 +2720,9 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
   戻したキーに / がある道（`/api/sources/a%2Fb/columns`）は道なしの 404。回数は形の名前ごと（`unanswered …`）に数え、利用状況のいま使っている印の `unanswered` に載せる
   （⑤ に進む前の材料: 現場で 0 か）。突き合わせの試験の任せる歩（delegates_budget.json）は「窓の係が答えない歩」として数え続ける（製品ではこの 503 になる）
 - **中身がある印**: `update::is_dist` の 1 か所（program/sidecar.py か、app/version.py ＋ app/brand.json）。⑤ で sidecar.py を消しても 3.118.0 以上の窓は取り込める。
-  **⑤ で sidecar.py を消すのは、配布の画面の「要更新」が 0 台（3.118.0 より前の PC が無い）になってから**（前の版の窓は sidecar.py の無い ZIP を断る）
+  ~~⑤ で sidecar.py を消すのは、配布の画面の「要更新」が 0 台（3.118.0 より前の PC が無い）になってから~~ → **⑤（版 3.119.0）で sidecar.py の中身を消し、
+  1 行の印を残した**（採点 `tools/ui-proposals/2026-11-stage5.json` の evaluation.sidecar_one_version: 3.82〜3.117.3 のどの窓も、取り込み・置く・写す・据え付けの
+  確かめは program/sidecar.py が「ファイルである」ことだけで中身を読まない。印は 3.117.x 以前の PC が 0 台になった後の版で消せる。そのときは版が要る）
 - **戻す設定**: `desktop.lotlist_engine`・`schedule.fetch_engine` の python は効かない（`bundle::engine_of` はいつも rust。残っていれば起動の記録に 1 行）。
   スケジュールは係を降りない（resign・adopt を外した）。窓が同じに読めない形は `cm3::windowed` で窓の言葉の失敗にし、前の答えを残す。
   i64 に入らない整数・入れ子の深い JSON は理由つきで断る（利用者の決め ask_user 5 の既定。`schedule::BIG_OR_DEEP`）
@@ -3431,3 +3457,4 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
   同じ大きさで時刻を戻した書き換え・中を潰した／0 バイトの索引・1 つの接続で 2 つの表・
   札を覚える／書き換えで数え直す／計算列は覚えない）。つなぎの字を抜く・* ? の確かめを抜く・鍵から時刻と大きさを抜く・札の鍵から時刻を抜く・中身の確かめを抜く・
   別名を 1 つにする・鍵から書き換えの回数を抜く変異で落ちることを確かめた。
+<!-- /history -->

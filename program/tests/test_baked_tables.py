@@ -1,5 +1,6 @@
-"""窓が焼いた表（desktop/tests/baked/*.json。版 3.115.0）が古くないか: 焼いた時の元（答え合わせ役など）の指紋が今の元と同じ・表の形・
-本の行き先の表（books.json）の 36 本（tools/bless.py --check と同じ）。変異: 元を 1 字変えると古いと言う"""
+"""窓が焼いた表（desktop/tests/baked/*.json。版 3.115.0）が古くないか: 焼いた時の元（場面の台本・作り物など）の指紋が今の元と同じ・表の形・
+本の行き先の表（books.json）の 35 本（tools/bless.py --check と同じ）。変異: 元を 1 字変えると古いと言う。版 3.119.0（段 ⑤）で答え合わせ役・
+凍らせた写しと、その確かめを外した"""
 import importlib.util
 import json
 import shutil
@@ -14,10 +15,6 @@ bless = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bless)
 
 
-# 凍らせた Python の写し（program/tests/legacy/3.117.3。版 3.117.3。tools/freeze-legacy.py が 1 回だけ作った）の MANIFEST.json の sha256。
-# 写しのファイルの sha256 は MANIFEST.json が持ち、MANIFEST.json そのものの指紋をここに書く（写しと MANIFEST.json を一緒に書き換えても落ちる）
-LEGACY_MANIFEST_SHA = "87e7503d7cdf71d9864c1a87c6410f3b6306f00ea23f806bcba9b4cc8ce0b3bc"
-
 # 版 3.117.0 の本の行き先（焼いた本・後の版で焼く本）
 BOOKS_3117 = {"3.117.0": ["equipgroups", "lotdsp"], "3.117.1": ["schedule"], "3.117.2": ["dashboard", "ops", "pivot", "routes"]}
 
@@ -26,11 +23,13 @@ class BakedTables(unittest.TestCase):
     def test_tables_are_not_stale(self):
         self.assertEqual(bless.check(), [])
 
-    def test_books_cover_every_oracle(self):
-        oracles = {p.name.removesuffix("_oracle.py") for p in (PROGRAM / "tests").glob("*_oracle.py")}
-        self.assertEqual(set(bless.BOOKS), oracles)
+    def test_books_are_the_35_baked_books(self):
+        # 版 3.119.0（段 ⑤）: 答え合わせ役と keep の本（前の版の Python の読み手）を消した。本はどれも焼いた本で、元に消した物を持たない
+        self.assertEqual(len(bless.BOOKS), 35)
+        for k, b in bless.BOOKS.items():
+            for rel in b["sources"]:
+                self.assertTrue((PROGRAM / rel).is_file(), f"{k}: 元 {rel} が無い")
         self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "3.115.0"), 21)
-        self.assertEqual(sum(1 for b in bless.BOOKS.values() if b["phase"] == "keep"), 1)
         # 版 3.116.0: 2 版目で焼いた 7 本
         self.assertEqual(sorted(k for k, b in bless.BOOKS.items() if b["phase"] == "3.116.0"),
                          ["calc", "conversions", "lists", "lotlist", "presence", "settings", "ui_defaults"])
@@ -39,7 +38,7 @@ class BakedTables(unittest.TestCase):
         self.assertEqual(by, BOOKS_3117)
         for k in by["3.117.1"] + by["3.117.2"]:
             self.assertTrue(bless.BOOKS[k].get("why"), f"{k}: 後の版へ送った理由が無い")
-        self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0", "keep"} | {ph for ph, ks in by.items() if ks})
+        self.assertEqual({b["phase"] for b in bless.BOOKS.values()}, {"3.115.0", "3.116.0"} | {ph for ph, ks in by.items() if ks})
         # 焼く版（bless.py・ci-shape.py の PHASES）は books.json の bakedPhases の 1 か所から読む（版 3.117.0 の作った後の直し・割れ 6 (d)）
         phases = json.loads((bless.BAKED / "books.json").read_text(encoding="utf-8"))["bakedPhases"]
         self.assertEqual(list(bless.PHASES), phases)
@@ -101,8 +100,10 @@ class BakedTables(unittest.TestCase):
                 + [f"tests/{p.name}" for p in (PROGRAM / "tests").glob("fakes_*.py")] \
                 + [f"tools/{p.name}" for p in (PROGRAM / "tools").glob("*-truth.py")]:
             self.assertIsNone(ci.imports_app(PROGRAM / rel), rel)
-        self.assertEqual(ci.imports_app(PROGRAM / "tests" / "lists_oracle.py"), "lists_oracle.py", "答え合わせ役は app を import する（見つける側の確かめ）")
         log = Path(tempfile.mkdtemp()) / "calls.log"
+        uses_app = log.parent / "uses_app.py"
+        uses_app.write_text("from app import create_app\n", encoding="utf-8")
+        self.assertEqual(ci.imports_app(uses_app), "uses_app.py", "app を import する台本は見つける（見つける側の確かめ）")
         log.write_text(f"TPA\t-I\t{PROGRAM / 'tests' / 'lists_scene.py'}\tx\nTPA\t-c\timport sys\n", encoding="utf-8")
         self.assertEqual(ci.python_calls_ok(log), [])
         # 起こしたままの相手の入口（版 3.117.0）: 種類ごとの作り物（tests/fakes_<種類>.py）も見る。引数の道（仕掛の SQLite）は種類と読まない
@@ -117,7 +118,7 @@ class BakedTables(unittest.TestCase):
         log.write_text(f"TPA\t-I\t{side / 'fakes_serve.py'}\tzz_selftest\n", encoding="utf-8")
         self.assertEqual(len(ci.python_calls_ok(log)), 1, "app を import する作り物は見つける")
         self.assertFalse((PROGRAM / "tests" / "fakes_zz_selftest.py").exists(), "取り出しの中に書かない")
-        log.write_text(f"TPA\t{PROGRAM / 'tests' / 'calc_oracle.py'}\tx\nPATH\t-V\n", encoding="utf-8")
+        log.write_text(f"TPA\t{uses_app}\tx\nPATH\t-V\n", encoding="utf-8")
         self.assertEqual(len(ci.python_calls_ok(log)), 2, "app を import する台本と PATH の python は見つける")
         shutil.rmtree(log.parent, ignore_errors=True)
 
@@ -130,9 +131,8 @@ class BakedTables(unittest.TestCase):
         import time
         from tests import scene_files
         direct = re.compile(r"shutil\.(copytree|copy2|copy|copyfile)\(\s*\(?\s*(PROGRAM|ROOT|BASE)\b")
-        # 版 3.117.2: 答え合わせ役の場面を作る道具（開発用サーバー・稼働の評価関数）と場面の台本も
-        for p in sorted((PROGRAM / "tests").glob("*_oracle.py")) + [PROGRAM / "tools" / "ui_server.py", PROGRAM / "tools" / "ops-bench.py",
-                                                                    PROGRAM / "tests" / "ui_scene.py"]:
+        # 版 3.117.2: 場面の台本も（版 3.119.0 で答え合わせ役と、場面を作る Python の道具は消した）
+        for p in [PROGRAM / "tests" / "ui_scene.py", PROGRAM / "tests" / "ui_window_scene.py", PROGRAM / "tests" / "lists_scene.py"]:
             self.assertIsNone(direct.search(p.read_text(encoding="utf-8")), f"{p.name}: 取り出しから直に写している（scene_files を通す）")
         tmp = Path(tempfile.mkdtemp())
         try:
@@ -330,34 +330,6 @@ class BakedTables(unittest.TestCase):
             self.assertIsNone(told)
         self.assertFalse(any(x.startswith("札が") for x in bless.notices()), "表ごとの知らせ（表の名前: …）とは別の欄")
 
-    def test_the_frozen_python_copy_is_unchanged(self):
-        """凍らせた Python の写し（版 3.117.3。段 ④ の入口の条件 3）: 中身が MANIFEST.json と同じ・MANIFEST.json の指紋が試験に書いた物と同じ・
-        凍らせた試験が呼ぶ答え合わせ役がそろう・単体の試験の discover に入らない（写しの置き場は package でない）。変異: 1 字変えると言う"""
-        import hashlib
-        spec = importlib.util.spec_from_file_location("freeze_legacy", PROGRAM / "tools" / "freeze-legacy.py")
-        fl = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(fl)
-        self.assertEqual(fl.check(), [])
-        self.assertEqual(hashlib.sha256((fl.DEST / fl.MANIFEST).read_bytes()).hexdigest(), LEGACY_MANIFEST_SHA,
-                         "MANIFEST.json が書き換わった（凍らせた写しは 1 回だけ作る）")
-        for name in fl.FROZEN_SCRIPTS:
-            self.assertTrue((fl.DEST / "tests" / f"{name}.py").is_file(), name)
-        self.assertFalse((fl.DEST.parent / "__init__.py").exists() or (fl.DEST / "__init__.py").exists(), "写しの置き場は package にしない")
-        self.assertFalse(any(p.name.startswith("test_") for p in fl.DEST.rglob("*.py")), "写しに単体の試験を入れない")
-        tmp = Path(tempfile.mkdtemp())
-        try:
-            shutil.copytree(fl.DEST, tmp / "copy")
-            p = tmp / "copy" / "app" / "version.py"
-            p.write_bytes(p.read_bytes() + b"# x\n")
-            (tmp / "copy" / "tests" / "seeds_oracle.py").unlink()
-            (tmp / "copy" / "増えた.py").write_text("", encoding="utf-8")
-            bad = fl.check(tmp / "copy")
-            self.assertTrue(any("写しが変わった: app/version.py" in x for x in bad), bad)
-            self.assertTrue(any("写しから消えた: tests/seeds_oracle.py" in x for x in bad), bad)
-            self.assertTrue(any("写しに増えた: 増えた.py" in x for x in bad), bad)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-
     def test_the_windows_overlay_is_checked_against_the_posix_answers(self):
         """Windows の上書きの表（tests/baked/nt/<表>.json。版 3.117.3）: 上書きした posix の答えの指紋が今の posix の答えと同じか。
         変異: posix の答えを 1 字変えると古いと言う・posix と同じ上書き・表に無い流さない歩・流さない歩の上書きも言う"""
@@ -516,15 +488,14 @@ class BakedTables(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         try:
             (tmp / "tests").mkdir()
-            src = PROGRAM / "tests" / "settings_write_oracle.py"
+            src = PROGRAM / "tests" / "scene_files.py"
             shutil.copy(src, tmp / "tests" / src.name)
-            shutil.copy(PROGRAM / "tests" / "oracle_gate.py", tmp / "tests" / "oracle_gate.py")
             old = bless.PROGRAM
             bless.PROGRAM = tmp
             try:
-                self.assertEqual([x for x in bless.check() if x.startswith("settings_write:")], [])
+                self.assertEqual([x for x in bless.check() if x.startswith("calc:")], [])
                 (tmp / "tests" / src.name).write_text(src.read_text(encoding="utf-8") + "# 1 字\n", encoding="utf-8")
-                self.assertTrue(any("settings_write: 元" in x for x in bless.check()))
+                self.assertTrue(any("calc: 元" in x for x in bless.check()))
             finally:
                 bless.PROGRAM = old
         finally:
@@ -547,9 +518,10 @@ class BakedTables(unittest.TestCase):
                     (tmp / f"{name}.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
                     self.assertTrue(any(x.startswith(f"{name}:") for x in bless.check(tmp)), "答えを消した部分の表")
                     t = json.loads(keep)
-                    t["sources"] = {k: "0" * 16 for k in t["sources"]}
+                    # 元が空の本（版 3.119.0 で答え合わせ役を元から外した本）は、知らない元を足して壊す
+                    t["sources"] = {k: "0" * 16 for k in t["sources"]} or {"tests/無い元.py": "0" * 16}
                     (tmp / f"{name}.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
-                    self.assertTrue(any(x.startswith(f"{name}: 元") for x in bless.check(tmp)), "指紋を壊した部分の表")
+                    self.assertTrue(any(x.startswith((f"{name}: 元", f"{name}: 表に知らない元")) for x in bless.check(tmp)), "指紋を壊した部分の表")
                     (tmp / f"{name}.json").write_text(keep, encoding="utf-8")
             (tmp / "知らない本.json").write_text("{}", encoding="utf-8")
             self.assertTrue(any("知らない本" in x for x in bless.check(tmp)))
@@ -669,17 +641,16 @@ class BakedTables(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_near_dates_in_the_sources_stop_the_bless(self):
-        """答え合わせ役の元に今日に近い固定の日付があれば焼かない（時限の爆弾にしない）"""
+        """本の元に今日に近い固定の日付があれば知らせる（時限の爆弾にしない）"""
         import datetime as dt
         tmp = Path(tempfile.mkdtemp())
         try:
             (tmp / "tests").mkdir()
-            (tmp / "tests" / "settings_write_oracle.py").write_text(f"X = '{dt.date.today():%Y-%m-%d}'\nY = '2001-01-01'\n", encoding="utf-8")
-            (tmp / "tests" / "oracle_gate.py").write_text("", encoding="utf-8")
+            (tmp / "tests" / "scene_files.py").write_text(f"X = '{dt.date.today():%Y-%m-%d}'\nY = '2001-01-01'\n", encoding="utf-8")
             old = bless.PROGRAM
             bless.PROGRAM = tmp
             try:
-                near = bless.near_dates("settings_write")
+                near = bless.near_dates("calc")
             finally:
                 bless.PROGRAM = old
             self.assertEqual(len(near), 1, near)

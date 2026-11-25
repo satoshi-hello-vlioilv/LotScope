@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """作り物のブラウザ（DevTools の相手。版 3.98.0）。Python の係（services/lotdsp_direct.py）と窓の係（desktop/src/lotdsp_direct.rs）の
-両方がこれを Edge として起こし、台本どおりの答えで同じ道を通るかを突き合わせる（desktop/tests/lotdsp_parity.rs ← tests/lotdsp_oracle.py）。
+両方がこれを Edge として起こし、台本どおりの答えで同じ道を通るかを突き合わせる（desktop/tests/lotdsp_parity.rs ← 前の版の答え合わせ役 lotdsp）。
 
     lotdsp_cdp_fake.py --remote-debugging-port=0 --user-data-dir=X … --fake-script=台本.json
 

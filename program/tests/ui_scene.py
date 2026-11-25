@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""開発用サーバー（tools/ui_server.py）と稼働の評価関数（tools/ops-bench.py）の場面の台本（版 3.117.2。標準の部品だけ。app を import しない）。
+"""開発用サーバー（前の Python の開発用サーバー）と稼働の評価関数（tools/ops-bench.py）の場面の台本（版 3.117.2。標準の部品だけ。app を import しない）。
 
     python tests/ui_scene.py 作業フォルダ 本        … 本は routes・pivot・dashboard・ops（場面を作り直す）
 
-場面は作業フォルダの下に作る（前は ui_server.build・ops-bench.build が /tmp/tpa-ui-*・/tmp/tpa-ops-* に作った）。更新時刻は台本を流した時刻で、
+場面は作業フォルダの下に作る（前は 前の Python の開発用サーバーの build・ops-bench.build が /tmp/tpa-ui-*・/tmp/tpa-ops-* に作った）。更新時刻は台本を流した時刻で、
 更新が止まった 1 台（HOT）だけ 40 時間前（前は 80 時間前）。作るのは SQLite の元のファイルとフォルダ・置き物のファイルまでで、マスタの登録（作業実績の
 設備・勤務体系・データ元など）は答え合わせ役と開発用サーバーが app で書く（焼いた表は登録の後のマスタのファイルを場面の宣言に持つ）。
 
-答え合わせ役（tests/routes_oracle.py・pivot_oracle.py・dashboard_oracle.py・ops_oracle.py）は、登録をはさんで make → finish → 本ごとの手直し の
+答え合わせ役（前の版の答え合わせ役 routes・前の版の答え合わせ役 pivot・前の版の答え合わせ役 dashboard・前の版の答え合わせ役 ops）は、登録をはさんで make → finish → 本ごとの手直し の
 順に同じ関数を呼ぶ。Python 無しの形（TPA_NO_PYTHON=1）の窓の試験は、登録の後の形（同じ関数を続けて呼んだ物）をこの台本で作り、
 焼いた表は SQLite の指紋だけを持つ（desktop/tests/common/bake.rs の script・sceneMade）。どちらも同じ関数なので、作り方は 1 か所。
 
@@ -44,7 +44,7 @@ HOT_STALE_HOURS = 40
 def key_makers():
     """作業実績の設備のキー（work_log.new_key）とデータ元のキー（data_sources.new_key）の代わり（呼んだ順の番号から決める。版 3.117.2 の
     採点 first_fixes 7 (a)）。呼ぶ順は登録の名前の順で、ファイル系によらない。形は元と同じ（12 字の 16 進・s＋8 字の 16 進）。
-    uuid4 全部は差し替えない（一時ファイルの名前や錠の印まで決めてしまう）。道具（ui_server.fixed_keys・ops-bench）が app の 2 つに当てる"""
+    uuid4 全部は差し替えない（一時ファイルの名前や錠の印まで決めてしまう）。道具（前の Python の開発用サーバーの fixed_keys・ops-bench）が app の 2 つに当てる"""
     n = {"w": 0, "s": 0}
 
     def work_key():
@@ -123,7 +123,7 @@ def _blanks(db, n, values):
 
 
 def routes(work):
-    """一覧の道（routes_oracle.py）の手直し: 空白で埋まる値・カラムの札の見本・名前の変わったファイル（HOT）・設備ごとの表（TLV）・
+    """一覧の道（前の版の答え合わせ役 routes）の手直し: 空白で埋まる値・カラムの札の見本・名前の変わったファイル（HOT）・設備ごとの表（TLV）・
     中身が SQLite でない設備（BAD。SL3 を keep/ へ移した後に作る）"""
     work = Path(work)
     folder = work / FOLDER
@@ -180,7 +180,7 @@ def number(v):
 
 
 def pivot(work):
-    """集計（pivot_oracle.py）の手直し: 品質の空白・設備の書きゆれ・外れ値・区間の境・ひげの端の近く。集計の境の表・日付と時刻が別の列の作業実績"""
+    """集計（前の版の答え合わせ役 pivot）の手直し: 品質の空白・設備の書きゆれ・外れ値・区間の境・ひげの端の近く。集計の境の表・日付と時刻が別の列の作業実績"""
     work = Path(work)
     t = QUALITY_TABLE
     db = sqlite3.connect(work / "共有" / "台帳" / "SIKADEF.sqlite3")
@@ -224,7 +224,7 @@ def pivot(work):
 
 
 def dashboard(work):
-    """ダッシュボード（dashboard_oracle.py）の手直し: 品質の設備の書きゆれと 30 を超える設備・全角の合金・中身が SQLite でない設備（BAD）・
+    """ダッシュボード（前の版の答え合わせ役 dashboard）の手直し: 品質の設備の書きゆれと 30 を超える設備・全角の合金・中身が SQLite でない設備（BAD）・
     設備ごとの表（TLV）・仕掛の設備の列（前方一致）・壊れたビューの元"""
     work = Path(work)
     folder = work / FOLDER
@@ -408,7 +408,7 @@ def write_rows(path, rows):
 
 
 def ops_base(work):
-    """ops_oracle.py の分かれ道の設備（EDGE・MANY・NOSTART・NOEND・BAD）と、どの設備にも足す 調質・重量・色の列（ops_bench の後・最初の登録の前）"""
+    """前の版の答え合わせ役 ops の分かれ道の設備（EDGE・MANY・NOSTART・NOEND・BAD）と、どの設備にも足す 調質・重量・色の列（ops_bench の後・最初の登録の前）"""
     folder = Path(work) / "実績"
     write_rows(folder / "実績_EDGE.sqlite3", edge_rows())
     t, rows = datetime(2026, 9, 26, 7, 0), []

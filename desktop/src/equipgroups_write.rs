@@ -9,7 +9,7 @@
 //! ```
 //!
 //! 決まりは services/equip_groups.py と master_repository の equip_group_* と同じ（評価関数: tests/equipgroups_write_parity.rs ←
-//! program/tests/equipgroups_oracle.py）。行の書き方は共通の型（src/master_rows.rs）、一覧の形は束と同じ bundle::group_views、
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 equipgroups））。行の書き方は共通の型（src/master_rows.rs）、一覧の形は束と同じ bundle::group_views、
 //! 当てはまる設備は dashboard::members_in、選べる設備は dashboard::equipment_seen（設備の木〈/api/dashboard/equip-tree〉と同じ 1 か所。
 //! データ元の設備はダッシュボードの数え方で数える）。字は Python の `str(v or "")`（0・false は空）、比べ方は normalize_part
 //! （NFKC・前後の空白を除く・大文字）。ルールの字は json.dumps の既定の区切り（", "・": "）で書く。

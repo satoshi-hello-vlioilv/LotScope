@@ -1,6 +1,6 @@
-# 焼いた更新履歴（版 3.88.0）: 窓が字のまま返し、Python の答えと 1 バイトも違わないことを確かめる。Windows の checkout で改行を CRLF にしない
+# 焼いた更新履歴（版 3.88.0）: 窓が字のまま返す（前の版の Python の答えと 1 バイトも違わない形）。Windows の checkout で改行を CRLF にしない
 program/app/changelog.json -text
-# 場面と表の JSON（版 3.117.0）: Windows の checkout（autocrlf）で改行を CRLF にしない。答え合わせ役は取り出しのマスタ（program/data・
+# 場面と表の JSON（版 3.117.0）: Windows の checkout（autocrlf）で改行を CRLF にしない。場面は取り出しのマスタ（program/data・
 # program/config・同梱の既定）を場面へ写し、焼いた表（desktop/tests/baked。posix の答え）は場面のファイルの中身をバイトで持つので、
 # 取り出しの改行が違うと「場面が表と違う」になる（Windows の測るだけの仕事）。事例の表・焼いた表も、どの OS でも同じバイトで読む。
 # 配る物の要約（app_build.release_digest）は前から改行を LF にそろえて数えるので、版の確かめ（tests/test_version.py）は変わらない
@@ -10,4 +10,3 @@ program/app/master_defaults/*.json -text
 program/tests/fixtures/*.json -text
 desktop/tests/baked/*.json -text
 desktop/tests/baked/nt/*.json -text
-program/tests/legacy/** -text

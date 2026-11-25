@@ -4286,8 +4286,7 @@
  },
  "sources": {
   "app/brand.json": "11a8922d76f8670c",
-  "app/templates/index.html": "f4305ed47ac52fde",
-  "tests/settings_oracle.py": "8c93db4f3a8e7a9e"
+  "app/templates/index.html": "f4305ed47ac52fde"
  },
  "variant": "root"
 }

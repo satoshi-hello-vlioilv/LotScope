@@ -9,7 +9,7 @@
 //! GET    /api/worklog/files            … 作業実績のタブで選べる設備（?all=1 は表示しない行も・?fresh=1）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/worklog_write_parity.rs ← program/tests/worklog_write_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/worklog_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 worklog_write））:
 //! services/work_log の view・match（同じ名前 → 同じファイルID〈same_fid。Python と同じ決まり〉の順・taken つき）・ordered・order_numbers・
 //! mark_stale と、master_repository の work_log_sync・update・delete・order。フォルダの中身と 10 秒の覚えは src/lists.rs の 1 つ（found_fresh）。
 //!

@@ -1,5 +1,5 @@
 //! 一覧の道（版 3.60.0）: 窓（src/lot.rs・src/lists.rs）が品質・作業実績・データ元の一覧・スライサー・データの時刻・再読込に、
-//! Python の道（routes/lotlist.py・worklog.py・sources.py）と同じ答え・同じ失敗を返すか。program/tests/routes_oracle.py が開発用サーバーと
+//! Python の道（routes/lotlist.py・worklog.py・sources.py）と同じ答え・同じ失敗を返すか。前の版の答え合わせ役 routes が開発用サーバーと
 //! 同じ試験データに結合・ロット番号の列・間隔・名前の変わったファイル・大文字小文字の違う登録名・設備ごとの表・表示しない設備・
 //! 見つからない設備を足し、同じ問い合わせを Python で答えた物と突き合わせる。段は 2 つ（開発者・実績と結合した表を出さない一般ユーザー）。
 //! 写しは窓が自分の置き場へ写す（Python の写しとは別）。いつのデータか（source）は、元の場所・間隔・古さのしきい・写したか・古いか・届かないか・理由を比べる（common::mirror_part）
@@ -37,20 +37,6 @@ fn strip(v: &mut Value, path: &str) {
     }
 }
 
-/// 表の問い合わせに持つ形（Python の答え status・body を除く。変換表の版の印は決めた字）
-fn question(v: &Value) -> Value {
-    let mut o = v.clone();
-    for ph in o["phases"].as_array_mut().unwrap() {
-        for a in ph["asks"].as_array_mut().unwrap() {
-            let a = a.as_object_mut().unwrap();
-            a.remove("status");
-            a.remove("body");
-        }
-    }
-    common::bake::fixed_conv_rev(&mut o);
-    o
-}
-
 #[test]
 fn routes_answer_like_python() {
     let work = common::work("routes");
@@ -60,7 +46,7 @@ fn routes_answer_like_python() {
     // 答え合わせ役（Python）だけの写し・控えは場面に持たない。場面のファイルID は @FID(道)
     bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
     bk.fid_key = Some("fids");
-    let o = bk.oracle_with("routes_oracle.py", &[work.to_str().unwrap()], question);
+    let o = bk.table_oracle();
     let phases = o["phases"].as_array().unwrap();
     assert_eq!(phases.len(), 2, "開発者と、タブを出さない一般ユーザーの 2 段");
     let lot = Lot::new(work.join("db_cache"));

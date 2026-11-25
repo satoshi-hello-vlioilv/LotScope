@@ -1,5 +1,5 @@
 //! 一覧の表示の初期設定の道（src/ui_defaults.rs）が Python の道（routes/system.py の GET／PUT /api/ui-defaults）と同じ答えか（版 3.78.0）。
-//! program/tests/ui_defaults_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 ui_defaults が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（ui_defaults::handle。書く係は master_store）で当て、1 歩ごとの答えと、終わった後のファイルを突き合わせる。
 //! delegates の歩（窓が読めない本文・置き場の行の形が違う）は、窓が答えないこと（Python に任せる）を確かめる。
 //! 切断の指示は窓の me と同じく置き場から読む（access::revocation）。範囲の名前は答えの係の profileKeys（窓は一覧の設定の答えで受け取る）
@@ -104,7 +104,7 @@ fn ui_defaults_match_python() {
     // 版 3.116.0: 窓の答えを焼いた表（tests/baked/ui_defaults.json。詰めた形。2 MB の境の本文は繰り返しの字の作り方）にも持つ
     let mut bk = common::bake::Bake::open("ui_defaults", &base);
     bk.pack = true;
-    let oracle = bk.oracle("ui_defaults_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let profile: Vec<String> = oracle["profileKeys"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);

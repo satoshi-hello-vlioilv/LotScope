@@ -1,5 +1,5 @@
 //! 作業実績の登録の道（src/worklog_write.rs）が Python の道（routes/worklog.py の 6 本）と同じ答えか（版 3.91.0）。
-//! program/tests/worklog_write_oracle.py が場面ごとに同じ中身の置き場を作り（実績のファイルのフォルダは共にする）、py に Python の道で
+//! 前の版の答え合わせ役 worklog_write が場面ごとに同じ中身の置き場を作り（実績のファイルのフォルダは共にする）、py に Python の道で
 //! 問い合わせの並びを当てる。ここでは rs に同じ並びを本物の窓の道（Lot::handle_body → worklog_route。門番・書く係・フォルダの覚え）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のファイル（共有・同梱の data/）を突き合わせる。
 //! 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。足す行のキー（Lot::set_new_key）と古さを測る時刻（Lot::set_clock）は
@@ -78,7 +78,7 @@ fn work_log_registration_matches_python() {
     let base = common::work("worklog-write");
     let mut bk = common::bake::Bake::open("worklog_write", &base);
     bk.fid_key = Some("fids");
-    let oracle = bk.oracle("worklog_write_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     let fids = oracle["fids"].as_object().unwrap().clone();

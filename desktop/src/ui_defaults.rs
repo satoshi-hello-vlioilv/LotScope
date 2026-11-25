@@ -5,7 +5,7 @@
 //! PUT /api/ui-defaults   … 今の表示を初期設定にする（開発者だけ・切断中は置けない・{keys: {名前: 字}}。keys が空なら外す）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/ui_defaults_parity.rs ← program/tests/ui_defaults_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/ui_defaults_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 ui_defaults））:
 //! - 範囲の名前（PROFILE_KEYS）は services/ui_defaults.py の 1 か所。一覧の設定の答え（uiProfileKeys）で Python から受け取る
 //! - 置くのは範囲の名前で値が字の物だけ・json.dumps の UTF-8 で 2 MB まで・行は名前の字の順（ui_defaults.replace）
 //! - 本文は Content-Type によらず読み、表でなければ 400・keys が表でなければ 400（Python も版 3.78.0 から同じ）

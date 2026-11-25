@@ -1,5 +1,5 @@
 # デスクトップ版（desktop/・Tauri）を Windows で確かめる。仕事は 2 つ（版 3.117.0 で 1 つの仕事 windows を割った。並んで流れる）:
-# - windows-test: Rust の試験（cargo test。debug）と、Windows の本物で流す Python の試験・焼いた表との違いの測り（測るだけ）
+# - windows-test: Rust の試験（cargo test。debug）と、焼いた表との違いの測り（測るだけ。Windows の Python の試験は版 3.119.0 で消した）
 # - windows-exe: 本番の作り方（--release）で exe を作り、本物の WebView2 で自己診断し、更新の通し（verify.py）を流して、
 #   通った exe・配る ZIP（release.json・.sha256 つき）・自己診断の結果を Artifacts（desktop-windows）に置く
 # main に入ったとき（と手で全部を動かしたとき）は、両方が通った後に、確かめ終えた配る ZIP を GitHub の Releases にも版の札（v<版>）で載せる（release）。
@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 jobs:
-  # Rust の試験（debug）と、Windows の本物で流す Python の試験。exe は作らない（windows-exe）
+  # Rust の試験（debug）。exe は作らない（windows-exe）
   windows-test:
     # 上限は割る前と同じ 90 分（見込みは約 55 分: cargo test 約 44 分＋表だけの形の測り 約 10 分〈Python と比べる形の焼いた本の試験の計 約 600 秒から〉。rust-cache の鍵〈Cargo.toml・Cargo.lock〉が変わった版は全部を組み直して数分増える）
     runs-on: windows-latest
@@ -70,13 +70,12 @@ jobs:
           if (-not $c) { throw "Root に作り物の CA（$tp）が見えません" }
           Write-Host "入れた CA: $($c.Thumbprint) $($c.Subject)"
       # 版 3.118.0（段 ④。採点の first_fixes 9）: Python と比べる形の cargo test と、その形の測りは外した。窓の試験は表だけの形
-      # （TPA_NO_PYTHON=1・凍らせた Python の写しを相手にする TPA_FROZEN_PY=1）が標準。焼いた本の試験は下の 2 段（札が table の本は表と比べて落とす・
+      # （TPA_NO_PYTHON=1。版 3.119.0〈段 ⑤〉で凍らせた写しと凍らせた試験も消した）。焼いた本の試験は下の 2 段（札が table の本は表と比べて落とす・
       # measure の本は測るだけ）、それ以外の試験（--lib --bins と本でない tests/*.rs。bless.py --nonbook-args）はこの段で落とす
       - name: test（Rust・Windows・表だけの形。焼いた本でない試験）
         working-directory: desktop
         env:
           TPA_NO_PYTHON: "1"
-          TPA_FROZEN_PY: "1"
         run: |
           $a = (python ..\program\tools\bless.py --nonbook-args) -split ' '
           cargo test --locked --no-fail-fast @a
@@ -91,14 +90,14 @@ jobs:
         # 手で取り消したときは流さない（版 3.117.3 の作った後の直し・割れ 4 (d)。上の cargo test が落ちても流す）
         if: ${{ !cancelled() }}
         timeout-minutes: 20
-        run: python program/tools/bless.py --no-python --frozen --all --windows table --skip-test route_reach
+        run: python program/tools/bless.py --no-python --all --windows table --skip-test route_reach
       - name: 焼いた本を表だけの形（TPA_NO_PYTHON=1）で流す（札が measure の本。測るだけ・落ちても続ける）
         if: always()
         continue-on-error: true
         timeout-minutes: 20
         env:
           TPA_MEASURE: ${{ runner.temp }}\bake-measure-table
-        run: python program/tools/bless.py --no-python --frozen --all --windows measure --skip-test route_reach
+        run: python program/tools/bless.py --no-python --all --windows measure --skip-test route_reach
       # 2 つの形の数を別の行で出す（記録そのものは仕事の終わりの段が詰めた行で出す）
       - name: 焼いた表（posix）と Windows の窓の答えの違いを数える（測るだけ・落とさない）
         if: always()
@@ -107,9 +106,8 @@ jobs:
       # 版 3.117.1（段 ③-6）: Windows の本物の設定で、窓のプロキシの読み手（src/sysproxy.rs のレジストリの読み）と Windows の Python の
       # urllib.request.getproxies・proxy_bypass が同じ答えか。HKCU の Internet Settings の ProxyEnable・ProxyServer・ProxyOverride・AutoConfigURL を
       # 書いて比べ、終わったら必ず元に戻す（finally と下の always の段）。落ちたときは期待した値と来た値を記録に出す（手元では流せない段）。
-      # PAC の一言は Windows の Python の app の sysproxy.pac_note（winreg を本当に読む）と窓の pac_note を比べる（版 3.117.1 の作った後の直し・割れ 6）。
-      # 事例の表（sysproxy_cases.json。どの事例も posix と nt の答え。urllib の本物の関数に作り物の winreg を当てる）と言葉の表も Windows の Python で流す
-      # （表の試験は os.environ を事例の dict に差し替えるので、Windows の os.environ が名前を大文字にしても答えは変わらない。割れ 1）
+      # PAC の一言は、前の版の app の pac_note と同じ決めを標準の部品（winreg）で書いた台本と窓の pac_note を比べる（版 3.117.1 の作った後の直し・割れ 6。
+      # 版 3.119.0 で app を消したので台本は試験の中）
       - name: TLS とプロキシを Windows の本物で（③-6）
         if: always()
         working-directory: desktop
@@ -140,10 +138,6 @@ jobs:
             }
             Write-Host "設定を元に戻しました"
           }
-          Push-Location ..\program
-          python -m unittest tests.test_sysproxy_cases tests.test_cm3_net_cases -v
-          if ($LASTEXITCODE -ne 0) { throw "事例の表（Windows の Python）" }
-          Pop-Location
       # 作り物の CA を外し、プロキシの設定が残っていれば戻す（どの段で落ちても流す）
       - name: 作り物の CA とプロキシの設定を片付ける
         if: always()
@@ -162,29 +156,8 @@ jobs:
             }
             Write-Host "プロキシの設定: $(Get-ItemProperty -Path $key | Select-Object ProxyEnable, ProxyServer, ProxyOverride, AutoConfigURL | ConvertTo-Json -Compress)"
           }
-      # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
-      # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
-      - name: 写しと公開の干渉（Python・Windows）
-        if: always()
-        working-directory: program
-        run: python -m unittest tests.test_mirror_writer -v
-      # 結合・スケジュールを Windows の本物の SQLite で（URI を既定で読まない。版 3.57.1 で、Linux の試験だけでは気づけなかった）
-      - name: 結合・スケジュール（Python・Windows）
-        if: always()
-        working-directory: program
-        run: python -m unittest tests.test_data_join tests.test_schedule tests.test_mirror_share tests.test_cm3_timeout -v
-      # 置き場と設定の事例の表（版 3.100.0）を Windows の本物で: 隠し・システムの属性を「参照…」に出さない・ドライブだけの「C:」・
-      # 書けるかを試しのフォルダで見る・Windows の道の字（窓の normcase と Python の ntpath.normcase は上の cargo test の place_cases）
-      - name: 置き場と設定の事例（Python・Windows）
-        if: always()
-        working-directory: program
-        run: python -m unittest tests.test_place_cases -v
-      # 壊れた設定・マスタと設備グループの正規表現（版 3.102.0）を Windows の本物で: BOM 付きの配った設定・途中で切れたマスタ・表でない行・
-      # 正規表現の事例の表（Python の re。窓の fancy-regex は上の cargo test の equip_regex_cases・束の節は bundle_cases）
-      - name: 壊れた設定・マスタと正規表現の事例（Python・Windows）
-        if: always()
-        working-directory: program
-        run: python -m unittest tests.test_broken_masters tests.test_equip_regex tests.test_bundle_sections -v
+      # 版 3.119.0（段 ⑤）: Windows の本物で流していた Python の試験（写しと公開の干渉・結合とスケジュール・置き場と設定の事例・壊れた設定と
+      # 正規表現の事例）は、app と一緒に消した（同じ形は上の cargo test の mirror_writer・place_cases・equip_regex_cases・bundle_cases と焼いた本が見る）
       # 測りの記録（形ごとのフォルダの <表>.json）は小さな成果物（desktop-windows-measure）に置く。配る物の成果物（desktop-windows。windows-exe）とは別
       - uses: actions/upload-artifact@v4
         if: always()

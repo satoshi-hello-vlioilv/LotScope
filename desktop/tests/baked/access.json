@@ -1289,7 +1289,6 @@
   "links": {}
  },
  "sources": {
-  "tests/access_oracle.py": "f74d10b32625d919",
   "tests/scene_files.py": "f8e007c61ffd9495"
  },
  "variant": "root"

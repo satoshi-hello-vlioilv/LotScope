@@ -9,7 +9,7 @@
 //! 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）。持ち主は PC 名・ログイン ID・この PC のアプリの印（instance_id）と
 //! 係（py＝Python・rs＝窓）。窓と Python は同じ作業場所の instance_id を使い、係で見分ける（版 3.64.0 の決まり）。
 //!
-//! 答えは Python と同じ（評価関数: tests/masters_parity.rs ← program/tests/masters_oracle.py。同じ手順を両方の書く係に当て、
+//! 答えは Python と同じ（評価関数: tests/masters_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 masters）。同じ手順を両方の書く係に当て、
 //! 答え・断る言葉・できたファイルを突き合わせる）。違う所: ファイルの中の鍵の並び（serde_json は名前の順。Python は書いた順）。
 //! 読む側はどちらも鍵で引くので、中身は同じ。
 

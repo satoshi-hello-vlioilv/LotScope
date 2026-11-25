@@ -1,5 +1,5 @@
 //! 共有の書式の道（src/formats_write.rs と送った順の木 src/jsontree.rs）が Python の道（routes/formats.py の 4 本と門番）と同じ答えか（版 3.80.0）。
-//! program/tests/formats_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 formats が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（門番 access::guard と formats_write::answer。書く係は master_store）で当て、1 歩ごとの答えと、終わった後のファイル
 //! （中身の字＝送った順の json.dumps まで）を突き合わせる。
 //! delegates の歩（窓が読めない本文・Python の str() と同じ字にできない項目・置き場の行の形が違う・ASCII でない id の道）は、
@@ -105,7 +105,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn formats_match_python() {
     let base = common::work("formats");
     let mut bk = common::bake::Bake::open("formats", &base);
-    let oracle = bk.oracle("formats_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

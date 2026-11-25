@@ -7,7 +7,7 @@
 //! DELETE /api/masters/formats/<id>   … 消す（?rev= は開いたときの行の版）
 //! ```
 //!
-//! 決まりは services/display_formats.py と同じ（評価関数: tests/formats_parity.rs ← program/tests/formats_oracle.py）。書けるのは
+//! 決まりは services/display_formats.py と同じ（評価関数: tests/formats_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 formats））。書けるのは
 //! 現場のマスタと同じ（門番 access::guard。呼ぶ側が通す）。中身は送った順のまま json.dumps(separators=(',', ':')) の字で置く
 //! （送った順を保つ木 src/jsontree.rs）。名前は元ごとに 1 つ（名前の比べ方は access::py_key）。
 //!

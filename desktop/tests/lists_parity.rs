@@ -1,6 +1,6 @@
 //! 作業実績・データ元の一覧（版 3.60.0）: Rust（src/lotlist.rs・src/worksum.rs）の答えが Python（lot_list.query・work_summary）と同じか。
 //! 表の候補・設定の表・ロット番号の列の上書き・作業でまとめる（勤務体系・直・日の数）・日時の読み方を、
-//! program/tests/lists_oracle.py の答えと突き合わせる。
+//! 前の版の答え合わせ役 lists の答えと突き合わせる。
 //! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lists.json。詰めた形）にも持つ。場面の SQLite は標準の部品だけの台本
 //! （program/tests/lists_scene.py）が作り、表は指紋だけを持つ（Python 無しの形では台本が作り直した物と指紋を比べる）。
 
@@ -33,14 +33,7 @@ fn work_and_source_lists_answer_like_python() {
     // Python が作った結合の答え（joins_py・joiner_py）は場面に入れない
     bk.exclude.extend(["joins_py", "joiner_py"]);
     // Python の答え（expected・結合の expected）は表の問い合わせに持たない（表は窓の答えを answers に持つ）
-    let o = bk.oracle_with("lists_oracle.py", &[work.to_str().unwrap()], |v| {
-        let mut o = v.clone();
-        o.as_object_mut().unwrap().remove("expected");
-        for j in o["joins"].as_array_mut().unwrap() {
-            j.as_object_mut().unwrap().remove("expected");
-        }
-        o
-    });
+    let o = bk.table_oracle();
     let today = NaiveDate::parse_from_str(o["today"].as_str().unwrap(), "%Y-%m-%d").unwrap();
     let shifts = o["shifts"].as_array().unwrap().clone();
     let tables = Arc::new(Tables::from_json(&json!({})));

@@ -19,7 +19,7 @@
 //!   - 同期フォルダの名前の表は今の表のまま（足さない）
 //!
 //! 置き場を変える部品（名前の確かめ・道のつなぎ方・同じ所と中・読めない理由）は配布の置き場（release_place.rs）と 1 つ。
-//! 突き合わせ: desktop/tests/place_parity.rs ← program/tests/place_oracle.py（答え・断る言葉・できたファイル）、
+//! 突き合わせ: desktop/tests/place_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 place）（答え・断る言葉・できたファイル）、
 //! desktop/tests/place_cases.rs ← tests/fixtures/place_cases.json（独立の答え tools/place-truth.py と同じ表）。
 
 use crate::master_store::{iso, now_local, write_bytes_atomic, MasterError, Store, LOCK_FILENAME};

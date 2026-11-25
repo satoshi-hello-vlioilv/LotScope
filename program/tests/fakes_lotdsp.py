@@ -4,7 +4,7 @@
 API: 道 /<札>/service/lotdsp/search//searchAction への POST に、札とロット番号ごとの答え（状態・本文・待つ秒）を返す。知らないロットは
 「該当なし」（searchKeyInfos が空）。サイト: どの GET にも 200（届くかの確かめ用）。答えの表は焼いた見本
 tests/fixtures/lotdsp_fake_tables.json（lotdsp_samples.fake_tables）。起こすのは tests/fakes_serve.py（python tests/fakes_serve.py lotdsp）と、
-答え合わせ役 tests/lotdsp_oracle.py。
+前の版の答え合わせ役 lotdsp。
 """
 import contextlib
 import json

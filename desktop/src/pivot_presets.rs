@@ -9,7 +9,7 @@
 //! ```
 //!
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/pivot_presets.clean_body と同じ
-//! （評価関数: tests/presets_parity.rs ← program/tests/presets_oracle.py）。組み込みの組み方は Python の BUILTINS を焼いた表
+//! （評価関数: tests/presets_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 presets））。組み込みの組み方は Python の BUILTINS を焼いた表
 //! （src/pivot_builtins.json。program/tools/pivot-builtins.py が焼き、古い表は tests/test_pivot_builtins.py が止める）。
 //!
 //! 窓が答えず Python に任せる形: 窓が読めない本文・空の本文・表でない真の本文、本文の name・note が小数・並び・表・大きな整数、

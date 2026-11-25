@@ -650,5 +650,43 @@
   "10. 窓が答えない道の数え方は残す: 503（window_unanswered）と delegate::unanswered の回数、利用状況の印の unanswered（presence.rs:742〜743）は消さない（既定 (2) の 503 のまま。後で 404 を決める材料）。言葉から Python を外し、router::tests の `an_absent_backend_is_never_asked_and_the_window_answers_why` を「中身の係が無い」形で残す。/__desktop/info の protocol・serves と心拍・/api/health の python: absent は 3.117.x の配布の画面と CI（desktop.yml の python -ne absent）が読むので、値を残す（定数は sidecar.rs から presence か shell へ移す）。利用状況の印に python を書かない形も残す",
   "11. CLAUDE.md の「push 前の確かめ」は `TPA_NO_PYTHON=1 cargo test --locked --no-fail-fast`（表だけの形）と、app を import しない Python の試験・ruff・compileall（道具の Python）に書き替える。標準の Python（独立の答え・作り物）は残ると書く。README の「PC の Python は ⑤ まで消さない」は「控え（直前の版）が 3.118.0 以上になった PC から外してよい（3.117.x から直に上がった PC は、戻すときに Python を起こす）」に直す",
   "12. 古い採点の記録を消すとき、ui-all.mjs:27 が読む 2026-11-stage2b.mjs と 2026-11-stage4d.json・2026-11-stage5.json を残し、test_ui_score.py:211 の test_old_records_still_read が残りの *.json で通ること・CLAUDE.md の評価関数の行に出る記録の名（2026-11-stage2.json ほか）を直すこと。ui-eval-*.mjs の頭のコメントの ui-proposals/2026-10-* の名指しは門（9）の例外にせず、言葉を直す"
- ]
+ ],
+ "built_plan": {
+  "about": "作った形（1 位 A に evaluation.first_fixes の 12 を入れた。1 版 3.119.0。利用者の決め 2026-11-25）。決まり 2026-11-06: 作った後の採点は 1 回だけ（見つかった割れは直して試験に足す）",
+  "order": [
+   "commit 1: 窓の bin の中身の係と枠・振り分けの中身へ回す枝・画面の #pyBar／#pyPill・待ちの段 python と順番待ち・アイコンを焼いた絵に・verify.py prev の 1c（この形で settings を Python と比べる形で焼き直し、凍らせた試験を最後に 1 回流した）",
+   "commit 2: program/app の .py・答え合わせ役・app を import する試験と道具・凍らせた写しと試験・任せる歩の予算と数える道具・Python の開発用サーバー・古い採点の記録・CI と check-all と CLAUDE.md の書き直し・段 ⑤ の門"
+  ],
+  "built_3119_0": {
+   "fixes": {
+    "1": "desktop/bundle/test_bundle.py の old_window_refusals・OldWindowAccepts（3.117.3 の extract_exe・validate_dist・dist_root・staged と small_reads の版の読み方を写した確かめを、bundle.build で組んだ ZIP に当てる）。変異 4（印を外す・印をフォルダにする・program/app/tools/xprogram/sidecar.py を先に置く・APP_VERSION: str =）がどれも断られる。verify.py の stage_by_old_window は ZIP の根に program/sidecar.py が無ければ SystemExit",
+    "2": "verify.py prev に prev_relaunch_failed（1c）: 1 の後の作業場所を写し、入れ替えだけを手で済ませ（app/program は新しい版・app の exe は前の版・update/applied.json）、前の窓を開く → 記録に「戻しました」が無い・FAILED.json の versions に新しい版が無い・app/program の版が新しい版のまま。本物の v3.117.x の exe は Linux に無いので、流すのは Windows の CI（desktop.yml の prev）だけ。3.111.0 より前の窓は控えへ戻す形を計画書の段 ⑤ の節に書いた",
+    "3": "program/sidecar.py は 1 行のコメント（python -I で流すと終了コード 0・出力なし: test_bundle の test_the_mark_is_one_line_that_does_nothing）。version.py の名前と APP_VERSION の行の形は替えない。tests/test_version.py は「印が 1 行でコメントだけ・app の .py は配らない」に書き替え、残す理由は update::is_dist の doc の 1 か所",
+    "4": "commit 1（03b9ecc。窓の片付けの後）で TPA_NO_PYTHON=1 TPA_FROZEN_PY=1 cargo test --test access_parity --test appsettings_cases --test masters_parity --test mirror_parity --test place_parity --test schedule_parity --test seeds_parity: 7 本の test result がどれも ok（7・4・6・3・3・2・6 passed。計 31 件・0 failed。終了コード 0）。そのあと commit 2 で写し・凍らせた試験 13 か所・TPA_FROZEN_PY・freeze-legacy.py・share_reader を消した。⑤ は共有のファイルの形・錠を替えない（master_store.rs・seeds.rs・mirror.rs の差分は注釈と名前の置き換えだけ）",
+    "5": "commit 1 の形で python program/tools/bless.py settings（Python と比べる形。2 回目は別の PC の形・3 回目は root でない利用者の形）: settings.pages の html の 1 型だけが変わり、3 回とも同じ（rc 0）。nt の表は settings.pages を上書きしていないので古くならない（bless.py --check が通る）。答え合わせ役を消した後に焼き直すのは bless.py --scope 道の型 だけと CLAUDE.md に書いた",
+    "6": "books.json の sources から消した元 60 行（答え合わせ役 37・oracle_gate 18・ui_server 3・ops-bench 1・test_calculator 1）を外し、share_reader の本を消した。表の元の指紋は新しい bless.py --re-source（最上段の sources の欄の字だけを書き換える）で書き直し、表だけの形の試験で答えが同じことを確かめた（check-all の cargo-test）。tests/test_operation.py・CLAUDE.md の ops-bench の行も消した。ui_scene.py の ops_bench・ops_base・ops_added は残す",
+    "7": "page.rs の指紋の exts（bundle_tables.json の .py）はそのまま（残る .py は version.py だけ。前の窓の指紋の形〈版-12 桁〉は替わらない）。page::tests の決めた入力の 12 桁・boot_cases・bake の build_stamp が通る（check-all の cargo-test）",
+    "8": "desktop/icons/icon.ico・icon.png・desktop/splash/icon.png を追跡ファイルに（.gitignore から外した）。build.rs は Python を呼ばない（rerun-if-changed は brand.json と絵だけ）。試験 desktop/tests/icon_files.rs（.ico の頭・8 枚の大きさと RGBA の PNG・起動画面の絵が窓の絵と同じ 256px）。ci.yml に「組むのに Python が要らない」の段（呼ばれたら落ちる python・python3 を PATH の先に置き、build.rs を流し直して組む）",
+    "9": "tests/test_fifth_table.py を段 ⑤ の門に書き替えた（名 11 種を git grep。例外は *.md の <!-- history --> の節・更新履歴・採点の記録・門そのもの）。変異の試験 test_a_name_put_back_is_found（どの名も戻すと落ちる・節の中なら落ちない）。消した物が追跡されていないことも見る",
+    "10": "窓が答えない道の 503（shell::window_unanswered）・delegate の回数・利用状況の印の unanswered は残した。言葉から Python を外した（router の試験 an_absent_backend_is_never_asked_and_the_window_answers_why は中身の係の無い Router で残し、言葉に Python が無いことも見る）。/__desktop/info の protocol・serves は lib の shell::PROTOCOL・SERVES へ、心拍・/api/health・info の python は absent のまま、記録の python_attempts=0 も残した",
+    "11": "CLAUDE.md の「push 前の確かめ」を TPA_NO_PYTHON=1 cargo test と app を import しない Python の試験・ruff・compileall に書き替え、標準の Python（独立の答え・作り物・焼く道具）は残ると書いた。README の「PC の Python は ⑤ まで消さない」を「直前の版が 3.118.0 以上になった PC から外してよい（3.117.x から直に上がった PC は戻すときに Python を起こす）」に直した",
+    "12": "古い採点の記録 320 ファイルを消し、2026-11-stage2b.mjs・2026-11-stage4d.json・2026-11-stage5.json を残した（test_ui_score の test_old_records_still_read は残りの json で通る）。CLAUDE.md の記録の名指しと ui-eval-*.mjs・ui-variants.mjs の頭のコメントの消した記録の名指しは「採点 名前（記録は版 3.119.0 で片付けた）」に直した（門の例外にしない）"
+   },
+   "removed_count": "案と採点の commit（4309e8d）から消した追跡ファイル 679・14,104,862 バイト（program/app の .py 80・1,341,877／答え合わせ役 36・832,434／program/tests のほか 90・978,684／凍らせた写し 126・2,762,292／program/tools 22・228,105／古い採点の記録 320・7,906,905／desktop/src の sidecar.rs・frame.rs 2・46,617／desktop/examples 3・7,948）。足したのは焼いたアイコン 3 と tests/icon_files.rs。追跡しているファイルは 1,178 → 503（64,488,021 → 50,209,090 バイト）。git diff --shortstat: 878 ファイル・+3,444・−166,170 行",
+   "kept": [
+    "program/sidecar.py（1 行の印）",
+    "program/app の画面の物（templates・static・master_defaults・brand.json・changelog.json・version.py・services/lotdsp_direct.js）",
+    "焼いた表・人の事例の表・独立の答え・作り物と場面の台本",
+    "窓が答えない道の 503 と回数",
+    "parity の試験の中の Python と比べる枝（bk.python() が真の枝。表だけの形では通らない。焼く係の試験 bake_selftest が Mode::Python を使うので bake.rs の比べる係は残した）",
+    "static・templates のコメントの消した記録の名指し（画面の型は焼いた本 settings の元。字を替えると焼き直しと Windows の nt の取り直しが要るので触れなかった）"
+   ],
+   "windows_only": [
+    "verify.py prev の 1〜3 と 1c（Releases の v3.117.x の本物の exe）",
+    "sysproxy_cases の ignored の試験（PAC の一言を標準の部品の winreg の台本で比べる形に替えた）",
+    "desktop.yml の表だけの形の cargo test・札 table の本の比べ・measure の本の測り"
+   ],
+   "check_all": "bash program/tools/check-all.sh …/s5/check1 --verify（Cargo.toml・tauri.conf.json の版を 3.119.0 に上げ忘れた 1 回目は py-tests の test_same_version と、窓と中身の版の食い違いで自己診断が試験の版と見て verify が落ちた。直した 2 回目）: js-check 0・compileall 0・cargo-build 0・no-slow-hook 0・ruff 0・fmt-clippy 0・py-tests 0（Ran 83・OK）・bundle-tests 0（Ran 13・OK）・cargo-test 0（表だけの形。70 本・379 passed・0 failed）・nt-shape 0・ci-shape 0・verify 0（PASS 46）・verify-local 0（PASS 10）・「すべて通りました」。--ui-only（…/s5/check1-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait がどれも 0（計 430 秒）。Windows だけのコード（proc.rs の Windows の kill を試験だけに）は作業用クレートで cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings が通った"
+  }
+ }
 }

@@ -1,5 +1,5 @@
 //! 権限のマスタを書く道（src/access_write.rs）が Python の道（routes/access.py）と同じ答えか（版 3.68.0。順 5 の 2 段目 b）。
-//! program/tests/access_write_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 access_write が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（門番 access::guard → access_write::handle。書く係は master_store）で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（共有・同梱の data/・写し）を突き合わせる。
 
@@ -101,7 +101,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn access_writes_match_python() {
     let base = common::work("access-write");
     let mut bk = common::bake::Bake::open("access_write", &base);
-    let oracle = bk.oracle("access_write_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

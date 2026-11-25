@@ -1,5 +1,5 @@
 //! データ元の書く道（src/sources_write.rs）が Python の道（routes/sources.py の 7 本）と同じ答えか（版 3.90.0）。
-//! program/tests/sources_write_oracle.py が場面ごとに同じ中身のフォルダを作り、py に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 sources_write が場面ごとに同じ中身のフォルダを作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを本物の窓の道（Lot::handle_body → sources_write_route。材料は窓の束の材料・門番・書く係）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のファイル（共有・同梱の data/）を突き合わせる。
 //! 窓が答えず Python に任せる歩（delegates）は、窓が答えないこと（書く前に断る＝ファイルは変わらない）を見る。
@@ -51,7 +51,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn data_source_writes_match_python() {
     let base = common::work("sources-write");
     let mut bk = common::bake::Bake::open("sources_write", &base);
-    let oracle = bk.oracle("sources_write_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

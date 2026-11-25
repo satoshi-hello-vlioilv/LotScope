@@ -1,5 +1,5 @@
 //! ダッシュボードのセットの道（src/dash_sets.rs と行の部品 src/preset_rows.rs）が Python の道（routes/dashboard.py のセットの 4 本）と
-//! 同じ答えか（版 3.79.0）。program/tests/sets_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 同じ答えか（版 3.79.0）。前の版の答え合わせ役 sets が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（dash_sets::handle。書く係は master_store）で当て、1 歩ごとの答えと、終わった後のファイルを突き合わせる。
 //! delegates の歩（窓が読めない本文・Python の str() と同じ字にできない項目・置き場の行の形が違う・ASCII でない id の道）は、
 //! 窓が答えないこと（Python に任せる）を確かめる。切断の指示は窓の me と同じく置き場から読む（access::revocation）
@@ -101,7 +101,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn dashboard_sets_match_python() {
     let base = common::work("dash-sets");
     let mut bk = common::bake::Bake::open("sets", &base);
-    let oracle = bk.oracle("sets_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

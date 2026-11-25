@@ -1,5 +1,5 @@
 //! LotDsp の 9 本（src/lotdsp.rs・lotdsp_direct.rs）が Python の道（routes/lots.py）と同じ答えか（版 3.98.0）。
-//! program/tests/lotdsp_oracle.py が作り物の LotDsp の API・サイトを起こしたまま、場面ごとの Python の答え（状態・本文・1 歩ごとの
+//! 前の版の答え合わせ役 lotdsp が作り物の LotDsp の API・サイトを起こしたまま、場面ごとの Python の答え（状態・本文・1 歩ごとの
 //! 学びの覚え）と、作り物のブラウザ（tests/lotdsp_cdp_fake.py）で見えない Edge の係を通した答え・送った DevTools の命令の並びを出す。
 //! ここでは同じ設定・同じ設備マスタ・同じ作り物で窓の係に同じ本文を当て、答え・覚え・命令の並びが同じか（時刻と秒は伏せる）を見る。
 //! 窓は 9 本のどの形も自分で答える（Python に任せない）ことも確かめる。
@@ -34,7 +34,7 @@ fn hex(s: &str) -> Vec<u8> {
 }
 
 /// 作り物のブラウザ（program/tests/lotdsp_cdp_fake.py）を Edge として起こす包み（sh の台本）を dir/browser/chromium に作る → その道。
-/// 答え合わせ役（lotdsp_oracle.py の wrapper）と同じ形。Python は TPA_PYTHON（無ければ python3）
+/// 答え合わせ役（前の版の答え合わせ役 lotdsp の wrapper）と同じ形。Python は TPA_PYTHON（無ければ python3）
 fn wrapper(dir: &Path) -> String {
     let d = dir.join("browser");
     std::fs::create_dir_all(&d).unwrap();
@@ -73,7 +73,7 @@ fn lotdsp_matches_python() {
     bk.strip_in = vec!["method", "name"];
     // Python 無しの形では、作り物の LotDsp（API とサイト）を起こしたままの相手の台本で起こす
     bk.fakes = Some(("fakes_serve.py", vec!["lotdsp".to_string()]));
-    let (live, oracle) = bk.live("lotdsp_oracle.py", &["serve", base.join("py").to_str().unwrap()]);
+    let (live, oracle) = bk.live_table();
     let mut live = live.expect("作り物の LotDsp を起こしたままにする相手");
     let mut bad: Vec<String> = vec![];
     let mut steps = 0;

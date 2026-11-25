@@ -10,7 +10,7 @@
 //! PUT    /api/sources/<key>/conn    … 接続の設定の 1 項目（参照先の項目〈settings_write〉か、このマスタの行）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/sources_write_parity.rs ← program/tests/sources_write_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/sources_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 sources_write））:
 //! - 行の整え方は services/data_sources.clean_row、結合は services/data_join.parse・clean（確かめる順も同じ。誤りの出る順が答えになる）。
 //!   列の順・役割・取り出し方・接続の欄の範囲と言葉・組み込みの元は焼いた表（bundle_tables.json の sources・sourcesList・join）
 //! - 書く係は master_repository の data_source_put・data_source_order・data_source_delete（キーは正規化しない一致・足すときだけ一意を確かめる・

@@ -1,5 +1,5 @@
 //! マスタの書く係（src/master_store.rs）が Python の MasterStore と同じ答えか（版 3.67.0。順 5 の 2 段目 a）。
-//! program/tests/masters_oracle.py の手順（SCENARIOS）を Python に当てた答えと、同じ手順を Rust の書く係に当てた答えを、
+//! 前の版の答え合わせ役 masters の手順（SCENARIOS）を Python に当てた答えと、同じ手順を Rust の書く係に当てた答えを、
 //! 1 歩ずつ（答え・断る言葉・状態の番号）と、終わった後のファイル（共有・写し・data/・錠・書きかけの残り）で突き合わせる。
 
 mod common;
@@ -242,11 +242,10 @@ fn same_remaining(py: &Value, rs: &mut Value) {
 #[test]
 fn master_writes_match_python() {
     let base = common::work("masters-parity");
-    let py_base = base.join("py");
     // 場面の置き場は窓が場面の宣言（scenario）から作る（setup）ので、焼いた表の宣言には持たない
     let mut bk = common::bake::Bake::open("masters", &base);
     (bk.strip, bk.strip_in) = (vec!["results".into()], vec!["scenario"]);
-    let oracle = bk.oracle("masters_oracle.py", &[py_base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let cases = oracle.as_array().unwrap();
     assert!(cases.len() >= 20, "場面が少ない: {}", cases.len());
@@ -283,84 +282,6 @@ fn master_writes_match_python() {
     bk.finish(&bad);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
-}
-
-/// 同じ PC で Python（係 py）と窓（係 rs）が同時に同じマスタへ書いても、保存が 1 つも消えない（共有・手元だけの両方）。
-/// どちらの係も、断られたら少し待って送り直す（画面の withLockWait と同じ）
-#[test]
-fn python_and_window_writing_together_lose_nothing() {
-    if !common::bake::frozen_python("python_and_window_writing_together_lose_nothing") {
-        return;
-    }
-    for shared in [true, false] {
-        let work = common::work(if shared { "masters-race-share" } else { "masters-race-local" });
-        let sc = json!({"shared": shared, "files": {"data/equipment_master.json": []}});
-        setup(&work, &sc);
-        let names: Vec<String> = ["equipment_master", "roll_master"].iter().map(|s| s.to_string()).collect();
-        let st = store_of(&work, &sc, &names);
-        let n = 150;
-        let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-        let child = std::process::Command::new(py)
-            .arg(common::py_program().join("tests").join("masters_oracle.py"))
-            .args(["--hammer", work.to_str().unwrap(), &n.to_string(), if shared { "shared" } else { "local" }])
-            .env("PYTHONIOENCODING", "utf-8")
-            .current_dir(common::py_program())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .unwrap();
-        let wait_for = |name: &str| {
-            let t0 = std::time::Instant::now();
-            while !work.join(name).exists() {
-                assert!(t0.elapsed().as_secs() < 60, "Python の印 {name} が来ない");
-                std::thread::sleep(std::time::Duration::from_millis(1));
-            }
-        };
-        wait_for("py_started");
-        std::fs::write(work.join("rs_started"), "1").unwrap();
-        // 3 分の 1・3 分の 2 で Python と待ち合わせる（どの区切りにも両方の行が入り、入れ替わりは必ず 3 回以上。時間に頼らない。
-        // 版 3.80.0: 遅い CI で片方が書き終えてから、もう片方が書いて落ちた）
-        let mut marks = vec![(n / 3, 1), (2 * n / 3, 2)];
-        let mut ok = 0;
-        let mut refused = 0;
-        while ok < n {
-            if let Some(i) = marks.iter().position(|(at, _)| *at == ok) {
-                let (_, k) = marks.remove(i);
-                std::fs::write(work.join(format!("rs_mark{k}")), "1").unwrap();
-                wait_for(&format!("py_mark{k}"));
-            }
-            match st.write("equipment_master", |rows, stamp| {
-                let mut row = json!({"id": next_id(rows), "by": "rs"});
-                for (k, v) in stamp.as_object().unwrap() {
-                    row[k] = v.clone();
-                }
-                rows.push(row);
-                Ok(())
-            }) {
-                Ok(()) => ok += 1,
-                Err(MasterError::Locked { .. }) => {
-                    refused += 1;
-                    std::thread::sleep(std::time::Duration::from_millis(3));
-                }
-                Err(e) => panic!("{shared}: {e:?}"),
-            }
-        }
-        let out = child.wait_with_output().unwrap();
-        assert!(out.status.success());
-        let file = if shared { work.join("share/equipment_master.json") } else { work.join("data/equipment_master.json") };
-        let v: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
-        let rows = if shared { v["rows"].as_array().unwrap().clone() } else { v.as_array().unwrap().clone() };
-        let count = |who: &str| rows.iter().filter(|r| r["by"] == who).count();
-        assert_eq!((count("py"), count("rs")), (n, n), "共有 {shared}: どちらの保存も消えない（窓が断られた回数 {refused}）");
-        // 本当に取り合った（py と rs の行が入り混じる）
-        let turns = rows.windows(2).filter(|w| w[0]["by"] != w[1]["by"]).count();
-        assert!(turns >= 3, "共有 {shared}: 2 つの係が交互に書いていない（入れ替わり {turns} 回）");
-        let mut ids: Vec<i64> = rows.iter().map(|r| r["id"].as_i64().unwrap()).collect();
-        ids.sort();
-        ids.dedup();
-        assert_eq!(ids.len(), 2 * n, "id が重ならない");
-        let _ = std::fs::remove_dir_all(&work);
-    }
 }
 
 fn plain_store(work: &Path, shared: bool, ttl: f64) -> Store {
@@ -505,7 +426,7 @@ fn shared_always_matches_python() {
     let base = common::work("masters-shared");
     let mut bk = common::bake::Bake::open_part("masters", "shared", &base);
     (bk.strip, bk.strip_in) = (vec!["results".into()], vec!["scenario"]);
-    let oracle = bk.oracle("masters_oracle.py", &[base.join("py").to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let py: Vec<String> = oracle[0]["config"]["shared"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
     let mut rs: Vec<String> = da_core::master_store::SHARED_ALWAYS.iter().map(|s| s.to_string()).collect();
     rs.extend(["equipment_master".to_string(), "roll_master".to_string()]);

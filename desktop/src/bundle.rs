@@ -4,7 +4,7 @@
 //! Python が答えないと全部 Python へ回していた（lot.rs の settings が Err）。この部品は同じ束を、配った設定（config/appsettings.json）と
 //! マスタの置き場から組む。決まりの元は Python の 1 か所で、窓は Python から焼いた表（bundle_tables.json。program/tools/bundle-tables.py が焼き、
 //! 古い表は tests/test_bundle_tables.py が止める）と、ここに写した組み方を持つ。答えが Python と同じことは desktop/tests/bundle_parity.rs が
-//! program/tests/settings_oracle.py と突き合わせて確かめる。
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 settings） と突き合わせて確かめる。
 //!
 //! 組む物（routes/lotlist.py の lotlist_settings・lists_settings・_access_place・_conversions と同じ）:
 //! - source・refresh_seconds・stale_hours・table・page_size … 配った設定に参照先マスタ（path_settings）を重ねた lot_list（path_settings.effective）

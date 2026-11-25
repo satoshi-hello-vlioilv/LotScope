@@ -1,5 +1,5 @@
 //! 設備・ロールのマスタの道（src/equip_write.rs）が Python の道（routes/masters.py）と同じ答えか（版 3.77.0）。
-//! program/tests/equip_rows_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 equip_rows が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（門番 access::guard → equip_write::handle。書く係は master_rows と master_store）で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（共有・同梱の data/・写し）を突き合わせる。
 //! delegates の歩（窓が読めない・読みが割れる数・並び／表の値・空の本文・足す道の表でない本文・10 進でない版の字）は、窓が答えないこと
@@ -100,7 +100,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn equipment_and_roll_masters_match_python() {
     let base = common::work("equip-write");
     let mut bk = common::bake::Bake::open("equip_rows", &base);
-    let oracle = bk.oracle("equip_rows_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

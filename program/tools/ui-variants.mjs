@@ -2,8 +2,8 @@
 //
 //   node program/tools/ui-variants.mjs 出力フォルダ 案の定義.mjs [--states list,grouped,calc] [--themes light,dark] [--only A,B] [--view 1536x864] [--from dash]
 //
-// 案の定義（ES モジュール）は PROPOSALS = [{ key, name, css, ops }] を書き出す（例: ui-proposals/2026-10-shortcut.mjs）。
-// 起動画面（desktop/splash）の案は --states splash,splash-fail で撮る（案の CSS・ops は起動画面に当たる。例: ui-proposals/2026-10-splash.mjs）。
+// 案の定義（ES モジュール）は PROPOSALS = [{ key, name, css, ops }] を書き出す（例: 採点 2026-10-shortcut（記録は版 3.119.0 で片付けた））。
+// 起動画面（desktop/splash）の案は --states splash,splash-fail で撮る（案の CSS・ops は起動画面に当たる。例: 採点 2026-10-splash（記録は版 3.119.0 で片付けた））。
 // 今の画面に案ごとの CSS と DOM の組み替え（ops）を当て、利用者の画面と同じ大きさ（1728×1152・表示倍率 125%。--view で
 // フル HD・125% の 1536×864 なども）で、
 // 状態ごとに撮る（状態-テーマ-案.png）。測る量は ui-check.mjs と同じ（metrics.json）。状態ごとに全案を並べた

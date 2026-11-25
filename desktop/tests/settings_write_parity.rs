@@ -1,5 +1,5 @@
 //! 参照先の項目を書く道（src/settings_write.rs）が Python の道（routes/settings.py の PUT /api/settings/<key>）と同じ答えか（版 3.89.0）。
-//! program/tests/settings_write_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 settings_write が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（Lot と同じ順: 道 → 門番 access::guard → settings_write::put。書く係は master_rows::put_by_key と
 //! master_store）で当て、1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のファイル（共有・同梱の data/・写し）を突き合わせる。
 //! 窓が答えず Python に任せる歩（delegates）は、窓が答えないこと（書く前に断る＝ファイルは変わらない）を見る。
@@ -100,7 +100,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn path_settings_writes_match_python() {
     let base = common::work("settings-write");
     let mut bk = common::bake::Bake::open("settings_write", &base);
-    let oracle = bk.oracle("settings_write_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

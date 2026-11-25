@@ -8,7 +8,7 @@
 //! （/api/masters/rolls も同じ 4 本。設備が必須・一意も確かめも無い）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/equip_rows_parity.rs ← program/tests/equip_rows_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/equip_rows_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 equip_rows））:
 //! - 行の書き方は共通の型（src/master_rows.rs。SPECS["equipment_master"]・["roll_master"]）。値は str(v).strip() の字で置く
 //! - 設備の確かめ（equipment_names.check_row の 3 つの言葉）は計算の読み替えと同じ部品（calc::equipment_check）
 //! - 本文も版も Content-Type によらず読む（Python も版 3.77.0 から同じ。routes/common.base_rev）

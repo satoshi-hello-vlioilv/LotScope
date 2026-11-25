@@ -1,7 +1,7 @@
 //! 設備の稼働（版 3.63.0。Python の services/operation.py と同じ答え）: 作業実績の作業開始・作業終了から、設備ごとの稼働の区間（ガントチャート）・
 //! 勤務時間・稼働率と、品種ごとの ABC 分析・換算係数・全設備のリードタイム・基準の期間での換算を数える。決まりの説明は Python の operation.py の冒頭。
 //! 数は Python と同じく整数と小数を分けて持つ（空の和は 0・round(整数) は整数）。和は Python 3.13 の sum と同じ足し方（aggregate::N::sum。小数だけの和は aggregate::py_sum）。
-//! 答えが同じことは desktop/tests/ops_parity.rs（← program/tests/ops_oracle.py）と dash_parity.rs の稼働の組で確かめる。
+//! 答えが同じことは desktop/tests/ops_parity.rs（← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 ops））と dash_parity.rs の稼働の組で確かめる。
 
 use crate::aggregate::{py_round, py_sum, N};
 use crate::formula::{Calc, Tables};

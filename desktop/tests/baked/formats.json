@@ -844,9 +844,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/formats_oracle.py": "d5e13278b58da564",
-  "tests/oracle_gate.py": "74d8effb19f3211d"
- },
+ "sources": {},
  "variant": "root"
 }

@@ -544,12 +544,10 @@
   "links": {}
  },
  "sources": {
-  "tests/builder_oracle.py": "6772fca371f467d5",
-  "tests/fakes_builder.py": "4a226ef4aade3d9c",
-  "tests/fakes_schedule.py": "bdb1246b14050148",
-  "tests/fakes_serve.py": "fc71085077c6898b",
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/schedule_fixture.py": "c040571ff4fff91c"
+  "tests/fakes_builder.py": "cf981a2572eec8cd",
+  "tests/fakes_schedule.py": "521c29571fcb2f9c",
+  "tests/fakes_serve.py": "b5faa043efa143de",
+  "tests/schedule_fixture.py": "d5703c248324aa2f"
  },
  "variant": "root"
 }

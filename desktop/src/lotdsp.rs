@@ -6,7 +6,7 @@
 //!
 //! 窓は Python に任せない: 本文の端（字でない html・数や null のロット番号・NaN・並び・表でない本文）も、Python と同じ答えか
 //! 同じ字で断る（rules::read_body）。答えは Python の道（Python を答えの見本にした突き合わせ: desktop/tests/lotdsp_parity.rs ←
-//! program/tests/lotdsp_oracle.py）と、Python に頼らない独立の答え（DOM で読んだ表・仕様から書いた事例の表・作り物の DevTools と
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 lotdsp））と、Python に頼らない独立の答え（DOM で読んだ表・仕様から書いた事例の表・作り物の DevTools と
 //! 差し替えた時計: desktop/tests/lotdsp_cases.rs）の両方で確かめる。
 //!
 //! 学びの覚え（作業場所の lotdsp_api_map.json）の書き手は窓の 1 つ（KeyMap の Mutex）。状態の道・/api/config（bundle.rs が同じファイルを

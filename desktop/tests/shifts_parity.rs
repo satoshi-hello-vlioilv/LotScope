@@ -1,5 +1,5 @@
 //! 勤務体系のマスタの道（src/shifts_write.rs）が Python の道（routes/shifts.py）と同じ答えか（版 3.75.0）。
-//! program/tests/shifts_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 shifts が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（門番 access::guard → shifts_write::handle。書く係は master_rows と master_store）で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（共有・同梱の data/・写し）を突き合わせる。
 
@@ -102,7 +102,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn shift_masters_match_python() {
     let base = common::work("shifts-write");
     let mut bk = common::bake::Bake::open("shifts", &base);
-    let oracle = bk.oracle("shifts_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

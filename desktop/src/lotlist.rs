@@ -3,7 +3,7 @@
 //! 絞り込み・並べ替え・ページ・まとめ（ロット番号）・日付の列・0 件の手がかりの決まりは Python 版の写し。SQL の文も同じ物を作り、
 //! SQL の中の CStr・Val・ToDate・Nz は Rust の関数（pyfmt）として SQLite に入れる（Python 版は行×列の回数だけ Python の関数を
 //! 呼ぶので、検索・0 件の手がかりが遅かった。DESKTOP_MIGRATION_DESIGN.md §7.1）。
-//! 答えが同じことは desktop/tests/lotlist_parity.rs が Python の答え（program/tests/lotlist_oracle.py）と比べて確かめる。
+//! 答えが同じことは desktop/tests/lotlist_parity.rs が Python の答え（焼いた表 desktop/tests/baked（前の版の答え合わせ役 lotlist））と比べて確かめる。
 
 use crate::formula::{self, Tables};
 use crate::pyfmt::{self, Py};

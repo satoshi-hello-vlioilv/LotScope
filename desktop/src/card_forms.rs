@@ -8,7 +8,7 @@
 //! ```
 //!
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/card_forms.clean_body と同じ
-//! （評価関数: tests/cards_parity.rs ← program/tests/cards_oracle.py）。置き場はマスタ dashboards の行のうち元が「card:」で始まる行。
+//! （評価関数: tests/cards_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 cards））。置き場はマスタ dashboards の行のうち元が「card:」で始まる行。
 //!
 //! 窓が答えず Python に任せる形（card_plain）: 項目の名前・列・式・字・日付の列・タブの名前が並び・表（Python は repr の字で置く）・
 //! 項目のタブが並び・表（Python は TypeError）・中身の字を窓が Python と同じに読めない（text_split）。

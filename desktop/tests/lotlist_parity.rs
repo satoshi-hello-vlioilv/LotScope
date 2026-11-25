@@ -34,7 +34,7 @@ fn rust_answers_like_python() {
     bk.script = Some(("lotlist_fixture.py", vec![work.join("lotlist_fixture.sqlite3").to_string_lossy().into_owned()]));
     // Python の答え（expected）は表に持たない（表は窓の答えを answers に持つ）
     bk.drop.push("expected");
-    let o = bk.oracle("lotlist_oracle.py", &[work.to_str().unwrap()]);
+    let o = bk.table_oracle();
     let db = std::path::PathBuf::from(o["db"].as_str().unwrap());
     let today = NaiveDate::parse_from_str(o["today"].as_str().unwrap(), "%Y-%m-%d").unwrap();
     let cases = o["cases"].as_array().unwrap();

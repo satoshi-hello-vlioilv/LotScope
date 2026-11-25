@@ -3524,8 +3524,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/conversions_oracle.py": "b9d71f7f073c2bdf"
- },
+ "sources": {},
  "variant": "root"
 }

@@ -1,7 +1,7 @@
 //! 画面（GET /）を窓が描く（版 3.85.0。Python の routes/system.py の index と web.py の小さな型を写した物）。
 //! Python が答えなくても、画面の HTML は窓が出す（最初の画面が尋ねる /api/config・/api/dashboard/sources も窓。lot.rs）。
 //!
-//! 決まりは Python と同じ（評価関数: tests/page_parity.rs ← program/tests/settings_oracle.py の reads）:
+//! 決まりは Python と同じ（評価関数: tests/page_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 settings） の reads）:
 //! - 型（app/templates/index.html）は {{ 式 }} だけ（式: 名前・名前.名前・url_for('static', filename='…')・字と数）と |tojson・|safe。
 //!   {% %}・{# #}・知らない式・知らないフィルタは描かずに Python に任せる（None）。値は & < > " ' を逃がす。最後の改行 1 つは出さない
 //! - |tojson は web.dumps（鍵を並べる・日本語は \u・区切り ", " ": "）のあと < > & ' を \u003c などに替えた字

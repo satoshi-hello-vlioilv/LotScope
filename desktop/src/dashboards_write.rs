@@ -10,7 +10,7 @@
 //!
 //! 中身の確かめは版 3.81.0 の部品（src/layout_clean.rs）、行の決まりは src/preset_rows.rs。組み込みのダッシュボードは Python の BUILTIN_LAYOUTS を
 //! 焼いた表（src/dash_builtins.json。program/tools/dash-builtins.py が焼き、古い表は tests/test_dash_builtins.py が止める）。
-//! 評価関数: tests/dashboards_parity.rs ← program/tests/dashboards_oracle.py。
+//! 評価関数: tests/dashboards_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 dashboards）。
 //!
 //! Python と同じにするための決まり（版 3.82.0 の案の採点の指摘）:
 //! - 組み込みと同じ名前で自分の ID か共通デフォルトに置く行は、中身に replaces を入れる（with_builtin_replace）。Python はこのとき中身の確かめを

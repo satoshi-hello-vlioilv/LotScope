@@ -6,7 +6,7 @@
 //! いくつかのファイル（query_many。ダッシュボードの「作業実績 すべての設備」など）・設備で絞る（equips）・設備のまとめ（egroups）・
 //! 設備グループの段（sets）。
 //! 答えが同じことは desktop/tests/routes_parity.rs（一覧の集計の道）と pivot_parity.rs（いくつかのファイル・期間・設備のまとめ・
-//! 計算列・箱ひげ。← program/tests/pivot_oracle.py）が Python の答えと突き合わせて確かめる。
+//! 計算列・箱ひげ。← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 pivot））が Python の答えと突き合わせて確かめる。
 
 use crate::aggregate::{self, Acc, OutCell, N};
 use crate::capacity::{self, Cells, OwnBase};

@@ -460,9 +460,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/ui_defaults_oracle.py": "14905362e63bed88"
- },
+ "sources": {},
  "variant": "root"
 }

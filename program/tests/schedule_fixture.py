@@ -154,7 +154,7 @@ def serve(answers, port=0):
     return srv, f"http://127.0.0.1:{srv.server_address[1]}"
 
 
-# ---------------------------------------------------------------- 形を変えられる作り物の CM3（版 3.96.0。schedule_oracle.py・試験）
+# ---------------------------------------------------------------- 形を変えられる作り物の CM3（版 3.96.0。前の版の答え合わせ役 schedule・試験）
 def reply(status=200, reason="OK", body=b"", headers=None, version="HTTP/1.1", chunked=False, length=True):
     """答えのバイト列。headers: [(名前, 値)]（並びのまま）。chunked は 7 バイトずつに切る。length=False は長さを書かない（閉じるまで）"""
     if isinstance(body, str):

@@ -5,7 +5,7 @@
 ディスクの新しい JS が読み込まれて画面が止まる（2026-09-29 の不具合。以前のブラウザ版で起きた）。そこで:
     - 画面に起動したときの指紋を埋め（<meta name="tpa-build">）、JS・CSS の URL にも指紋を付ける
     - app.js は2つを比べ、違えば「版が混ざっています」と言って再起動を促す
-指紋 = 版（app/version.py）＋ app/ の下のプログラム（.py .html .js .css）の名前・大きさ・更新時刻。
+指紋 = 版（app/version.py）＋ app/ の下のプログラム（.py .html .js .css .json）の名前・大きさ・更新時刻（版 3.119.0 から .py は version.py だけ）。
 
 もう1つ、配る物の中身の要約（release_digest）で版を管理する（2026-09-30。版を上げずに6回配っていたため）:
     - app/version.py の RELEASE に「配った版と、そのときの中身の要約」を書いておく
@@ -56,7 +56,7 @@ def fingerprint(base=BASE):
 
 
 # ------------------------------------------------------------------ 配る物の中身の要約（版の管理）
-# 配る物: app/（three.js も）・窓口（sidecar.py）と場所の決まり・設定・マスタの初期値（入口の exe は desktop/ で作る）。
+# 配る物: app/（three.js も）・前の版の窓が見る印（sidecar.py。版 3.119.0 から 1 行）・この道具・設定・マスタの初期値（入口の exe は desktop/ で作る）。
 # 説明（README・docs・.md）とテストは含めない。app/version.py 自身も含めない（RELEASE を書くと要約が変わるため）
 RELEASE_GLOBS = ("app/**/*", "*.py", "config/*.json", "data/*")
 # app/changelog.json は app/version.py の CHANGELOG を焼いた物（版 3.88.0。窓が /api/changelog を答える）。
@@ -106,7 +106,7 @@ def _write_release(base, version, digest):
 
 
 def changelog_text(v):
-    """GET /api/changelog の答えの字（routes/system.py の jsonify と 1 バイトも違わない形: 鍵の順・日本語は \\u・詰めた区切り・改行）。"""
+    """GET /api/changelog の答えの字（前の版の routes/system.py の jsonify と 1 バイトも違わない形: 鍵の順・日本語は \\u・詰めた区切り・改行）。"""
     return json.dumps({"version": v["APP_VERSION"], "entries": v["CHANGELOG"]}, ensure_ascii=True, sort_keys=True,
                       separators=(",", ":")) + "\n"
 

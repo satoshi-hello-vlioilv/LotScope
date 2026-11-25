@@ -882,9 +882,6 @@
   },
   "links": {}
  },
- "sources": {
-  "tests/oracle_gate.py": "74d8effb19f3211d",
-  "tests/worklog_write_oracle.py": "3b0bcf648f82d819"
- },
+ "sources": {},
  "variant": "root"
 }

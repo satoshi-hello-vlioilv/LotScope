@@ -6,7 +6,7 @@
 //!     （直の段で絞られたセルはその直だけ）・期間の日数＝パネルの期間の日数（日の段で切る。期間なしはセルの最初〜最後の作業日）・
 //!     期間の直数＝期間の日数×1日の直数（設備ごとに掛けて足す）・作った数（each は設備ごとに当てて足す）。
 //! 足す設備は、セルの設備の段に当たるパネルのすべての設備（実績の無い設備も）。答えが同じことは pivot_parity・dash_parity
-//! （← program/tests/pivot_oracle.py・dashboard_oracle.py）で確かめ、Python は独立の答え tools/capacity-truth.py と比べる。
+//! （← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 pivot）・前の版の答え合わせ役 dashboard）で確かめ、Python は独立の答え tools/capacity-truth.py と比べる。
 
 use crate::aggregate::N;
 use crate::lotlist::{json_str, json_truthy};

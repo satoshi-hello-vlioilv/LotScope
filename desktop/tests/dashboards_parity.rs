@@ -1,5 +1,5 @@
 //! ダッシュボードの道（src/dashboards_write.rs。中身の確かめは src/layout_clean.rs）が Python の道（routes/dashboard.py の 5 本）と同じ答えか（版 3.82.0）。
-//! program/tests/dashboards_oracle.py が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
+//! 前の版の答え合わせ役 dashboards が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（dashboards_write::answer。書く係は master_store）で当て、1 歩ごとの答えと、終わった後のファイル
 //! （ダッシュボードと前の版の条件のマスタの中身の字まで）を突き合わせる。delegates の歩（窓が読めない本文・Python が落ちる置き場・まだ無いファイルの最初の読み・
 //! ASCII でない id の道）は、窓が答えないこと（Python に任せる）を確かめる
@@ -100,7 +100,7 @@ fn files(root: &Path) -> Map<String, Value> {
 fn dashboards_match_python() {
     let base = common::work("dashboards");
     let mut bk = common::bake::Bake::open("dashboards", &base);
-    let oracle = bk.oracle("dashboards_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let mut bad = vec![];
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

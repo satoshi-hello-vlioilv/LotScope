@@ -1,9 +1,9 @@
 //! 「参照…」の 2 本（src/folder_browse.rs の handle・browse・places）が Python の道（routes/settings.py の POST /api/fs/browse・
-//! GET /api/fs/places と services/folder_browse.py）と同じ答えか（版 3.101.0）。program/tests/fs_oracle.py が 1 つのフォルダの木
+//! GET /api/fs/places と services/folder_browse.py）と同じ答えか（版 3.101.0）。前の版の答え合わせ役 fs が 1 つのフォルダの木
 //! （自然な並びの名前・隠し・記号リンク・目的ごとの印・400 を超える数・読めないフォルダ）に Python の道で問い合わせの並びを当て、
 //! ここでは同じフォルダに同じ並びを窓の道で当て、答え（状態・本文。断る言葉も 1 字まで）を突き合わせる。窓が答えず Python に任せる歩
 //! （delegates）は、窓が答えないことを見る。字の整え（tidy: ntpath・posixpath の normpath）と区切り（crumbs: Path の anchor・parts）は、
-//! POSIX と Windows の両方の決まりを 1 つの PC で事例の表（fs_oracle.py --tables）と突き合わせる。
+//! POSIX と Windows の両方の決まりを 1 つの PC で事例の表（前の版の答え合わせ役 fs --tables）と突き合わせる。
 
 mod common;
 
@@ -26,7 +26,7 @@ fn tidy_and_crumbs_match_python() {
     let base = common::work("fs-tables");
     let mut bk = common::bake::Bake::open_part("fs", "tables", &base);
     (bk.strip, bk.strip_in) = (vec!["tidy".into(), "crumbs".into()], vec!["text"]);
-    let t = bk.oracle("fs_oracle.py", &["--tables"]);
+    let t = bk.table_oracle();
     let mut bad = vec![];
     for c in t["tidy"].as_array().unwrap() {
         let (s, win) = (c["text"].as_str().unwrap(), c["win"].as_bool().unwrap());
@@ -54,7 +54,7 @@ fn tidy_and_crumbs_match_python() {
 fn folder_browse_matches_python() {
     let base = common::work("fs");
     let mut bk = common::bake::Bake::open("fs", &base);
-    let oracle = bk.oracle("fs_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = bk.table_oracle();
     let root = oracle["root"].as_str().unwrap().to_string();
     let esc = serde_json::to_string(&root).unwrap();
     // 表だけの形か（Python と比べる形は、答え合わせ役の Python に渡したのと同じ宣言の字を窓にも渡す）

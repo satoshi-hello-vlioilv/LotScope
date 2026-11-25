@@ -1,13 +1,13 @@
 // 撮る・採点する道具（ui-harness.mjs を使う本）を全部流す台本（開発用。版 3.118.2）。
 //
-//   node program/tools/ui-all.mjs 出力フォルダ [--server window|python] [--jobs 3] [--only 本,…] [--skip 本,…] [--base 基準の results.json] [--no-build]
+//   node program/tools/ui-all.mjs 出力フォルダ [--jobs 3] [--only 本,…] [--skip 本,…] [--base 基準の results.json] [--no-build]
 //
 // 本ごとに、作業のフォルダ（出力フォルダ/run/本）を今のフォルダにして node で流し、終了コード・秒・「OK／NG」の行の数を
 // 出力フォルダの results.json と table.md に書く（出力は logs/本.log）。結果は終了コードで読む（最後の 1 行で判断しない）。
-// 相手（開発用サーバー）は ui-harness.mjs の TPA_UI_SERVER（既定は窓）。窓の相手のときは、最初に窓の開発用サーバーを組む
-// （cargo build --example ui_serve。--no-build で組まない）。窓にまだ無い口を使う本（ui-harness.mjs の PYTHON_ONLY）は、窓の表でも Python の相手で流し、表に印を付ける。
+// 相手（開発用サーバー）は窓だけ（版 3.119.0 で前の Python の開発用サーバーを消した）。最初に窓の開発用サーバーを組む
+// （cargo build --example ui_serve。--no-build で組まない）。
 // TPA_UI_MASK=1（画素の比べ）でも並べて流せる（作業フォルダは本ごとに乱数の名前・画面に出る作業フォルダの字は shot が決めた字に差し替える）。
-// --base に前の表（Python の相手で流した基準）を渡すと、基準でも落ちていた本を「前から」と分けて数える（窓だけで落ちる本が 0 かを見る）。
+// --base に前の表（前に流した基準）を渡すと、基準でも落ちていた本を「前から」と分けて数える（この回だけで落ちる本が 0 かを見る）。
 
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -18,8 +18,6 @@ const TOOLS = path.dirname(fileURLToPath(import.meta.url));
 const PROGRAM = path.resolve(TOOLS, "..");
 const DESKTOP = path.resolve(PROGRAM, "../desktop");
 
-// 相手を決めるのは ui-harness.mjs の 1 か所（PYTHON_ONLY・serverFor・SERVER。版 3.118.2 の作った後の採点の割れ C9）
-import { PYTHON_ONLY, SERVER, serverFor } from "./ui-harness.mjs";
 
 /** 引数の要る本の引数（OUT は本ごとの出力のフォルダ）。ほかは引数なし（既定の大きさ・出力なし） */
 const ARGS = {
@@ -30,11 +28,10 @@ const ARGS = {
 };
 
 function opts(argv) {
-  const o = { out: "", server: SERVER, jobs: 3, only: null, skip: [], base: "", build: true };
+  const o = { out: "", server: "window", jobs: 3, only: null, skip: [], base: "", build: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--server") o.server = argv[++i];
-    else if (a === "--jobs") o.jobs = Number(argv[++i]);
+    if (a === "--jobs") o.jobs = Number(argv[++i]);
     else if (a === "--only") o.only = argv[++i].split(",").map(norm);
     else if (a === "--skip") o.skip = argv[++i].split(",").map(norm);
     else if (a === "--base") o.base = argv[++i];
@@ -43,10 +40,9 @@ function opts(argv) {
     else throw new Error(`知らない引数: ${a}`);
   }
   if (!o.out) {
-    console.error("使い方: node program/tools/ui-all.mjs 出力フォルダ [--server window|python] [--jobs 3] [--only 本,…] [--skip 本,…] [--base 基準.json] [--no-build]");
+    console.error("使い方: node program/tools/ui-all.mjs 出力フォルダ [--jobs 3] [--only 本,…] [--skip 本,…] [--base 基準.json] [--no-build]");
     process.exit(2);
   }
-  if (!["window", "python"].includes(o.server)) throw new Error(`--server は window か python: ${o.server}`);
   return o;
 }
 const norm = (n) => (n.endsWith(".mjs") ? n : `${n}.mjs`);
@@ -72,7 +68,7 @@ function runOne(name, o) {
   const shots = path.join(run, "shots");
   fs.mkdirSync(shots, { recursive: true });
   const args = [path.join(TOOLS, name), ...(ARGS[name] ? ARGS[name](shots) : [])];
-  const server = serverFor(name, o.server === "python" ? "python" : undefined);
+  const server = "window";
   const log = path.join(o.out, "logs", name.replace(/\.mjs$/, ".log"));
   const t0 = Date.now();
   return new Promise((done) => {
@@ -87,7 +83,7 @@ function runOne(name, o) {
       clearTimeout(limit);
       fs.writeFileSync(log, text);
       const sec = Math.round((Date.now() - t0) / 100) / 10;
-      const r = { name, code: code ?? -1, signal: signal || "", sec, server, ...marks(text), pythonOnly: PYTHON_ONLY[name] || "" };
+      const r = { name, code: code ?? -1, signal: signal || "", sec, server, ...marks(text) };
       console.log(`${r.code === 0 ? "PASS" : "FAIL"} ${name} code=${r.code} ${sec}s server=${server} OK行=${r.ok} NG行=${r.ng}`);
       done(r);
     });
@@ -98,7 +94,7 @@ async function main() {
   const o = opts(process.argv.slice(2));
   o.out = path.resolve(o.out);
   fs.mkdirSync(path.join(o.out, "logs"), { recursive: true });
-  if (o.server === "window" && o.build) {
+  if (o.build) {
     console.log("窓の開発用サーバーを組みます（cargo build --example ui_serve）");
     execFileSync("cargo", ["build", "--example", "ui_serve"], { cwd: DESKTOP, stdio: "inherit" });
   }
@@ -122,11 +118,11 @@ async function main() {
   const sum = {
     server: o.server, at: new Date().toISOString(), total: results.length, pass: results.filter((r) => r.code === 0).length,
     fail: results.filter((r) => r.code !== 0).length, failOld: results.filter((r) => r.kind === "前から").length,
-    failNew: results.filter((r) => r.kind === "this").length, pythonOnly: results.filter((r) => r.pythonOnly).map((r) => r.name),
+    failNew: results.filter((r) => r.kind === "this").length,
     minutes: Math.round((Date.now() - t0) / 6000) / 10, base: o.base || "",
   };
   fs.writeFileSync(path.join(o.out, "results.json"), JSON.stringify({ summary: sum, results }, null, 2));
-  const rows = results.map((r) => `| ${r.name} | ${r.code} | ${r.sec} | ${r.server}${r.pythonOnly ? "（窓にまだ無い口）" : ""} | ${r.ok} | ${r.ng} | ${r.before ?? ""} | ${r.kind} |`);
+  const rows = results.map((r) => `| ${r.name} | ${r.code} | ${r.sec} | ${r.server} | ${r.ok} | ${r.ng} | ${r.before ?? ""} | ${r.kind} |`);
   fs.writeFileSync(path.join(o.out, "table.md"), [
     `# ui-all（相手 ${o.server}）`, "",
     `本 ${sum.total}・終了コード 0 が ${sum.pass}・0 でない ${sum.fail}（基準でも落ちていた「前から」${sum.failOld}・この相手だけ ${sum.failNew}）・${sum.minutes} 分`, "",

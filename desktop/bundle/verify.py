@@ -256,7 +256,7 @@ def stage_by_old_window(rel_dir: Path, local: Path, version: str) -> None:
             if not marks or marks[0].count("/") != 2:
                 raise SystemExit(f"配る ZIP の根に program/sidecar.py（前の版の窓が見る印）がありません: {marks[:3]}")
             z.extractall(tmp)
-        # 配る形の根（program/app/version.py の 3 つ上。凍らせた写し program/tests/legacy/…/app は program の下の app でないので選ばない）
+        # 配る形の根（program/app/version.py の 3 つ上。前の版の凍らせた写しのように program の下でない app は選ばない）
         root = next(p.parents[2] for p in tmp.rglob("version.py") if p.parent.name == "app" and p.parents[1].name == "program")
         stage = local / "update" / "stage"
         shutil.rmtree(stage, ignore_errors=True)
@@ -571,7 +571,7 @@ def local(exe: Path, work: Path) -> bool:
     ok &= check(good, "local. 心拍 200・python absent・自己診断の項目が全部あって通る（飛ばした項目が無い）", why)
     tabs = next((x for x in r.get("results", []) if x["name"].startswith("出さないタブを出さない")), {})
     ok &= check(tabs.get("ok") is True and '"calc"' in tabs.get("info", ""), "local. Python が居なくても出さないタブ（計算）を出さない", tabs.get("info"))
-    ok &= check(boot_log_has(work / "local", "python=（段 ④: 起こさない）") and boot_log_has(work / "local", "OPEN 画面を開きます")
+    ok &= check(boot_log_has(work / "local", "python=（版 3.119.0: 中身なし）") and boot_log_has(work / "local", "OPEN 画面を開きます")
                 and not python_started(work / "local"), "local. 窓の記録: 画面を開き、中身は起こさない（Python が 1 度も起きていない）", "")
     ok &= check((r.get("info") or {}).get("version") == bundle.app_version(), "local. 中身の版は窓が読んだ program_version", r.get("info"))
     # 版 3.112.0（採点の指摘 10）: 配った設定に NaN（Python の json.loads は読む・窓の serde は読めない）があっても、Python の無い PC で

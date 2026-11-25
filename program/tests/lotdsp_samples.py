@@ -2,7 +2,7 @@
 """LotDsp の見本（版 3.117.0。標準の部品だけ。app を import しない）。
 
 進度情報の画面の見本（tests/fixtures/lotdsp_progress_L7150C0.html）と、それを崩して別のロット・別の値の画面を作る係。
-前は app を import する試験（tests/test_lotdsp_api.py・test_lotdsp_rules.py）の中にあり、答え合わせ役（tests/lotdsp_oracle.py）が
+前は app を import する試験（tests/test_lotdsp_api.py・test_lotdsp_rules.py）の中にあり、前の版の答え合わせ役（lotdsp）が
 そこから借りていた。作り物の LotDsp（tests/fakes_lotdsp.py）を app なしで起こすために、ここへ移した（試験もここから読む）。
 
 作り物の API が返す JSON（entity）は、画面の見本を app の読み手（lotdsp_progress）で読んで作る物（tests/test_lotdsp_api.py の entity_of）

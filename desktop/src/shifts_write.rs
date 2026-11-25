@@ -7,7 +7,7 @@
 //! DELETE /api/masters/shifts/<id>   … 消す（一覧。?rev= は開いたときの行の版）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/shifts_parity.rs ← program/tests/shifts_oracle.py）:
+//! 決まりは Python と同じ（評価関数: tests/shifts_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 shifts））:
 //! - 本文の読み方（services/shifts.clean_row・clean_segments。名称・適用設備・区分〈JSON の字は json.dumps(separators=(',',':')) と同じ〉・表示順・備考）
 //! - 行の書き方は共通の型（src/master_rows.rs。SPECS["shift_patterns"]: 名称は 1 つずつ）。表示順の無い行は最後（row_order.next_order と同じ）
 //! - 数の読み方は pyfmt（tests/fixtures/pynum_cases.json で Python と突き合わせた 1 つの表）

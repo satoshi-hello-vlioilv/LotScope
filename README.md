@@ -15,8 +15,9 @@ GitHub の Releases に、版ごとに配る ZIP（`LotScope-<版>-windows.zip`�
 ```
 
 - **版 3.118.0 から、アプリは Python を使いません**（Rust 化の段 ④）。画面・一覧・ダッシュボード・マスタ管理・スケジュール・LotDsp・配布の画面は、すべてアプリの窓（`LotScope.exe`）が答えます。Python は同梱しておらず（版 3.117.x までは各 PC に入れた Python を使いました）、この版からは PC の Python を探しも起こしもしません。
-- **ただし、Python の部品（`program\app` の .py・`program\sidecar.py`）と PC に入れた Python は、段 ⑤ まで消さないでください。** 配る版を前の版（3.117.x 以前）へ戻すと、前の版は Python を起こします。全員の PC が 3.118.0 以上になり（配布の画面の「要更新」が 0 台）、段 ⑤（片付け）に進むと決めてから消します。
-- `program` の中身: `app`（画面の部品〈`templates`・`static`〉・同梱の既定・版と名乗り。.py は段 ⑤ まで残す前の版の中身と試験の答えの元）・`sidecar.py`（前の版の窓が「中身がある」と見る印。段 ⑤ まで残す）・`config`（設定）・`data`（マスタの初期値）・`docs`（仕組みの説明）・`tests`。
+- **版 3.119.0 で、使わなくなった Python の部品（`program\app` の .py）を消しました**（Rust 化の段 ⑤）。`program\sidecar.py` は、版 3.117.x までのアプリがこの版を取り込むときに見る 1 行の印だけを残しています（中身はありません）。
+- **PC に入れた Python は、直前の版（戻すときに使う版）が 3.118.0 以上になった PC から消してかまいません。** 3.117.x から直に 3.119.0 へ上がった PC は、前の版へ戻すときに前の版が Python を起こすので、次の版に上がるまでは残してください。
+- `program` の中身: `app`（画面の部品〈`templates`・`static`〉・同梱の既定・版と名乗り〈`version.py`・`brand.json`〉）・`sidecar.py`（前の版の窓が「中身がある」と見る 1 行の印）・`config`（設定）・`data`（マスタの初期値）・`docs`（仕組みの説明）・`tests`（作り手の試験の場面と事例の表）・`tools`（作り手の道具）。
 - 利用者ごとの記録やマスタの写し・この PC へ写したアプリ（`app`）・取り込んだ新しい版（`versions`）は `%LOCALAPPDATA%\LotScope` にあります（版 3.19.0 で `TransferPitchAnalyzer` から移しました）。展開したフォルダは BOX・共有フォルダに置いて構いません（アプリはそこへ書き込みません）。
 - 開発で Git を使うときの `.git`・`.gitignore` は配る物に入れません。
 
@@ -41,7 +42,7 @@ GitHub の Releases に、版ごとに配る ZIP（`LotScope-<版>-windows.zip`�
 - LotDsp を開くボタン・外のリンクは、いつものブラウザ（Edge）で開きます。
 - 画面の設定（列の並び・読み替えルール・プリセット・窓の配置など）はこの PC に覚えます。以前のブラウザ版で使い込んだ設定も引き継ぎます。
 - 品質異常は窓が受け持ちます（問い合わせ・品質データの写し）。版 3.118.0 から、設定 `desktop.lotlist_engine`・`schedule.fetch_engine` を `"python"` にして Python へ戻す道はありません（設定が残っていても窓が受け持ち、起動の記録に 1 行残します）。
-- 記録はこの PC の作業場所の `logs\desktop.log` にあります（窓が答えられなかった問い合わせの回数は `logs\delegations.json` と、利用状況のいま使っている印の `unanswered`。前の版の Python の記録は `logs\app.log`・`logs\sidecar_stderr.log`）。
+- 記録はこの PC の作業場所の `logs\desktop.log` にあります（窓が答えられなかった問い合わせの回数は `logs\delegations.json` と、利用状況のいま使っている印の `unanswered`。版 3.117.x までの Python の記録は `logs\app.log`・`logs\sidecar_stderr.log` に残っていることがあります）。
 
 ## 更新のしかた（新しい版に入れ替える）
 
@@ -259,15 +260,15 @@ ScheduleView（CM3 スケジュールビューア）の機能を、見出しの�
 
 版 3.9.0 から、窓（Rust・Tauri）の元をこのリポジトリの `desktop/` に置いています（WaveLog の窓を元に作り直しました）。
 版 3.118.0（段 ④）から `desktop/` がアプリの全部を受け持ちます: 窓・起動画面・1つだけ起動・静的ファイル・画面と API のすべて・外のリンク・終了、
-この PC へ写す・更新（版 3.10.0）、ショートカット・配布の画面の係・配る入口（版 3.11.0）。答えが Python と同じであることは、焼いた表と
-凍らせた Python の写し（`program/tests/legacy/3.117.3`）を相手にする `cargo test` の突き合わせで確かめます（`TPA_NO_PYTHON=1 TPA_FROZEN_PY=1`）。
+この PC へ写す・更新（版 3.10.0）、ショートカット・配布の画面の係・配る入口（版 3.11.0）。答えが前の版の Python と同じであることは、焼いた表
+（`desktop/tests/baked`）と人が書いた事例の表を相手にする `cargo test` の突き合わせで確かめます（`TPA_NO_PYTHON=1`。答え合わせ役は版 3.119.0 で消しました）。
 
 - Python は同梱せず、製品の窓は Python を起こしません（版 3.118.0）。窓が答えられない形は、窓の言葉で断ります（`503 window_unanswered`）。
-  Python の部品と中身を起こす係（`desktop/src/sidecar.rs`）は、前の版へ戻したときと突き合わせの試験のために段 ⑤ まで残します。
+  中身を起こす係と Python の部品は版 3.119.0（段 ⑤）で消しました。
 - 配る ZIP: `python desktop/bundle/bundle.py build --exe <exe> --out <出力先>`（ZIP・release.json・.sha256。Windows の CI（`.github/workflows/desktop.yml`）が作って Artifacts に置き、main に入ったときは GitHub の Releases にも版の札 `v<版>` で載せます。説明はその版の更新履歴から作ります。同じ版の札が既にあれば上書きしないので、配る物を変えたときは版を上げます）。
 - 更新の通し: `python desktop/bundle/verify.py update --exe <exe>`（本物の窓で、共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は前の版へ戻す → 配る版を戻す → 新しい PC が配る入口から入る・ショートカットを直す、の 26 項目。CI が Linux と Windows で流します）。
 
 - 作る: `cd desktop && cargo build`（Linux は `libwebkit2gtk-4.1-dev` などが要ります。`.github/workflows/ci.yml` を参照）。exe は上へたどって `program` フォルダ（`program/app/version.py` と `brand.json`、または前の版の印の `program/sidecar.py`）を探します。
 - 自己診断: `TPA_SELFTEST=<結果のファイル> desktop/target/debug/LotScope` で起こすと、本物の窓の中で 27 項目を確かめて結果を書き、終わります（CI が Linux と Windows で毎回流します）。
-- アイコンは `program/app/app_icon.py` が描きます（作るたびに `desktop/build.rs` が書き出します）。
-- 一覧の速さ: `cargo run --release --example lotbench -- <品質データ>` と `python program/tests/lotlist_bench.py <品質データ>` が同じ問い合わせを測ります。
+- アイコンは焼いた絵（`desktop/icons`・`desktop/splash/icon.png`）です（版 3.119.0 から。組むのに Python は要りません）。
+- 一覧の速さ: `cargo run --release --example lotbench -- <品質データ>` が測ります（前の版の Python の測りは版 3.119.0 で消しました）。

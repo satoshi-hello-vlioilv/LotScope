@@ -1,5 +1,5 @@
 //! 集計（版 3.61.0）: src/pivot.rs の query_many が、Python の services/pivot.query_many と同じ答え・同じ失敗を返すか。
-//! program/tests/pivot_oracle.py が開発用サーバーと同じ試験データで、ダッシュボードが使う形（いくつかのファイル・設備の段・設備で絞る・
+//! 前の版の答え合わせ役 pivot が開発用サーバーと同じ試験データで、ダッシュボードが使う形（いくつかのファイル・設備の段・設備で絞る・
 //! 設備のまとめ・設備グループの段・期間・計算列・箱ひげ・区間・読めないファイル・組み方の誤り）を Python で数えた答えと突き合わせる。
 //! 値の計算（四則演算）は、Python が答えた事例を src/num_expr.rs でも計算して比べる。かかった時間（timing）は比べない。
 //! 版 3.117.2 から窓の答えを焼いた表（tests/baked/pivot.json。詰めた形）にも持つ。場面は作業フォルダの下で、SQLite は標準の部品だけの台本
@@ -49,22 +49,6 @@ fn part_of(p: &Value) -> Part {
     }
 }
 
-/// 表の問い合わせに持つ形（Python の答え answer・fail を除く）
-fn question(v: &Value) -> Value {
-    let mut o = v.clone();
-    for k in ["cases", "fields"] {
-        for c in o[k].as_array_mut().unwrap() {
-            let c = c.as_object_mut().unwrap();
-            c.remove("answer");
-            c.remove("fail");
-        }
-    }
-    for x in o["num_expr"].as_array_mut().unwrap() {
-        x.as_array_mut().unwrap().truncate(2);
-    }
-    o
-}
-
 /// 失敗の形（invalid・down と言葉）
 fn fail_of(e: &Fail) -> Value {
     json!({"fail": {"kind": if matches!(e, Fail::Invalid(_)) { "invalid" } else { "down" }, "error": e.text()}})
@@ -78,7 +62,7 @@ fn pivot_answers_like_python() {
     bk.script = Some(("ui_scene.py", vec![work.to_string_lossy().into_owned(), "pivot".into()]));
     bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
     bk.fid_key = Some("fids");
-    let o = bk.oracle_with("pivot_oracle.py", &[work.to_str().unwrap()], question);
+    let o = bk.table_oracle();
     let now = NaiveDateTime::parse_from_str(o["now"].as_str().unwrap(), "%Y-%m-%d %H:%M:%S").unwrap();
     let conv = Arc::new(Tables::from_json(&Value::Null));
     let mut bad = vec![];

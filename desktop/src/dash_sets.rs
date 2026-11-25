@@ -8,7 +8,7 @@
 //! ```
 //!
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/dashboard.clean_set_body と同じ
-//! （評価関数: tests/sets_parity.rs ← program/tests/sets_oracle.py）。置き場はマスタ dashboards の行のうち元 dashset だけ。
+//! （評価関数: tests/sets_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 sets））。置き場はマスタ dashboards の行のうち元 dashset だけ。
 //!
 //! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
 //! 置き場のファイルか中身の字に i64 に入らない整数（H2）・道の id が i64 に入らない。

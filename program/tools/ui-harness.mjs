@@ -4,7 +4,7 @@
 // 利用者の画面と同じ大きさ（2160×1440・表示倍率 125% → 1728×1152）の頁を開く。
 // 開発用サーバー（版 3.118.2）: 既定は窓（desktop/examples/ui_serve.rs。製品の窓と同じ lib の答えの振り分け〈src/shell.rs〉と Lot。
 // 場面は tests/ui_window_scene.py が作る: 試験用の品質データ 1500 行・作業実績 12 台・仕掛 1200 ロット・作り物の CM3）。
-// TPA_UI_SERVER=python で前の Python の開発用サーバー（tools/ui_server.py。段 ⑤ で消す）。どちらも作業フォルダ（tpa-ui-*）は閉じるときに消し、
+// 前の Python の開発用サーバーは版 3.119.0（段 ⑤）で消した。作業フォルダ（tpa-ui-*）は閉じるときに消し、
 // ポートは OS に選ばせる。窓は TPA_UI_EXE（無ければ cargo の作業フォルダの debug/examples/ui_serve。組むのは ui-all.mjs か
 // `cd desktop && cargo build --example ui_serve`）。
 // 窓だけが答える /__desktop/*（ショートカットの様子など）は作り物で答える（デスクトップのショートカットだけが欠けた PC）。
@@ -13,7 +13,6 @@
 
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
-import net from "node:net";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -157,34 +156,15 @@ export async function launch() {
   };
 }
 
-/** 窓にまだ無い口を使う本 → 理由（版 3.118.2 の作った後の採点の割れ C4・C9: 相手を決めるのはこの表と serverFor の 1 か所。ui-all.mjs も
-    ここを読む）。版 3.118.3 で空になった（遅くする口 TPA_UI_SLOW_FILE を窓の開発用サーバーへ。ui-eval-dashwait.mjs も窓）。表と serverFor の
-    throw の枝は段 ⑤（Python の開発用サーバーを消す）まで残す */
-export const PYTHON_ONLY = {};
-/** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す）。PYTHON_ONLY の本は
-    TPA_UI_SERVER が無ければ python（1 行で言う）、window を頼まれたら流さずに止める（黙って落ちない） */
-export function serverFor(tool, asked = process.env.TPA_UI_SERVER) {
-  if (PYTHON_ONLY[tool]) {
-    if (asked === "window") throw new Error(`${tool} は窓の開発用サーバーではまだ流せません（${PYTHON_ONLY[tool]}）。TPA_UI_SERVER を外すか python にしてください`);
-    return "python";
-  }
-  return asked === "python" ? "python" : "window";
+/** 開発用サーバーの相手はいつも窓（版 3.119.0。前の Python の開発用サーバーと TPA_UI_SERVER=python の枝は段 ⑤ で消した。
+    TPA_UI_SERVER に window でない字を渡したら、黙って窓で流さずに止める） */
+if (process.env.TPA_UI_SERVER && process.env.TPA_UI_SERVER !== "window") {
+  throw new Error(`TPA_UI_SERVER=${process.env.TPA_UI_SERVER} は使えません（版 3.119.0 から開発用サーバーは窓だけ）`);
 }
-const TOOL = path.basename(process.argv[1] || "");
-export const SERVER = serverFor(TOOL);
-if (PYTHON_ONLY[TOOL] && process.env.TPA_UI_SERVER !== "python") console.log(`[ui-harness] ${TOOL} は Python の開発用サーバーで流します（${PYTHON_ONLY[TOOL]}）`);
+export const SERVER = "window";
 /** 窓の開発用サーバーの実行ファイル（cargo build --example ui_serve） */
 export const UI_EXE = process.env.TPA_UI_EXE
   || path.join(process.env.CARGO_TARGET_DIR || path.resolve(PROGRAM, "../desktop/target"), "debug", "examples", process.platform === "win32" ? "ui_serve.exe" : "ui_serve");
-
-/** OS に選ばせた空いているポート（Python の開発用サーバーは 0 番を渡すと、Host の確かめがそのポートで組めない） */
-function freePort() {
-  return new Promise((done, fail) => {
-    const s = net.createServer();
-    s.once("error", fail);
-    s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => done(port)); });
-  });
-}
 
 /** 作業フォルダの持ち主の印（作業フォルダの横の 作業フォルダ.owner に node の PID。版 3.118.2 の作った後の採点の割れ C10） */
 const ownerOf = (work) => `${work}.owner`;
@@ -204,14 +184,6 @@ export function sweepStale(dir = os.tmpdir()) {
   return gone;
 }
 const removeWork = (work) => { fs.rmSync(work, { recursive: true, force: true }); fs.rmSync(ownerOf(work), { force: true }); };
-
-/** Python の開発用サーバー（tools/ui_server.py。段 ⑤ でこの関数ごと消す: Python を起こすのはここだけ）→ { server, ready(出力), grace } */
-async function startPython(env) {
-  const port = await freePort();
-  const server = spawn("python", ["-u", path.join(PROGRAM, "tools/ui_server.py"), String(port)], { stdio: ["pipe", "pipe", "inherit"], env });
-  // 最初の 1 行で待ち受けを始めた（ポートはこちらで選んだ物）。止めるときは待たずに SIGTERM
-  return { server, ready: (buf) => (buf.includes("\n") ? `http://127.0.0.1:${port}` : null), grace: 0 };
-}
 
 /** 窓の開発用サーバー（場面の台本 tests/ui_window_scene.py が作業フォルダに場面を作り、ui_serve を起こす）→ { server, ready(出力), grace } */
 function startWindow(env, work) {
@@ -238,15 +210,14 @@ export async function startServer() {
   const env = { ...process.env, TPA_UI_WORK: work };
   let started;
   try {
-    started = SERVER === "python" ? await startPython(env) : startWindow(env, work);
+    started = startWindow(env, work);
   } catch (e) {
     removeWork(work);
     throw e;
   }
   const { server, ready, grace } = started;
-  // 道具が close を呼ばずに終わった（例外・process.exit）ときも、子を止めて作業フォルダを消す（前は ui_server.py が残り、
-  // 標準エラーをつかんだまま ui-all.mjs の待ちを止めた。版 3.118.2）。node が SIGKILL で消えたときは、窓の形は台本が標準入力の
-  // 閉じたのを見て作業フォルダを消し、Python の形は次に起こすときの sweepStale が消す
+  // 道具が close を呼ばずに終わった（例外・process.exit）ときも、子を止めて作業フォルダを消す（版 3.118.2）。node が SIGKILL で消えたときは、
+  // 台本が標準入力の閉じたのを見て作業フォルダを消し、残った物は次に起こすときの sweepStale が消す
   const atExit = () => { try { server.kill("SIGKILL"); } catch { /* 済み */ } try { removeWork(work); } catch { /* 済み */ } };
   process.once("exit", atExit);
   const stop = async () => {
@@ -292,7 +263,7 @@ export const TIME_TEXT = [
   // ダッシュボードの待ちの経過・残りの秒（「数え直し・29.8 秒」「あと約 3 秒」。撮った時にまだ数え直していたパネル）
   { sel: "#dashGrid .db-p, #dashBar", re: String.raw`\d+(\.\d+)? 秒`, why: "ダッシュボードの待ちの秒" },
   { sel: "#elapsed", re: String.raw`\d+(\.\d+)? 秒`, why: "起動画面の経過の秒" },
-  // 作り物の CM3（予定の元）のポート: 起こすたびに OS が選ぶ（Python の開発用サーバーの中の CM3 も）
+  // 作り物の CM3（予定の元）のポート: 起こすたびに OS が選ぶ
   { sel: "body", re: String.raw`127\.0\.0\.1:\d+`, why: "作り物の予定の元のポート" },
 ];
 

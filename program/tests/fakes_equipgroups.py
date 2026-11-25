@@ -2,7 +2,7 @@
 """設備グループの本（desktop/tests/equipgroups_write_parity.rs）の作り物の CM3（版 3.117.0。標準の部品だけ。app を import しない）。
 
 場面「スケジュールの元がある（作り物の CM3 に届く）」が問い合わせる相手: 設備 L-1 の予定 6 行（発行は 2026-10-03 08:12 JST）。
-起こすのは tests/fakes_serve.py（python tests/fakes_serve.py equipgroups）と、答え合わせ役 tests/equipgroups_oracle.py。
+起こすのは tests/fakes_serve.py（python tests/fakes_serve.py equipgroups）と、前の版の答え合わせ役 equipgroups。
 """
 from datetime import datetime, timedelta, timezone
 

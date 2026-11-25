@@ -6,7 +6,7 @@
 ここでは焼いた本の試験の実行ファイル（desktop/tests/baked/books.json の焼いた本の tests と bake_selftest）を、手元と違う形で流す:
 
     runner … root でない利用者（daemon。名前は runner）・家は新しい一時フォルダ・TMPDIR は別のファイル系（/dev/shm）・
-              Python は /usr/bin/python3（SQLite の版が違う）・Python と比べる形。流している間だけ、取り出しの program/data・program/config を
+              Python は /usr/bin/python3（SQLite の版が違う）・表だけの形（版 3.119.0 から。前は Python と比べる形）。流している間だけ、取り出しの program/data・program/config を
               「古い取り出し」（更新時刻を 5 日前）・「umask 002 の取り出し」（フォルダ 775・ファイル 664）の形にする（終わったら元へ戻す。
               版 3.116.0 の作った後の直し: 焼いた表が取り出してからの日数と権限に頼ると、ここで落ちる）
     nopy   … root でない利用者・リポジトリが家の下（HOME=リポジトリの 2 つ上）・TZ=Asia/Tokyo・TMPDIR は /dev/shm・TPA_NO_PYTHON=1。

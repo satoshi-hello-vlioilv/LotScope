@@ -1,5 +1,5 @@
 //! 設備グループの道（src/equipgroups_write.rs）が Python の道（routes/equipgroups.py の 4 本）と同じ答えか（版 3.94.0）。
-//! program/tests/equipgroups_oracle.py が場面ごとに同じ中身の置き場を作り、py に Python の道で問い合わせの並びを当てる。ここでは rs に
+//! 前の版の答え合わせ役 equipgroups が場面ごとに同じ中身の置き場を作り、py に Python の道で問い合わせの並びを当てる。ここでは rs に
 //! 同じ並びを本物の窓の道（Lot::handle_body → equipgroups_route。門番・書く係・選べる設備を数えるダッシュボードの数え方）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで。選べる設備の出どころと件数も）と、終わった後のファイル（共有・同梱の data/ の
 //! 設備グループ）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
@@ -81,7 +81,7 @@ fn equipment_groups_match_python() {
     bk.strip_in.push("steps");
     // 作り物の CM3 は窓が問い合わせる間も起こしておく（版 3.96.0 から窓がスケジュールの係）。Python 無しの形では起こしたままの相手の台本を起こす
     bk.fakes = Some(("fakes_serve.py", vec!["equipgroups".to_string()]));
-    let (live, oracle) = bk.live("equipgroups_oracle.py", &[base.to_str().unwrap(), "--serve"]);
+    let (live, oracle) = bk.live_table();
     let mut bad = vec![];
     let (mut steps, mut delegated, mut seen, mut placed_by_python, mut cm3_cases) = (0, 0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {

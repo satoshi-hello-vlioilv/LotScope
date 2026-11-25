@@ -3,7 +3,7 @@
 
 場面ごとの答え（World: 届く・中身が変わる・chunked・HTTP/1.0・charset・文字化けと HTML の壊れ方・答えの形の端・30x・500・黙る・閉じる …）を
 作り物の CM3（tests/schedule_fixture.Cm3Server。道の頭 /<係>/<場面>/ で場面と数えを分ける）に載せ、接続を受けない口（blackhole）も作る。
-前は答え合わせ役 tests/schedule_oracle.py の中にあった（app を import する台本）。起こすのは tests/fakes_serve.py
+前は前の版の答え合わせ役 schedule の中にあった（app を import する台本）。起こすのは tests/fakes_serve.py
 （python tests/fakes_serve.py schedule 仕掛の SQLite）と、答え合わせ役。尋ねられる口（ask）: 「requests 係 場面」＝その場面で CM3 が受けた要求の並び・
 「count 係 場面」＝その数（窓の試験が途中で尋ねる）・「proxylog 名前」＝作り物のプロキシが受けた要求の行と見出し。
 版 3.117.1（段 ③-6）: https の作り物（作り物の CA が出した 127.0.0.1 の証明書・名前の違う証明書・信頼しない CA の証明書。tests/fixtures/tls）・

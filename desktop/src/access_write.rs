@@ -7,7 +7,7 @@
 //! PUT    /api/masters/tabaccess       … タブの権限を置く（{ok, revision}。本文 base_rev は開いたときのマスタの版）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/access_write_parity.rs ← program/tests/access_write_oracle.py。同じ問い合わせの並びを
+//! 決まりは Python と同じ（評価関数: tests/access_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 access_write）。同じ問い合わせの並びを
 //! Python の道と窓に当て、答え・断る言葉・できたファイルを突き合わせる）:
 //! - 本文の読み方（routes/access._perm_payload）・権限の門（_perm_gate: 区分の上限・区分を変えてよいか）・消してよいか（delete_check）
 //! - 行の書き方（repositories/master_repository の _create・_update・_delete・tab_access_put: 版の無い行は 1・ログインID と PC名 の組は 1 行・行の版）

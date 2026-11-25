@@ -4,7 +4,7 @@
 //! 形に合わせて組み立てる: 設備の分け方（重ねる series・並べる facet・合算 sum）・別のデータを合わせる（link）・合わせた表（board）。
 //! スケジュール（CM3）は版 3.96.0 から窓が係（lists.rs の src_plan_eq → schedule.rs）。窓の束の設定が無い形・係を降りた設定は Python が答える（None）。
 //! 材料（データ元・作業実績の登録・勤務体系・設備の名前・設備グループ・試験の「いま」）は、一覧の設定の答え（lists）で受け取る。
-//! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（program/tests/dash_oracle.py）と突き合わせて確かめる。
+//! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（焼いた表 desktop/tests/baked（前の版の答え合わせ役 dash））と突き合わせて確かめる。
 
 use crate::formula::{self, Calc, Tables};
 use crate::jsontree::Tree;

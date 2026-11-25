@@ -67,8 +67,6 @@
   "files": {},
   "links": {}
  },
- "sources": {
-  "tests/seeds_oracle.py": "ddc48f18b4fa44d9"
- },
+ "sources": {},
  "variant": "root"
 }

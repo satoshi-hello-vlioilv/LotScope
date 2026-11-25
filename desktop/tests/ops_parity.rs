@@ -1,6 +1,6 @@
 //! 稼働（ガントチャート）・ABC 分析と換算係数（版 3.63.0）: 窓（src/operation.rs・src/dashboard.rs の稼働の道）が POST /api/dashboard/query の
 //! gantt・abc のパネルに、Python の道（routes/dashboard.py の _ops_answer・services/operation.py）と同じ答え・同じ失敗を返すか。
-//! program/tests/ops_oracle.py が tools/ops-bench.py の 9 つの書き方の設備に、区間を出せない理由のすべて・棒の上限を超える設備・読めない設備・
+//! 前の版の答え合わせ役 ops が tools/ops-bench.py の 9 つの書き方の設備に、区間を出せない理由のすべて・棒の上限を超える設備・読めない設備・
 //! 品種と量の列・勤務体系の違う設備を足し、ガントと ABC の選び方ごとに Python で答えた物と突き合わせる。設定を替えて問い直す段も
 //! （足した設備〈値の書き方・勤務体系の形・上限の両側〉・いまを替える〈答えの控えを残したまま。組ごとに設定を持つ〉・勤務体系が無い）。
 //! 段の始めと、設定を持つ組の前で一覧の設定を尋ね直す（Lot::invalidate。答えの控えは消さない）。
@@ -35,24 +35,6 @@ fn strip(v: &mut Value) {
         Value::Array(a) => a.iter_mut().for_each(strip),
         _ => {}
     }
-}
-
-/// 表の問い合わせに持つ形（Python の答え status・body を除く。変換表の版の印は決めた字）
-fn question(v: &Value) -> Value {
-    let mut o = v.clone();
-    let drop = |cs: &mut Value| {
-        for c in cs.as_array_mut().unwrap() {
-            let c = c.as_object_mut().unwrap();
-            c.remove("status");
-            c.remove("body");
-        }
-    };
-    drop(&mut o["cases"]);
-    for ph in o["phases"].as_array_mut().unwrap() {
-        drop(&mut ph["cases"]);
-    }
-    common::bake::fixed_conv_rev(&mut o);
-    o
 }
 
 /// 1 つの組を窓に尋ね、比べる相手（Python か焼いた表）と比べる → 比べる相手の答え（窓が答えなければ None）
@@ -119,7 +101,7 @@ fn operation_answers_like_python() {
     bk.script = Some(("ui_scene.py", vec![work.to_string_lossy().into_owned(), "ops".into()]));
     bk.exclude.extend(["cache", "local", "instance_id", "roll_master.json", "roll_master.csv"]);
     bk.fid_key = Some("fids");
-    let o = bk.oracle_with("ops_oracle.py", &[work.to_str().unwrap()], question);
+    let o = bk.table_oracle();
     let settings = o["settings"].clone();
     let lot = Lot::new(work.join("db_cache"));
     let mut bad = vec![];

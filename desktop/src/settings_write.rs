@@ -5,7 +5,7 @@
 //! PUT /api/settings/<key>  … 値を置く（空なら行を消して既定へ戻す。本文 base_rev は開いたときの行の版〈行が無かったときは 0〉）
 //! ```
 //!
-//! 決まりは Python と同じ（評価関数: tests/settings_write_parity.rs ← program/tests/settings_write_oracle.py、GET は tests/page_parity.rs）:
+//! 決まりは Python と同じ（評価関数: tests/settings_write_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 settings_write）、GET は tests/page_parity.rs）:
 //! - 値の読み方は services/path_settings.parse（誤りの言葉も同じ字。項目の名前・範囲は焼いた表 bundle_tables.json の settingsItems）。
 //!   置く字は Python の str(value)（整数は桁、小数は float の repr〈36.0・1e+16〉）
 //! - 行の書き方は master_repository.path_setting_put（「項目」が同じ最初の行を直す・無ければ足す・値が空なら消す）を master_rows::put_by_key で

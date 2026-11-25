@@ -12,7 +12,7 @@
 //! ```
 //!
 //! 決まりは services/conversions.py と master_repository の conversion_* と同じ（評価関数: tests/conversions_write_parity.rs ←
-//! program/tests/conversions_oracle.py）。本文は送った順の木（src/jsontree.rs）で読み、入力・判定・当て方の字は json.dumps の既定の
+//! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 conversions））。本文は送った順の木（src/jsontree.rs）で読み、入力・判定・当て方の字は json.dumps の既定の
 //! 区切り（", "・": "）で書く（判定の when の鍵は送った順・同じ鍵は後ろの値を前の位置へ）。値の字は _text（0 → "0"・false → "False"・
 //! 小数は Python の repr）。範囲の端は float(str(v).replace(",", "")) と同じ読み方（pyfmt::py_float。「１,000」→ 1000・「-0」→ 0）。
 //! 出す値の式は formula::Formula::compile で読む（画面と Python の式と同じ部品）。表示順の無い行は最後（master_rows::next_order）。
