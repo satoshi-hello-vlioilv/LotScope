@@ -1,9 +1,10 @@
 {
  "title": "品質データもほかのデータ元と同じ汎用のデータに（利用者の改良依頼 2026-11-17 の 2「品質データは消せないが、グループに入れたり、移したりはできるようにしたい」）— 案出し 1 回目（版 3.121.0 の上で）",
  "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。",
  "request": "品質データ（データ元の 1 つ）も、ほかのデータ元と同じ汎用のデータとして扱いたい。品質データは消せないが、グループに入れたり、移したりはできるようにしたい。",
  "scene": "ui-harness.mjs の状態 qg-list 〜 qg-off（この比べのために master-sources-many の後ろへ足した）。データ元が多い形（manySources: 台帳 8・工程 2・マスタ 2・結合した表「品質データ＋製造条件」1）で、qg-list＝データ元の 1 行 1 件の表（表の頭へ送った所）・qg-menu＝品質の行を右クリック・qg-moved＝メニューの「「工程」へ移す」を押した後（押せないときは Esc。品質の行を真ん中へ送る）・qg-edit＝品質の「変える…」の「名前とタブ」の段・qg-tab＝見出しの「工程」のグループのタブ（showScreen(\"grp:工程\")）・qg-tab-lot＝その札の「品質」を押した所（無ければそのまま）・qg-tabmenu＝札の「品質」（無ければ最初の札）を右クリック。qg-off がマスタ管理のデータ元へ戻す（次の master-sources-many-off のため）。案の画面では、窓の答え GET /api/sources を頁の中で直して品質のグループと並びを返す（sessionStorage。窓・保存は変えない）。master-sources.js・master.js は 1 つの関数に包まれていて外から差し替えられないので、案は TPA.menu を包み、⠿・欄・札を DOM で足し、動かした後はデータ元のタブを行き来して描き直させる（引いて落とす手は撮らない）",
- "how_to_shoot": "TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve（作業場所の desktop で CARGO_TARGET_DIR=/home/user/LotScope/desktop/target CARGO_PROFILE_DEV_DEBUG=0 cargo build --locked --example ui_serve）TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs 出力 program/tools/ui-proposals/2026-11-qualitygroup.mjs --from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu を、既定（1728×1152）・--view 1536x864・--view 1280x720 で（3 つは別々の出力フォルダ。並べて流してよい）。今（baseline）は ops の無い案 1 つ（PROPOSALS = [{ key: \"now\", name: \"今（版 3.121.0）\", css: \"\", ops: [] }]）を同じ形で撮る",
+ "how_to_shoot": "TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve（作業場所の desktop で CARGO_TARGET_DIR=/home/user/LotScope/desktop/target CARGO_PROFILE_DEV_DEBUG=0 cargo build --locked --example ui_serve）TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs 出力 program/tools/ui-proposals/2026-11-qualitygroup.mjs --from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu を、既定（1728×1152）・--view 1536x864・--view 1280x720 で（3 つは別々の出力フォルダ。並べて流してよい）。今（baseline）は ops の無い案 1 つ（PROPOSALS = [{ key: \"now\", name: \"今（版 3.121.0）\", css: \"\", ops: [] }]）を同じ形で撮る。3 つの大きさを並べて流すと撮る途中で時間切れになることがある（1 回目の採点の係）ので、1 つずつ流す。回 2 の案は --only G,H,I,J,K",
  "findings_now": {
   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/before-1728・before-1536・before-1280（今。版 3.121.0。*-light-now.png）",
   "seen": [
@@ -33,7 +34,23 @@
      "direction": "減らし方",
      "shots": "qg-list・qg-menu・qg-moved・qg-edit・qg-tab・qg-tab-lot",
      "changes": "common_build だけ",
-     "risks": "消せないこと・タブを外せないことは、消すボタンが無い・字が「いつも出す」で分かるだけ（なぜ消せないかは欄の説明に 1 行）"
+     "risks": "消せないこと・タブを外せないことは、消すボタンが無い・字が「いつも出す」で分かるだけ（なぜ消せないかは欄の説明に 1 行）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 8,
+      "place": 9,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "qg-list: 品質の行の頭に ⠿ が付き、ほかの元と同じ並びに見える（実績だけ ⠿ 無し）。qg-menu: 品質の右クリックで「「マスタ」へ移す・「台帳」へ移す・「工程」へ移す・新しいグループへ…・下へ」が押せる（上へは「グループのいちばん上です」で本当に頭なので正しい）。今の薄く押せないメニューと同じ形・同じ言葉のまま押せるようになるだけなので、迷わない。qg-moved: 品質が工程の最後に入り、見出しの決まったタブ「品質」が消え、qg-tab の工程の札が「工程・スラブ・品質」になり、qg-tab-lot で品質の一覧（全 1,500 件）が開く。依頼の『グループに入れる・移す』はほかの元と同じ手（右クリック 2 手・⠿）で届いている。qg-edit: 名前とタブにグループの欄（工程）と『品質はアプリの決まったデータ元なので、消せません・タブはいつも出ます』の 1 行。弱い所: 表で『消せない』を言うのは「● いつも出す」の字だけで、ほかの行のスイッチと形が違う（形と色・視覚化が今のまま）。グループの欄が文字の入力欄で選べない。qg-moved では元の品質の下にあった └ 品質データ＋製造条件 が グループなし の仕掛の後ろへ字下げ無しで残り、どの元の結合か離れて見える（どの案も同じ）。1280 でも結合の列の「製造条件マスタ 1,339/1,500」は切れない。品質を工程へ入れた後、品質の一覧へは工程→品質の 2 手になりうる（前に開いた札を覚えるので毎回ではない。A〜E 共通の弱み）。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
     },
     "B 標準の元に「錠・標準」の印をそろえる（消せない・いつも出すを形で）": {
      "id": "B",
@@ -41,7 +58,23 @@
      "direction": "見せ方",
      "shots": "qg-list・qg-moved",
      "changes": "common_build に加え、paintSources の行に標準の札、sw() のいつも出すを押せないスイッチの形に",
-     "risks": "札が 4 行に増え、名前の横が混む（スケジュールは「標準」「予定」の 2 つの札）。仕掛・スケジュールは消せないがタブは外せる、の違いは札では分からない"
+     "risks": "札が 4 行に増え、名前の横が混む（スケジュールは「標準」「予定」の 2 つの札）。仕掛・スケジュールは消せないがタブは外せる、の違いは札では分からない",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "qg-list: 品質・実績・仕掛・スケジュールの名前の横に「🔒 標準」の札、品質・実績の見出しのタブの欄が、ほかの行と同じスイッチの形（ON・薄い・錠の印）になる。今の「● いつも出す」の字との形の違いが消え、『消せない・外せない』が形で一目に分かる（依頼の『品質は消せない』がいちばん見える案）。qg-moved: 工程の最後に「品質 🔒 標準」とその錠のスイッチが入り、ほかの行と同じ並び。メニュー・欄・見出しは A と同じで、移す手は A と同じ数。弱い所: 錠の札が 4 行に付くが、錠のスイッチは 2 行だけ（仕掛・スケジュールは標準なのにタブは外せる）で、錠の意味が『消せない』と『外せない』の 2 つに分かれ推測させる。スケジュールは「🔒 標準」「予定」の 2 つの札で名前の横が混む（1280 でも切れてはいない）。錠のスイッチの「出す」の字は画素で 63,100,97 と十分濃く読める。薄い緑のスイッチは押せない形として分かる。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
     },
     "C 表に「グループ」の列（選ぶだけで入れる・移す）": {
      "id": "C",
@@ -49,7 +82,32 @@
      "direction": "置き場",
      "shots": "qg-list・qg-moved",
      "changes": "common_build に加え、paintSources の表に列と選ぶ欄（変えたら moveTo）",
-     "risks": "列が 1 つ増え、1280 で結合の列の相手の名前が … で消える（数は残る）。グループの見出し行と行の選ぶ欄で同じことを 2 度言う"
+     "risks": "列が 1 つ増え、1280 で結合の列の相手の名前が … で消える（数は残る）。グループの見出し行と行の選ぶ欄で同じことを 2 度言う",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/qg-list-light-C.png 結合の列: 品質の行の相手の名前（製造条件マスタ）が消え「1,339/1,500」だけ、結合した表の行が「＋ 製造条…」、仕掛の札が「← スケジュ…」、製造条件マスタの札が「← 2つの結…」と切れる"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1728/qg-list-light-C.png 品質の行の結合の列: 既定の大きさでも「製造条件マ… 1,339/1,500」と相手の名前が切れる"
+      }
+     ],
+     "seen": "qg-list: 見出しのタブの右に「グループ」の列と、行ごとの選ぶ欄（なし・マスタ・台帳・工程）。品質も「なし ▾」で選べ、実績と結合した表は —。選ぶだけで 1 手で入れる・移すができる（ステップは最少）。ただし 17 行すべてに同じ形の選ぶ欄が並び、どの行もグループの見出し行と同じ字（台帳・台帳・台帳…）を繰り返す。表がフォームのように重く、最初に見る物がぼやける（階層化・チャンク）。グループを言う場所が見出し行と列の 2 か所（言葉と置き場）。qg-moved: 品質が工程に入り、選ぶ欄が「工程」に。列が増えたぶん結合の列が狭まり、1728 でも 1280 でも相手の名前が … で消える（減点）。『消せない』は A と同じく「● いつも出す」の字だけ。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
     },
     "D 見出しのタブ・札の右クリックからもグループへ": {
      "id": "D",
@@ -57,7 +115,28 @@
      "direction": "流れの変え方",
      "shots": "qg-tab・qg-tab-lot・qg-tabmenu",
      "changes": "common_build に加え、app.js の見出しのタブの右クリック（今は名前を変える・並べ替え）と lotlist.js の札の帯に、グループのメニュー",
-     "risks": "見出しのタブの右クリックには今、名前を変える・並べ替えがあり、グループの項目と混ざる。マスタ管理を開かずに共有の設定（全員のグループ）が変わる"
+     "risks": "見出しのタブの右クリックには今、名前を変える・並べ替えがあり、グループの項目と混ざる。マスタ管理を開かずに共有の設定（全員のグループ）が変わる",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "unreadable",
+       "where": "score1-1728/qg-tab-lot-light-D.png・qg-tabmenu-light-D.png の札の帯の右「右クリックでグループへ移す・出す」: 薄い灰の小さな字（画素で 111,127,139）が淡い地の上で、コントラスト 4.5 に届かない。1280（score1-1280/qg-tabmenu-light-D.png）でも同じ"
+      }
+     ],
+     "seen": "データ元の表・メニュー・欄は A と同じ（⠿・押せるメニュー）。加えて qg-tabmenu: 見出しの工程のタブの札「品質」を右クリックすると「タブ「品質」 グループ: 「マスタ」へ移す・「台帳」へ移す・「工程」から出す（1 つのタブに）・新しいグループへ…・データ元で直す…」と『品質はアプリの決まったデータ元なので、消す・タブを外すはできません』の 1 行。一覧からマスタ管理を開かずに移せる（ステップ数）し、メニューの中で『消せない』を言う。1280 でもメニューは窓に収まり、項目も切れない。弱い所: 右クリックは見えないので、帯の右の薄い案内に頼る（考えさせない）。見出しのタブの右クリックには今、名前を変える・並べ替えがあり、グループの項目と混ざる型（直感的）。メニューは見出しの札を覆う。表の『消せない』は A と同じく字だけ。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
     },
     "E 行を選んで、上の帯の「グループへ移す ▾」（まとめて）": {
      "id": "E",
@@ -65,7 +144,28 @@
      "direction": "流れの変え方・減らし方",
      "shots": "qg-list・qg-menu（右クリックで □ と帯）・qg-moved",
      "changes": "common_build に加え、paintSources の □ と上の帯（選んだ元をまとめて moveTo）",
-     "risks": "□ と ⠿ が並び、行の頭が混む。帯が表を 1 段下げる。右クリックで選ばれるのは慣れない人には意外"
+     "risks": "□ と ⠿ が並び、行の頭が混む。帯が表を 1 段下げる。右クリックで選ばれるのは慣れない人には意外",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 6,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/qg-menu-light-E.png 品質の行の結合の列: □ の列が増えたぶん「製造条件… 1,339/1,500」と相手の名前が切れる（A の 1280 は切れない）"
+      }
+     ],
+     "seen": "qg-list: 行の頭に □ と ⠿ が並び、表の上に点線の帯『行の □ を選ぶと（右クリックした行も）、まとめてグループへ移せます』。qg-menu: 右クリックした品質に ✓ が付き、帯が『1 件を選んでいます 品質 … グループへ移す［選ぶ ▾］ 選ぶのをやめる』に替わる。メニューは A と同じ。まとめて移せるのは強みだが、1 件を移す手は □ → 選ぶ欄 → 値 で A の右クリックより減らない。帯が表を 1 段下げ、1728 でも工程の最後の行が窓の下に寄る（階層化・整列）。qg-edit（score1-1536/qg-edit-light-E.png）: 動かせない「そのほかの接続」の 3 行（ロット問い合わせ・更新の置き場・LotDsp を裏で読むブラウザ）にも □ が出ていて、選べるのに移せない物に見える（直感的・形）。実績と結合した表には □ が無く、行ごとに頭の形がまちまち。右クリックで選ばれるのは意外。『消せない』は字だけ。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
     },
     "F 品質は入ったグループの頭に（グループのタブは品質から開く）": {
      "id": "F",
@@ -73,9 +173,107 @@
      "direction": "階層",
      "shots": "qg-moved・qg-tab（工程のタブを押すと品質）・qg-tab-lot",
      "changes": "common_build に加え、moveTo で lot をグループの頭へ（near が無いとき）・app.js のグループのタブの最初の札を lot に",
-     "risks": "品質をグループの途中・最後へは並べられない（ほかの元と同じではない）。グループのタブがいつも品質から開く（前に開いていた札を覚える今の決まりと食い違う）"
+     "risks": "品質をグループの途中・最後へは並べられない（ほかの元と同じではない）。グループのタブがいつも品質から開く（前に開いていた札を覚える今の決まりと食い違う）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "qg-moved: 品質は工程の頭に入り、名前の横に「グループの頭」の札。qg-tab: 見出しの工程のタブを押すと、札の頭「★ 品質」が選ばれ品質の一覧（全 1,500 件）がすぐ開く（ほかの案は工程のタブがスラブの『読めませんでした』で開く）。品質をグループに入れても品質へ 1 手で届き、手が増えない（ステップ数・階層化）。弱い所: 品質はグループの途中・最後へ置けず、引いても頭へ戻る。依頼の『ほかのデータ元と同じ汎用のデータとして扱いたい』と逆向きで、見た目どおりに動かない（直感的）。札の ★ は、このアプリでは保存した見方の『★ 標準』と同じ印で、意味が食い違う（形と色・考えさせない）。グループのタブがいつも品質から開き、前に開いた札を覚える今の決まりと食い違う（言葉と置き場）。表の『消せない』は A と同じく字だけ。1280 でも切れ・重なりは無い。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
+    }
+   },
+   "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。",
+   "images_scored": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）・scorenow-*（今）",
+   "baseline": {
+    "今（版 3.121.0）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 3,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "scorenow-1728/qg-menu-light-now.png 品質の右クリック: 上へ・移す・新しいグループへ…が薄く押せず、理由は「グループのいちばん上です」だけで、本当の理由（品質は動かせない）が見えない"
+      }
+     ],
+     "seen": "scorenow-*/qg-list: 品質と実績だけ ⠿ が無く、グループなしの頭に固定。qg-menu: 移す・新しいグループへが押せない。qg-moved は何も変わらない。qg-edit にグループの欄が無い。qg-tab の工程の札にスラブだけ。依頼の『品質をグループに入れる・移す』はどの手でもできない。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-tab-lot,qg-tabmenu）、既定 1728・--view 1536x864・--view 1280x720。3 つを並べて流すと 1728 と 1280 が撮る途中の時間切れ（TimeoutError）で落ちたので、その 2 つは 1 つずつ流し直し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/score1-1728・score1-1536・score1-1280（案）と scorenow-1728・scorenow-1536・scorenow-1280（今。now.mjs）。前の係の画像（r1-*・before-*）は使っていない。B の錠の「出す」の字と D の帯の案内の字は画像の画素を取って明るさを確かめた（B 63,100,97 で白地に十分・D 111,127,139 で地の色に対して 4.5 に届かない）。"
+    }
+   },
+   "evaluation": "採点の係のまとめ: 1 位 B 79.3・2 位 A 78.6・3 位 F 75.2・4 位 D 72.7・5 位 E 61.3・6 位 C 58.0（今 59）。どれも合格点 80 に届かない。A・B はどちらも依頼（品質を消さずにほかの元と同じ手で入れる・移す）に届き、減点も無いが、A は『消せない』が字だけ、B は錠の意味が 2 つに分かれ名前の横が混む。次の回へ持ち越す価値: B の錠のスイッチ（ほかの行と同じ形で押せない）、D のメニューの中の『消す・タブを外すはできません』の 1 行と札の右クリック（案内の字は濃く）、F の『グループのタブから品質へ 1 手』（ただし品質を頭に固定しない形で）、A の今のメニューの形のまま押せるようにする最小の差。C の選ぶ欄の列と E の □ と帯は、表を重くし 1280 で結合の列を切るので持ち越さない。"
+  },
+  {
+   "name": "2 回目",
+   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/qgroup/r2-1728・r2-1536・r2-1280（案 G〜K。sheet-状態-light.png が全案の一覧）と before-1728・before-1536・before-1280（今）",
+   "self_check": "案を作った者（案出し係）が 5 案（G・H は 1 回目の B・A＋D を直した持ち越し、I・J・K は新しい案）を 1728・1536×864・1280×720 で撮り、画像を自分で開いて見た（撮り直し 5 回。3 つの大きさは並べず 1 つずつ流し、最後の回はどれも終了コード 0）。直したこと: (1) グループのタブの字（「工程 › 品質」）と I の見出しの札を足したら、1280 で見出しの右の「終了」「アプリ」が窓の外へ切れた → 字を足したら app.js の fitTabs で詰め直す（後ろのタブが「ほか n ▾」へまとまる）。(2) 決まったタブ「品質」を隠すだけでは fitTabs が隠したタブを「ほか n」に数えた → 品質のタブは見出しの並びから外す（帯の外へ。showScreen はそのまま #tabList を使う）。(3) G と H の qg-tab・qg-tab-lot・qg-tabmenu で、グループの札の帯が「工程 スラブ」だけになり品質の札が抜けた（一覧が札の帯を描き直す時と撮る時が重なった・見出しの state.sources が読み直す前だった）→ 札の帯を描き直したらすぐ直す（MutationObserver）、品質と結合した表の札は案が覚えたグループで数える。撮り直して、どの案も 3 つの大きさで「工程 スラブ 品質 品質データ＋製造条件」の品質が選ばれた形。(4) K: グループのまとまりにしたら「この元で結合した表を作る…」の前の線が消え、グループの項目と続いて見えた → 続く線だけ 1 本にし、その線は残す。(5) G・I・J・K の欄の押せない「このデータ元を消す」が薄い赤（不透明度 .55）で読みにくかった → 不透明度をやめ、字を #8b5a5a・地を #faf6f6（押せない形は地と縁で言う）。(6) 1 回目の指摘 3（結合した表が元から離れる）: 品質を工程へ移すと └ 品質データ＋製造条件 が品質の下に付いて工程へ入り、見出しの工程の札にも並ぶことを qg-moved・qg-tab で確かめた。(7) 1 回目の指摘 2（品質へ 2 手）: どの案も qg-tab（見出しの工程のタブを押す 1 手）で品質の一覧（全 1,500 件）が開き、札の頭は「工程」の字・品質は 3 つ目（頭に固定しない・★ 無し）を確かめた。(8) H の札の帯の案内を #3d4b57 の字に（1 回目の D の減点）。見たが直していない所: I は 1280 で開いたグループの札が見出しを占め、後ろの 6 つのタブ（品質のほか実績・仕掛など）が「ほか 6 ▾」にまとまる（I の弱み。risks に書いた）。G・J・K の「台帳 › 組成」も 1280 では「ほか 2 ▾」に入る。工程のタブを開いた直後の札の帯は「工程」の字が札の頭にあり札と同じ高さ（今と同じ形）。K は撮る状態が「「工程」へ移す」の字で押すので、工程の項目に見えない字を添えた（画面には出ない）。J の帯は qg-moved の後の状態（qg-edit）でも出たまま（× か次の操作で消える形）",
+   "carried": "B の押せない錠つきスイッチ（G・I・J・K）／D のメニューの『消す・タブを外すはできません』の 1 行（どの案も）と見出しの札の右クリック（H。案内の字を濃く #3d4b57）／A の今のメニューの形と言葉のまま押せる（H）。持ち越さない: C の行ごとの選ぶ欄・E の □ と帯・F の頭に固定と ★",
+   "proposals": {
+    "G B 改: 錠は「タブを外せない」だけ。消せないはメニューと欄で・グループのタブに次に開く札": {
+     "id": "G",
+     "new": false,
+     "summary": "品質・実績の見出しのタブの欄は、ほかの行と同じスイッチの形（ON・薄い・錠）。錠はこの『タブを外せない』の 1 つの意味だけに使い、表の名前の横の「🔒 標準」の札はやめた（仕掛・スケジュールは今のスイッチ）。消せないはメニューの最後の 1 行と欄の押せない「このデータ元を消す」で言う。見出しのグループのタブに、押すと開く札の名前（「工程 › 品質」「台帳 › 組成」）。品質を工程へ移すと工程のタブは「工程 › 品質」で、押すと 1 手で品質の一覧",
+     "direction": "見せ方・階層",
+     "shots": "qg-list（錠のスイッチ 2 行だけ）・qg-menu（最後の 1 行）・qg-moved（工程に 品質 と └ 品質データ＋製造条件）・qg-edit（グループを選ぶ欄・押せない消す）・qg-tab（工程 › 品質 を押すと品質）",
+     "changes": "common_build と common_build_2 に加え、sw() の固定のタブを押せないスイッチの形に・app.js のグループのタブに覚えた札の名前",
+     "risks": "グループのタブの字が長くなり、1280 では後ろのタブが「ほか n ▾」へまとまりやすい"
+    },
+    "H A＋D 改: 今の表とメニューのまま押せる・見出しの札の右クリックからも": {
+     "id": "H",
+     "new": false,
+     "summary": "表は今の形（品質に ⠿ が付くだけ。「● いつも出す」の字もそのまま）。メニューは今の形と言葉のまま押せ、最後に消せないの 1 行。見出しのグループの札（品質も）を右クリックすると、グループへ移す・グループから出す・新しいグループへ・データ元で直す（品質は消す・外すができないの 1 行）。札の帯の右に濃い字で「札を右クリック: グループへ移す・出す」。グループのタブは前に開いた札（移した直後は品質）",
+     "direction": "減らし方・流れの変え方",
+     "shots": "qg-list・qg-menu・qg-moved・qg-tab・qg-tabmenu（札の右クリック）",
+     "changes": "common_build と common_build_2 に加え、lotlist.js の札の帯に右クリックのメニューと案内",
+     "risks": "表の「いつも出す」は字のまま（形で言わない）。マスタ管理を開かずに全員のグループが変わる"
+    },
+    "I 開いているグループの札を見出しのタブの中に（札の帯を 1 段減らす）": {
+     "id": "I",
+     "new": true,
+     "summary": "グループのタブを開いている間、その中の札（スラブ・品質・品質データ＋製造条件）を見出しのタブの中に区切り線で並べ、一覧の上の札の帯をなくす（一覧が 1 段広い）。品質はグループに入っても見出しの帯から 1 手。表は G と同じ錠のスイッチ",
+     "direction": "置き場",
+     "shots": "qg-tab・qg-tab-lot（見出しの 工程｜スラブ 品質 品質データ＋製造条件）",
+     "changes": "common_build と common_build_2 に加え、app.js の見出しで、選んだグループのタブに札を並べる（lotlist.js の札の帯はグループのときは出さない）",
+     "risks": "開いたグループの札のぶん見出しが広がり、1280 では「ほか 6 ▾」までまとまる（品質・実績のタブがまとまりに入ることもある）。札の数が多いグループ（台帳 5）ではさらに狭い"
+    },
+    "J 移した直後の帯で「見出しで開く・元に戻す」・欄のグループは札で選ぶ": {
+     "id": "J",
+     "new": true,
+     "summary": "移した直後、マスタ管理の下に濃い帯「✓ 品質を「工程」へ移しました 見出しでは「工程 › 品質」のタブで開きます・結合した表 1 件も一緒［見出しで開く］［元に戻す］×」。移した先と行き先と取り消しがその場で分かる。欄のグループは札（なし・マスタ・台帳・工程・＋ 新しいグループ…）で 1 手。見出しは G と同じ「工程 › 品質」",
+     "direction": "流れの変え方",
+     "shots": "qg-moved（下の帯）・qg-edit（グループの札）・qg-tab",
+     "changes": "common_build と common_build_2 に加え、moveTo の後の帯（元に戻すは前のグループと並びへ）・欄のグループの札",
+     "risks": "帯が表の下の行を覆う（× か次の操作で消える）。ほかの元を動かしたときも同じ帯を出すか（統一感）"
+    },
+    "K メニューの「グループ」を 1 つのまとまりに（今のグループに ✓）": {
+     "id": "K",
+     "new": true,
+     "summary": "右クリックのメニューで、グループの項目を「グループ」の見出しの下に 1 まとまり（グループなし・マスタ・台帳・工程・＋ 新しいグループへ…）にし、今のグループに ✓。「「…」へ移す」の言い回しの繰り返しをやめ、今どこにいるかがメニューで見える。表は G と同じ錠のスイッチ、見出しは G と同じ「工程 › 品質」",
+     "direction": "チャンク",
+     "shots": "qg-menu（グループのまとまりと ✓）・qg-moved",
+     "changes": "common_build と common_build_2 に加え、rowMenu のグループの項目をまとまりにし on（✓）を付ける（どの行のメニューも同じ形）",
+     "risks": "項目が「マスタ」「台帳」の名前だけになり、押すと移ることが字では言わない（見出しの「グループ」と ✓ で分かるか）。案の頁では撮る状態が「「工程」へ移す」の字で押すので、工程の項目に見えない字を添えた（本番では要らない）"
     }
    }
   }
- ]
+ ],
+ "common_build_2": "回 2 の案すべて（common_build に足す。採点 1 回目の指摘 1〜3）: (a) 結合した表は元に付いて動く: 結合した表は自分のグループを持たず、元のグループに元の下（└）で並ぶ。元を移すと一緒に移り、知らせに「結合した表「…」も元と一緒に動きました」。窓は bundle.rs で結合した表のグループを元のグループにし、POST /api/sources/order は元の直後に置く。(b) 移した後も品質へ 1 手: グループのタブは前に開いた札を覚えて開く（今の決まり tpa.grp.v1）。品質も 1 つの札として覚え、品質をグループへ移したらそのグループの覚えを品質にする。品質を頭に固定しない・★ を使わない（F の割れ）。品質の札はほかの札と同じ並び（表の並び）。(c) 消せないの言い方を 1 つに: 表には「消せない」の印を出さない。右クリックのメニューの最後に「品質はアプリの決まったデータ元なので、消す・タブを外すはできません（グループに入れる・移す・並べるはほかの元と同じ）」の 1 行（D から持ち越し）。欄の下の段に押せない「このデータ元を消す」と「決まったデータ元なので消せません」。(d) 欄のグループは選ぶ形（グループなし・今のグループ・＋ 新しいグループ…）。J だけ札で選ぶ。(e) 見出しの帯を詰め直す: 品質のタブを外したら・タブの字を足したら fitTabs（1280 で「終了」を切らない）"
 }

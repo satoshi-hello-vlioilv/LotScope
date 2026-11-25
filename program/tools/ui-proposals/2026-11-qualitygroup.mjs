@@ -332,6 +332,285 @@ const CSS_F = `
 `;
 
 const S = (fn) => `(${lib})(); if (!window.__qgP) { window.__qgP = 1; (${fn})(); }`;
+/* ================================================================== 回 2（採点 1 回目の指摘: 錠の意味を 1 つに・移した後も品質へ 1 手・結合した表は元に付く） */
+/* 共通の部品 2（回 2 の案すべて。window.QG に足す） */
+function lib2() {
+  const Q = window.QG;
+  if (Q.r2) return;
+  Q.r2 = true;
+  const GRP = "tpa.grp.v1";
+  /* 結合した表は元に付いて動く（作るときは、結合した表は自分のグループを持たず、元のグループに元の下で並ぶ） */
+  const f1 = window.fetch;
+  window.fetch = async (u, o) => {
+    const r = await f1(u, o);
+    const url = typeof u === "string" ? u : (u && u.url) || "";
+    const method = ((o && o.method) || "GET").toUpperCase();
+    if (method !== "GET" || !/^\/api\/sources(\?|$)/.test(url) || !Q.group()) return r;
+    const d = await r.clone().json().catch(() => null);
+    if (!d || !d.items) return r;
+    const views = d.items.filter((x) => x.base === "lot");
+    if (!views.length) return r;
+    const rest = d.items.filter((x) => x.base !== "lot");
+    views.forEach((v) => { v.group = Q.group(); v.groupSet = Q.group(); });
+    rest.splice(rest.findIndex((x) => x.key === "lot") + 1, 0, ...views);
+    d.items = rest;
+    Q.data = d;
+    return new Response(JSON.stringify(d), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  Q.views = () => Q.items().filter((x) => x.base === "lot").map((x) => x.name);
+  /* 見出しの帯を詰め直す（案がタブの字を足した・決まったタブ「品質」を外した後。app.js の fitTabs） */
+  let rt = 0;
+  Q.refit = () => { clearTimeout(rt); rt = setTimeout(() => { try { fitTabs(); } catch (_) { /* 撮るだけ */ } }, 60); };
+  /* 決まったタブ「品質」は、グループに入ったら見出しの並びから外す（帯の外の隠した置き場へ。showScreen は #tabList をそのまま使う） */
+  Q.keep(() => {
+    const tl = document.getElementById("tabList"), nav = document.querySelector(".screen-tabs");
+    if (!tl || !nav) return;
+    let park = document.getElementById("qgPark");
+    if (!park) { document.body.insertAdjacentHTML("beforeend", '<div id="qgPark" hidden></div>'); park = document.getElementById("qgPark"); }
+    if (Q.group() && tl.parentElement !== park) { Q.tabNext = tl.nextElementSibling; park.append(tl); Q.refit(); }
+    else if (!Q.group() && tl.parentElement === park) { nav.insertBefore(tl, Q.tabNext && Q.tabNext.parentElement === nav ? Q.tabNext : null); Q.refit(); }
+  });
+  /* グループの札: 品質と、品質を元にした結合した表は、案が覚えたグループで数える（見出しの state.sources が読み直す前でも抜けない） */
+  Q.members = (g) => {
+    const all = (state.sources || []).filter((d) => d.listed), mine = Q.group() === g;
+    const src = (d) => (d.api || "").startsWith("/api/src/");
+    const others = all.filter((d) => d.key !== "lot" && d.base !== "lot" && d.group === g && src(d));
+    return mine ? [...others, ...all.filter((d) => d.key === "lot"), ...all.filter((d) => d.base === "lot" && src(d))] : others;
+  };
+  /* グループの札の帯を、一覧が描き直したらすぐ直す（描き直しと撮る時が重なっても、品質の札が抜けない） */
+  Q.fixBar = () => {
+    const g = Q.group(), bar = document.getElementById("llEquipBar");
+    if (!g || !bar) return;
+    if (bar.dataset.kind === "grp" && (bar.querySelector("#llEquipLab") || {}).textContent === g && !bar.querySelector('[data-equip="list"]')) {
+      const cur = (bar.querySelector('.eq-chip[aria-selected="true"]') || {}).dataset?.equip;
+      bar.innerHTML = Q.barHtml(g, false);
+      if (cur) bar.querySelector(`[data-equip="${CSS.escape(cur)}"]`)?.setAttribute("aria-selected", "true");
+    }
+    if (state.screen === "list" && (bar.hidden || bar.dataset.kind !== "qg")) { bar.hidden = false; bar.dataset.kind = "qg"; bar.innerHTML = Q.barHtml(g, true); }
+  };
+  Q.keep(() => {
+    const bar = document.getElementById("llEquipBar");
+    if (!bar || bar.dataset.qgObs) return;
+    bar.dataset.qgObs = "1";
+    new MutationObserver(() => { try { Q.fixBar(); } catch (_) { /* 撮るだけ */ } }).observe(bar, { childList: true, attributes: true, attributeFilter: ["hidden", "data-kind"] });
+  });
+  /* 動かしたら: そのグループのタブが次に開く札を品質に（前に開いた札を覚える今の決まりと同じ覚え）・知らせに結合した表も */
+  const mv = Q.move;
+  Q.move = async (opt = {}) => {
+    const vs = Q.views();
+    if (opt.group) TPA.local.set(GRP, { ...(TPA.local.get(GRP, {}) || {}), [opt.group]: "list" });
+    await mv(opt);
+    const n = document.getElementById("srNotice");
+    if (n && vs.length && n.textContent.startsWith("✓")) n.innerHTML += ` 結合した表「${Q.esc(vs.join("・"))}」も元と一緒に動きました。`;
+    if (Q.afterMove) Q.afterMove(opt, vs);
+  };
+  /* グループのタブは前に開いた札から（品質も 1 つの札として覚える） */
+  Q.remembered = (g) => ((TPA.local.get(GRP, {}) || {})[g]) || "";
+  const ss = window.showScreen;
+  window.showScreen = function (name, opts) {
+    const g = Q.group();
+    if (g && name === `grp:${g}` && Q.remembered(g) === "list") return ss("list", opts);
+    return ss(name, opts);
+  };
+  document.addEventListener("click", (e) => {
+    const c = e.target.closest && e.target.closest("#llEquipBar .eq-chip, .qg-sub");
+    if (!c || !Q.group()) return;
+    const k = c.dataset.equip || c.dataset.qgSub;
+    TPA.local.set(GRP, { ...(TPA.local.get(GRP, {}) || {}), [Q.group()]: k });
+  }, true);
+  /* メニュー: 消せない・外せないを最後に 1 行（採点 1 回目の D から持ち越し） */
+  const hook = Q.menuHook;
+  Q.menuHook = (opts) => {
+    if (hook) hook(opts);
+    if (opts && opts.head === `データ元「${Q.lotName()}」` && !opts.items.some((x) => x && x.foot))
+      opts.items.push({ foot: `${Q.lotName()}はアプリの決まったデータ元なので、消す・タブを外すはできません（グループに入れる・移す・並べるはほかの元と同じ）` });
+  };
+  /* 欄: グループは選ぶ形（グループなし・今のグループ・＋ 新しいグループ…）／消すボタンの所に、押せない「このデータ元を消す」と理由 */
+  Q.keep(() => {
+    const card = document.querySelector('#masterSettings .sr-card.is-open[data-key="lot"]');
+    if (!card) return;
+    const inp = card.querySelector("[data-qg-group] input");
+    if (inp && !Q.chipForm) {
+      const groups = [...new Set(Q.items().map((x) => x.group).filter(Boolean))], cur = Q.group();
+      inp.outerHTML = `<select class="ps-input" data-sr="group"><option value=""${cur ? "" : " selected"}>グループなし</option>${groups.map((g) => `<option${g === cur ? " selected" : ""}>${Q.esc(g)}</option>`).join("")}<option value="+">＋ 新しいグループ…</option></select>`;
+      card.querySelector("[data-qg-group] datalist")?.remove();
+      card.querySelector("[data-qg-group] span").textContent = "グループ";
+    }
+    const acts = card.querySelector(".sr-acts");
+    if (acts && !acts.querySelector(".qg-nodel")) {
+      acts.querySelector(".sr-sp")?.insertAdjacentHTML("beforebegin", `<button type="button" class="pz-btn danger qg-nodel" disabled title="${Q.esc(Q.lotName())}はアプリの決まったデータ元なので、消せません">このデータ元を消す</button><span class="qg-nodelwhy">決まったデータ元なので消せません</span>`);
+    }
+  });
+  /* 品質・実績の「いつも出す」を、ほかの行と同じスイッチの形（ON・押せない）に。錠は「タブを外せない」の 1 つの意味だけ */
+  Q.lockSwitch = () => Q.keep(() => {
+    document.querySelectorAll("#masterSettings tr.sr-row .sr-fixed").forEach((fx) => {
+      fx.outerHTML = `<span class="sr-sw on qg-locksw" role="switch" aria-checked="true" aria-disabled="true" title="アプリの決まったタブなので外せません（出す人はアクセス権限の「見出しのタブ」で決めます）"><i></i><span>出す</span>${Q.LOCK}</span>`;
+    });
+  });
+}
+const CSS_R2 = `
+.qg-nodel:disabled{opacity:1;color:#8b5a5a;border-color:#dcc8c8;background:#faf6f6;cursor:not-allowed}
+.qg-nodelwhy{font-size:12px;color:#4f5d69}
+.qg-locksw{cursor:default} .qg-locksw i{background:#8fb5b1!important} .qg-locksw span{color:#3f6461!important;font-weight:700}
+.qg-locksw svg{color:#4f5d69;margin-left:-2px}
+`;
+/* 見出しのグループのタブに、次に開く札の名前（「工程 › 品質」） */
+function curLabel() {
+  const Q = window.QG;
+  Q.keep(() => {
+    document.querySelectorAll('.screen-tabs .screen-tab[data-screen^="grp:"]').forEach((t) => {
+      const g = t.dataset.screen.slice(4), want = Q.remembered(g);
+      const lot = Q.group() === g && (want === "list" || state.screen === "list");
+      const m = lot ? { name: Q.lotName() } : (state.sources || []).find((d) => d.screen === want && d.group === g && d.listed) || (state.sources || []).find((d) => d.group === g && d.listed && (d.api || "").startsWith("/api/src/"));
+      const txt = m ? `› ${m.name}` : "";
+      let s = t.querySelector(".qg-cur");
+      if (!s) { t.querySelector(".tab-name")?.insertAdjacentHTML("afterend", '<span class="qg-cur"></span>'); s = t.querySelector(".qg-cur"); }
+      if (s && s.textContent !== txt) { s.textContent = txt; Q.refit(); }
+      t.title = `${g} のグループ（押すと ${m ? m.name : "最初の札"} を開きます。中の札で切り替え）`;
+    });
+  });
+}
+const CSS_CUR = `
+.screen-tab .qg-cur{font-size:12.5px;font-weight:600;opacity:.85;margin-left:-3px;white-space:nowrap}
+`;
+
+/* ------------------------------------------------------------------ G（B 改）錠は「タブを外せない」だけ。消せないはメニューと欄で。グループのタブに次に開く札 */
+function propG() { const Q = window.QG; Q.lockSwitch(); curLabel(); }
+
+/* ------------------------------------------------------------------ H（A＋D 改）今の表とメニューのまま押せる。見出しの札の右クリックからも */
+function propH() {
+  const Q = window.QG;
+  const groupsOf = () => [...new Set((state.sources || []).map((x) => x.group).filter(Boolean))];
+  document.addEventListener("contextmenu", (e) => {
+    const c = e.target.closest && e.target.closest("#llEquipBar[data-kind='grp'] .eq-chip, #llEquipBar[data-kind='qg'] .eq-chip");
+    if (!c) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = c.getBoundingClientRect(), lot = c.dataset.equip === "list";
+    const s = lot ? { name: Q.lotName(), group: Q.group() } : (state.sources || []).find((d) => d.screen === c.dataset.equip) || {};
+    TPA.menu({ x: r.left, y: r.bottom + 4, head: `データ元「${s.name}」`, items: [
+      { group: "グループ" },
+      ...groupsOf().filter((x) => x !== s.group).map((x) => ({ label: `「${x}」へ移す`, icon: "→", run: () => {} })),
+      ...(s.group ? [{ label: "グループから出す（1 つのタブに）", icon: "←", run: () => {} }] : []),
+      { label: "新しいグループへ…", icon: "＋", run: () => {} },
+      { sep: true },
+      { label: "データ元で直す…", icon: "✎", run: () => window.openMasterAt && window.openMasterAt("sources") },
+      ...(lot ? [{ foot: `${s.name}はアプリの決まったデータ元なので、消す・タブを外すはできません` }] : []),
+    ] });
+  }, true);
+  Q.keep(() => {
+    const bar = document.getElementById("llEquipBar");
+    if (!bar || bar.hidden || !/^(grp|qg)$/.test(bar.dataset.kind || "") || bar.querySelector(".qg-dhint")) return;
+    bar.querySelector(".eq-manage")?.insertAdjacentHTML("beforebegin", '<span class="qg-dhint">札を右クリック: グループへ移す・出す</span>');
+  });
+}
+const CSS_H = `
+.qg-dhint{align-self:center;margin-left:auto;margin-right:8px;font-size:12px;color:#3d4b57;white-space:nowrap}
+`;
+
+/* ------------------------------------------------------------------ I 開いているグループの札を見出しのタブの中に（札の帯を 1 段減らす） */
+function propI() {
+  const Q = window.QG;
+  Q.lockSwitch();
+  Q.keep(() => {
+    const nav = document.querySelector(".screen-tabs");
+    if (!nav) return;
+    const bar = document.getElementById("llEquipBar");
+    const g = bar && !bar.hidden && /^(grp|qg)$/.test(bar.dataset.kind || "") ? (bar.querySelector("#llEquipLab") || {}).textContent || "" : "";
+    const tab = g ? nav.querySelector(`.screen-tab[data-screen="grp:${CSS.escape(g)}"]`) : null;
+    nav.querySelectorAll(".qg-subs").forEach((x) => { if (!tab || x.dataset.g !== g) { x.remove(); Q.refit(); } });
+    document.body.classList.toggle("qg-insub", !!tab);
+    if (!tab) return;
+    const chips = [...bar.querySelectorAll(".eq-chip")].map((c) => ({ k: c.dataset.equip, name: c.textContent.trim(), on: c.getAttribute("aria-selected") === "true" }));
+    const html = chips.map((c) => `<button type="button" class="qg-sub" data-qg-sub="${Q.esc(c.k)}" aria-selected="${c.on}">${Q.esc(c.name)}</button>`).join("");
+    let box = nav.querySelector(".qg-subs");
+    if (!box) { tab.insertAdjacentHTML("beforeend", `<span class="qg-subs" data-g="${Q.esc(g)}"></span>`); box = nav.querySelector(".qg-subs"); }
+    if (box.innerHTML !== html) { box.innerHTML = html; Q.refit(); }
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".qg-sub");
+    if (!b) return;
+    e.stopPropagation(); e.preventDefault();
+    const k = b.dataset.qgSub;
+    if (k === "list") showScreen("list"); else document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
+  }, true);
+}
+const CSS_I = `
+body.qg-insub #llEquipBar{position:absolute!important;left:-9999px!important;top:auto!important}
+.qg-subs{display:inline-flex;align-items:center;gap:2px;margin-left:6px;padding-left:8px;border-left:1px solid #c9d3dc;height:28px}
+.qg-sub{height:26px;padding:0 9px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:13px;color:#4f5d69;cursor:pointer;white-space:nowrap}
+.qg-sub:hover{background:#eef2f5}
+.qg-sub[aria-selected="true"]{background:#e3edf5;color:#173a55;font-weight:700;box-shadow:inset 0 -2px 0 #2f6f8f}
+`;
+
+/* ------------------------------------------------------------------ J 移した直後の帯で「見出しで開く・元に戻す」・欄のグループは札で選ぶ */
+function propJ() {
+  const Q = window.QG;
+  Q.lockSwitch(); curLabel();
+  Q.chipForm = true;
+  Q.afterMove = (opt, vs) => {
+    document.querySelector(".qg-toast")?.remove();
+    const box = document.querySelector("#masterOverlay .master-dialog") || document.querySelector("#masterSettings")?.parentElement;
+    if (!box || !opt.group) return;
+    box.insertAdjacentHTML("beforeend", `<div class="qg-toast" role="status"><b>✓ ${Q.esc(Q.lotName())}を「${Q.esc(opt.group)}」へ移しました</b><span>見出しでは「${Q.esc(opt.group)} › ${Q.esc(Q.lotName())}」のタブで開きます${vs.length ? `・結合した表 ${vs.length} 件も一緒` : ""}</span><button type="button" class="qg-tgo">見出しで開く</button><button type="button" class="qg-tundo">元に戻す</button><button type="button" class="qg-tx" aria-label="閉じる">×</button></div>`);
+    const t = document.querySelector(".qg-toast");
+    t.querySelector(".qg-tx").onclick = () => t.remove();
+    t.querySelector(".qg-tundo").onclick = () => { t.remove(); Q.move({ group: "" }); };
+    t.querySelector(".qg-tgo").onclick = () => { t.remove(); document.getElementById("masterCloseBtn")?.click(); showScreen("list"); };
+  };
+  Q.keep(() => {
+    const lab = document.querySelector('#masterSettings .sr-card.is-open[data-key="lot"] label[data-qg-group]');
+    if (!lab) return;
+    const groups = [...new Set(Q.items().map((x) => x.group).filter(Boolean))], cur = Q.group();
+    lab.outerHTML = `<div class="qg-gchips" data-qg-group><span>グループ</span><div role="radiogroup" aria-label="グループ">${["", ...groups].map((g) => `<button type="button" role="radio" class="qg-gchip" aria-checked="${g === cur}">${g ? Q.esc(g) : "なし"}</button>`).join("")}<button type="button" class="qg-gchip is-new">＋ 新しいグループ…</button></div></div>`;
+  });
+}
+const CSS_J = `
+.qg-toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:10px;max-width:calc(100% - 48px);padding:10px 12px 10px 16px;border-radius:10px;background:#173a55;color:#fff;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.qg-toast b{white-space:nowrap} .qg-toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dbe7f0}
+.qg-toast button{flex:none;height:28px;padding:0 10px;border-radius:6px;border:1px solid #8fb0c8;background:transparent;color:#fff;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.qg-toast .qg-tgo{background:#fff;color:#173a55;border-color:#fff;font-weight:700}
+.qg-toast .qg-tx{border:0;width:28px;padding:0;font-size:16px}
+.qg-gchips{display:flex;flex-direction:column;gap:6px} .qg-gchips > span{font-weight:700}
+.qg-gchips > div{display:flex;flex-wrap:wrap;gap:6px}
+.qg-gchip{height:28px;padding:0 12px;border:1px solid #c9d3dc;border-radius:999px;background:#fff;font:inherit;font-size:12.5px;color:#3d4b57;cursor:pointer}
+.qg-gchip[aria-checked="true"]{background:#e3edf5;border-color:#2f6f8f;color:#173a55;font-weight:700}
+.qg-gchip.is-new{border-style:dashed}
+`;
+
+/* ------------------------------------------------------------------ K メニューの「グループ」を 1 つのまとまりに（今のグループに ✓） */
+function propK() {
+  const Q = window.QG;
+  Q.lockSwitch(); curLabel();
+  const hook = Q.menuHook;
+  Q.menuHook = (opts) => {
+    if (hook) hook(opts);
+    if (!opts || opts.head !== `データ元「${Q.lotName()}」` || opts.items.some((x) => x && x.qgk)) return;
+    const its = opts.items.filter(Boolean), cur = Q.group();
+    const groups = [...new Set(Q.items().map((x) => x.group).filter(Boolean))];
+    const keep = its.filter((x) => !(x.icon === "→" || x.icon === "←" || x.label === "新しいグループへ…"));
+    const at = keep.findIndex((x) => x.label === "下へ") + 1;
+    const grp = [{ sep: true, qgk: true }, { group: "グループ" },
+      { label: "グループなし", icon: "", on: !cur, run: () => Q.move({ group: "" }) },
+      ...groups.map((g) => ({ label: g, icon: "", on: g === cur, run: () => Q.move({ group: g }) })),
+      { label: "新しいグループへ…", icon: "＋", run: () => { const n = prompt("グループの名前"); if (n) Q.move({ group: n.trim() }); } }];
+    const rest = keep.slice(at).filter((x, i, a) => !(x.sep && a[i - 1] && a[i - 1].sep));   // 線は続けない（結合した表を作る… の前の線は残す）
+    opts.items = [...keep.slice(0, at), ...grp, ...rest];
+  };
+  // 撮る状態 qg-moved は「「工程」へ移す」の字の項目を押す。この案では「工程」の項目に同じ字を見えない形で添える（押す所は同じ 1 つ）
+  Q.keep(() => {
+    document.querySelectorAll(".tpa-menu button[role=menuitem]").forEach((b) => {
+      const t = b.querySelector("span"); if (!t || b.dataset.qgk) return;
+      b.dataset.qgk = "1";
+      const name = t.textContent.trim();
+      if (Q.items().some((x) => x.group === name)) t.insertAdjacentHTML("beforeend", `<span class="qg-sr">「${Q.esc(name)}」へ移す</span>`);
+    });
+  }, 50);
+}
+const CSS_K = `
+.qg-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+`;
+
+const S2 = (fn) => `(${lib})(); (${lib2})(); const curLabel = ${curLabel}; if (!window.__qgP) { window.__qgP = 1; (${fn})(); }`;
 export const PROPOSALS = [
   {
     key: "A", name: "ほかの元と同じ行に（⠿・右クリック・欄のグループ）", css: BASE_CSS, ops: [["script", S(propA)]],
@@ -356,5 +635,25 @@ export const PROPOSALS = [
   {
     key: "F", name: "品質は入ったグループの頭に（グループのタブは品質から開く）", css: BASE_CSS + CSS_F, ops: [["script", S(propF)]],
     direction: "階層（主の元を頭に。グループのタブを開くと品質）",
+  },
+  {
+    key: "G", round: 2, name: "B 改: 錠は「タブを外せない」だけ。消せないはメニューと欄で・グループのタブに次に開く札", css: BASE_CSS + CSS_R2 + CSS_CUR, ops: [["script", S2(propG)]],
+    direction: "見せ方（錠の意味を 1 つに）・階層（グループのタブに次に開く札の名前）",
+  },
+  {
+    key: "H", round: 2, name: "A＋D 改: 今の表とメニューのまま押せる・見出しの札の右クリックからも", css: BASE_CSS + CSS_R2 + CSS_H, ops: [["script", S2(propH)]],
+    direction: "減らし方（今の形のまま）・流れの変え方（見出しの札から）",
+  },
+  {
+    key: "I", round: 2, name: "開いているグループの札を見出しのタブの中に（札の帯を 1 段減らす）", css: BASE_CSS + CSS_R2 + CSS_I, ops: [["script", S2(propI)]],
+    direction: "置き場（グループの札を見出しへ。品質へもタブの並びから 1 手）",
+  },
+  {
+    key: "J", round: 2, name: "移した直後の帯で「見出しで開く・元に戻す」・欄のグループは札で選ぶ", css: BASE_CSS + CSS_R2 + CSS_CUR + CSS_J, ops: [["script", S2(propJ)]],
+    direction: "流れの変え方（移した後の行き先と取り消しをその場で）",
+  },
+  {
+    key: "K", round: 2, name: "メニューの「グループ」を 1 つのまとまりに（今のグループに ✓）", css: BASE_CSS + CSS_R2 + CSS_CUR + CSS_K, ops: [["script", S2(propK)]],
+    direction: "チャンク（右クリックのグループの項目を 1 まとまり・今のグループを ✓ で見せる）",
   },
 ];
