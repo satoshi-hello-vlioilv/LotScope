@@ -152,8 +152,9 @@ try {
       note: el ? (el.querySelector(".db-pb") || el).textContent : "", dash: s.id };
   });
   const D = await sumsOf(p);
-  const lay = await p.evaluate(() => { const s = Dashboard._state(); const x = s.layout.panels[0] || {}; return { n: s.layout.panels.length, w: x.w, h: x.h, rows: s.layout.rows, msg: (document.querySelector("#dashBar .db-msg") || {}).textContent || "" }; });
-  check("作ったダッシュボードのパネル 1 枚は全幅・全部の段（右と下が空かない）", lay.n === 1 && lay.w === 12 && lay.h === lay.rows, lay);
+  const lay = await p.evaluate(() => { const s = Dashboard._state(); const area = s.layout.panels.reduce((a, x) => a + x.w * x.h, 0);
+    return { n: s.layout.panels.length, area, full: 12 * s.layout.rows, sum: s.layout.panels.find((x) => x.title === "設備ごとの通過回数の合計"), msg: (document.querySelector("#dashBar .db-msg") || {}).textContent || "" }; });
+  check("作ったダッシュボードは中身に合う大きさのパネルで敷き詰める（空きが無い・棒のパネルは 4 列 × 4 段）", lay.n >= 2 && lay.area === lay.full && lay.sum && lay.sum.w === 4 && lay.sum.h === 4, lay);
   check("「見る」で来たとき、見出しの横に「ダッシュボード『仕掛 › 設備別通過回数』を作りました」", lay.msg.includes("ダッシュボード「仕掛 › 設備別通過回数」を作りました"), lay);
   const keys = Object.keys(T.sums).sort(), dk = D ? Object.keys(D.sums).sort() : [];
   check("ダッシュボードに足したパネル（設備ごとの通過回数の合計）があり、データは分けた表", D && D.seen && D.source === `src:${made1.key}`, D);
@@ -198,7 +199,8 @@ try {
       await q.evaluate((x) => Dashboard._open(x || "b:standard"), id); await sleep(800); await waitDash(q); await sleep(1500);
       return q.evaluate(() => {
         const s = Dashboard._state(); const kpis = [...document.querySelectorAll("#dashGrid .db-p")].filter((el) => (s.layout.panels.find((x) => x.id === el.dataset.id) || {}).visual === "kpi");
-        const fills = new Set([...document.querySelectorAll("#dashGrid .db-p .db-pb svg rect")].map((r) => r.getAttribute("fill")).filter((f) => f && f !== "none" && !/^(#fff|white|transparent)/i.test(f)));
+        const sp = s.layout.panels.find((x) => x.title === "設備ごとの通過回数の合計"); const sel = sp ? `#dashGrid .db-p[data-id="${sp.id}"] .db-pb svg rect` : "#dashGrid .db-p .db-pb svg rect";
+        const fills = new Set([...document.querySelectorAll(sel)].map((r) => r.getAttribute("fill")).filter((f) => f && f !== "none" && !/^(#fff|white|transparent)/i.test(f)));
         return { id: s.id, kpis: kpis.map((el) => { const n = el.querySelector(".dp-num"); const r = n && n.getBoundingClientRect(); return { t: n ? n.textContent.trim().slice(0, 30) : "", h: r ? r.height : 0 }; }), fills: [...fills] };
       });
     };
@@ -206,6 +208,21 @@ try {
     check(`${v}: 組み込みの標準の数字のパネルの数が残る（${std.kpis.length} 枚）`, std.kpis.length >= 3 && std.kpis.every((k) => /\d/.test(k.t) && k.h > 10), std);
     const jx = await look(mine && mine.id);
     check(`${v}: 作った表のダッシュボードの棒の色が 1 色（窓の大きさによらない）`, String(jx.id) === String(mine && mine.id) && jx.fills.length === 1, jx);
+    // 組む所の見本（合計の棒のパネル）の見えの字（font-size × 祖先の transform の倍率）が 11px 以上（採点係の measure3.mjs と同じ測り方）
+    const sumId = await q.evaluate(() => (Dashboard._state().layout.panels.find((x) => x.title === "設備ごとの通過回数の合計") || {}).id);
+    await q.click("[data-db-editmode]"); await sleep(500);
+    const eb2 = await q.$(`#dashGrid .db-p[data-id="${sumId}"] [data-db-edit]`);
+    if (eb2) await eb2.click(); else { await q.focus(`#dashGrid .db-p[data-id="${sumId}"]`); await q.keyboard.press("Enter"); }
+    await q.waitForSelector("#deFields .pv-f", { timeout: 30000 }); await sleep(1500);
+    const seen = await q.evaluate((id) => {
+      const el = document.querySelector(`#dashGrid .db-p[data-id="${id}"]`); let scale = 1;
+      for (let x = el; x; x = x.parentElement) { const t = getComputedStyle(x).transform; if (t && t !== "none") scale *= new DOMMatrix(t).a; }
+      const texts = [...el.querySelectorAll("*")].filter((e) => (e.tagName === "text" || [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) && e.getBoundingClientRect().width > 0)
+        .map((e) => ({ t: (e.textContent || "").trim().slice(0, 16), seen: +(parseFloat(getComputedStyle(e).fontSize) * scale).toFixed(1) }));
+      return { scale: +scale.toFixed(3), min: Math.min(...texts.map((x) => x.seen)), small: texts.filter((x) => x.seen < 11).slice(0, 6) };
+    }, sumId);
+    check(`${v}: 組む所の見本の見えの字が 11px 以上（倍率 ${seen.scale}）`, seen.min >= 11, seen);
+    await q.evaluate(() => document.querySelector("[data-de-cancel]")?.click()); await sleep(300); await q.reload(); await sleep(1500);
     await q.evaluate(() => document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "src:wip" })));
     await q.waitForSelector("#llBody .ll-lot", { timeout: 30000 }); await sleep(1200);
     await q.click("#llJsonBtn"); await q.waitForSelector("#jxWin .jx-prev", { timeout: 30000 }); await sleep(400);
