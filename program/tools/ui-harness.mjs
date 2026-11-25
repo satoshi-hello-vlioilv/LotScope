@@ -66,6 +66,11 @@ const HEADERS = {
   active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] },
 };
 
+// 計算列を集計表・グラフで使う所（calc-list 〜 calc-off。版 3.121.0 の比べ）: 品質の表「仕掛」に計算列 3 つ（数・字・区分）。並びは元の列のすぐ後ろ
+const CALC_LAYOUT = { "lotlist:仕掛": { order: ["ロット番号", "発生日", "設備", "不良名", "重量", "重量t", "板厚", "板厚区分", "合金", "調質", "材調質", "板幅", "客先"],
+  hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, rules: {},
+  formulas: { "重量t": "[重量]/1000", "材調質": "concat([合金], \"-\", [調質])", "板厚区分": "if([板厚]>=1, \"厚\", \"薄\")" } } };
+
 // 件数の行が混んだ所（crowded。headers の続き）: スライサーで設備を 2 つ選び、色付けを 1 つ（不良名が汚れ）
 const CROWDED = {
   slicer: { open: { lot: false }, place: "left", tables: { "仕掛": [{ column: "設備", sel: ["CR1", "L-1"] }, { column: "不良名", sel: [] }] } },
@@ -1036,6 +1041,46 @@ export const STATES = [
       return items.length > 0;
     });
     if (again) { await p.reload(); await sleep(1500); }
+  }, "[data-next], #llSearch"],
+  // 版 3.121.0 の比べ（利用者の依頼 2026-11-17 の 1「計算列を集計表・グラフで使う」。--from calc-list で撮る）:
+  // 品質の一覧に計算列 3 つ（重量t＝数・材調質＝字・板厚区分＝区分）を作った所 → 表示列の窓でその列を選んだ所 → 集計表・グラフ（合金ごとの重量の合計）
+  // → ダッシュボードの組む所（品質のデータ。計算列を行と値に入れた所）。calc-off が片付ける
+  ["calc-list", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async (l) => { TPA.local.set("tpa.lotlist.layout.v1", l); TPA.local.set("tpa.lotlist.pivot.v1", {}); await TPA.saveUiState(); }, CALC_LAYOUT);
+    await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload();
+    await p.waitForSelector("#llBody tr[data-i]"); await sleep(800);
+  }, "[data-next], #llHead th.is-calc"],
+  ["calc-cols", async (p) => {
+    await p.click("#llColBtn"); await sleep(600);
+    await p.click('#lcList li[data-col="重量t"]').catch(() => {}); await sleep(500);
+  }, "[data-next], #lcSave"],
+  ["pivot-calc", async (p) => {
+    await closeAll(p);
+    await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPvFields .pv-f[data-col]");
+    await p.click('#llPvFields .pv-f[data-col="合金"] [data-pv-add="rows"]'); await sleep(400);
+    await p.click('#llPvFields .pv-f[data-col="重量"] [data-pv-add="vals"]'); await sleep(1500);   // 案が組み方を替える間を待つ
+    await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(300);
+    await pickChart(p, "column").catch(() => {}); await sleep(300); await p.keyboard.press("Escape");
+    await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(900);
+  }, "[data-next], #llPivot [data-pv-pick]"],
+  ["dash-calc", async (p) => {
+    await closeAll(p);
+    await p.evaluate(() => showScreen("dash")); await waitDash(p); await sleep(500);
+    await p.click("[data-db-editmode]"); await sleep(500);
+    const b = await p.$('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]');
+    if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
+    await p.selectOption("[data-de-src]", "lot"); await p.waitForSelector('#deFields .pv-f[data-dnd-col="板厚区分"]', { timeout: 30000 }); await sleep(400);
+    await p.click('#deFields .pv-f[data-dnd-col="板厚区分"] [data-de-add="rows"]').catch(() => {}); await sleep(500);
+    await p.click('#deFields .pv-f[data-dnd-col="重量t"] [data-de-add="vals"]').catch(() => {}); await sleep(500);
+    await p.click('#deFields [data-de-add="vals"][data-col="@lots"]').catch(() => {}); await sleep(500);   // ロット数を外し、値は 重量t だけ
+    await waitDash(p); await sleep(900);
+  }, "[data-next], [data-de-apply]"],
+  ["calc-off", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async () => { TPA.local.set("tpa.lotlist.layout.v1", {}); TPA.local.set("tpa.lotlist.pivot.v1", {}); TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState(); });
+    await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1500);
   }, "[data-next], #llSearch"],
 ];
 
