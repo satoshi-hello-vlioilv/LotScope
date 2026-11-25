@@ -12,7 +12,7 @@
 # - --ui（版 3.118.3。任意の段）は撮る・採点する道具を窓の開発用サーバー（examples/ui_serve）を相手に流す: ui_serve を組み
 #   （cargo test は test = true の example を組んでも、そのままの examples/ui_serve を作らない。始めに examples も消す）、
 #   ui-check の list・dash（--states）・ui-eval-xss・ui-eval-narrow・ui-eval-dashwait。段の計の秒をまとめに出す（上限の目安 15 分）。
-#   --ui-only はほかの段を流さず --ui の段だけ（道具を直したとき）。
+#   --ui-only はほかの段を流さず --ui の段だけ（道具を直したとき。--verify とは一緒に付けられない）。
 # - どれか 1 つでも落ちれば終了コード 1（push しない）。
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,9 +32,23 @@ while [ $# -gt 0 ]; do
   shift
 done
 OUT="${OUT:-${TMPDIR:-/tmp}/check-all}"
+# --ui-only はほかの段を流さないので、--verify と一緒には付けない（黙って窓の通しを飛ばさない。版 3.118.3 の作った後の採点の割れ 10）
+if [ $ONLY_UI -eq 1 ] && [ $VERIFY -eq 1 ]; then
+  echo "--ui-only と --verify は一緒に付けられません（--ui-only は ui の段だけ流します）。全部の段と ui の段なら --verify --ui を付けてください。" >&2
+  exit 2
+fi
 mkdir -p "$OUT"
 rm -f "$OUT"/*.log "$OUT/summary.txt"
 cd "$ROOT" || exit 2
+# CARGO_TARGET_DIR が相対の道なら、最上位を基準の絶対の道にして渡す（cargo は desktop/ を基準に、片付けと道具〈ui-harness.mjs〉は最上位を基準に
+# 読むので、相対のままだと別の所を見る。版 3.118.3 の作った後の採点の割れ 10）
+if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+  case "$CARGO_TARGET_DIR" in
+    /*) ;;
+    *) CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR" ;;
+  esac
+  export CARGO_TARGET_DIR
+fi
 
 free_gb() { df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}'; }
 
@@ -83,6 +97,9 @@ if [ $ONLY_UI -eq 0 ]; then
 step js-check bash program/tools/js-check.sh
 step compileall python -m compileall -q program
 step cargo-build bash -c "cd desktop && cargo build --locked"
+# 窓に遅くする口（desktop/src/slow.rs。feature testing の下だけ）が入っていない: exe の中に口の印の字が無い・組んだ記録の features に testing が無い
+# （版 3.118.3 の作った後の採点の割れ 2。配る release の exe は Windows の CI〈desktop.yml の windows-exe〉が同じ道具で見る）
+step no-slow-hook bash -c "(cd desktop && cargo build --locked --bin LotScope --message-format=json > \"$OUT/cargo-build.json\") && python program/tools/slow-hook-check.py --exe \"$T/LotScope\" --build-json \"$OUT/cargo-build.json\""
 # 3) lint
 # ruff は手元と CI で同じ版（CLAUDE.md: 0.15.20）。PATH に別の版があっても、決めた版を先に使う
 RUFF="${RUFF:-$(for r in /usr/local/bin/ruff "$(command -v ruff)"; do [ -x "$r" ] && "$r" --version | grep -q "0.15.20" && echo "$r" && break; done)}"
@@ -145,7 +162,7 @@ if [ $UI -eq 1 ]; then
   mkdir -p "$UIO"
   U0=$SECONDS
   # ui_serve は自分で組む（first_fixes 1）。道具は ui-harness.mjs の UI_EXE（CARGO_TARGET_DIR か desktop/target の debug/examples/ui_serve）を使う
-  step ui-build bash -c "cd desktop && cargo build --locked --example ui_serve"
+  step ui-build bash -c "cd desktop && cargo build --locked --example ui_serve && cd .. && python program/tools/slow-hook-check.py --exe \"$T/examples/ui_serve\" --expect-mark"
   if [ $LAST_RC -ne 0 ]; then
     echo "ui の段: 窓の開発用サーバー（examples/ui_serve）を組めないので、道具を流しません" | tee -a "$OUT/summary.txt"
   elif ! command -v node >/dev/null 2>&1; then

@@ -6,7 +6,9 @@
 // 読む関数を渡す）。TPA_UI_SERVER=python で前の Python の開発用サーバー（tools/ui_server.py の slow_down。段 ⑤ まで比べの基準）。鍵は同じ（open・ops・only・nocache・copy）。
 // 窓はパネルを一斉に数える（順番待ちの段が無い）ので、9 の順番待ちは窓では起きない: 見た数を記録に出す（窓 0 件・Python 1 件以上。空の確かめにしない）
 // 11. 3 つの数（版 3.118.3）: 刻みごとに、頁の円の量・字の n/m と、同じ刻みに道具が自分で尋ねた GET /api/dashboard/progress の n/of を並べる
-//    （分母が同じ・頁の n はサーバーの n を越えず、遅れは数刻みまで）。時間で遅くする形の取りこぼしを見えるようにする
+//    （分母が同じ・頁の n はサーバーの n を越えず、遅れは数刻みまで）。時間で遅くする形の取りこぼしを見えるようにする。
+//    比べた刻みは段（作業実績を読む・合わせた表を組む・稼働のガントを組む）ごとに、大きさごとに 1 以上
+// 遅くする口の only は窓だけ nocache・copy も絞り（desktop/src/slow.rs）、Python は open・ops だけを絞る。⑤ まで両方の相手で比べるので、この本は only を使わない
 // 1. 印は 1 つ: 待っているパネルは題の頭の点が円になる（回る印 .db-spin・上の縁の進みの線・道具の行の棒は無い）。済めば元の点に戻り、題の字の位置は待つ前と同じ
 // 2. 円と字は同じ数: 字の n/m（読む 7/11 台・まとまり 1/2 済み・ガント n/11 台）と円の量（--f）が刻みごとに同じ。n/m の無い段は輪だけ
 // 3. 段の言葉: 作業実績を読む・合わせた表を組む・稼働のガントを組む（どのデータ・どの計算）。前回が無い初回は経過の秒、前回があれば「あと約 n 秒」「まもなく」と
@@ -133,6 +135,9 @@ const nofOf = (e, id) => {
   return e.of > 1 ? [e.stage, e.n, e.of] : null;
 };
 let compared = 0, queued = 0;
+/** 3 つの数を比べた刻み（大きさ → 段 → 数。版 3.118.3 の作った後の採点の割れ 3: 段ごとに 1 以上を求める） */
+const byStage = {};
+const STAGES = { read: "作業実績を読む", group: "合わせた表を組む", gantt: "稼働のガントを組む" };
 
 /** 刻みごとの確かめ（1・2・4・5・6） */
 function checkTicks(v, label, ticks, steady) {
@@ -158,12 +163,18 @@ function checkTicks(v, label, ticks, steady) {
     return m && sv && k && sv[0] === k ? { id: p.id, text: p.text, f: p.cf || p.f, n: +m[1], of: +m[2], sn: sv[1], sof: sv[2] } : null;
   }).filter(Boolean));
   compared += pairs.length;
+  const st = (byStage[v] = byStage[v] || { read: 0, group: 0, gantt: 0 });
+  for (const x of pairs) { const k = x.id === "board" ? "group" : kindOfText(x.text); if (k in st) st[k]++; }
   const off = pairs.filter((x) => x.of !== x.sof || x.n > x.sn || x.sn - x.n > 6 || Math.abs(Math.round((x.n / x.of) * 100) - x.f) > 1);
   check(`${v} ${label}: 円の量・字の n/m・サーバーの n/of が同じ数（分母が同じ・頁はサーバーを越えず遅れは 6 まで。比べた ${pairs.length} 刻み）`,
     off.length === 0, off.slice(0, 4).map((x) => [x.id, x.text, x.f, `${x.sn}/${x.sof}`]));
-  const q = waits.filter((p) => /順番待ち/.test(p.text)).length;
-  queued += q;
-  console.log(`    記録: ${v} ${label} 順番待ち ${q} 件（${SERVER === "window" ? "窓はパネルを一斉に数える" : "Python は 1 つずつ数える"}）・3 つの数を比べた刻み ${pairs.length}`);
+  // 順番待ちの数え方（割れ 5）: 刻み × パネル（250 ms ごとに同じパネルを数え直す。1 枚が 2 秒待てば 8）と、順番待ちになったパネルの枚数
+  const qs = waits.filter((p) => /順番待ち/.test(p.text));
+  queued += qs.length;
+  const kinds = {};
+  for (const x of pairs) { const k = x.id === "board" ? "group" : kindOfText(x.text); kinds[k] = (kinds[k] || 0) + 1; }
+  console.log(`    記録: ${v} ${label} 順番待ちが見えた刻み ${qs.length}（パネル × 刻み）・パネル ${new Set(qs.map((p) => p.id)).size} 枚（${SERVER === "window" ? "窓はパネルを一斉に数える" : "Python は 1 つずつ数える"}）・`
+    + `3 つの数を比べた刻み ${pairs.length}（${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join("・") || "なし"}）`);
   const bars = ticks.filter((s) => s.bar);
   check(`${v} ${label}: 道具の行は「n / m 枚 済み・待っている k 枚」の字で切れない`, bars.length > 0 && bars.every((s) => /\d+ \/ \d+ 枚 済み・待っている \d+ 枚/.test(s.bar) && s.barFit), bars.slice(-1).map((s) => [s.bar, s.barFit]));
   if (steady) {
@@ -292,6 +303,10 @@ try {
     slow({});
     await waitDash(page, 60000).catch(() => {});
     check(`${v} 頁の誤りが無い`, errs.length === 0, errs);
+    // 11 の 3 つの数は段ごとに比べられた（段の名前が画面と段の係で食い違うと、その段だけ黙って比べなくなる）
+    const bs = byStage[v] || {};
+    check(`${v} 3 つの数を段ごとに比べた（${Object.entries(STAGES).map(([k, w]) => `${w} ${bs[k] || 0}`).join("・")} 刻み。どれも 1 以上）`,
+      Object.keys(STAGES).every((k) => (bs[k] || 0) > 0), bs);
     await page.close();
   }
   // 3 つの数は、どこかの刻みで比べられた（時間で遅くしても段の n/of が 1 度も見えないなら、取りこぼしている）

@@ -29,11 +29,15 @@ if (ONLY && (!ONLY.length || unknown.length)) {
 
 const app = await launch();
 const report = {};
+const broken = [];
 try {
   fs.mkdirSync(OUT, { recursive: true });
   for (const theme of THEMES) {
     // --states なら状態ごとに新しい頁でその状態から（起動画面は撮らない）。付けなければ起動画面と、STATES を前から全部
-    const runs = ONLY ? ONLY.map((name) => [app.newPage, (pg, visit) => walk(pg, visit, [name], name)]) : [[app.newSplash, walkSplash], [app.newPage, walk]];
+    // --states で選んだ状態の進め方（go）が投げたら、撮っても終了コード 1（前の状態の積み重ねが要る状態を、崩れたまま撮って 0 にしない。
+    // 版 3.118.3 の作った後の採点の割れ 9）
+    const runs = ONLY ? ONLY.map((name) => [app.newPage, async (pg, visit) => { const f = await walk(pg, visit, [name], name); broken.push(...f.map((x) => `${x}-${theme}`)); }])
+      : [[app.newSplash, walkSplash], [app.newPage, walk]];
     for (const [open, steps] of runs) {
       const page = await open(theme, VIEW);
       await steps(page, async (name, next) => {
@@ -48,3 +52,7 @@ try {
   await app.close();
 }
 fs.writeFileSync(path.join(OUT, "metrics.json"), JSON.stringify(report, null, 1));
+if (broken.length) {
+  console.error(`状態に進めませんでした（その状態だけでは撮れない。前の状態の積み重ねが要る）: ${broken.join(", ")}`);
+  process.exit(1);
+}

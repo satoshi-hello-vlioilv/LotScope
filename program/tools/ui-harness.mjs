@@ -1189,8 +1189,10 @@ export async function openJoinSec(p) {
   if (b) { await b.click(); await sleep(200); }
 }
 
-/** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */
+/** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ）。
+    返すのは進め方（go）が投げた状態の名前の並び（版 3.118.3: ui-check --states が終了コードに使う。前は console.warn だけ） */
 export async function walk(page, visit, only = null, from = "") {
+  const failed = [];
   page.setDefaultTimeout(5000);   // 見つからない部品で 30 秒止まらない
   const last = only ? Math.max(...STATES.map(([name], i) => (only.includes(name) ? i : -1))) : STATES.length - 1;
   // from（版 3.46.0）… その状態からたどる（前の状態の積み重ねが要らない状態だけを撮るとき。ダッシュボードの状態は "dash" から）
@@ -1200,9 +1202,11 @@ export async function walk(page, visit, only = null, from = "") {
       await go(page);
     } catch (e) {
       console.warn(`${name}: ${e.message.split("\n")[0]}`);
+      failed.push(name);
     }
     if (!only || only.includes(name)) await visit(name, next);
   }
+  return failed;
 }
 
 /**

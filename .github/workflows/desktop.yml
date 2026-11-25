@@ -233,6 +233,15 @@ jobs:
       # exe の名前は program/app/brand.json の1か所（ここには書かない）
       - name: exe の名前
         run: '"EXE=" + (Get-Content program/app/brand.json -Raw -Encoding utf8 | ConvertFrom-Json).exe | Out-File -Append -Encoding utf8 $env:GITHUB_ENV'
+      # 版 3.118.3（作った後の採点の割れ 2）: 配る exe に遅くする口（desktop/src/slow.rs。feature testing の下だけ）が入っていない。
+      # exe の中に口の印の字が無いことと、組んだ記録の da_core・LotScope の features に testing が無いことを見る（あれば落とす）
+      - name: 配る exe に遅くする口が無い
+        run: |
+          Push-Location desktop
+          cargo build --release --locked --message-format=json | Out-File -Encoding utf8 "$env:RUNNER_TEMP\build.json"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Pop-Location
+          python program\tools\slow-hook-check.py --exe "desktop\target\release\$env:EXE" --build-json "$env:RUNNER_TEMP\build.json"
       # 自己診断（desktop/src/selftest.js。版 3.118.1 から項目は全部窓だけの確かめ: 答えの形・道どうしの数・場面の値・決めた答え。中身〈Python〉とは比べない）。
       # 一覧の数を道どうしで見るため、試験用の品質データ（3000 行）を参照先にした設定で起こす
       - name: 自己診断（本物の WebView2・ポートなし）

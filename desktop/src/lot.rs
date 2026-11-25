@@ -4542,30 +4542,30 @@ mod tests {
                 "body": {"rows": [], "cols": [], "measures": [m]}}),
             ),
         ];
-        let timed = |body: &[u8]| {
-            let t = std::time::Instant::now();
+        // 口を通った回数で見る（壁時計で決めない。版 3.118.3 の作った後の採点の割れ 7）: 控えに当たれば open・ops の口を通らない
+        let opened = |body: &[u8]| {
+            let before: usize = names.iter().map(|n| crate::slow::calls(n)).sum();
             let (st, v) = lot.handle_body_with("POST", "/api/dashboard/query", "", body, &ask).unwrap();
             assert_eq!(st, 200, "{v}");
             assert!(v.get("error").is_none() && arr_errors(&v) == 0, "{v}");
-            t.elapsed()
+            names.iter().map(|n| crate::slow::calls(n)).sum::<usize>() - before
         };
-        let wait = std::time::Duration::from_millis(200);
         fn arr_errors(v: &Value) -> usize {
             v["groups"].as_array().map(|g| g.iter().filter(|x| x.get("error").is_some()).count()).unwrap_or(0)
         }
         for (what, panel) in panels {
             let body = serde_json::to_vec(&json!({"panel": panel})).unwrap();
             let kind = if what == "稼働のガント" { "ops" } else { "open" };
-            let g = crate::slow::guard(Some(json!({kind: 0.2, "only": names})));
-            assert!(timed(&body) >= wait, "{what}: 1 回目は数える（待つ）");
-            assert!(timed(&body) < wait, "{what}: 口の nocache が無ければ 2 回目は控えから");
+            let g = crate::slow::guard(Some(json!({kind: 0.001, "only": names})));
+            assert!(opened(&body) >= 2, "{what}: 1 回目は 2 台とも数える");
+            assert_eq!(opened(&body), 0, "{what}: 口の nocache が無ければ 2 回目は控えから");
             drop(g);
-            let g = crate::slow::guard(Some(json!({kind: 0.2, "only": names, "nocache": true})));
-            assert!(timed(&body) >= wait, "{what}: nocache なら同じ本文の 2 回目も数え直す");
-            assert!(timed(&body) >= wait, "{what}: 3 回目も");
+            let g = crate::slow::guard(Some(json!({kind: 0.001, "only": names, "nocache": true})));
+            assert!(opened(&body) >= 2, "{what}: nocache なら同じ本文の 2 回目も数え直す");
+            assert!(opened(&body) >= 2, "{what}: 3 回目も");
             drop(g);
-            let _g = crate::slow::guard(Some(json!({kind: 0.2, "only": ["ほかの設備"], "nocache": true})));
-            assert!(timed(&body) < wait, "{what}: only に無い設備のパネルは控えのまま（ほかの試験の控えを外さない）");
+            let _g = crate::slow::guard(Some(json!({kind: 0.001, "only": ["ほかの設備"], "nocache": true})));
+            assert_eq!(opened(&body), 0, "{what}: only に無い設備のパネルは控えのまま（ほかの試験の控えを外さない）");
         }
         let _ = std::fs::remove_dir_all(&dir);
     }

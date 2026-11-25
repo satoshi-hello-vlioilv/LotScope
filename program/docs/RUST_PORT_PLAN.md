@@ -2646,25 +2646,31 @@ first_fixes の 16 を入れた形で作る。作った形はファイルの `bu
    **3.118.1** 自己診断の Python と比べる項目を窓だけの確かめに・**3.118.2** 撮る・採点する道具が窓を相手にする開発用サーバー。
    ④ では Python のファイル（program/app・program/sidecar.py・sidecar.rs・比べる口・Fail::Python の型）を**消さない**（消すのは ⑤。利用者に尋ねてから）
 2. **⑤ 不要になったファイルの片付け**（④ の次の版。ここで片付ける物の一覧はこの 1 か所。版 3.118.3 で箇条を下の表に書き直した〈採点
-   `tools/ui-proposals/2026-11-stage4d.json` の first_fixes 9・10〉）。**表の数は手で数えない**: 行ごとの命令をリポジトリの最上位でそのまま流した数
-   （版 3.118.3 の main の上で 1 回。数え方が違うと同じ物の数がずれる: 案の「lot.rs の "python" 34」は行の数、命令は出てくる回数で 35）。
-   ⑤ の版を作る係は、始める前に命令を流し直して表の数を今の数にする
+   `tools/ui-proposals/2026-11-stage4d.json` の first_fixes 9・10。作った後の採点の割れ 1・4 で数え方と順番待ちの行を直した〉）。
+   **版の割り（利用者の決め 2026-11-25）**: ⑤ の片付けは版をあまり分けずに進める。1 版でまとめるのを基本とし、分けるのは sidecar を消す条件
+   （配布の画面の「要更新」が 0 台）がまだ満たせないときの 2 版目だけ。
+   **表の数は手で数えない**: 行ごとの命令をリポジトリの最上位でそのまま流した数（版 3.118.3 の commit の上。数え方が違うと同じ物の数がずれる:
+   案の「lot.rs の "python" 34」は行の数、命令は出てくる回数で 35）。数えるのは git が追跡しているファイルだけ（`git ls-files`・`git grep`。
+   `find`・`du`・`ls` は試験を流した PC で増える __pycache__ まで数え、program/app が 149 → 229・凍らせた写しが 126 → 226 にずれた）。
+   大きさは追跡しているファイルのバイトの和（`du` はファイル系の区画で変わる）。⑤ の版を作る係は、始める前に命令を流し直して表の数を今の数にする。
+   `tests/test_fifth_table.py` が命令の形（追跡しているファイルだけを数える）を見て、版が 3.118.3 の間は表の数と命令の答えを突き合わせる
 
    | 消す物 | 数える命令 → 版 3.118.3 の数 | 消す条件 | 消した後の確かめ | 先に直す物 |
    |---|---|---|---|---|
-   | program/app（画面の static・templates は desktop/ui へ移してから） | `find program/app -type f \| wc -l` → 149 | 画面を desktop/ui へ移した（`page::templates_dir`・`static_dir` の 1 か所） | cargo test（表だけの形）・`verify.py local`・`update`・`ui-all.mjs` 73 本 | verify.py の place が書き換える道（version.py・index.html・app.js）を desktop/ui へ |
-   | 画面の #pyBar／#pyPill と待ちの段 python の言葉 | `grep -o 'pyBar\\|pyPill' program/app/static/js/app.js \| wc -l` → 21・同じ命令で templates/index.html → 2・static/css/app.css → 1 | 中身の様子が absent だけ（下の sidecar を消す版） | **index.html は焼いた本 settings の元**: `python program/tools/bless.py settings` で焼き直す・Windows の nt の表を取り直す（CI 2 回: 1 回目の記録を `bless.py --take-nt` で取り込み、2 回目で比べる）・`ui-eval-pydown.mjs`・`ui-eval-dashwait.mjs` の 8 | progress.rs の段 python（lot.rs の progress.begin の後に残る形） |
-   | 窓の sidecar（Python を起こす係）と router の中身へ回す枝 | `wc -l desktop/src/sidecar.rs desktop/src/router.rs` → 884・362 | 配布の画面の「要更新」が 0 台（3.118.0 より前の PC が無い。前の版の窓は sidecar.py の無い ZIP を断る） | cargo test・`verify.py prev`（Windows の CI）・自己診断 | /__desktop/info の protocol・serves（sidecar の定数）・ci.yml と desktop.yml の python==absent の見方 |
+   | program/app（画面の static・templates は desktop/ui へ移してから） | `git ls-files program/app \| wc -l` → 149 | 画面を desktop/ui へ移した（`page::templates_dir`・`static_dir` の 1 か所） | cargo test（表だけの形）・`verify.py local`・`update`・`ui-all.mjs` 73 本 | verify.py の place が書き換える道（version.py・index.html・app.js）を desktop/ui へ |
+   | 画面の #pyBar／#pyPill と待ちの段 python の言葉 | `grep -o 'pyBar\\|pyPill' program/app/static/js/app.js \| wc -l` → 21・`grep -o 'pyBar\\|pyPill' program/app/templates/index.html \| wc -l` → 2・`grep -o 'pyBar\\|pyPill' program/app/static/css/app.css \| wc -l` → 1 | 中身の様子が absent だけ（下の sidecar を消す版） | **index.html は焼いた本 settings の元**: `python program/tools/bless.py settings` で焼き直す・Windows の nt の表を取り直す（CI 2 回: 1 回目の記録を `bless.py --take-nt` で取り込み、2 回目で比べる）・`ui-eval-pydown.mjs`・`ui-eval-dashwait.mjs` の 8 | progress.rs の段 python（lot.rs の progress.begin の後に残る形） |
+   | 待ちの段「順番待ち」（queue。Python がパネルを 1 つずつ数えるときだけ。窓はパネルを一斉に数えるので出ない） | `grep -o '順番待ち' program/app/static/js/dashboard.js \| wc -l` → 3・`grep -o 'queue' program/app/static/js/dashboard.js \| wc -l` → 2・`grep -o 'queue' desktop/src/progress.rs \| wc -l` → 2 | Python の開発用サーバー（下の ui_server.py の行）と同じ版。⑤ の後は使い手も確かめも無い（窓の相手の dashwait は 0 件を確かめるだけ） | dashwait の 9（順番待ちは前回と比べない）の順番待ちの半分と、Python の相手の「順番待ちが見えた」を外す。残すなら progress の答えを route で queue にして画面を確かめる歩を足す | 画面の waitInfo の queue の枝（dashboard.js）・progress.rs の counting の queue・ui-eval-dashwait.mjs の 9 と順番待ちの記録 |
+   | 窓の sidecar（Python を起こす係）と router の中身へ回す枝 | `wc -l < desktop/src/sidecar.rs` → 884・`wc -l < desktop/src/router.rs` → 362 | 配布の画面の「要更新」が 0 台（3.118.0 より前の PC が無い。前の版の窓は sidecar.py の無い ZIP を断る） | cargo test・`verify.py prev`（Windows の CI）・自己診断 | /__desktop/info の protocol・serves（sidecar の定数）・ci.yml と desktop.yml の python==absent の見方 |
    | lot.rs の Python に回す口 | `grep -o '"python"' desktop/src/lot.rs \| wc -l` → 35・`grep -c 'g\.python()' desktop/src/lot.rs` → 4 | sidecar と同じ版 | cargo test・`route_reach` | 道に当たらない問い合わせの 503 を 404 にするか（利用者に尋ねる。利用状況の unanswered の数を見てから） |
-   | 任せる歩の口・予算・route_reach の中身へ回す当たり | `python -c "import json;d=json.load(open('program/tests/fixtures/delegates_budget.json'));print(d['total'],d['routerForwardTotal'])"` → 8・135 | 答え合わせ役と同じ版 | cargo test・`python program/tools/delegate-count.py`（を消す） | — |
-   | 答え合わせ役 36 本（焼いた表・人の事例の表・独立の答えは残す） | `ls program/tests/*_oracle.py \| wc -l` → 36 | 35 本が Python 無しで流れる（満たした）・keep の本（share_reader）の相手を外す | `bless.py --check`（sources から外した後）・cargo test（表だけの形） | books.json の sources から答え合わせ役を外す |
-   | app を import する試験 | `grep -lE '^\s*(from\|import) app(\.\| \|$)' program/tests/test_*.py \| wc -l` → 79 | 上と同じ版 | `python -m unittest discover -s tests -t .` | 残す試験（lotlist_fixture.py・selftest_config.py の場面）を確かめる |
-   | 凍らせた写しと凍らせた試験・`TPA_FROZEN_PY` の口 | `find program/tests/legacy -type f \| wc -l` → 126・`du -sh program/tests/legacy` → 3.0M・`grep -lE 'TPA_FROZEN_PY\|frozen_python' desktop/tests/*.rs \| wc -l` → 8（common.rs を含む。案の 9 は数え違い） | 答え合わせ役と同じ版 | cargo test（表だけの形）・`tests/test_baked_tables.py` | test_baked_tables の `test_the_frozen_python_copy_is_unchanged` を外す |
+   | 任せる歩の口・予算・route_reach の中身へ回す当たり | `python -c "import json;print(json.load(open('program/tests/fixtures/delegates_budget.json'))['total'])"` → 8・`python -c "import json;print(json.load(open('program/tests/fixtures/delegates_budget.json'))['routerForwardTotal'])"` → 135 | 答え合わせ役と同じ版 | cargo test・`python program/tools/delegate-count.py`（を消す） | — |
+   | 答え合わせ役 36 本（焼いた表・人の事例の表・独立の答えは残す） | `git ls-files ':(glob)program/tests/*_oracle.py' \| wc -l` → 36 | 35 本が Python 無しで流れる（満たした）・keep の本（share_reader）の相手を外す | `bless.py --check`（sources から外した後）・cargo test（表だけの形） | books.json の sources から答え合わせ役を外す |
+   | app を import する試験 | `git grep -lE '^\s*(from\|import) app(\.\| \|$)' -- ':(glob)program/tests/test_*.py' \| wc -l` → 79 | 上と同じ版 | `python -m unittest discover -s tests -t .` | 残す試験（lotlist_fixture.py・selftest_config.py の場面）を確かめる |
+   | 凍らせた写しと凍らせた試験・`TPA_FROZEN_PY` の口 | `git ls-files program/tests/legacy \| wc -l` → 126・`git ls-files -z program/tests/legacy \| xargs -0 cat \| wc -c` → 2762292・`git grep -lE 'TPA_FROZEN_PY\|frozen_python' -- ':(glob)desktop/tests/*.rs' \| wc -l` → 8 | 答え合わせ役と同じ版（凍らせた試験の数は common.rs を含む。案の 9 は数え違い） | cargo test（表だけの形）・`tests/test_baked_tables.py` | test_baked_tables の `test_the_frozen_python_copy_is_unchanged` を外す |
    | build.rs が組むたびに流す app_icon.py | `grep -c app_icon desktop/build.rs` → 4 | 絵を焼いた形にした | cargo build・窓の絵 | — |
-   | CI の Python の段・同梱の Python を作る手順 | `grep -nE 'py-tests\|python -m unittest' .github/workflows/ci.yml .github/workflows/desktop.yml \| wc -l` → 7 | 上の試験を消した版 | CI | CLAUDE.md の「push 前の確かめ」（利用者に尋ねてから） |
-   | 撮る・採点する道具の Python の開発用サーバー（tools/ui_server.py・harness の `TPA_UI_SERVER=python` の枝・ui-all の `--server python`・`PYTHON_ONLY` と serverFor の throw） | `wc -l program/tools/ui_server.py` → 226・`grep -o '"python"' program/tools/ui-harness.mjs \| wc -l` → 10 | ui-all の窓の表で 73 本が終了コード 0（版 3.118.3 で dashwait も窓）・PYTHON_ONLY が空（3.118.3 で空） | `bless.py --check`・`ui-all.mjs` 73 本 | **先に** books.json の routes・pivot・dashboard の sources から tools/ui_server.py を外す（`grep -n '"tools/ui_server.py"' desktop/tests/baked/books.json` → 3 行・283・301・385。消すと bless.py --check が「元が無い」で落ちる）・tools/rust-port-bench.py を消す・tests/test_capacity.py・test_builder_reads.py は答え合わせ役と一緒に |
-   | 古い採点の記録（利用者の決め 2026-11-21） | `ls program/tools/ui-proposals \| wc -l` → 321 | ⑤ の版（採点の道具と置き場は残す） | 記録を名指しする試験と文書が落ちない | CLAUDE.md・RUST_PORT_PLAN.md の名指しを直す |
-   | CLAUDE.md を短くする | `wc -l < CLAUDE.md` → 317 | 上の物を消した版 | — | 消した物の評価関数の行を外す |
+   | CI の Python の段・同梱の Python を作る手順 | `grep -E 'py-tests\|python -m unittest' .github/workflows/ci.yml .github/workflows/desktop.yml \| wc -l` → 7 | 上の試験を消した版 | CI | CLAUDE.md の「push 前の確かめ」（利用者に尋ねてから） |
+   | 撮る・採点する道具の Python の開発用サーバー（tools/ui_server.py・harness の `TPA_UI_SERVER=python` の枝・ui-all の `--server python`・`PYTHON_ONLY` と serverFor の throw） | `wc -l < program/tools/ui_server.py` → 226・`grep -o '"python"' program/tools/ui-harness.mjs \| wc -l` → 10・`grep -c '"tools/ui_server.py"' desktop/tests/baked/books.json` → 3 | ui-all の窓の表で 73 本が終了コード 0（版 3.118.3 で dashwait も窓）・PYTHON_ONLY が空（3.118.3 で空） | `bless.py --check`・`ui-all.mjs` 73 本 | **先に** books.json の routes・pivot・dashboard の sources から tools/ui_server.py を外す（`grep -n '"tools/ui_server.py"' desktop/tests/baked/books.json` の 3 行。消すと bless.py --check が「元が無い」で落ちる）・tools/rust-port-bench.py を消す・tests/test_capacity.py・test_builder_reads.py は答え合わせ役と一緒に |
+   | 古い採点の記録（利用者の決め 2026-11-21） | `git ls-files program/tools/ui-proposals \| wc -l` → 322 | ⑤ の版（採点の道具と置き場は残す） | 記録を名指しする試験と文書が落ちない | CLAUDE.md・RUST_PORT_PLAN.md の名指しを直す |
+   | CLAUDE.md を短くする | `wc -l < CLAUDE.md` → 319 | 上の物を消した版 | — | 消した物の評価関数の行を外す |
 
    - **⑤ の入口に足す**: ui-all.mjs の窓の表で 73 本が終了コード 0（前から落ちる本は理由つき）・harness に Python を起こす枝が 1 つだけ
    - **残す**（版 3.118.1 の採点の割れ 4。自己診断と窓の通しの場面。どれも app を import しない）: program/tests/lotlist_fixture.py・program/tests/selftest_config.py・
@@ -3364,7 +3370,9 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
 - **配る exe に口が無い**: `cargo build --release --locked --bin LotScope --message-format=json`（392 秒）の da_core と LotScope の features は [custom-protocol, default]
   （testing なし）。その exe（17 MB）を strings して `tpa-slow-hook` は 0 件、examples/ui_serve は 1 件
 - **dashwait**: 窓の相手で 3 つの大きさ・5 回続けて終了コード 0（190 件・どれも 110〜111 秒）。Python の相手（TPA_UI_SERVER=python）も 0（190 件・220 秒）。
-  順番待ちは窓 0 件・Python は大きさごとに 23・23・81・7〜10 件（窓はパネルを一斉に数え、Python は 1 つずつ）。3 つの数を比べた刻みは窓 13〜82・Python 14〜157
+  順番待ちは窓 0。Python は 1728 で段ごと（前回なし・前回あり・前回より長い・ガント）に、順番待ちが見えた刻み（パネル × 刻み。250 ms ごとに同じパネルを
+  数え直すので 1 枚が 2 秒待てば 8）23・23・81・25、順番待ちになったパネル 2・2・3・2 枚（作った後の直しの記録。窓はパネルを一斉に数え、Python は 1 つずつ）。
+  3 つの数を比べた刻みは段（読む・合わせた表・ガント）ごとに、窓 1728 で 89・31・8、Python 1728 で 97・152・7
 - **ui-check --states list,dash**: 9 秒・PNG 2 枚（名前が違えば終了コード 2）
 - **FF8**: ui_serve の無い形（TPA_UI_EXE=無い道）で dashwait は落ち、/tmp の tpa-dashwait-* は増えない。前の版の残り 3 つは次に流した時に消えた
 - **ui-all.mjs**（窓の相手・--jobs 3）: 73 本中 73 本が終了コード 0（21.7 分）。⑤ の入口に足した「窓の表で 73 本が終了コード 0」「PYTHON_ONLY が空」を満たした
@@ -3372,6 +3380,25 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
   ci-shape・verify・verify-local）。cargo test の後の debug/LotScope（testing つきで組み直した物）も strings で tpa-slow-hook は 0 件（呼ぶ人の居ない set_source を
   リンカが落とした。落とさなくても lib は環境変数を読まないので口は効かない）
 - **check-all --ui-only**（始めに debug/examples を消した形）: ui-build 20 秒・ui-check 9 秒・ui-xss 11 秒・ui-narrow 287 秒・ui-dashwait 111 秒、どれも終了コード 0。段の計 438 秒（目安 900 秒）
+
+#### 作った後の採点（63.8 点・割れ 10）の直し（採点のファイル `tools/ui-proposals/2026-11-stage4d-built.json` の built_fixed）
+
+1. **⑤ の表の数え方**: 追跡しているファイルだけ（`git ls-files`・`git grep`・大きさはバイトの和）。数は版 3.118.3 の commit の上の数。`tests/test_fifth_table.py`
+   （命令の形・追跡していない .pyc を置いても答えが変わらない・版の間は表の数と答えが同じ〈文書の数は除く〉）
+2. **配る exe に口が無いことを毎回見る**: `program/tools/slow-hook-check.py`（exe の中の印の字・組んだ記録の features の testing）。check-all の段 no-slow-hook（debug の窓）・
+   --ui の段の ui-build（ui_serve には印が有る＝道具が印を見つけられる）・ci.yml（Linux の debug）・desktop.yml の windows-exe（配る release の exe）。
+   変異（Cargo.toml の default に testing）で落ちる。試験 `tests/test_slow_hook_check.py`
+3. **3 つの数を段ごとに**: dashwait は比べた刻みを段（読む・合わせた表・ガント）ごとに数え、大きさごとに 3 つとも 1 以上。変異（progress の段 "gantt" の名前を替える）で落ちる
+4. **順番待ちの行**: ⑤ の表に「待ちの段『順番待ち』」（dashboard.js の言葉 3・queue 2、progress.rs の queue 2）
+5. **順番待ちの数え方**: 記録は「順番待ちが見えた刻み n（パネル × 刻み）・パネル k 枚」、計画書の文も段ごとに直した
+6. **試験の set_var をやめた**: `slow::tests::without_a_source_nothing_waits_and_the_lib_never_reads_the_environment`（slow.rs の試験の外の字に std::env・var_os・
+   TPA_UI_SLOW_FILE の字・fs::read が無いことを include_str! で見る）
+7. **nocache の試験は数で**: 口を通った回数（`slow::calls(設備の名前)`）で控えに当たったかを決める（壁時計の 200 ms をやめた）。変異（skip_cache を偽）で落ちる
+8. **only の意味**: copy の only は「実績_」と拡張子を外した名前の完全一致（実績_L-10 は only ["L-1"] に当たらない）。Python は nocache・copy で only を見ない
+   違いは直さず（ui_server.py は焼いた本の元で ⑤ で消す）、slow.rs と dashwait の頭に「⑤ まで両方の相手で比べる道具は only と nocache・copy を一緒に使わない」
+9. **ui-check --states**: walk が進め方の失敗を返し、選んだ状態に進めなければ終了コード 1（card-look を単独で頼むと 1）
+10. **check-all**: `--ui-only` と `--verify` を一緒に付けると終了コード 2 で断る。CARGO_TARGET_DIR が相対の道なら最上位を基準の絶対の道にして export する
+- 確かめ: check-all --verify 全段 0（段 no-slow-hook を足した 14 段。py-tests Ran 992）・--ui-only は相対の CARGO_TARGET_DIR で全段 0（計 442 秒）・dashwait は窓と Python とも 193 件 OK
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
