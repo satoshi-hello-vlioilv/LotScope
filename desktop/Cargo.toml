@@ -1,6 +1,6 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.118.2"
+version = "3.118.3"
 description = "LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"
@@ -27,7 +27,9 @@ test = true
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 # 試験だけの口（版 3.112.0。src/lot.rs の given: 束を組む係の無い Lot に束を差し込む）。下の dev-dependencies が試験の組み立てにだけ入れる。
-# 窓（cargo build・tauri build）には入らないので、窓が束を Python に尋ねる口はコンパイルで無い
+# 窓（cargo build・tauri build）には入らないので、窓が束を Python に尋ねる口はコンパイルで無い。
+# 版 3.118.3 から遅くする口（src/slow.rs。開発用サーバー examples/ui_serve が TPA_UI_SLOW_FILE を読む関数を渡す）もこの下。
+# cargo test は製品の bin も testing つきで組むが、lib は環境変数を読まないので、その exe（窓の通し）では口が効かない
 testing = []
 
 [dev-dependencies]

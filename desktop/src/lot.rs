@@ -4501,6 +4501,76 @@ mod tests {
     }
 
     #[test]
+    fn nocache_counts_the_same_panel_again_for_panels_boards_and_operations() {
+        // 版 3.118.3 の first_fixes 3: 遅くする口（src/slow.rs）の nocache は、同じ本文の 2 回目も控えに当たらず数え直す
+        // （パネル・合わせた表〈まとまりごとに同じ控えを通る〉・稼働のガントの 3 形）。口が無ければ 2 回目は控えから（待たない）
+        let dir = std::env::temp_dir().join(format!("da-lot-nocache-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let names = ["SLOWNA", "SLOWNB"];
+        let mut rows = vec![];
+        for e in names {
+            let c = rusqlite::Connection::open(folder.join(format!("実績_{e}.sqlite3"))).unwrap();
+            c.execute_batch(
+                "CREATE TABLE 実績 (ロット番号 TEXT, 作業日 TEXT, 作業開始日時 TEXT, 作業終了日時 TEXT);
+                 INSERT INTO 実績 VALUES ('L1', '2026-11-03', '2026-11-03 08:00:00', '2026-11-03 09:30:00');
+                 INSERT INTO 実績 VALUES ('L2', '2026-11-04', '2026-11-04 08:00:00', '2026-11-04 09:00:00');",
+            )
+            .unwrap();
+            rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": ""}));
+        }
+        let lists = json!({"hidden": [], "sources": [], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": rows}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let m = json!({"agg": "lots"});
+        let panels = [
+            (
+                "パネル",
+                json!({"id": "k", "visual": "kpi", "source": "work", "body": {"rows": [], "cols": [], "measures": [m], "grand": true}}),
+            ),
+            (
+                "合わせた表",
+                json!({"id": "b", "visual": "board", "rows": {"column": "@equip", "part": ""},
+                "groups": [{"source": "work", "cols": [], "measure": m}, {"source": "work", "cols": [], "measure": {"agg": "rows"}}]}),
+            ),
+            (
+                "稼働のガント",
+                json!({"id": "g", "visual": "gantt", "source": "work", "period": {"column": "@workday", "kind": "days", "n": 4},
+                "body": {"rows": [], "cols": [], "measures": [m]}}),
+            ),
+        ];
+        let timed = |body: &[u8]| {
+            let t = std::time::Instant::now();
+            let (st, v) = lot.handle_body_with("POST", "/api/dashboard/query", "", body, &ask).unwrap();
+            assert_eq!(st, 200, "{v}");
+            assert!(v.get("error").is_none() && arr_errors(&v) == 0, "{v}");
+            t.elapsed()
+        };
+        let wait = std::time::Duration::from_millis(200);
+        fn arr_errors(v: &Value) -> usize {
+            v["groups"].as_array().map(|g| g.iter().filter(|x| x.get("error").is_some()).count()).unwrap_or(0)
+        }
+        for (what, panel) in panels {
+            let body = serde_json::to_vec(&json!({"panel": panel})).unwrap();
+            let kind = if what == "稼働のガント" { "ops" } else { "open" };
+            let g = crate::slow::guard(Some(json!({kind: 0.2, "only": names})));
+            assert!(timed(&body) >= wait, "{what}: 1 回目は数える（待つ）");
+            assert!(timed(&body) < wait, "{what}: 口の nocache が無ければ 2 回目は控えから");
+            drop(g);
+            let g = crate::slow::guard(Some(json!({kind: 0.2, "only": names, "nocache": true})));
+            assert!(timed(&body) >= wait, "{what}: nocache なら同じ本文の 2 回目も数え直す");
+            assert!(timed(&body) >= wait, "{what}: 3 回目も");
+            drop(g);
+            let _g = crate::slow::guard(Some(json!({kind: 0.2, "only": ["ほかの設備"], "nocache": true})));
+            assert!(timed(&body) < wait, "{what}: only に無い設備のパネルは控えのまま（ほかの試験の控えを外さない）");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn the_copy_stage_moves_while_waiting() {
         // 作った後の採点（版 3.99.0）: 最初の写しを待つ間も、写し終えた設備の数を数え直して段に記録する（0/m → k/m → m/m の途中が出る）。
         // 前は待つ前と後の 2 回だけで、組む所の札が最大 30 秒「共有から写した 0/m 台」のまま進まなかった。1 台（SLOWX）だけ写しを遅くする
@@ -4514,7 +4584,8 @@ mod tests {
             c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT); INSERT INTO 実績 VALUES ('L1');").unwrap();
             rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": ""}));
         }
-        crate::mirror::SLOW_COPY.lock().unwrap().push(("SLOWX".into(), std::time::Duration::from_millis(1500)));
+        // 遅くする口（版 3.118.3。src/slow.rs）: SLOWX の写しだけを 5,000 バイト/秒に（作り物の 8 KB の元が約 1.6 秒）。前は cfg(test) の SLOW_COPY
+        let slow = crate::slow::guard(Some(json!({"copy": 5000, "only": ["SLOWX"]})));
         let lists = json!({"hidden": [], "sources": [{"key": "work", "name": "実績"}], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
             "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
                      "page_size": 500, "canEditShifts": false, "rows": rows}});
@@ -4533,7 +4604,7 @@ mod tests {
             }
             assert_eq!(h.join().unwrap().unwrap().0, 200);
         });
-        crate::mirror::SLOW_COPY.lock().unwrap().clear();
+        drop(slow);
         let seen = seen.into_inner().unwrap();
         assert!(seen.contains(&(2, 3)), "写した 2/3 台の途中が段に出る: {seen:?}");
         let _ = std::fs::remove_dir_all(&dir);

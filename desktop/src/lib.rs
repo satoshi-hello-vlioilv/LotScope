@@ -65,6 +65,9 @@ pub mod seeds;
 pub mod settings_write;
 pub mod shell;
 pub mod shifts_write;
+/// 試験と撮る道具だけの遅くする口（版 3.118.3。配る exe には入らない）
+#[cfg(any(test, feature = "testing"))]
+pub mod slow;
 pub mod small_reads;
 pub mod sources_list;
 pub mod sources_write;

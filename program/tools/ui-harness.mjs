@@ -158,10 +158,9 @@ export async function launch() {
 }
 
 /** 窓にまだ無い口を使う本 → 理由（版 3.118.2 の作った後の採点の割れ C4・C9: 相手を決めるのはこの表と serverFor の 1 か所。ui-all.mjs も
-    ここを読む）。この本は既定で Python の相手で流す（版 3.118.3 で窓へ） */
-export const PYTHON_ONLY = {
-  "ui-eval-dashwait.mjs": "遅くする口（TPA_UI_SLOW_FILE）が窓にまだ無い（版 3.118.3 で feature testing の下に置く）",
-};
+    ここを読む）。版 3.118.3 で空になった（遅くする口 TPA_UI_SLOW_FILE を窓の開発用サーバーへ。ui-eval-dashwait.mjs も窓）。表と serverFor の
+    throw の枝は段 ⑤（Python の開発用サーバーを消す）まで残す */
+export const PYTHON_ONLY = {};
 /** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す）。PYTHON_ONLY の本は
     TPA_UI_SERVER が無ければ python（1 行で言う）、window を頼まれたら流さずに止める（黙って落ちない） */
 export function serverFor(tool, asked = process.env.TPA_UI_SERVER) {

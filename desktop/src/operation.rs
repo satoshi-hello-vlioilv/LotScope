@@ -350,6 +350,8 @@ fn py_float_of(v: &Own) -> Option<f64> {
 
 /// 1 設備のファイル → 作業の並び（Python の read_ops）
 pub fn read_ops(part: &Part, a: &ReadArgs) -> R<Read> {
+    #[cfg(any(test, feature = "testing"))]
+    crate::slow::wait("ops", &part.name); // 試験と撮る道具だけ（版 3.118.3。src/slow.rs の ops）
     let down = |e: String| Fail::Down(e);
     let (clock, basis) = match &part.work {
         Some(w) => (w.clock.clone(), w.basis.clone()),

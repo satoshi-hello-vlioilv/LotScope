@@ -13,6 +13,9 @@
 //!   （Lot::leave）の後に 200 で答え、待ち受けは続ける（撮る道具が「終了」を押しても次の頁を開ける）
 //! - ポート 0 なら OS が選ぶ。待ち受けを始めたら「LISTEN http://127.0.0.1:ポート」の 1 行を出す
 //! - --stdin: 標準入力が閉じたら終わる（起こした台本が落ちても残らない）
+//! - 遅くする口（版 3.118.3。`da_core::slow`）: 環境の TPA_UI_SLOW_FILE が指す JSON（open・ops・only・nocache・copy。Python の開発用サーバーの
+//!   slow_down と同じ鍵）を、問い合わせのたびに読む関数を lib に渡す。lib は環境変数もファイルも読まない（配る exe・窓の通しの exe では口が効かない）。
+//!   ファイルが無い・読めなければ待たない
 //! - この PC の中（127.0.0.1）からだけ答える。書き込みは Origin があれば同じ置き場だけ（Python の開発用サーバー web.foreign_request と同じ）
 //! - 1 つのつながりに 1 本の糸・keep-alive なし・本文は 8 MB まで。本文は Content-Length で受け、Transfer-Encoding（chunked など）は
 //!   411 で断る（黙って空の本文にしない。版 3.118.2 の作った後の採点の割れ C13）
@@ -47,6 +50,11 @@ fn main() {
         config: work.join("appsettings.json"),
         now: std::env::var("TPA_DASHBOARD_NOW").ok().filter(|v| !v.is_empty()),
     };
+    if let Some(file) = std::env::var_os("TPA_UI_SLOW_FILE").filter(|f| !f.is_empty()).map(PathBuf::from) {
+        da_core::slow::set_source(Box::new(move || {
+            std::fs::read(&file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::Value::Null)
+        }));
+    }
     let (lot, retired) = shell::lot_for(env, &program);
     for r in retired {
         eprintln!("SETTINGS 効かない設定です: {r}");

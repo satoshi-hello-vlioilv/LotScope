@@ -101,24 +101,17 @@ pub fn open_shared(remote: &str) -> std::io::Result<std::fs::File> {
     o.open(remote)
 }
 
-/// 試験だけ: 名前にこの字を含む元の写しを、この長さ遅くする（1 台だけ写しが遅い場面）
-#[cfg(test)]
-pub(crate) static SLOW_COPY: Mutex<Vec<(String, Duration)>> = Mutex::new(Vec::new());
-
 /// 元をファイルとして丸ごと写す（SQLite として開かない・休まない。開き方は open_shared）。
 pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
     use std::io::{Read, Write};
-    #[cfg(test)]
-    {
-        // 錠は長さを読んだらすぐ外す（if let の頭で錠を取ると、edition 2021 では本体の終わりまで錠が生き、遅くした元の糸が眠る間
-        // ほかの元の写しもこの錠で待たされた。the_copy_stage_moves_while_waiting が遅くした元が先に写し始めた回だけ落ちた）
-        let slow = SLOW_COPY.lock().unwrap().iter().find(|(k, _)| remote.contains(k.as_str())).map(|x| x.1);
-        if let Some(d) = slow {
-            std::thread::sleep(d); // 試験: この元だけ写しを遅くする
-        }
-    }
     let mut src = open_shared(remote)?;
     let mut dst = std::fs::File::create(tmp)?;
+    // 試験と撮る道具だけ（版 3.118.3。src/slow.rs の copy）: 遅くするときは 16 KB ずつ書いて眠る（済んだバイトが刻みごとに増える）。
+    // 今の COPY_CHUNK 4 MB では作り物の 1 台が 1 回の read で済み、copy_progress の済んだバイトが 0 か全部にしかならない
+    #[cfg(any(test, feature = "testing"))]
+    if let Some(bps) = crate::slow::copy_rate(remote) {
+        return crate::slow::copy_slowly(&mut src, &mut dst, bps);
+    }
     let mut buf = vec![0u8; COPY_CHUNK];
     loop {
         let n = src.read(&mut buf)?;
