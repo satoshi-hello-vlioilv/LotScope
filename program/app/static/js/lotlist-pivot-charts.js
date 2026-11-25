@@ -109,7 +109,7 @@
     if (u === "auto" && dg == null) return short(v);
     const [div, suf] = DIVS[u] || (Math.abs(v) >= 1e8 ? [1e8, "億"] : Math.abs(v) >= 1e4 ? [1e4, "万"] : [1, ""]);
     const x = v / div;
-    return (dg == null ? fmt(Math.round(x * 100) / 100) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
+    return (dg == null ? (TDIG != null ? fixed(x, TDIG) : fmt(Math.round(x * 100) / 100)) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
   }
   /** 数値ラベルの字（版 3.50.1）: 値ごとの桁（measures の dec）があればその桁。系列の名前が分かれば、その系列の値の桁（SDEC）。
       パネルの書式で桁・表示形式を決めていれば、そちらが勝つ（measFmt と同じ決まり）。目盛りは nf のまま（桁で 0.25 が 0 にならない） */
@@ -125,6 +125,22 @@
   // 描いた色は USED に控える（版 3.41.0。組む所の「系列」の見本は、描いた色そのもの: 見本と線の色が食い違っていた）
   let USED = null;
   let SER = null;      // 描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」に使う。版 3.46.0）
+  /* 種類の色（版 3.121.0。採点 2026-11-calcpivot の built: 同じ区分〈厚・薄〉が集計表と組む所で違う色だった）: 種類の少ない段（8 つまで）の値は、
+     名前で決まる色にする（集計表・ダッシュボードで同じ。図の中で同じ色が重なれば次の色へ）。CATF は描く間だけ（draw の ctx.catColor） */
+  const CAT = ["#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#7a7a1f", "#8e4f76"];
+  const hashOf = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
+  function catColors(names, list = CAT) {
+    const used = new Set(), map = new Map();
+    names.forEach((n) => { let i = hashOf(n) % list.length; for (let k = 0; k < list.length && used.has(i); k++) i = (i + 1) % list.length; used.add(i); map.set(n, list[i]); });
+    return (n) => map.get(n) || list[hashOf(n) % list.length];
+  }
+  /** 行・列の段の種類の色（集計表・ダッシュボードの共通の決め方）: 段が 1 つで時の段でなく、8 種類までなら名前で決まる色 → 関数（当てないなら null） */
+  function fewColors(dims, names, list = CAT) {
+    const d0 = (dims || [])[0];
+    if ((dims || []).length !== 1 || !d0 || String(d0.column).startsWith("@") || isTimeDim(d0) || !names.length || names.length > 8) return null;
+    return catColors([...names].sort(), list);
+  }
+  let CATF = null;
   const cof = (name, fallback) => { const c = (F.colors && F.colors[name]) || fallback; if (USED && !USED.has(name)) USED.set(name, c); return c; };
   /** 縦軸の上の端（書式の ymax か、きりの良い最大）と下の端（ymin か 0） */
   const topOf = (v) => (F.ymax != null ? F.ymax : niceMax(v));
@@ -281,7 +297,7 @@
     const additive0 = ADDITIVE.has(d.measures[0].agg) && !d.measures[0].show;
     const stack = m.nc > 0 && additive0 && (mode === "time" || mode === "stackarea");
     const kind0 = mode === "time" ? (stack ? "stack" : "bar") : mode === "stackarea" && stack ? "sarea" : mode === "area" || mode === "stackarea" ? "area" : "line";
-    if (m.nc) colsData.forEach((c, k) => { const nm = m.colName(c); series.push({ name: nm, j: 0, c, axis: "left", kind: stack ? (mode === "time" ? "stack" : "sarea") : kind0 === "bar" ? "line" : kind0, color: cof(nm, COLORS[(k + 1) % COLORS.length]) }); });
+    if (m.nc) colsData.forEach((c, k) => { const nm = m.colName(c); series.push({ name: nm, j: 0, c, axis: "left", kind: stack ? (mode === "time" ? "stack" : "sarea") : kind0 === "bar" ? "line" : kind0, color: cof(nm, CATF ? CATF(nm) : COLORS[(k + 1) % COLORS.length]) }); });
     // ctx.oneAxis（別のデータを合わせた答え。目標と実績は同じ単位）: 達成率（%）のほかは左の同じ目盛り
     else d.measures.forEach((mm, j) => { const nm = ctx.measName(mm); series.push({ name: nm, j, c: ALL, axis: j === 0 || oneAxis(j) ? "left" : "right", kind: j === 0 ? (kind0 === "bar" && !ADDITIVE.has(mm.agg) ? "line" : kind0 === "sarea" ? "area" : kind0) : "line", color: cof(nm, COLORS[j % COLORS.length]) }); });
     // 組み合わせ（版 3.46.0。利用者の要望 2026-10-21 の 3: グラフ同士を汎用に組み合わせる）: 1 つ目の系列は棒・ほかは折れ線（既定）。
@@ -469,7 +485,7 @@
   /** 縦棒・横棒・ロリポップ（dir: column・bar・lollipop）: 行の葉ごとに、列の葉（1 つ目の値）か値（グラフにする値を選ぶ）の棒（ロリポップは線と点） */
   function barChart(ctx, dir, wanted) {
     const { m, d, W, H } = ctx, data = dataRows(m).slice(0, 80), colsData = dataCols(m), j = chartAt(ctx);
-    const series = m.nc ? colsData.map((c, k) => { const nm = m.colName(c); return { name: nm, c, j, color: cof(nm, COLORS[k % COLORS.length]) }; })
+    const series = m.nc ? colsData.map((c, k) => { const nm = m.colName(c); return { name: nm, c, j, color: cof(nm, CATF ? CATF(nm) : COLORS[k % COLORS.length]) }; })
       : [{ name: ctx.measName(d.measures[j]), c: ALL, j, color: cof(ctx.measName(d.measures[j]), COLORS[j % COLORS.length]) }];
     const vals = data.map((r) => series.map((q) => m.value(r, q.c, q.j) || 0));
     const max = topOf(Math.max(0, ...vals.flat())), lo = lowOf(max);
@@ -482,7 +498,8 @@
       const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, iw = W - pl - pr, cat = catAxis(names, iw, H, ctx);
       const pb = pad(ctx, 56, 30) + cat.extra, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
       g += axisY(pl, pt, ih, max, false, W + 36, MUTED, nf, lo);
-      const thin = thinOf(vals.flat(), bw);
+      // 間引きは字の入る幅で決める（版 3.121.0。系列が 1 つなら棒の間の幅まで使える。前は棒の幅〈36px まで〉で決め、2 本の棒の 2 本目にラベルが付かなかった）
+      const thin = thinOf(vals.flat(), series.length > 1 ? bw : gw);
       data.forEach((r, i) => {
         series.forEach((q, k) => {
           const v = vals[i][k], h = ih * frac(v), bx = pl + gw * i + (gw - bw * series.length) / 2 + bw * k, c = fill(r, q);
@@ -604,7 +621,7 @@
     let series;
     if (m.nc) {
       const cs = m.cols.filter((c) => c.type === "data");
-      series = cs.slice(0, 12).map((c, k) => { const nm = m.colName(c); return { name: nm, get: (r) => m.value(r, c, j) || 0, color: cof(nm, COLORS[k % COLORS.length]) }; });
+      series = cs.slice(0, 12).map((c, k) => { const nm = m.colName(c); return { name: nm, get: (r) => m.value(r, c, j) || 0, color: cof(nm, CATF ? CATF(nm) : COLORS[k % COLORS.length]) }; });
       if (cs.length > 12) series.push({ name: `その他（${cs.length - 12}）`, get: (r) => cs.slice(12).reduce((a, c) => a + (m.value(r, c, j) || 0), 0), color: "#a9b4be" });
     } else {
       const ms = d.measures.map((x, k) => [x, k]).filter(([x]) => ADDITIVE.has(x.agg));
@@ -1177,8 +1194,21 @@
     return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
   }
   /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
+  /* 表の自動の小数の桁（版 3.121.0。利用者の改良依頼 2026-11-17 の 1 の採点: 547.056 と 1,116.7 が同じ値の列で違った）:
+     桁を決めていない値は、その値の表のどの数も同じ桁にする（いちばん大きい数が 1,000 以上なら 1 桁・1 以上なら 2 桁・ほかは 3 桁。整数だけなら整数） */
+  let TDIG = null;
+  const fixed = (v, dg) => v.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg });
+  function autoDigits(vals) {
+    const ns = vals.filter((v) => typeof v === "number" && Number.isFinite(v));
+    if (!ns.some((v) => !Number.isInteger(v))) return null;
+    const top = Math.max(...ns.map(Math.abs));
+    return top >= 1000 ? 1 : top >= 1 ? 2 : 3;
+  }
   function tableHtml(m, d, { measName, dimName, num = fmt }) {
     const { nr, nc, M, rows, cols } = m;
+    const auto = d.measures.map((x, j) => (x.dec != null ? null : autoDigits(rows.flatMap((r) => cols.map((c) => m.value(r, c, j))))));
+    const num0 = num;
+    num = (v, j) => { TDIG = auto[j]; try { return num0 === fmt ? numText(v, null) : num0(v, j); } finally { TDIG = null; } };
     const mNames = d.measures.map((x) => measName(x));
     // 見出し: 列の段ごとの行（同じ頭はまとめる）＋値の名前の行（値が 2 つ以上か、列が無いとき）
     let head = "";
@@ -1255,7 +1285,7 @@
   function numText(v, fm) {
     // 値ごとの単位（版 3.92.0。measFmt が suffix に入れる）: 数の後ろに付ける（数の無い所には付けない）
     const tail = fm && fm.suffix && v != null && v !== "" ? fm.suffix : "";
-    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return fmt(v) + tail;
+    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return (TDIG != null && typeof v === "number" ? fixed(v, TDIG) : fmt(v)) + tail;
     const keep = F; F = fm;
     try { return nf(v) + tail; } finally { F = keep; }
   }
@@ -1292,8 +1322,9 @@
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" || kind === "hstack" || kind === "hstack100" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
-    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC];
+    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF];
     if (ctx.colors) COLORS = ctx.colors;
+    CATF = ctx.catColor || null;
     USED = new Map(); SER = new Map();
     F = ctx.fmt || {};
     // 値ごとの桁（版 3.50.1）: 数値ラベルは系列の値の桁（名前で引く）。名前の分からない所は、グラフにする値の桁。目盛りは自動のまま
@@ -1302,7 +1333,35 @@
     LDEC = (ms[Math.min((ctx.s && ctx.s.chartAt) || 0, Math.max(ms.length - 1, 0))] || {}).dec ?? null;
     const lb = F.labels || (ctx.s && ctx.s.labels ? "top" : "none");
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
-    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC] = keep; }
+    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, perHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  /* ---- 計算列の札（版 3.121.0。利用者の改良依頼 2026-11-17 の 1。採点 2026-11-calcpivot の N）: 一覧の集計表と、ダッシュボードの組む所で
+     同じ形・同じ言葉。カラムの欄の頭に「ƒx 計算列 n」のまとまり（畳める。画面ごとに覚える）、札の 2 段目は札の幅いっぱいに式と種類。
+     2 段目は語の切れ目（空白と「 · 」の後ろ）でだけ折り、2 行まで（3 行目からは … で、吹き出しに全部）。読めない式は理由と直す口 */
+  const FX_KEY = "tpa.calcfold.v1";
+  const fxFolded = (where) => !!(TPA.local.get(FX_KEY, {}) || {})[where];
+  function setFxFolded(where, on) { const a = { ...(TPA.local.get(FX_KEY, {}) || {}) }; a[where] = !!on; TPA.local.set(FX_KEY, a); }
+  const FX_MARK = '<i class="fx-mark" aria-hidden="true">ƒx</i>';
+  /** まとまりの見出し。n: 使える計算列の数・bad: 読めない式の数・add: 作る口の言葉・addAttr: 作る口の印 */
+  function fxHead({ n, bad = 0, sub, add, addAttr, where }) {
+    const folded = fxFolded(where);
+    if (!n && !bad) {
+      // 計算列が無い表は、作る口の 1 行だけ（版 3.121.0。前は「計算列はまだありません」の 3 行が欄の頭を取った）
+      return `<div class="fx-head is-none">${FX_MARK}<button type="button" class="fx-add" ${addAttr}>${esc(add)}</button></div>`;
+    }
+    return `<div class="fx-head${folded ? " is-folded" : ""}"><span class="fx-hl">${FX_MARK}<b>計算列</b><span class="fx-n">${n}</span></span>`
+      + `<button type="button" class="fx-fold" data-fx-fold="${esc(where)}" aria-expanded="${!folded}" title="計算列のまとまりを${folded ? "開きます" : "畳みます（元の列が上に来ます）"}">${folded ? "開く ▾" : "畳む ▴"}</button>`
+      + `<small>${esc(sub)}${folded ? ` · ${n + bad} 列を畳んでいます` : ""}</small><button type="button" class="fx-add" ${addAttr}>${esc(add)}</button></div>`;
+  }
+  const fxRawHead = () => '<div class="fx-head is-raw"><span class="fx-hl"><b>元の列</b></span><small>データの列</small></div>';
+  /** 札の 2 段目（式と種類。読めない式は理由と直す口） */
+  function fxLine({ formula, kind, bad, fixAttr = "" }) {
+    if (bad) return `<div class="fx-l"><span class="nw fx-why">式が読めません</span><span class="fx-dot"> · </span><button type="button" class="nw fx-fix" ${fixAttr}>表示列で直す ›</button></div>`;
+    return `<div class="fx-l"><code>= ${esc(formula)}</code>${kind ? `<span class="fx-dot"> · </span><span class="nw">${esc(kind)}</span>` : ""}</div>`;
+  }
+  /** 札の吹き出し: 名前・式（全部） */
+  const fxTip = (name, formula, bad) => `${name}（計算列。一覧の表示列で作った列）\n= ${formula}${bad ? "\n式が読めません。表示列の「この列の作り方」で直してください" : ""}`;
+
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, perHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml, autoDigits, CAT, catColors, fewColors,
+    fx: { head: fxHead, rawHead: fxRawHead, line: fxLine, tip: fxTip, MARK: FX_MARK, folded: fxFolded, setFolded: setFxFolded } };
 })();

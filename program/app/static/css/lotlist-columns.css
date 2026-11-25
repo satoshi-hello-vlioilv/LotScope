@@ -391,3 +391,10 @@ td.cell-warn{background:#fff5e0!important}
 .lc-cvmaster{grid-column:1/-1;justify-self:end;font-size:12px;color:var(--h-input)}
 .lc-cvtag{margin-left:6px;padding:0 7px;border-radius:999px;background:#e7eef8;color:#244569;font-size:11px;font-weight:800;white-space:nowrap}
 .lc-cvtag.is-add{background:#fdf1dc;color:#7a4b00}
+
+/* 計算列（版 3.121.0）: 集計表・組む所の札と同じ ƒx の印。作り方の段の下に「集計表で値に置く」 */
+.lc-step > h4 > i:has(.lc-fxmark){background:none;padding:0}
+.lc-fxmark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:18px;border-radius:5px;background:var(--h-input);color:#fff;font:italic 800 11px/1 system-ui,sans-serif}
+.lc-fxuse{display:flex;align-items:center;gap:8px;margin:-2px 0 10px;padding:8px 12px;border:1px solid var(--line-soft,#d7dee7);border-radius:10px;background:var(--surface-2,#f7f9fb);font-size:12.5px}
+.lc-fxuse > span{flex:1;min-width:0}
+.lc-fxuse button{white-space:nowrap;border:1px solid var(--h-input);background:#fff;color:var(--h-input);border-radius:7px;padding:4px 10px;font:700 12.5px system-ui,sans-serif;cursor:pointer}

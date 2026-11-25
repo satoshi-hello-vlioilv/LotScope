@@ -197,6 +197,8 @@
       + "</div>";
   }
   const tableName = () => { const b = bases(st.items).find((x) => x.key === st.base); return `${b ? b.name : st.base} › ${st.col}`.slice(0, 24); };
+  /** 作るパネルの数と中身（版 3.121.0。前は「合計」1 枚しか言わず、実際は 5 枚できた。dashboard.js の addJsonPanel と同じ並び） */
+  const panelsText = () => (KEYED.has(st.shape) ? "5 枚（合計と平均の棒・表・数字 2 枚）" : "3 枚（合計・平均・ロット数の数字）");
   const panelTitle = () => (KEYED.has(st.shape) ? `${st.key.trim() || "鍵"}ごとの${st.value.trim() || "値"}の合計` : `${st.value.trim() || "値"}の合計`);
   function footHtml() {
     const pre = st.pre, can = !!pre && pre.stats.fit > 0 && !st.busy;
@@ -205,7 +207,7 @@
     const out = ps ? `：${fmt(ps.out - keep)} 行${keep ? ` ＋ 分けずに残す ${fmt(keep)} 行 ＝ ${fmt(ps.out)} 行` : ""}（元 ${fmt(pre.rows)} 行）` : "";
     const panelOk = VALUED.has(st.shape);
     const pan = st.from === "dash" ? `<span class="jx-mute" title="作ると、組んでいるパネルのデータにします">このパネルで${KEYED.has(st.shape) ? "鍵ごとの値の合計" : "値の合計"}にします</span>`
-      : `<label class="jx-ck${panelOk ? "" : " is-off"}"><input type="checkbox" data-jx-panel${st.panel && panelOk ? " checked" : ""}${panelOk ? "" : " disabled"}>新しいダッシュボードに「${esc(panelTitle())}」を作る</label>`;
+      : `<label class="jx-ck${panelOk ? "" : " is-off"}"><input type="checkbox" data-jx-panel${st.panel && panelOk ? " checked" : ""}${panelOk ? "" : " disabled"}>新しいダッシュボードに「${esc(panelTitle())}」など ${panelsText()}のパネルを作る</label>`;
     return `<div class="jx-fl"><span class="jx-out">できる表 <b>${esc(st.col ? tableName() : "")}</b>${out}${had ? '<small>（作ってある表の決まりを直します）</small>' : ""}</span>${pan}</div><span class="jx-sp"></span>`
       + `<button type="button" class="btn-ghost" data-jx-close>やめる</button><button type="button" class="btn-primary" data-jx-make${can ? "" : " disabled"}>${st.busy ? "…" : st.from === "dash" ? (had ? "表を直してパネルに使う" : "表を作ってパネルに使う") : had ? "表を直す" : "表を作る"}</button>`;
   }
@@ -278,7 +280,7 @@
     if (wantPanel && window.Dashboard && Dashboard.addJsonPanel) {
       const got = await Dashboard.addJsonPanel(view);
       if (got && got.ok) {
-        TPA.toast(`「${view.name}」を作り、新しいダッシュボード「${got.name}」に「${view.title}」を足しました`, { rest: "見る → ダッシュボード", ms: 15000 });
+        TPA.toast(`「${view.name}」を作り、新しいダッシュボード「${got.name}」に「${view.title}」など ${got.count || 5} 枚のパネルを足しました`, { rest: "見る → ダッシュボード", ms: 15000 });
         showJump(view.title);
         return;
       }

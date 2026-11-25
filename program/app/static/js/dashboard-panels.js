@@ -23,7 +23,7 @@
   const colorOf = (src) => SOURCE_COLOR[kindOf(src)];
   // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
   // 警告の赤（前日 0 本の札・読めない）と近い赤・桃も使わない（3 回目の指摘）
-  const CAT = ["#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#7a7a1f", "#8e4f76"];
+  const CAT = C.CAT;   // 種類の色（版 3.121.0 から集計表と同じ物: lotlist-pivot-charts.js の catColors）
   /* 色の組（版 3.39.0。書式 palette。利用者の要望 7）: "" はデータの種類の色（今まで）。版 3.69.0 から組は dashboard-style.js に
      （カラフル・単色の濃淡・自分で作った組 custom〈fmt.pcolors〉。利用者の要望 2026-11-04 の 2） */
   const ST = window.DashStyle, PALETTES = ST.PALETTES;
@@ -32,11 +32,7 @@
   const drawnSer = new Map();     // パネルごとに描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」。版 3.46.0）
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
-  function catColors(names, list = CAT) {
-    const used = new Set(), map = new Map();
-    names.forEach((n) => { let i = hash(n) % list.length; for (let k = 0; k < list.length && used.has(i); k++) i = (i + 1) % list.length; used.add(i); map.set(n, list[i]); });
-    return (n) => map.get(n) || list[hash(n) % list.length];
-  }
+  const catColors = (names, list = CAT) => C.catColors(names, list);
   /** パネルの系列の色の並び（色の組を選んでいればその組。無ければデータの種類の色から） */
   function seriesColors(p) {
     if (p._facetColor) return [p._facetColor, ...C.COLORS.filter((c) => c !== p._facetColor)];   // 並べる: その設備の色（重ねるときの系列の色と同じ）
@@ -281,7 +277,9 @@
     // 別のデータを合わせた答え（版 3.40.0）: 色は役割の色（組む所の札と同じ: 目標＝紫・実績＝青緑）・目標と実績は同じ目盛り
     const link = !!d.link;
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
-    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
+    // 列の段の種類（厚・薄など 8 つまで）の系列は名前で決まる色（集計表と同じ。色の組を選んだ・別のデータと合わせたときは今までの色）
+    const catColor = !link && !pal && !p._facetColor ? C.fewColors(d.dims.cols, m0.cols.filter((c) => c.type === "data").map((c) => m0.colName(c))) : null;
+    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, catColor, fmt: fm, oneAxis: link });
     if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
     // スタイル（版 3.69.0。角丸・グラデーション・枠だけ・淡い塗り・影・太い線）: 系列・項目の色で塗った印だけに当てる
     if (fm.style) out.svg = ST.apply(out.svg, fm.style, [...cols, ...(out.used || []).map((x) => x[1])]);
@@ -534,7 +532,8 @@
       set(fs, pv);
       if (wrap.scrollHeight > H + 1) continue;
       const rows = Math.max(...tbs.map((tb) => tb.rows.length)), spare = H - wrap.scrollHeight;
-      if (spare > rows * 2) { set(fs, pv + Math.min(9, Math.floor(spare / rows / 2))); if (wrap.scrollHeight > H + 1) set(fs, pv); }
+      // 空きは行の上下に配って埋める（版 3.121.0 で上限 9 → 14px。採点 2026-11-calcpivot の built: 総計の下に約 170px の空き）
+      if (spare > rows * 2) { set(fs, pv + Math.min(14, Math.floor(spare / rows / 2))); if (wrap.scrollHeight > H + 1) set(fs, pv); }
       return false;
     }
     return true;

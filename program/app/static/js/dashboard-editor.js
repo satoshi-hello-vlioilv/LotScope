@@ -623,7 +623,8 @@
       const gantt = p.visual === "gantt", word = gantt ? "色" : "品種", on = (c) => (gantt ? (p.ops || {}).color === c : clsOf(p).includes(c));
       const ql = q.trim().toLowerCase();
       const list = fields.fields.filter((f) => !f.error && pickable(f) && (!ql || f.column.toLowerCase().includes(ql)));
-      return `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
+      return `<div class="fx-head is-none">${C.fx.MARK}<button type="button" class="fx-add" data-de-calcnew title="式から列を作り、このパネルで使います（色・品種・作業開始に使えます。一覧の列にはなりません）">＋ このパネルだけの列</button></div>`
+        + `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
         + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`)}</small></span><i></i><i></i>`
           + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("")
         // このパネルで作った計算列のうち、色・品種に選べない物（日付・時刻の列など。作業開始・作業終了に使う）も、直せるように並べる（版 3.73.0）
@@ -644,7 +645,25 @@
         + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}"${fa("@count", ["vals"])}><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
     }
     const jxc = jsonCols();   // JSON の列を分けた表の足した列（版 3.120.0）: 札の頭に「›」を付けて先に並べる
-    html += fields.fields.filter((f) => hit(f.column)).sort((a, b2) => jxc.includes(b2.column) - jxc.includes(a.column)).map((f) => {
+    const subOf = (f) => (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`));
+    // 計算列（版 3.121.0。一覧の集計表と同じ形）: 欄の頭の「ƒx 計算列」のまとまり。札の 2 段目に式（このパネルの式は ✎ で直す）。読めない式は最後に理由と直す口
+    const fxCard = (f) => {
+      const c = f.column, u = used(c), anyVal = b.measures.some((m) => m.column === c), bad = !!f.error, mine = ownList.includes(c), fx = ctx.formulas[c] || "";
+      const edit = mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">✎</button>` : "";
+      const head = `<span>${C.fx.MARK}<b>${esc(c)}</b>${edit}</span>`;
+      const btns = bad ? "<i></i><i></i><i></i>" : rowBtn(c, u === "rows") + colBtn(c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
+        : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"'));
+      return `<div class="pv-f is-calc is-fx${bad ? " is-bad" : ""}${u || anyVal ? " is-used" : ""}" title="${esc(C.fx.tip(c, fx, bad))}"${bad ? "" : fa(c, dimRoles.concat(["vals"]))}>${head}${btns}`
+        + C.fx.line({ formula: fx, kind: (mine ? "このパネルの式 · " : "") + subOf(f), bad, fixAttr: mine ? `data-de-calcopen="${esc(c)}"` : `data-de-fxfix="${esc(c)}"` }) + "</div>";
+    };
+    const shownF = fields.fields.filter((f) => hit(f.column));
+    const calcs = shownF.filter((f) => f.calc).sort((a, b2) => !!a.error - !!b2.error), nOk = calcs.filter((f) => !f.error).length;
+    if (!ql || calcs.length) {
+      html += C.fx.head({ n: nOk, bad: calcs.length - nOk, sub: "一覧で作った列・このパネルの列", add: "＋ このパネルだけの列", addAttr: 'data-de-calcnew title="式から列を作り、このパネルで使います（一覧の列にはなりません）"', where: "dash" });
+      if (!C.fx.folded("dash")) html += calcs.map(fxCard).join("");
+      if (shownF.some((f) => !f.calc)) html += C.fx.rawHead();
+    }
+    html += shownF.filter((f) => !f.calc).sort((a, b2) => jxc.includes(b2.column) - jxc.includes(a.column)).map((f) => {
       const c = f.column, u = used(c), anyVal = b.measures.some((m) => m.column === c);
       if (f.error) return `<div class="pv-f is-off" title="${esc(ctx.formulas[c] || "")}"><span><b>${esc(c)}<small class="sx-calc">式</small></b><small>${esc(f.error)}（一覧の「表示列」で直す）</small></span><i></i><i></i><i></i></div>`;
       const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`));
@@ -1676,7 +1695,7 @@
         + `<div class="de-head" data-drag><b>パネルを組む</b><input id="deTitle" class="de-title" autocomplete="off" aria-label="題" maxlength="60">`
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
         + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields" data-dnd-trash><div class="pv-cap"><b>カラム</b><button type="button" class="de-fitbtn" data-de-fitcols title="いちばん長いカラム名が 1 行で入る幅に、カラムの欄を広げます（境を引いても変えられます）">⇔ 名前に合わせる</button><small>札を押すか、右の文へ引くと入ります（文の札は引いて並べ替え・行と列の入れ替え。ここへ戻すと外れます）</small></div>`
-        + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
+        + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"></div><div class="pv-list" id="deFields"></div></aside>`
         + '<i class="de-split" role="separator" aria-orientation="vertical" tabindex="0" aria-label="カラムの欄の幅" title="引いてカラムの欄の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
         // 上のタブ（2026-11-dashstyle の 1 回目で決めた D。利用者の要望 2026-11-04 の 2・5）: データと数え方（① データ ② 数え方・連動 ③ 形）｜デザイン（テーマ・見せ方・スタイル・色の組）｜書式（数値・軸・単位・系列）
         + `<div class="de-main"><div class="de-ptabs" id="dePtabs" role="tablist" aria-label="組む所の中身"></div>`
@@ -1842,6 +1861,8 @@
       if (b.dataset.deRefc != null) { const r = ((p.fmt || {}).refs || []).map((x) => ({ ...x })), i = +b.closest(".de-ref").dataset.i; r[i].color = b.dataset.deRefc; setFmt("refs", r); return; }
       // 計算列
       if (b.hasAttribute("data-de-calcnew")) { openCalc(""); return; }
+      if (b.dataset.fxFold) { C.fx.setFolded("dash", !C.fx.folded("dash")); $("#deFields").innerHTML = fieldsHtml(); return; }
+      if (b.dataset.deFxfix != null) { if (!(window.LotListColumns && LotListColumns.openFx(b.dataset.deFxfix))) host.toast("一覧（品質など）を開き、「表示列」の「この列の作り方」で直してください"); return; }
       if (b.hasAttribute("data-de-json")) { openJson(); return; }
       if (b.dataset.deCalcopen != null) { e.stopPropagation(); openCalc(b.dataset.deCalcopen); return; }
       if (b.hasAttribute("data-de-calcx")) { calcEdit = null; paintCalc(); return; }
@@ -2202,6 +2223,8 @@
   }
 
   window.DashEditor = {
+    /** 評価関数（ui-eval-calcpivot.mjs）が組んでいるパネルの組みを読む */
+    _panel: () => (p ? TPA.clone(p) : null),
     /** 開く。h = {panel, sources, answer() → いまの答え, onChange(panel), onApply(panel), onCancel(), toast(text)} */
     async open(h) {
       host = h; sources = h.sources || []; pane = "data";   // 開くたびに「データと数え方」のタブから（版 3.70.0）

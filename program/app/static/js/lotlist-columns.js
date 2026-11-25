@@ -137,8 +137,10 @@
       has(_, k) { return typeof k === "string"; },
     });
   }
+  /** 式の答えの数の小数の誤差を見せない（版 3.121.0。3.7053000000000003 → 3.7053）: 有効 12 桁で丸める。見せるときだけ（式どうし・読み替えの比べは元の数） */
+  const tidy = (v) => (typeof v === "number" && Number.isFinite(v) && !Number.isInteger(v) ? Number(v.toPrecision(12)) : v);
   function cellWith(t, c, row, rulesOrName, mode) {
-    const raw = rawOf(t, c, row), R = window.LotListRules;
+    const raw = tidy(rawOf(t, c, row)), R = window.LotListRules;
     const rawText = raw == null ? "" : String(raw);
     if (rulesOrName && R) {
       const m = mode || (Array.isArray(rulesOrName) ? "raw" : R.selfMode(rulesOrName));
@@ -283,9 +285,14 @@
 
   /* ================= 幅 ================= */
   function estimate(t, c, rows) {
-    const font = '13.5px "Yu Gothic UI","Meiryo UI",sans-serif', hfont = '700 13px "Yu Gothic UI","Meiryo UI",sans-serif';
-    const ws = rows.slice(0, 40).map((r) => textWidth(cell(t, c, r).text, font)).sort((a, b) => a - b);
-    const p90 = ws.length ? ws[Math.min(ws.length - 1, Math.floor(ws.length * 0.9))] : 0;
+    // 字の幅は一覧の本当の字の形で測る（版 3.121.0。前は "Yu Gothic UI" の名で測り、その字の無い PC では数字が細く測られて「5.00...」と切れた）
+    const fam = (() => { try { return getComputedStyle(document.querySelector(".ll-grid") || document.body).fontFamily || ""; } catch (_) { return ""; } })() || '"Yu Gothic UI","Meiryo UI",sans-serif';
+    const font = `13.5px ${fam}`, hfont = `700 13px ${fam}`;
+    const texts = rows.slice(0, 40).map((r) => cell(t, c, r).text);
+    const ws = texts.map((x) => textWidth(x, font)).sort((a, b) => a - b);
+    // 数の列は数を途中で切らない（いちばん長い数に合わせる）。字の列は長い 1 割を「…」に任せる
+    const filled = texts.filter((x) => String(x).trim() !== ""), numeric = filled.length > 0 && filled.filter((x) => /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?$/i.test(String(x).trim())).length >= filled.length * 0.8;
+    const p90 = ws.length ? ws[numeric ? ws.length - 1 : Math.min(ws.length - 1, Math.floor(ws.length * 0.9))] : 0;
     // 余白はいまのセルの余白（左右）。見出しは並べ替えの印のぶん少し足す。+4 は字の端の丸め（ここを詰めると「…」が出やすい）
     const pad = cellPad() * 2;
     const head = textWidth(label(t, c), hfont) + pad + 10;
@@ -710,17 +717,19 @@
         <div class="lc-field"><span>データの揃え</span>${[["", "自動"], ["left", "左"], ["center", "中央"], ["right", "右"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcAD" value="${k}"${(a.data || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
         <div class="lc-field"><span>見出しの揃え</span>${[["", "中央（既定）"], ["follow", "データに合わせる"], ["left", "左"], ["right", "右"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcAH" value="${k}"${(a.head || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
       </section>
-      ${step("fx", "式", "この列の作り方", stepFx(t, c))}
+      ${step("fx", calc ? '<span class="lc-fxmark">ƒx</span>' : "式", "この列の作り方", stepFx(t, c))}
         <div class="lc-fxsum">
           <code class="lc-fxcode${fchk && !fchk.ok ? " is-ng" : ""}${String(fsrc).trim() ? "" : " is-none"}">${String(fsrc).trim() ? esc(fsrc) : calc ? "（式がまだありません）" : "式なし（元の値のまま）"}</code>
           <small class="lc-fxhow">${fromBuild ? `組み立て ${l.builds[c].length}行から作った式` : String(fsrc).trim() ? "書いた式" : "組み立てる（表示ルールと同じ組み立て）か、式を書いて作れます"}</small>
           ${String(fsrc).trim() ? `<small id="lcFxState" class="lc-fxstate ${fchk && !fchk.ok ? "is-ng" : "is-ok"}">${fchk.ok ? `使える式です（使っている列: ${esc(fchk.columns.join("、") || "なし")}）` : esc(fchk.error)}</small>` : ""}
-          ${String(fsrc).trim() && fchk && fchk.ok ? `<div class="lc-fxtry"><span>先頭3件の結果</span>${ctx.rows.slice(0, 3).map((r) => `<code>${esc(String(rawOf(t, c, r) ?? "")) || "（空欄）"}</code>`).join("")}</div>` : ""}
+          ${String(fsrc).trim() && fchk && fchk.ok ? `<div class="lc-fxtry"><span>先頭3件の結果</span>${ctx.rows.slice(0, 3).map((r) => `<code>${esc(String(tidy(rawOf(t, c, r)) ?? "")) || "（空欄）"}</code>`).join("")}</div>` : ""}
         </div>
         <div class="lc-fxacts"><button type="button" id="lcFxOpen" class="lc-primary" title="別の窓で、組み立てるか式を書いて作ります（窓の中で打っている間は一覧を描き直しません）">${String(fsrc).trim() ? "作り方を開く…" : "作り方を作る…"}</button>
           ${!calc && String(fsrc).trim() ? '<button type="button" id="lcFxClear" title="式を外し、元のデータの値をそのまま出します">式を外す</button>' : ""}
 </div>
       </section>
+      ${calc && fchk && fchk.ok ? `<div class="lc-fxuse"><i class="fx-mark" aria-hidden="true">ƒx</i><span>集計表・グラフとダッシュボードのカラムの頭（計算列）に並びます</span>`
+        + `<button type="button" id="lcFxPivot" title="保存して窓を閉じ、集計表・グラフでこの列を値（数なら合計・字なら種類の数）に置きます">集計表で値に置く</button></div>` : ""}
       ${step("fmt", "2", "値の整え方", stepFmt(t, c))}
         <div class="lc-field"><span>種類</span>${[["", "そのまま"], ["number", "数値"], ["datetime", "日付・時刻"], ["text", "文字"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcK" value="${k}"${(f.kind || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
         ${f.kind === "number" ? `<div class="lc-field"><span>小数桁</span><select id="lcDec"><option value="">そのまま</option>${[0, 1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}"${dec === String(n) ? " selected" : ""}>${n}桁</option>`).join("")}</select>
@@ -770,6 +779,12 @@
     $("#lcSuf")?.addEventListener("change", (e) => setF({ suffix: e.target.value.slice(0, 8) }));
     // この列の作り方: 別の窓（lotlist-rules.js の作り方の窓。表示ルールと同じ組み立て＋式を書く）で作り、「当てる」で下書きへ
     $("#lcFxOpen").addEventListener("click", () => openFormula(c));
+    // 集計表で値に置く（版 3.121.0）: 直していれば保存して閉じ、一覧の集計表・グラフでこの列を値に置く（lotlist-pivot.js）
+    $("#lcFxPivot")?.addEventListener("click", async () => {
+      if (changedFrom(t)) { save(t); ctx.rerender(); }
+      closePanel({ keep: true });
+      if (window.LotListPivot && LotListPivot.useCalc) LotListPivot.useCalc(c, "vals");
+    });
     $("#lcFxClear")?.addEventListener("click", () => setFormula(c, { formula: "", build: null }));
     $("[data-lc-cdel]", box)?.addEventListener("click", () => removeCols([c]));
     // 読み替え: 選ぶ／新しく作る／編集する（編集の窓は lotlist-rules.js）
@@ -1113,6 +1128,22 @@
     applyConversions, conversionPlans,
     /** 計算列 names をサーバーで計算するための式（版 3.42.0。一覧の並べ替え）。その式が [名前] で読む式の列を 1 段足す（サーバーは baseRow と同じ引き方）。
         → {formulas, names}（計算列が無ければ null） */
+    /** 計算列の作り方の窓を開く（版 3.121.0。集計表・組む所の読めない式の札の「表示列で直す ›」）: 表示列の窓でその列を選び、作り方の窓を開く */
+    openFx(c) {
+      if (!ctx || !ctx.columns.includes(c)) return false;
+      if (!panel || panel.hidden) openPanel();
+      focusCol = c; sel = new Set([c]); openStep = "fx"; renderPanel(); openFormula(c);
+      return true;
+    },
+    /** 計算列を作る（集計表の「＋ 一覧の列を作る」）: 表示列の窓を開き、名前を聞いて列を足す */
+    newCalc() {
+      if (!ctx) return;
+      if (!panel || panel.hidden) openPanel();
+      const name = (prompt("計算列を作る\n新しい列の名前", "計算列") || "").trim();
+      if (name) addCalc(name);
+    },
+    /** 一覧の集計表へ渡す今の表の計算列の式（版 3.121.0）: 表に無い列（作った列）の式と、その式が読む式の列。無ければ null */
+    calcOfTable(t, columns) { return this.calcFor(t, allColumns(t, columns).filter((c) => isComputed(t, c))); },
     calcFor(t, names) {
       const l = get(t), byName = Object.fromEntries(Object.entries(l.names).map(([c, n]) => [n, c])), formulas = {};
       names.filter((c) => isComputed(t, c) && String(l.formulas[c] || "").trim()).forEach((c) => {
