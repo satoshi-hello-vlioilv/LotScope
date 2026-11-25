@@ -591,7 +591,11 @@
   function paintChart(m, d, s) {
     const box = $("#llPvChart"); if (!box) return;
     const W = Math.max(600, box.clientWidth - 20);
-    const { svg, legend = "", side = "" } = C.draw(s.chart, { m, d, s, W, measName, dimName, label: host.label });
+    // 種類の色（版 3.121.0）: 種類の少ない段の値は名前で決まる色（ダッシュボードのパネルと同じ決め方。同じ 厚・薄 は同じ色）
+    const dataRows = m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r));
+    const rowColor = !m.nc ? C.fewColors(d.dims.rows, dataRows) : null;
+    const catColor = C.fewColors(d.dims.cols, m.cols.filter((c) => c.type === "data").map((c) => m.colName(c)));
+    const { svg, legend = "", side = "" } = C.draw(s.chart, { m, d, s, W, measName, dimName, label: host.label, rowColor, catColor });
     const def = C.get(s.chart), j = Math.min(s.chartAt || 0, d.measures.length - 1);
     // グラフにする値（値が 2 つ以上で、1 つの値を描く形のとき）
     const pickMeas = def && def.one && d.measures.length > 1 && !(m.nc === 0 && s.chart === "stack") ? `<label class="pv-ck">グラフにする値<select data-pv-chartat>${d.measures.map((x, k) => `<option value="${k}"${k === j ? " selected" : ""}>${esc(measName(x))}</option>`).join("")}</select></label>` : "";

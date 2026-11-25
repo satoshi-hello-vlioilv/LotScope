@@ -623,7 +623,7 @@
       const gantt = p.visual === "gantt", word = gantt ? "色" : "品種", on = (c) => (gantt ? (p.ops || {}).color === c : clsOf(p).includes(c));
       const ql = q.trim().toLowerCase();
       const list = fields.fields.filter((f) => !f.error && pickable(f) && (!ql || f.column.toLowerCase().includes(ql)));
-      return `<div class="fx-head is-none"><span class="fx-hl">${C.fx.MARK}<b>計算列</b></span><small>色・品種・作業開始に使えます</small><button type="button" class="fx-add" data-de-calcnew title="式から列を作り、このパネルで使います（一覧の列にはなりません）">＋ このパネルだけの列</button></div>`
+      return `<div class="fx-head is-none">${C.fx.MARK}<button type="button" class="fx-add" data-de-calcnew title="式から列を作り、このパネルで使います（色・品種・作業開始に使えます。一覧の列にはなりません）">＋ このパネルだけの列</button></div>`
         + `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
         + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`)}</small></span><i></i><i></i>`
           + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("")

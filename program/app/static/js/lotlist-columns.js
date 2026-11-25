@@ -285,9 +285,14 @@
 
   /* ================= 幅 ================= */
   function estimate(t, c, rows) {
-    const font = '13.5px "Yu Gothic UI","Meiryo UI",sans-serif', hfont = '700 13px "Yu Gothic UI","Meiryo UI",sans-serif';
-    const ws = rows.slice(0, 40).map((r) => textWidth(cell(t, c, r).text, font)).sort((a, b) => a - b);
-    const p90 = ws.length ? ws[Math.min(ws.length - 1, Math.floor(ws.length * 0.9))] : 0;
+    // 字の幅は一覧の本当の字の形で測る（版 3.121.0。前は "Yu Gothic UI" の名で測り、その字の無い PC では数字が細く測られて「5.00...」と切れた）
+    const fam = (() => { try { return getComputedStyle(document.querySelector(".ll-grid") || document.body).fontFamily || ""; } catch (_) { return ""; } })() || '"Yu Gothic UI","Meiryo UI",sans-serif';
+    const font = `13.5px ${fam}`, hfont = `700 13px ${fam}`;
+    const texts = rows.slice(0, 40).map((r) => cell(t, c, r).text);
+    const ws = texts.map((x) => textWidth(x, font)).sort((a, b) => a - b);
+    // 数の列は数を途中で切らない（いちばん長い数に合わせる）。字の列は長い 1 割を「…」に任せる
+    const filled = texts.filter((x) => String(x).trim() !== ""), numeric = filled.length > 0 && filled.filter((x) => /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?$/i.test(String(x).trim())).length >= filled.length * 0.8;
+    const p90 = ws.length ? ws[numeric ? ws.length - 1 : Math.min(ws.length - 1, Math.floor(ws.length * 0.9))] : 0;
     // 余白はいまのセルの余白（左右）。見出しは並べ替えの印のぶん少し足す。+4 は字の端の丸め（ここを詰めると「…」が出やすい）
     const pad = cellPad() * 2;
     const head = textWidth(label(t, c), hfont) + pad + 10;

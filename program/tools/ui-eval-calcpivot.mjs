@@ -181,11 +181,25 @@ try {
     const q3 = await app.newPage("light", parseView(v));
     q3.on("pageerror", (e) => errors.push(e.message));
     await setLayout(q3, CALC_LAYOUT); await q3.reload(); await q3.waitForSelector("#llBody tr[data-i]"); await sleep(600);
+    // 一覧の数の列（先頭 40 行の 8 割が数）の値が「…」で切れない（版 3.121.0 の作った後の採点: 重量t の 5.0008 が「5.00...」）
+    const cut = await q3.evaluate(() => {
+      const heads = [...document.querySelectorAll("#llHead th")].map((t) => t.dataset.col), rows = [...document.querySelectorAll("#llBody tr[data-i]")].slice(0, 40), out = [];
+      heads.forEach((c, i) => {
+        if (!c) return;
+        const tds = rows.map((tr) => tr.children[i]).filter((td) => td && td.textContent.trim());
+        if (!tds.length || tds.filter((td) => /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?$/i.test(td.textContent.trim())).length < tds.length * 0.8) return;
+        const bad = tds.filter((td) => /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?$/i.test(td.textContent.trim()) && td.scrollWidth > td.clientWidth + 1 && td.getBoundingClientRect().right < innerWidth);
+        if (bad.length) out.push([c, bad.slice(0, 3).map((td) => td.textContent.trim())]);
+      });
+      return { out, n: heads.length };
+    });
+    check(`⑧ ${v}: 一覧の数の列（重量・重量t・板幅 など）の値が「…」で切れない`, cut.out.length === 0, cut);
     await q3.click('#llViewSwitch [data-pv-view="pivot"]'); await q3.waitForSelector("#llPvFields .pv-f[data-col]"); await sleep(600);
     await q3.click('#llPvFields .pv-f[data-col="合金"] [data-pv-add="rows"]'); await sleep(300);
     await q3.click('#llPvFields .pv-f[data-col="重量t"] [data-pv-add="vals"]'); await sleep(300);
     await q3.click('#llPvFields .pv-f[data-col="板厚区分"] [data-pv-add="cols"]'); await sleep(400);
     await pickChart(q3, "column").catch(() => {}); await q3.keyboard.press("Escape"); await busyDone(q3); await sleep(500);
+    const pvColor = await q3.evaluate(() => Object.fromEntries(["厚", "薄"].map((k) => [k, ([...document.querySelectorAll("#llPvChart rect")].find((r) => (r.querySelector("title") || {}).textContent?.includes(`/ ${k}:`)) || { getAttribute: () => "" }).getAttribute("fill")])));
     const pf = await cardFit(q3, "#llPvFields");
     const bad = pf.filter((x) => x.nameCut || x.lineCut || x.out || x.split || x.lines > 3);
     check(`⑧ ${v}: 集計表の計算列の札 ${pf.length} 枚の名前と 2 段目が切れず、語の途中で折れない（2 段目は 2 行まで）`, pf.length === 4 && !bad.length && pf.filter((x) => !/寸法/.test(x.col)).every((x) => x.lines <= 2), pf);
@@ -197,6 +211,14 @@ try {
     if (eb) await eb.click(); else { await q3.focus('#dashGrid .db-p[data-id="wipClass"]'); await q3.keyboard.press("Enter"); }
     await q3.waitForSelector("#deFields .pv-f"); await waitDash(q3); await sleep(300);
     await q3.selectOption("[data-de-src]", "lot"); await q3.waitForSelector('#deFields .pv-f[data-dnd-col="板厚区分"]', { timeout: 30000 }); await sleep(500);
+    await q3.click('#deFields .pv-f[data-dnd-col="板厚区分"] [data-de-add="rows"]'); await sleep(400);
+    await q3.click('#deFields .pv-f[data-dnd-col="重量t"] [data-de-add="vals"]'); await sleep(400);
+    await q3.click('#deFields [data-de-add="vals"][data-col="@lots"]').catch(() => {}); await sleep(400);
+    await waitDash(q3); await sleep(1200);
+    const dv2 = await q3.evaluate(() => { const rs = [...document.querySelectorAll("#dashGrid .db-p rect, #dbEditor rect")].filter((r) => r.querySelector("title")); const col = Object.fromEntries(["厚", "薄"].map((k) => [k, (rs.find((r) => r.querySelector("title").textContent.startsWith(`${k}:`)) || { getAttribute: () => "" }).getAttribute("fill")]));
+      const labs = [...document.querySelectorAll("#dashGrid .db-p.is-editing text.pv-vl, #dashGrid .db-p text.pv-vl")].map((t) => t.textContent); return { col, labs }; });
+    check(`⑧ ${v}: 同じ区分（厚・薄）は集計表と組む所の見本で同じ色`, pvColor["厚"] && pvColor["薄"] && pvColor["厚"] !== pvColor["薄"] && pvColor["厚"] === dv2.col["厚"] && pvColor["薄"] === dv2.col["薄"], { pvColor, dash: dv2.col });
+    check(`⑧ ${v}: 組む所の見本の 2 本の棒のどちらにも数値ラベル`, ["3,330.2", "1,610.5"].every((t) => dv2.labs.includes(t)), dv2.labs);
     const df = await cardFit(q3, "#deFields");
     const dbad = df.filter((x) => x.nameCut || x.lineCut || x.out || x.split || x.lines > 3);
     check(`⑧ ${v}: 組む所の計算列の札 ${df.length} 枚の名前と 2 段目が切れず、語の途中で折れない`, df.length === 4 && !dbad.length, df);

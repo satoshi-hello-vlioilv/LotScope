@@ -587,7 +587,46 @@
   "what": "窓: lot.rs の集計の道（/api/lotlist・/api/worklog・/api/src/<キー> の /pivot）が calc（計算列の式）を読み、pivot::fields・pivot::query に渡す（ダッシュボードと同じ formula::register の道。読めない式は札に「式が読めません」）。試験 lot::tests::hidden_tabs_unknown_sources_and_window_copies に、式を添えた札（数の計算列・2 種類の区分・読めない式）と、区分ごとの重量t の合計・式を添えないと 400 を足した。画面: lotlist-pivot.js が今の表の計算列の式（LotListColumns.calcOfTable。作業実績はその設備の表示列の設定なので、同じ名前でも設備ごとの式）を fields と問い合わせに添える。カラムの欄の頭に「ƒx 計算列 n」のまとまり（畳む ▴。tpa.calcfold.v1 に集計表・組む所で別々に覚える）・作る口（集計表「＋ 一覧の列を作る」＝表示列の窓で列を足す・組む所「＋ このパネルだけの列」）・札の 2 段目は札の幅いっぱいに式と種類（keep-all・「 · 」の後ろで折る・2 行まで・吹き出しに全部）・読めない式は最後に理由と「表示列で直す ›」（作り方の窓を開く。組む所のパネルだけの列は計算列の窓）。札は flex: none・行 列 値 は 26×24px。組む所（dashboard-editor.js）も同じ部品（lotlist-pivot-charts.js の fx）。表示列の窓: 作り方の段の印を ƒx に・「集計表で値に置く」（保存して閉じ、集計表で数の列は合計を値に・字の列は行に）。共通の直し: 集計表の表の自動の小数の桁を値ごとにそろえる（いちばん大きい数が 1,000 以上は 1 桁・1 以上は 2 桁・ほかは 3 桁）・一覧の計算列の値は有効 12 桁で見せる・すぐに見るの行を 1 段に（入らない札は隠し「組み方 ▾」に +n）・単位の欄を 7.4em。JSON の直し: チェックと知らせが「など 5 枚（合計と平均の棒・表・数字 2 枚）」・数字のパネルを 2 段（表を 6 段）・合計 1 桁と平均 2 桁を値に決めて棒と表をそろえる・数字のパネルの単位はどちらも付けない・見ているときの「組む」をどのパネルにも出す（枠の無い形）",
   "checks": "評価関数 program/tools/ui-eval-calcpivot.mjs（32 項目すべて OK）。前からの評価関数: ui-eval-json・dashboard-more・dashopscol・pivot・pivotdnd・dashunit・dashfmt・dashcalc・dashboard（⑨ の札の印の確かめを ƒx に直した）・formula・colsort・dashbuild・kpimeta・pivot-charts・dashwidth はすべて終了コード 0",
   "self_check": "作った者が前後の画像を自分で開いて見た。計算列: 前（before-*/pivot-calc）は集計表のカラムの欄に計算列が無く、組む所では 40 列の後ろに「式」の小さな札。後（built-*/pivot-calc・dash-calc）は 3 つの大きさとも欄の頭に「ƒx 計算列 3 · 畳む ▴」と作る口、重量t（= [重量]/1000 · 数）・材調質（2 行: = concat([合金], \"-\", / [調質]) · 9 種類）・板厚区分・寸法（式が読めません · 表示列で直す ›）が並び、集計表の表は 1,116.7・547.1・総計 4,940.7 と同じ桁。1280 でも名前と式が切れず、語の途中で折れない（ui-eval-calcpivot の ⑧ で測った）。1280 のすぐに見るの行は 1 段で「+1組み方 ▾」。表示列の窓（calc-cols）は作り方の段の印が ƒx、下に「集計表・グラフとダッシュボードのカラムの頭（計算列）に並びます［集計表で値に置く］」、一覧の 重量t は 3.7053。JSON: json-check のチェックは「…合計」など 5 枚（合計と平均の棒・表・数字 2 枚）のパネルを作る」で 1280 でも 1 行。json-made（1728）は棒 933.4 と表 933.4・平均 1.28 と 1.28 がそろい、数字のパネルは 7,949.8 と 1,167（どちらも単位なし）、5 枚とも見出しに「組む」が見える。標準の dash も全部のパネルに「組む」が出る（枠の無い字）。気になる所（採点で見てほしい）: (1) json-made の数字のパネルは 2 段にしても数が大きく（パネルに合わせて字が大きくなる）、表のパネルの下（総計の行の下）に空きが残る。(2) 「+1組み方 ▾」の +1 の字は控えめな灰で、意味（入らない札が 1 つある）は吹き出しでしか言わない。(3) 札の吹き出しの人の言葉の要約（first_fixes 3・任意）は入れていない",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 7,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "cut",
+     "where": "score-built-1728-v/calc-list-light-now.png・score-built-1280-v/calc-list-light-now.png の一覧の「重量t」の列: 値を有効 12 桁の短い形にしたら列の幅が狭まり、5.0008→「5.00...」・3.9894→「3.98...」・5.4844→「5.48...」・2.2553→「2.25...」・5.4248→「5.42...」・5.9465→「5.94...」・2.34...・3.94... と数の途中で切れる（前 before-1280 は 5.0008・5.4844・2.2553 が全部見えていた。誤差の 3.7053000000… は消えたが、短い値が切れるようになった。5.00... は 5.00 と読める誤解を招く）"
+    }
+   ],
+   "seen": "集計表（score-built-1728-v/pivot-calc）: カラムの欄の頭に ロット数・件数 → 「ƒx 計算列 3 · 畳む ▴」「一覧の表示列で作った列」「＋ 一覧の列を作る」→ 重量t（= [重量]/1000 · 数）・材調質（concat… 2 行 · 9 種類）・板厚区分（if… 2 行 · 2 種類）・薄い 寸法（式が読めません · 表示列で直す ›）→「元の列 データの列」。前（before-1728）は計算列が欄に無く 重量 で値を出していたので、計算列を置ける・どこにあるかが一目で分かるようになった。表は 1,116.7・547.1・総計 4,940.7 と桁がそろい、棒は厚・薄の 2 系列。1536・1280 でも札の名前・式が切れず語の途中で折れない。1280 のすぐに見るは 1 段で「+1組み方 ▾」（+1 が何の数かは見て分からない＝考えさせない を下げた）。「⇄ 入れ替え」は 1280 で印だけになる。組む所（dash-calc）: 同じ ƒx のまとまりが「一覧で作った列・このパネルの列」「＋ このパネルだけの列」で並び、形がそろう。ただ同じ 厚・薄 の系列が集計表では茶・青緑、組む所の見本では紫・オリーブで色がそろわない（form を下げた）。見本の数値ラベルは厚の 3,330.2 だけで薄に無い。パネルの題「仕掛区分ごとの仕掛ロット数」のまま中身は品質の板厚区分×重量t で、題と中身が食い違う（場面のためだが考えさせない）。1280 の道具の行の説明「見出しで動かす…空いたマスで足…」は … で切れる（前から）。表示列の窓（calc-cols）: 作り方の段の印が ƒx、その下に「集計表・グラフとダッシュボードのカラムの頭（計算列）に並びます［集計表で値に置く］」の 1 段が 1728・1280 とも収まる。重量t の見え方 3.7053。一覧（calc-list）: 重量t の値の誤差は消えたが、列が狭まり値が切れる（減点）。JSON: json-check（1280）のチェックは「…など 5 枚（合計と平均の棒・表・数字 2 枚）のパネルを作る」で 1 行に収まる。json-made（1728・1280）は棒 933.4 と表 933.4・平均 1.28 と 1.28 がそろい、数字のパネルは 7,949.8 と 1,167 で単位なし、5 枚とも「組む」が見える（指を載せた・焦点のパネルだけ枠付き。CSS どおり）。1728 の表のパネルは総計の下に約 170px の空きが残る（layout を下げた）。json-dash（1280）の組む所は計算列が無いとき「計算列はまだありません ＋ このパネルだけの列」の 3 行が JSON の列・元の列の前に入り、値の札「通過...」は切れる（前から同じ）。json-dashwin・json-toast は収まる。標準の dash（1280）はどのパネルにも枠の無い「組む」が並び、組めることが分かる。",
+   "evaluator": "作った後の採点の係（案も作った物も作っていない別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80 かつ減点なし）。作業場所（commit 1d28616）から CARGO_TARGET_DIR=/home/user/LotScope/desktop/target で cargo build --locked --example ui_serve を組み直し（版 3.121.0 の窓）、TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で撮った。ui-check.mjs --states では pivot-calc・dash-calc・json-made が前の積み重ね無しに進めない（json-made は一覧のまま撮れた）ので、how_to_shoot のとおり ui-variants.mjs now.mjs を --from calc-list（calc-list,calc-cols,pivot-calc,dash-calc）・TPA_UI_JSON=1 --from json（json〜json-off）で、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。標準の dash は ui-check.mjs --states dash。画像: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score-built-1728-v・-1536-v・-1280-v（計算列）、score-built-*-jv（JSON）、score-built-*/dash-light.png。前: before-*・json/score4-built-*"
+  },
+  "check_all": "check-all --verify（scratchpad/calcpivot/check1）: js-check・compileall・cargo-build・no-slow-hook・ruff（0.15.20）・fmt-clippy・py-tests（Ran 93）・bundle-tests（Ran 13）・cargo-test・nt-shape・ci-shape・verify・verify-local すべて終了コード 0。--ui-only（check1-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait すべて終了コード 0",
+  "evaluator": "作った後の採点の係（案も作った物も作っていない別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80 かつ減点なし）。作業場所（commit 1d28616）から CARGO_TARGET_DIR=/home/user/LotScope/desktop/target で cargo build --locked --example ui_serve を組み直し（版 3.121.0 の窓）、TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で撮った。ui-check.mjs --states では pivot-calc・dash-calc・json-made が前の積み重ね無しに進めない（json-made は一覧のまま撮れた）ので、how_to_shoot のとおり ui-variants.mjs now.mjs を --from calc-list（calc-list,calc-cols,pivot-calc,dash-calc）・TPA_UI_JSON=1 --from json（json〜json-off）で、既定 1728・--view 1536x864・--view 1280x720。どれも終了コード 0。標準の dash は ui-check.mjs --states dash。画像: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score-built-1728-v・-1536-v・-1280-v（計算列）、score-built-*-jv（JSON）、score-built-*/dash-light.png。前: before-*・json/score4-built-*",
+  "scored_images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score-built-1728-v・score-built-1536-v・score-built-1280-v・score-built-*-jv・score-built-*"
+ },
+ "built_2": {
+  "name": "作った後・1 回目の採点（74.8 点）の減点と直す所を直した形（版 3.121.0 のまま）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/built-2-1728・built-2-1536・built-2-1280（後。撮り方は built と同じ）。前: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/built-*（1 回目に採点した形）・before-*（3.120.0）",
+  "fixed": [
+   "【減点・見切れ】一覧の列の幅の自動: 字の幅を一覧の本当の字の形（.ll-grid の font-family）で測る（前は \"Yu Gothic UI\" の名で測り、その字の無い PC では数字が細く測られた）。数の列（先頭 40 行の 8 割が数）は、いちばん長い数に合わせる（前は長い 1 割を「…」に任せていた）。重量t の 5.0008・3.9894、重量の 5322.9 なども全部見える。評価関数 ui-eval-calcpivot の ⑧ に「一覧の数の列の値が「…」で切れない」を 3 つの大きさで足した",
+   "【形と色】種類の少ない段（8 つまで・時の段でない）の値の色を、集計表とダッシュボードで同じ決め方（名前で決まる色。lotlist-pivot-charts.js の catColors・fewColors）にした。集計表の列の段（板厚区分の 厚・薄）と組む所の行の段で同じ色（厚＝紫・薄＝オリーブ）。⑧ に「同じ区分は集計表と組む所の見本で同じ色」を足した",
+   "【考えさせない】「+1組み方 ▾」→「ほか 1 · 組み方 ▾」。縦棒の数値ラベルの間引きを、系列が 1 つなら棒の間の幅で決める（前は棒の幅〈36px まで〉で決め、2 本目の 薄 にラベルが付かなかった）。⑧ に「組む所の見本の 2 本の棒のどちらにも数値ラベル」を足した。撮る状態 dash-calc の題を中身に合わせて「板厚区分ごとの重量t（品質）」にした",
+   "【整列・余白】ダッシュボードの表のパネルの下の空きを、行の上下に配る量の上限を 9 → 14px に（json-made の総計の下の約 170px の空きが約 30px に）。計算列の無い表の組む所・集計表は、ƒx の印と作る口の 1 行だけ（「＋ このパネルだけの列」・「＋ 一覧の列を作る」）"
+  ],
+  "left": "前からの物（採点の 5）は直していない: (1) 1280 の組む所の値の札「通過…」は、札の中に集計のしかた・表し方の 2 つの選びと × が並ぶ作りで、狭い文の段では名前を「…」にして選びを残す決まり（版 3.92.0 からの形。名前は札の吹き出しに全部）。(2) 1280 の道具の行の説明「…空いたマスで足…」は、ボタンを 1 段に収めるために説明を「…」にする決まり（版 3.53.0 の ui-eval-toolbar）。(3) 1280 の「⇄ 入れ替え」が印だけなのは、狭い文の段で字を隠して印だけにする決まり（版 3.50.0。吹き出しと aria-label に「行と列を入れ替える」）。どれもこの版の変更ではなく、直すと文の段・道具の行の評価関数の決まりを変えることになる",
+  "checks": "評価関数 ui-eval-calcpivot（41 項目すべて OK）・ui-eval-json・dashboard-more・dashunit・pivot-charts・labels・dashboard・pivot・kpimeta・dashfmt・waterfall・dash8・dashslice・dashlink・colsort はすべて終了コード 0",
+  "self_check": "作った者が前（built-*）と後（built-2-*）を開いて見た。calc-list（1728・1280）: 重量t の列が 5.0008・3.9894・0.7171 と全部見え（前は 5.00...・3.98...）、重量の列も 5322.9・3989.4 が切れない。pivot-calc（1280）: 厚＝紫・薄＝オリーブ、すぐに見るの行は「ほか 1 · 組み方 ▾」で 1 段。dash-calc（1280）: 題「板厚区分ごとの重量t（品質）」、棒は 厚＝紫・薄＝オリーブで 3,330.2 と 1,610.5 の両方にラベル。json-made（1728）: 表の行の高さが広がり、総計の下の空きは約 30px。数字のパネルは前と同じ（2 段・単位なし）。json-dash（1280）: カラムの欄の頭は「ƒx ＋ このパネルだけの列」の 1 行で、元の列の札が上がった。気になる所: json-made の数字のパネルの数は大きいまま（パネルの大きさに合わせて字を大きくする決まり）",
   "result": null,
-  "check_all": "check-all --verify（scratchpad/calcpivot/check1）: js-check・compileall・cargo-build・no-slow-hook・ruff（0.15.20）・fmt-clippy・py-tests（Ran 93）・bundle-tests（Ran 13）・cargo-test・nt-shape・ci-shape・verify・verify-local すべて終了コード 0。--ui-only（check1-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait すべて終了コード 0"
+  "check_all": "check-all --verify（scratchpad/calcpivot/check2）: js-check・compileall・cargo-build・no-slow-hook・ruff・fmt-clippy・py-tests（Ran 93）・bundle-tests（Ran 13）・cargo-test・nt-shape・ci-shape・verify・verify-local すべて終了コード 0。--ui-only（check2-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait すべて終了コード 0"
  }
 }

@@ -1078,6 +1078,7 @@ export const STATES = [
     await p.click('#deFields .pv-f[data-dnd-col="板厚区分"] [data-de-add="rows"]').catch(() => {}); await sleep(500);
     await p.click('#deFields .pv-f[data-dnd-col="重量t"] [data-de-add="vals"]').catch(() => {}); await sleep(500);
     await p.click('#deFields [data-de-add="vals"][data-col="@lots"]').catch(() => {}); await sleep(500);   // ロット数を外し、値は 重量t だけ
+    await p.fill("#deTitle", "板厚区分ごとの重量t（品質）").catch(() => {}); await p.keyboard.press("Tab").catch(() => {}); await sleep(300);   // 題を中身に合わせる（版 3.121.0）
     await waitDash(p); await sleep(900);
   }, "[data-next], [data-de-apply]"],
   ["calc-off", async (p) => {
