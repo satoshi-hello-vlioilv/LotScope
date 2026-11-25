@@ -1048,6 +1048,8 @@ fn open_part(
     span: Option<&(String, String)>,
     own: &[OwnBase],
 ) -> R<State> {
+    #[cfg(any(test, feature = "testing"))]
+    crate::slow::wait("open", &part.name); // 試験と撮る道具だけ（版 3.118.3。src/slow.rs の open）
     let work = part.work.as_ref();
     let c = connect_ro(&part.path).map_err(down)?;
     let names = lotlist::tables(&c).map_err(down)?;

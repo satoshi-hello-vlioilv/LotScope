@@ -2,8 +2,13 @@
 // どの計算か・どのくらい待つか が分かると、待つ長さと処理が適切かの判断の材料になる」。2026-11-dashwait の 3 回目の採点で決めた I2）。
 //   node program/tools/ui-eval-dashwait.mjs [1728x1152,1536x864,1280x720]
 // 開発用サーバーを TPA_UI_SLOW_FILE で遅くし、本物の段の道（GET /api/dashboard/progress）で待ちを起こして、刻みごとに確かめる:
-// 相手は Python の開発用サーバー（tools/ui_server.py）。遅くする口が窓の開発用サーバー（examples/ui_serve.rs）にまだ無いので、ui-harness.mjs の PYTHON_ONLY が
-// TPA_UI_SERVER を付けなくても Python の相手を選び（1 行で言う）、TPA_UI_SERVER=window なら流さずに止める（版 3.118.2 の作った後の採点の割れ C4。版 3.118.3 で窓へ）
+// 相手は窓の開発用サーバー（examples/ui_serve.rs。版 3.118.3 から。遅くする口は lib の desktop/src/slow.rs〈feature testing〉で、ui_serve が TPA_UI_SLOW_FILE を
+// 読む関数を渡す）。TPA_UI_SERVER=python で前の Python の開発用サーバー（tools/ui_server.py の slow_down。段 ⑤ まで比べの基準）。鍵は同じ（open・ops・only・nocache・copy）。
+// 窓はパネルを一斉に数える（順番待ちの段が無い）ので、9 の順番待ちは窓では起きない: 見た数を記録に出す（窓 0 件・Python 1 件以上。空の確かめにしない）
+// 11. 3 つの数（版 3.118.3）: 刻みごとに、頁の円の量・字の n/m と、同じ刻みに道具が自分で尋ねた GET /api/dashboard/progress の n/of を並べる
+//    （分母が同じ・頁の n はサーバーの n を越えず、遅れは数刻みまで）。時間で遅くする形の取りこぼしを見えるようにする。
+//    比べた刻みは段（作業実績を読む・合わせた表を組む・稼働のガントを組む）ごとに、大きさごとに 1 以上
+// 遅くする口の only は窓だけ nocache・copy も絞り（desktop/src/slow.rs）、Python は open・ops だけを絞る。⑤ まで両方の相手で比べるので、この本は only を使わない
 // 1. 印は 1 つ: 待っているパネルは題の頭の点が円になる（回る印 .db-spin・上の縁の進みの線・道具の行の棒は無い）。済めば元の点に戻り、題の字の位置は待つ前と同じ
 // 2. 円と字は同じ数: 字の n/m（読む 7/11 台・まとまり 1/2 済み・ガント n/11 台）と円の量（--f）が刻みごとに同じ。n/m の無い段は輪だけ
 // 3. 段の言葉: 作業実績を読む・合わせた表を組む・稼働のガントを組む（どのデータ・どの計算）。前回が無い初回は経過の秒、前回があれば「あと約 n 秒」「まもなく」と
@@ -23,11 +28,28 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const SLOW = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tpa-dashwait-")), "slow.json");
+/** 前に後始末できずに残った遅くする設定の一時フォルダ（tpa-dashwait-*）を消す: 持ち主の印（owner の PID）が居ない物と、印の無い 1 分より前の物（版 3.118.3 の前の形） */
+function sweepDashwait(dir = os.tmpdir()) {
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.startsWith("tpa-dashwait-")) continue;
+    const d = path.join(dir, f);
+    try {
+      const pid = Number(fs.readFileSync(path.join(d, "owner"), "utf-8").trim());
+      if (pid) { try { process.kill(pid, 0); continue; } catch (e) { if (e.code === "EPERM") continue; } }
+    } catch { if (Date.now() - fs.statSync(d).mtimeMs < 60000) continue; }
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+}
+sweepDashwait();
+// 一時フォルダは作った直後から、どう終わっても消す（前は launch が投げると finally に届かず残った。版 3.118.3 の first_fixes 8）
+const DIR = fs.mkdtempSync(path.join(os.tmpdir(), "tpa-dashwait-"));
+process.once("exit", () => fs.rmSync(DIR, { recursive: true, force: true }));
+fs.writeFileSync(path.join(DIR, "owner"), String(process.pid));
+const SLOW = path.join(DIR, "slow.json");
 process.env.TPA_UI_SLOW_FILE = SLOW;
 process.env.TPA_UI_BYPASS_CSP = "1";
 fs.writeFileSync(SLOW, "{}");
-const { launch, parseView, sleep, waitDash } = await import("./ui-harness.mjs");
+const { launch, parseView, sleep, waitDash, SERVER } = await import("./ui-harness.mjs");
 const slow = (o) => fs.writeFileSync(SLOW, JSON.stringify(o));
 
 let n = 0, bad = 0;
@@ -66,19 +88,56 @@ function sample() {
 /** 字の n/m（「7/11 台」「1/2 済み」「写した 5/11 台」）→ 割合（無ければ null） */
 const ratio = (t) => { const m = /(\d+)\/(\d+)/.exec(t); return m ? Math.round((+m[1] / +m[2]) * 100) : null; };
 
+/** 頁の問い合わせの印（パネルの id → ask。頁が POST /api/dashboard/query?ask=… に付けた物）を覚える */
+function tagsOf(page) {
+  if (page.__tags) return page.__tags;
+  const tags = (page.__tags = {});
+  page.on("request", (r) => {
+    const m = /\/api\/dashboard\/query\?ask=([^&]+)/.exec(r.url());
+    if (!m) return;
+    try { tags[r.postDataJSON().panel.id] = decodeURIComponent(m[1]); } catch { /* 本文なし */ }
+  });
+  return tags;
+}
+/** 同じ刻みに、道具が自分でサーバーの段を尋ねる（パネルの id → 段の答え） */
+async function serverOf(tags) {
+  const ids = Object.keys(tags);
+  if (!ids.length) return {};
+  try {
+    const r = await fetch(`${app.base}/api/dashboard/progress?ask=${ids.map((i) => encodeURIComponent(tags[i])).join(",")}`);
+    const d = await r.json();
+    return Object.fromEntries(ids.map((i) => [i, (d.asks || {})[tags[i]] || null]));
+  } catch { return {}; }
+}
+
 /** 待ちを起こして終わるまで刻みごとに見る（every: 刻みごとの見る所） */
 async function watch(page, label, act) {
   const ticks = [];
+  const tags = tagsOf(page);
   await act();
   const t0 = Date.now();
   while (Date.now() - t0 < 60000) {
     await sleep(250);
     const s = await page.evaluate(sample);
+    s.server = await serverOf(tags);
     ticks.push(s);
     if (ticks.length > 4 && !s.panels.some((p) => p.busy)) break;
   }
   return ticks;
 }
+
+/** 字の段（頁の言葉 → サーバーの段の名前。写しは答えの copy から数えるので比べない） */
+const kindOfText = (t) => (/写/.test(t) ? "" : /ガント/.test(t) ? "gantt" : /合わせた表|済み/.test(t) ? "group" : /読む/.test(t) ? "read" : "");
+/** サーバーの段の答え → [段, n, of]（合わせた表はまとまり k/m。n/m の無い段は null） */
+const nofOf = (e, id) => {
+  if (!e || e.done) return null;
+  if (id === "board" && Array.isArray(e.group)) return ["group", e.group[0], e.group[1]];
+  return e.of > 1 ? [e.stage, e.n, e.of] : null;
+};
+let compared = 0, queued = 0;
+/** 3 つの数を比べた刻み（大きさ → 段 → 数。版 3.118.3 の作った後の採点の割れ 3: 段ごとに 1 以上を求める） */
+const byStage = {};
+const STAGES = { read: "作業実績を読む", group: "合わせた表を組む", gantt: "稼働のガントを組む" };
 
 /** 刻みごとの確かめ（1・2・4・5・6） */
 function checkTicks(v, label, ticks, steady) {
@@ -98,6 +157,24 @@ function checkTicks(v, label, ticks, steady) {
   check(`${v} ${label}: 字が添え書きの段・パネルからはみ出さない`, outs.length === 0, outs.slice(0, 3).map((p) => [p.id, p.text]));
   const lost = waits.filter((p) => p.f > 0 && p.text && !/\d+\/\d+/.test(p.text));
   check(`${v} ${label}: 縮めても n/m を残す`, lost.length === 0, lost.slice(0, 3).map((p) => [p.id, p.text]));
+  // 11. 3 つの数: 円の量（--f）と字の n/m（上の確かめ）と、同じ刻みのサーバーの n/of（段が同じ刻みだけ）
+  const pairs = ticks.flatMap((s) => s.panels.filter((p) => p.wait).map((p) => {
+    const m = /(\d+)\/(\d+)/.exec(p.text), sv = nofOf((s.server || {})[p.id], p.id), k = kindOfText(p.text);
+    return m && sv && k && sv[0] === k ? { id: p.id, text: p.text, f: p.cf || p.f, n: +m[1], of: +m[2], sn: sv[1], sof: sv[2] } : null;
+  }).filter(Boolean));
+  compared += pairs.length;
+  const st = (byStage[v] = byStage[v] || { read: 0, group: 0, gantt: 0 });
+  for (const x of pairs) { const k = x.id === "board" ? "group" : kindOfText(x.text); if (k in st) st[k]++; }
+  const off = pairs.filter((x) => x.of !== x.sof || x.n > x.sn || x.sn - x.n > 6 || Math.abs(Math.round((x.n / x.of) * 100) - x.f) > 1);
+  check(`${v} ${label}: 円の量・字の n/m・サーバーの n/of が同じ数（分母が同じ・頁はサーバーを越えず遅れは 6 まで。比べた ${pairs.length} 刻み）`,
+    off.length === 0, off.slice(0, 4).map((x) => [x.id, x.text, x.f, `${x.sn}/${x.sof}`]));
+  // 順番待ちの数え方（割れ 5）: 刻み × パネル（250 ms ごとに同じパネルを数え直す。1 枚が 2 秒待てば 8）と、順番待ちになったパネルの枚数
+  const qs = waits.filter((p) => /順番待ち/.test(p.text));
+  queued += qs.length;
+  const kinds = {};
+  for (const x of pairs) { const k = x.id === "board" ? "group" : kindOfText(x.text); kinds[k] = (kinds[k] || 0) + 1; }
+  console.log(`    記録: ${v} ${label} 順番待ちが見えた刻み ${qs.length}（パネル × 刻み）・パネル ${new Set(qs.map((p) => p.id)).size} 枚（${SERVER === "window" ? "窓はパネルを一斉に数える" : "Python は 1 つずつ数える"}）・`
+    + `3 つの数を比べた刻み ${pairs.length}（${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join("・") || "なし"}）`);
   const bars = ticks.filter((s) => s.bar);
   check(`${v} ${label}: 道具の行は「n / m 枚 済み・待っている k 枚」の字で切れない`, bars.length > 0 && bars.every((s) => /\d+ \/ \d+ 枚 済み・待っている \d+ 枚/.test(s.bar) && s.barFit), bars.slice(-1).map((s) => [s.bar, s.barFit]));
   if (steady) {
@@ -226,11 +303,19 @@ try {
     slow({});
     await waitDash(page, 60000).catch(() => {});
     check(`${v} 頁の誤りが無い`, errs.length === 0, errs);
+    // 11 の 3 つの数は段ごとに比べられた（段の名前が画面と段の係で食い違うと、その段だけ黙って比べなくなる）
+    const bs = byStage[v] || {};
+    check(`${v} 3 つの数を段ごとに比べた（${Object.entries(STAGES).map(([k, w]) => `${w} ${bs[k] || 0}`).join("・")} 刻み。どれも 1 以上）`,
+      Object.keys(STAGES).every((k) => (bs[k] || 0) > 0), bs);
     await page.close();
   }
+  // 3 つの数は、どこかの刻みで比べられた（時間で遅くしても段の n/of が 1 度も見えないなら、取りこぼしている）
+  check("3 つの数を比べた刻みがある", compared > 0, compared);
+  // 9 の順番待ちは窓では起きない（パネルを一斉に数える）。Python の相手では 1 件以上（空の確かめにしない）
+  if (SERVER === "window") check("順番待ちは窓では起きない（0 件。窓はパネルを一斉に数える）", queued === 0, queued);
+  else check("順番待ちが見えた（Python はパネルを 1 つずつ数える）", queued > 0, queued);
 } finally {
   await app.close();
-  fs.rmSync(path.dirname(SLOW), { recursive: true, force: true });
 }
 console.log(bad ? `NG ${n} 件中 ${bad} 件が違う` : `OK（${n} 件）`);
 process.exit(bad ? 1 : 0);

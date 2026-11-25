@@ -68,6 +68,14 @@ jobs:
       - name: typecheck（Rust）
         working-directory: desktop
         run: cargo build --locked
+      # 版 3.118.3（作った後の採点の割れ 2）: 窓に遅くする口（desktop/src/slow.rs。feature testing の下だけ）が入っていない
+      # （exe の中に口の印の字が無い・組んだ記録の features に testing が無い。配る release の exe は desktop.yml の windows-exe で同じ物を見る）
+      - name: 窓に遅くする口が無い
+        run: |
+          (cd desktop && cargo build --locked --message-format=json > "$RUNNER_TEMP/build.json")
+          # exe の名前は program/app/brand.json の 1 か所（Linux は .exe を外す）
+          EXE=$(python -c "import json;print(json.load(open('program/app/brand.json', encoding='utf-8'))['exe'].removesuffix('.exe'))")
+          python program/tools/slow-hook-check.py --exe "desktop/target/debug/$EXE" --build-json "$RUNNER_TEMP/build.json"
       - name: lint（Rust・clippy）
         working-directory: desktop
         run: cargo clippy --locked --all-targets -- -D warnings

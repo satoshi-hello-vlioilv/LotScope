@@ -559,7 +559,7 @@ impl Ctx<'_> {
         let sig = file_sigs(&got.parts);
         let failed_names: Vec<Value> = got.failed.iter().map(|f| f["name"].clone()).collect();
         let key = json!([p, egroups, sets, sig, days, self.now.date().to_string(), failed_names]).to_string();
-        let hit = self.cache.lock().unwrap().get(&key);
+        let hit = if skip_cache(&got.parts) { None } else { self.cache.lock().unwrap().get(&key) };
         let hit = match hit {
             Some(h) => h,
             None => {
@@ -961,6 +961,21 @@ fn side_query(link: &Value, i: usize, panel: &Map<String, Value>) -> Map<String,
     out.insert("visual".into(), json!("none"));
     out.insert("body".into(), json!({"rows": [x["key"]], "cols": [], "measures": [x["measure"]]}));
     out
+}
+
+/// 控えを使わないか（試験と撮る道具だけ。版 3.118.3。src/slow.rs の nocache。ファイルが替わった後の数え直しと同じ形）。
+/// 合わせた表（board）はまとまりごとに answer を通るので、同じ 1 か所で外れる。配る exe ではいつも偽
+fn skip_cache(parts: &[Part]) -> bool {
+    #[cfg(any(test, feature = "testing"))]
+    {
+        let names: Vec<&str> = parts.iter().map(|p| p.name.as_str()).collect();
+        crate::slow::no_cache(&names)
+    }
+    #[cfg(not(any(test, feature = "testing")))]
+    {
+        let _ = parts;
+        false
+    }
 }
 
 /// 合わせた表の列のまとまり i → ふつうのパネルと同じ形（Python の board_query）
@@ -1383,7 +1398,7 @@ impl Ctx<'_> {
         let failed_names: Vec<Value> = got.failed.iter().map(|f| f["name"].clone()).collect();
         let hour = if gantt { self.now.format("%H").to_string() } else { "0".into() };
         let key = json!(["ops", p, period, file_sigs(&got.parts), days, self.now.date().to_string(), hour, failed_names]).to_string();
-        let hit = self.cache.lock().unwrap().get(&key);
+        let hit = if skip_cache(&got.parts) { None } else { self.cache.lock().unwrap().get(&key) };
         let hit = match hit {
             Some(h) => h,
             None => {

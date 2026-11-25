@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # push 前の確かめ一式（CLAUDE.md の「push 前の確かめ」と同じ物）を 1 つずつ流し、段ごとの記録と最後のまとめを出す。
 #
-#   bash program/tools/check-all.sh [記録のフォルダ] [--verify] [--keep-free GB]
+#   bash program/tools/check-all.sh [記録のフォルダ] [--verify] [--ui] [--ui-only] [--keep-free GB]
 #
 # - 始める前に cargo の作業フォルダの古い物（2 時間より前の試験の実行ファイル・incremental・examples）を消し、空きを確かめる。
 #   空きが --keep-free（既定 8 GB）より少なければ、確かめを始めずに止める（窓の通しは版を何度も写すので、空きが尽きると
@@ -9,24 +9,46 @@
 # - 段ごとの記録は 記録のフォルダ/NN-名前.log。結果は終了コードと「Ran … / OK / FAILED」「test result」の行で読む（最後の 1 行で読まない）。
 # - 段 ci-shape（版 3.116.0）は、焼いた本の試験を CI に似せた形（root でない利用者・Python 無し・名前を引けない）で流す。
 # - --verify は窓の通し（desktop/bundle/verify.py の update と local〈Python の無い PC。版 3.111.0〉。起動・更新・配布の流れを変えたとき）も流し、終わったら作業フォルダを消す。
+# - --ui（版 3.118.3。任意の段）は撮る・採点する道具を窓の開発用サーバー（examples/ui_serve）を相手に流す: ui_serve を組み
+#   （cargo test は test = true の example を組んでも、そのままの examples/ui_serve を作らない。始めに examples も消す）、
+#   ui-check の list・dash（--states）・ui-eval-xss・ui-eval-narrow・ui-eval-dashwait。段の計の秒をまとめに出す（上限の目安 15 分）。
+#   --ui-only はほかの段を流さず --ui の段だけ（道具を直したとき。--verify とは一緒に付けられない）。
 # - どれか 1 つでも落ちれば終了コード 1（push しない）。
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT=""
 VERIFY=0
+UI=0
+ONLY_UI=0
 KEEP=8
 while [ $# -gt 0 ]; do
   case "$1" in
     --verify) VERIFY=1 ;;
+    --ui) UI=1 ;;
+    --ui-only) UI=1; ONLY_UI=1 ;;
     --keep-free) KEEP="$2"; shift ;;
     *) OUT="$1" ;;
   esac
   shift
 done
 OUT="${OUT:-${TMPDIR:-/tmp}/check-all}"
+# --ui-only はほかの段を流さないので、--verify と一緒には付けない（黙って窓の通しを飛ばさない。版 3.118.3 の作った後の採点の割れ 10）
+if [ $ONLY_UI -eq 1 ] && [ $VERIFY -eq 1 ]; then
+  echo "--ui-only と --verify は一緒に付けられません（--ui-only は ui の段だけ流します）。全部の段と ui の段なら --verify --ui を付けてください。" >&2
+  exit 2
+fi
 mkdir -p "$OUT"
 rm -f "$OUT"/*.log "$OUT/summary.txt"
 cd "$ROOT" || exit 2
+# CARGO_TARGET_DIR が相対の道なら、最上位を基準の絶対の道にして渡す（cargo は desktop/ を基準に、片付けと道具〈ui-harness.mjs〉は最上位を基準に
+# 読むので、相対のままだと別の所を見る。版 3.118.3 の作った後の採点の割れ 10）
+if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+  case "$CARGO_TARGET_DIR" in
+    /*) ;;
+    *) CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR" ;;
+  esac
+  export CARGO_TARGET_DIR
+fi
 
 free_gb() { df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}'; }
 
@@ -70,10 +92,14 @@ step() {
   printf '%-14s 終了コード %-3s %4ss %s %s\n' "$name" "$rc" "$((SECONDS - t0))" "$ran" "$fails" | tee -a "$OUT/summary.txt"
 }
 
+if [ $ONLY_UI -eq 0 ]; then
 # 2) 型・構文
 step js-check bash program/tools/js-check.sh
 step compileall python -m compileall -q program
 step cargo-build bash -c "cd desktop && cargo build --locked"
+# 窓に遅くする口（desktop/src/slow.rs。feature testing の下だけ）が入っていない: exe の中に口の印の字が無い・組んだ記録の features に testing が無い
+# （版 3.118.3 の作った後の採点の割れ 2。配る release の exe は Windows の CI〈desktop.yml の windows-exe〉が同じ道具で見る）
+step no-slow-hook bash -c "(cd desktop && cargo build --locked --bin LotScope --message-format=json > \"$OUT/cargo-build.json\") && python program/tools/slow-hook-check.py --exe \"$T/LotScope\" --build-json \"$OUT/cargo-build.json\""
 # 3) lint
 # ruff は手元と CI で同じ版（CLAUDE.md: 0.15.20）。PATH に別の版があっても、決めた版を先に使う
 RUFF="${RUFF:-$(for r in /usr/local/bin/ruff "$(command -v ruff)"; do [ -x "$r" ] && "$r" --version | grep -q "0.15.20" && echo "$r" && break; done)}"
@@ -127,6 +153,29 @@ if [ $VERIFY -eq 1 ]; then
   fi
   grep -E "^FAIL|^  \[" "$OUT"/*-verify*.log | head -10 | tee -a "$OUT/summary.txt"
   rm -rf "$W"
+fi
+fi  # ONLY_UI
+# 6) 撮る・採点する道具を窓の開発用サーバーで（--ui。版 3.118.3）
+if [ $UI -eq 1 ]; then
+  UIO="$OUT/ui"
+  rm -rf "$UIO"
+  mkdir -p "$UIO"
+  U0=$SECONDS
+  # ui_serve は自分で組む（first_fixes 1）。道具は ui-harness.mjs の UI_EXE（CARGO_TARGET_DIR か desktop/target の debug/examples/ui_serve）を使う
+  step ui-build bash -c "cd desktop && cargo build --locked --example ui_serve && cd .. && python program/tools/slow-hook-check.py --exe \"$T/examples/ui_serve\" --expect-mark"
+  if [ $LAST_RC -ne 0 ]; then
+    echo "ui の段: 窓の開発用サーバー（examples/ui_serve）を組めないので、道具を流しません" | tee -a "$OUT/summary.txt"
+  elif ! command -v node >/dev/null 2>&1; then
+    echo "ui の段: node がありません" | tee -a "$OUT/summary.txt"
+    FAIL=1
+  else
+    step ui-check env TPA_UI_SERVER=window node program/tools/ui-check.mjs "$UIO/check" light 1728x1152 --states list,dash
+    step ui-xss env TPA_UI_SERVER=window node program/tools/ui-eval-xss.mjs
+    step ui-narrow env TPA_UI_SERVER=window node program/tools/ui-eval-narrow.mjs
+    step ui-dashwait env TPA_UI_SERVER=window node program/tools/ui-eval-dashwait.mjs
+    grep -hE "^NG" "$OUT"/*-ui-*.log | head -5 | tee -a "$OUT/summary.txt"
+  fi
+  echo "ui の段の計: $((SECONDS - U0)) 秒（目安 900 秒）" | tee -a "$OUT/summary.txt"
 fi
 
 if [ $FAIL -eq 0 ]; then

@@ -158,10 +158,9 @@ export async function launch() {
 }
 
 /** 窓にまだ無い口を使う本 → 理由（版 3.118.2 の作った後の採点の割れ C4・C9: 相手を決めるのはこの表と serverFor の 1 か所。ui-all.mjs も
-    ここを読む）。この本は既定で Python の相手で流す（版 3.118.3 で窓へ） */
-export const PYTHON_ONLY = {
-  "ui-eval-dashwait.mjs": "遅くする口（TPA_UI_SLOW_FILE）が窓にまだ無い（版 3.118.3 で feature testing の下に置く）",
-};
+    ここを読む）。版 3.118.3 で空になった（遅くする口 TPA_UI_SLOW_FILE を窓の開発用サーバーへ。ui-eval-dashwait.mjs も窓）。表と serverFor の
+    throw の枝は段 ⑤（Python の開発用サーバーを消す）まで残す */
+export const PYTHON_ONLY = {};
 /** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す）。PYTHON_ONLY の本は
     TPA_UI_SERVER が無ければ python（1 行で言う）、window を頼まれたら流さずに止める（黙って落ちない） */
 export function serverFor(tool, asked = process.env.TPA_UI_SERVER) {
@@ -1190,8 +1189,10 @@ export async function openJoinSec(p) {
   if (b) { await b.click(); await sleep(200); }
 }
 
-/** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */
+/** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ）。
+    返すのは進め方（go）が投げた状態の名前の並び（版 3.118.3: ui-check --states が終了コードに使う。前は console.warn だけ） */
 export async function walk(page, visit, only = null, from = "") {
+  const failed = [];
   page.setDefaultTimeout(5000);   // 見つからない部品で 30 秒止まらない
   const last = only ? Math.max(...STATES.map(([name], i) => (only.includes(name) ? i : -1))) : STATES.length - 1;
   // from（版 3.46.0）… その状態からたどる（前の状態の積み重ねが要らない状態だけを撮るとき。ダッシュボードの状態は "dash" から）
@@ -1201,9 +1202,11 @@ export async function walk(page, visit, only = null, from = "") {
       await go(page);
     } catch (e) {
       console.warn(`${name}: ${e.message.split("\n")[0]}`);
+      failed.push(name);
     }
     if (!only || only.includes(name)) await visit(name, next);
   }
+  return failed;
 }
 
 /**

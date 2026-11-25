@@ -1,0 +1,630 @@
+{
+ "title": "版 3.118.3（Rust 化の段 ④ の 4 つ目: 遅くする口を窓へ・ui-eval-dashwait.mjs を窓で・check-all の任意の段 --ui・段 ⑤ の入口の表）の進め方 — 案出し 1 回目",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない改良（撮る・採点する道具の相手と確かめの段。製品の画面と答えは替えない）。決まり 2026-11-06: 案 5 つ以上・別の係の採点 1 回。届かなくても案出しをやり直さず、1 位に採点の指摘を入れた形で作る",
+ "evidence": {
+  "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s43（dw-window.log・dw-python.log・ui-eval-xss.log・ui-eval-narrow.log・ui-times.txt）。main 39415eb・版 3.118.2。リポジトリのファイルは替えていない",
+  "dashwait_window": "ui-eval-dashwait.mjs を窓の開発用サーバーで流した（PYTHON_ONLY を避けるため、同じファイルを別の名前の記号リンク dw-window.mjs で起こし、TPA_UI_SERVER=window。1728×1152 だけ）: 終了コード 1・64 件中 20 件 NG・31.8 秒。NG は全部「待ちが起きない」形: 本物の写しの札 3（札が 1 つも出ない）・4 つの数え直しの「待ちが見えた」と「道具の行の字」各 4・段の言葉 4（読む n/11・組む k/2・ガント n/11・ABC）・前回なし／あり／長い の 3・道具の行の「前回より長い」1・段 python の 1（route で python の段を返しても、数え直しが 1.5 秒の前に済むので待つパネルが無い）。OK の 44 件は待ちが無くても通る形（写している間の 6 件は route で答えを作るので窓でも通る）。頁の誤りは 0",
+  "dashwait_python": "同じ本を Python の相手（既定）で: 終了コード 0・64 件 OK・83.4 秒（1728 だけ）",
+  "why_fast": "窓の「最新にする」は控えに当たる: dashboard.rs:560 の控えの鍵は [パネル, 設備グループ, セット, 写しの指紋, 作業日, 今日, 読めない設備] で、ファイルが替わらなければ同じ答えを返す（Python は TPA_UI_SLOW_FILE の nocache で控えを外していた）。控えを外しても作り物（1 台 400 行・11 台）は窓では 250 ミリ秒の刻みの内に済む見込み（待ちが 1 刻みも見えない）",
+  "slow_knobs": "ui_server.py:159〜212 の slow_down: open（pivot._open_part の前に秒）・ops（operation.read_ops の前に秒）・only（Part の名前）・nocache（routes._cache を空に）・copy（DbMirror._copy をバイト/秒で 16 KB ずつ。名前が実績_ の元だけ）。使う本は dashwait だけ（only は dashwait も使っていない。shot-dashwait は無い）",
+  "window_points": "窓の同じ所: pivot.rs:1043 open_part（呼ぶ前に :1307 で step(read, i, n)）・operation.rs:352 read_ops（dashboard.rs:1457 ガント・:1552 ABC）・dashboard.rs:562 と :1386 の控え・mirror.rs:109 copy_shared（4 MB ずつ読む。cfg(test) の SLOW_COPY は元の名前ごとに頭で眠るだけ＝済んだバイトは刻まない）・progress.rs:229 step（呼ぶ所は lib に 12）",
+  "feature": "Cargo.toml の feature testing は dev-dependencies の自分への依存が入れる。測った: `cargo build --example ui_serve --message-format=json` で da_core の lib の features は [custom-protocol, default, testing]、`cargo build --bin LotScope` では [custom-protocol, default]（edition 2021 の resolver 2 で、製品の bin に testing は入らない）。ui_serve の debug の組み立ては 1 分 38 秒（lib を組み直した）",
+  "ui_serve_mouths": "ui_serve に今ある口: 引数 作業フォルダ・ポート・--stdin、環境 TPA_UI_PROGRAM・TPA_DASHBOARD_NOW。遅くする口・試験だけの道は無い（/__desktop/* は 404）",
+  "ui_stage_times": "窓の相手で: ui-eval-xss 11 秒・終了コード 0／ui-eval-narrow 294 秒・終了コード 0。ui-check は状態を選べない（walk の only を渡さない）ので list・dash だけを撮るには引数が要る。check-all の cargo test は examples も組む（ui_serve はそのまま使える）",
+  "fifth_counts": "⑤ で消す物の今の数: 画面の pyBar／pyPill の字 app.js 18・index.html 2・app.css 1（index.html は焼いた本 settings の元＝消せば settings の焼き直しと Windows の nt の表）・lot.rs の \"python\" 34・g.python() の呼び手 4（lot.rs:1258・1271・1781・1793）・program/tests/legacy 126 ファイル 3.0 MB・TPA_FROZEN_PY／frozen_python を使う試験 desktop/tests の 9 本・sidecar.rs 884 行・router.rs 362 行・ui_server.py 226 行・ui-harness の python の字 20",
+  "fifo_fuse": "名前付きパイプ: SQLite（Python の sqlite3）が FIFO を開くと open で止まって返らない（20 秒で打ち切った）＝使えない。/dev/fuse はある（crw------- root）・fusermount はある・fusepy は入っていない（pip で取れる）",
+  "leftovers": "/tmp に前のセッションの作業フォルダが残っている: tpa-ui-6by839eq（11-24 22:48）・tpa-ui-a8ybot8m（23:14）は持ち主の印が無く、中身は local/db_cache・instance_id・lotdsp_api_map.json だけ（窓の形の台本が消した後に、窓の写しの糸が local を作り直したと見られる。未確かめ）・tpa-dashwait-* 3 つ（dashwait の SLOW の一時フォルダ。落ちた回は消えない）。今回の窓 3 本・Python 1 本は残していない"
+ },
+ "axes": {
+  "about": "案の方向。列は 遅くする口の置き場／遅さの作り方／dashwait の書き替え／製品のコードへの差分／版の割り",
+  "A": "lib の 4 か所（feature）／時間／替えない／cfg の 5 行／1 版",
+  "B": "段の係 1 か所（feature）／時間／鍵の名前だけ／cfg 3 か所／1 版",
+  "C": "段の係＋試験の道（feature）／合図で 1 歩ずつ（決定的）／大きく書き替える／cfg 2 か所／1 版",
+  "D": "場面のファイル／本物の仕事の量／触る所を替える／0／1 版",
+  "E": "OS のファイル系（FUSE）／本物の I/O／替えない／0（新しい依存）／1 版",
+  "F": "道具の route／焼いた刻みの再生／大きく書き替える／試験だけ／1 版",
+  "G": "（後の版へ）／—／3.118.3 は替えない／3.118.3 は 0／2 版",
+  "H": "example の振り分けの前／時間（段は example が作る）／替えない／mirror の 1 か所／1 版",
+  "balance": "置き場で 6 通り（lib の数える所・段の係・場面・OS・道具・example）、遅さの作り方で 4 通り（時間・合図・仕事の量・再生）、版の割りで 2 通り。check-all --ui と ⑤ の入口の表はどの案にも入れ、G だけが ⑤ の表を機械で数える形にした"
+ },
+ "visible": [
+  "どの案も製品の画面と答えは替わらない（遅くする口は試験の組み立てだけ・場面の側・道具の側）",
+  "dashwait が撮る待ちの姿は、窓ではパネルが一斉に数える（順番待ちが無い）ので Python の相手の画像と違う"
+ ],
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので案ごとの画像なし。測った記録: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s43/dw-window.log（窓・20 NG）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s43/dw-python.log（Python・64 OK）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s43/ui-eval-narrow.log・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s43/ui-eval-xss.log",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと: (1) リポジトリのファイルは替えていない（git status が空。pip download が作った fusepy の tar.gz は消した）。(2) cargo は 1 つずつ流した（ui_serve の組み立てと、features を見る LotScope の組み立て。CARGO_TARGET_DIR と CARGO_INCREMENTAL=0）。(3) dashwait を窓と Python の相手で 1 回ずつ 1728 だけ流し、NG の 20 件を全部読んで「待ちが起きない」形だと確かめた（evidence.dashwait_window）。(4) xss・narrow を窓で流して時間を測った。(5) 遅くする口の置き場の候補を ui_server.py と窓のコードの行で突き合わせた。(6) FIFO は Python の sqlite3 で試して止まるのを見た。(7) 案ごとに置き場・遅さの作り方・版の割りの列（axes）を並べ、偏りを確かめた。(8) 自分の案に点も順位も付けていない",
+   "proposals": {
+    "A 遅くする口を lib の 4 か所に置く（feature testing。案 ff9 のとおり）": {
+     "id": "A",
+     "name": "A 遅くする口を lib の 4 か所に置く（feature testing。案 ff9 のとおり）",
+     "summary": "ui_server.py の slow_down と同じ 4 つの差し込み口（1 ファイルを開く・稼働の 1 設備・パネルの控え・共有から写す）を、lib の小さな部品 `desktop/src/slow.rs`（cfg(any(test, feature = \"testing\"))）にまとめて置き、ui_serve が TPA_UI_SLOW_FILE を毎回読んで秒を渡す。dashwait は本物の段の道（GET /api/dashboard/progress）のまま窓で流す。PYTHON_ONLY を空にする",
+     "direction": "置き場: 製品のコードの中（4 か所）に feature の下の口。遅さは時間（sleep）。dashwait の中身は替えない",
+     "changes": [
+      "desktop/src/slow.rs（新・約 50 行）: `pub fn wait(kind: &str, part_name: &str)` と `pub fn copy_rate(remote) -> Option<f64>`・`no_cache() -> bool`。設定は `set_source(Box<dyn Fn() -> Value>)`（example が JSON を毎回読む関数を渡す。lib は環境変数を読まない）。mod ごと cfg(any(test, feature = \"testing\"))、呼ぶ所は `#[cfg(...)] crate::slow::wait(...)` の 1 行",
+      "mirror.rs:104〜118 の SLOW_COPY（今は cfg(test) だけ）を slow.rs の copy_rate に寄せ、遅くするときだけ 16 KB ずつ書いて眠る（今の COPY_CHUNK は 4 MB で、作り物の作業実績は 1 台 1 回の read で写し終わる＝copy_progress の済んだバイトが 0 か全部にしかならない）",
+      "pivot.rs:1043 open_part の頭・operation.rs:352 read_ops の頭に wait(\"open\"|\"ops\", &part.name)（only は Part の名前。Python と同じ）",
+      "dashboard.rs:562 と :1386 の控え（cache.get）を no_cache() のときに飛ばす（窓は同じ写しの指紋なら控えから答える＝今は「最新にする」が一瞬で済み、待ちが起きない）",
+      "examples/ui_serve.rs: TPA_UI_SLOW_FILE があれば slow::set_source に読み手を渡す（約 15 行）",
+      "program/tools/ui-harness.mjs:162 の PYTHON_ONLY を {} に。ui-eval-dashwait.mjs の頭の説明を窓に。serverFor の throw の枝は ⑤ まで残す（中身が空になるだけ）",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）。表は計画書の 1 か所（今の箇条 2 を置き換える）"
+     ],
+     "evaluation": [
+      "ui-eval-dashwait.mjs が窓の相手で 3 つの大きさとも終了コード 0（今は 1728 だけで 64 件中 20 件 NG・31.8 秒。Python の相手は 64 件 OK・83.4 秒）",
+      "製品に口が無い: `cargo build --release --bin LotScope` の実行ファイルに slow.rs の印の字（`const MARK: &str = \"tpa-slow-hook\"`）が無い（strings で 0 件）・`cargo build --bin LotScope --message-format=json` の lib の features に testing が無い（今は custom-protocol・default だけ。測った）",
+      "slow::tests: 設定の無い時は待たない・only に無い設備は待たない・copy_rate のときの済んだバイトが単調に増える（4 刻み以上）",
+      "ui-all.mjs の窓の表で 73 本が終了コード 0（PYTHON_ONLY が空なので dashwait も窓）",
+      "check-all --ui の 4 本が終了コード 0・段の時間が 15 分以内"
+     ],
+     "risks": [
+      "製品の関数に cfg の行が 5 か所入る（読む人にとっての雑音。cfg を外す組み立ては clippy --all-targets が組むので、cfg の誤りは手元の確かめで出る）",
+      "窓はパネルを一斉に数える（ui_serve は 1 つのつながりに 1 本の糸）。Python は 1 つずつ数える（progress.rs の説明の queue は Python だけの段）。窓では順番待ちの段が起きないので、dashwait の 9（順番待ちは前回と比べない）は空の確かめになる（落ちないが何も見ていない）。数を記録に出して見えるようにする",
+      "open の秒は 1 ファイルごと。窓の合わせた表（board）は open_part を何回呼ぶかが Python と違うかもしれず、待ちの長さが変わる（0.2 秒 × 回数）。測ってから秒を決め直す",
+      "最初の写しは、ダッシュボードを最初に開いた時に lists.rs:483 の work.get が始める（Python と同じ）。harness の newPage は一覧から始めるので、写しはまだ始まっていない。ただし 3.118.2 の ui-all で同じ作業フォルダを続けて使う本があれば先に写し終わる（dashwait は自分で起こすので今は当たらない）",
+      "mirror.rs の SLOW_COPY を寄せると、cfg(test) の試験（the_copy_stage_moves_while_waiting）の形も替わる"
+     ],
+     "cost": "Rust 約 110 行（slow.rs 50・呼ぶ所 5 行・mirror の写し 25・ui_serve 15・試験 20）＋ mjs 5 行＋ check-all 25 行＋計画書の表。1 版（3.118.3）。焼いた本の元は替えない（ui_server.py に触れない）",
+     "versions": "1 版",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      }
+     ],
+     "seen": "自分で読んだ・流した: (1) 窓が待たない理由は案のとおり。dashboard.rs:561 の鍵 [p, egroups, sets, file_sigs, days, 今日, failed] と :562 の cache.get、稼働は :1386 の鍵 [\"ops\", p, period, sigs, days, 今日, 時, failed]。ファイルが替わらなければ控えから答える。(2) 控えを外した数え方の速さを自分で測った: ui_window_scene.py serve で本物の場面を起こし、標準のダッシュボードの 6 枚を POST /api/dashboard/query に、題だけ替えた本文で当てた（控えに当たらない）。控えに当たると 3.8〜14.3 ms、当たらないと 7.3〜37.7 ms（6 枚の計 63 ms → 126 ms・いちばん長いのが時系列 37.7 ms）。250 ms の刻みの 1 つにも届かないので、控えを外すだけでは待ちは見えない＝時間で遅くする口が要る（A の 4 か所の形が Python の slow_down と同じ所に効く）。(3) 写しは mirror.rs:28 の COPY_CHUNK 4 MB。copy_progress（:486）の済んだバイトは写しかけの一時ファイルの大きさなので、作り物の 1 台は 1 回の read で 0 か全部（案のとおり）。今の SLOW_COPY（:106）は cfg(test) で、頭で眠るだけ。使う試験は lot.rs:4517 の 1 つ。(4) feature testing を自分で確かめた: cargo build --bin LotScope --message-format=json で da_core・LotScope の features は [custom-protocol, default]、cargo build --example ui_serve では da_core・ui_serve とも [custom-protocol, default, testing]。配る exe は desktop.yml:232 の cargo build --release --locked だけ＝testing は入らない。ただし作業用のクレートで確かめると、cargo test は製品の bin も testing つきで組む（target/debug/<bin> の features に testing）。check-all.sh:119 の --verify はその debug/LotScope を verify.py に渡す＝口は手元の窓の通しの exe には入る。A は「lib は環境変数を読まない・example が set_source で渡す」なので、その exe でも口は効かない（良い）。評価の「strings で 0 件」は release を単独で組んだ物で見ることを書き足す要がある。(5) 待ちを起こす 4 つの鍵（open・ops・nocache・copy）が Python と同じなので ui-eval-dashwait.mjs の slow() を替えずに済む（ui-eval-dashwait.mjs:119・154・173・183・216 の 5 か所）。read_ops は dashboard.rs:1457（ガント）と :1552（ABC）の 2 か所から呼ばれ、Python の operation.read_ops と同じく両方に効く。(6) 手の型が今までどおり（SLOW_COPY・lot::given の feature testing・example が lib に渡す）。弱い所: lib の 4 ファイルに cfg の行・lib の大域の設定（並んで流れる lib の試験で取り合う）・順番待ちの確かめが窓では空になる（progress.rs:19・:327 の queue は Python だけ）"
+    },
+    "B 遅くする口を進みの書き手 1 か所に置く（progress::step で眠る）": {
+     "id": "B",
+     "name": "B 遅くする口を進みの書き手 1 か所に置く（progress::step で眠る）",
+     "summary": "段を書く関数 `progress::step(stage, n, of)`（progress.rs:229。呼ぶ所は lib に 12）が、feature testing の下で、段ごとに決めた秒だけ眠る。読む（read）・ガント（gantt）・ABC の読む・札の読む のどれも 1 ファイル・1 設備ごとに step を呼ぶので、口は progress.rs の 1 か所で済む。控えを使わない（nocache）と写しの速さ（copy）だけは別の 2 か所",
+     "direction": "置き場: 段の知らせの係 1 か所（製品の数える関数に手を入れない）。遅さは時間。dashwait は替えない",
+     "changes": [
+      "progress.rs の step の後ろに `#[cfg(any(test, feature = \"testing\"))] hold(stage, n)`: 設定 {\"read\": 秒, \"gantt\": 秒, \"only\": [...]} の秒だけ眠る（印の無い糸＝ダッシュボードでない問い合わせでは眠らない: with_cur の中だけ）",
+      "鍵の名前を段の名前にそろえる: open → read、ops → gantt（ABC の読みは read）。ui-eval-dashwait.mjs の slow({open: 0.2}) を slow({read: 0.2}) に（4 か所）。Python の ui_server.py の鍵は替えない（焼いた本の元。⑤ で消す）ので、TPA_UI_SERVER=python で流すときは ui-harness が鍵を読み替えて書く",
+      "dashboard.rs の控えの 2 か所と mirror.rs の写しは案 A と同じ（この 2 つは step を通らない）",
+      "only は設備の名前でなく n（何台目か）で選べない: step には設備の名前が来ない。only を使う本は無い（grep で dashwait にも無い）ので鍵ごと外す",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で 3 つの大きさとも終了コード 0",
+      "progress::tests に「step の hold は印のある糸だけ」「設定の無い時は 0 ミリ秒」",
+      "製品に口が無い（案 A と同じ strings と features の確かめ）",
+      "眠る所が 1 か所: grep で `fn hold` の呼び手が progress.rs の step だけ"
+     ],
+     "risks": [
+      "step は「i 台目を読み始める」前に呼ばれる（pivot.rs:1307）ので、眠るのは段の字を替えた直後。円の量 n/m は眠っている間に見えるので画面の確かめには合うが、Python の open（ファイルを開く前に眠る）と待ちの形が 1 刻みずれる（最後の 1 台の後には眠らない）",
+      "builder.rs:226（組む所の札）も step を呼ぶ。印のある問い合わせ（?ask=）だけで眠るが、組む所の札も ask を付けるなら dashwait 以外の本が遅くなる（設定は dashwait が書いた時だけなので実害は小さい）",
+      "段の名前を鍵にすると、段の名前を替えたとき（⑤ で python の段を外すなど）に遅くする設定も替わる",
+      "鍵を Python と窓で替えるので、⑤ まで dashwait の slow() が 2 つの形を持つ"
+     ],
+     "cost": "Rust 約 70 行（hold 20・控えと写し 30・ui_serve 15・試験）＋ mjs 15 行。1 版",
+     "versions": "1 版",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案 B の「鍵の名前を段の名前に: open → read、ops → gantt（ABC の読みは read）」: ABC は dashboard.rs:1547 で step(\"read\") を書いてから :1552 で read_ops を呼ぶ。Python の ops（read_ops の前に秒）はガントと ABC の両方に効くが、B の gantt の鍵は ABC に効かず、ABC を遅くするには read の鍵＝品質・作業実績のパネル（pivot.rs:1307）も一緒に遅くなる。dashwait の稼働の段（ui-eval-dashwait.mjs:183 の slow({ops: 0.25})）の待ちの形が黙って替わる。ほかに pivot.rs:2112・2145 は終わりに step(\"read\", n, n) を書くので、そこでも眠る（段の終わりに余分な待ち）"
+      }
+     ],
+     "seen": "progress.rs:229 の step は lib に 12 か所（自分で grep: pivot.rs 4・dashboard.rs 6〈copy 3・gantt・read・abc〉・builder.rs:226 1、ほかに count の 0/0）。「1 か所」は待ちの段だけで、控えの 2 か所（dashboard.rs:562・:1386）と写し（mirror.rs:109）は step を通らないので結局 3 か所＋鍵の読み替え。step は段の字を替えた直後に眠るので Python の「開く前に眠る」と 1 刻みずれ、段の終わりの step(read, n, n) でも眠る。鍵を Python と窓で替えるので、⑤ まで dashwait の slow() が 2 つの形を持ち、ui-harness が読み替える係が増える（同じ物が 2 つの言葉）。設定の読み手が lib の中に置かれると、cargo test が組んだ debug/LotScope（testing つき・check-all の --verify が使う）でも効くおそれ（案は設定の出どころを書いていない）。A より行は少ないが、決まりの置き場が散る"
+    },
+    "C 歩ませる口（時間でなく合図で 1 歩ずつ進める）": {
+     "id": "C",
+     "name": "C 歩ませる口（時間でなく合図で 1 歩ずつ進める）",
+     "summary": "遅くする代わりに、feature testing の下で step が「次へ」の合図を待つ。ui_serve に試験だけの道 POST /__test/step（何歩進めるか）と GET /__test/held（いまどの印がどの段で止まっているか）を足し、dashwait は 1 歩ごとに頁の円と字を見て次へ進める。時間に頼らないので、刻み 250 ミリ秒で取りこぼす・PC の速さで落ちる、が無くなる",
+     "direction": "置き場: 段の係 1 か所＋開発用サーバーの試験の道。遅さでなく決まった歩み（決定的）。dashwait の待ち方を書き替える",
+     "changes": [
+      "progress.rs: cfg(testing) の Gate（Mutex＋Condvar）。step(stage, n, of) は門が閉じていれば止まり、止まった印と段を held に出す。門は既定で開いている（ほかの本と試験に効かない）",
+      "examples/ui_serve.rs: /__test/gate（open|close）・/__test/step?n=1・/__test/held を shell::dev_route の前で答える（/__desktop/* と同じく製品の振り分けに入れない）",
+      "ui-eval-dashwait.mjs の watch(): 「待ってから 250 ミリ秒ごとに見る」を「門を閉じる → 最新にする → held が来るまで待つ → 見る → 1 歩 → …」に。前回より長い（3 回目）は時間で起きる段なので、止めた歩の間に 0.6 秒置く（時間に頼るのはここだけ）",
+      "写しの速さ（本物の写し）は門で止められない（写しは別の糸で印が無い）ので、案 A の copy の口を足す",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で 3 つの大きさとも終了コード 0 を 5 回続けて（決定的なので 1 回でも落ちれば割れ）",
+      "1 歩ごとの確かめ: 円の量＝字の n/m＝held の n/of（3 つの数が同じ。今の dashwait は円と字の 2 つ）",
+      "門を開いたままの形（既定）で ui-all の 73 本の秒が 3.118.2 の表と ±10% の内（門が効いていない）",
+      "製品に Gate が無い（strings と features）"
+     ],
+     "risks": [
+      "dashwait を大きく書き替える（watch と 5 つの段）。画面の確かめ（1〜10）は同じでも、待ち方の違いで今まで見ていた「刻みごとに字の要素を作り直さない」が歩ごとにしか見えなくなる（間の描き直しを見落とす）",
+      "止めた糸がつながりを握ったまま（ui_serve は 1 つのつながりに 1 本の糸）。頁が答えを待って時間切れになる前に進めないと、画面の誤りの形を撮ってしまう",
+      "門を閉じたまま道具が落ちると、ui_serve の糸が止まったまま残る（--stdin で終わるが、作業フォルダの後始末は harness の close が要る）",
+      "前回の時間（prevMs）は止めていた時間も数えている段に入る（count_ms）。歩む間を置くと「前回より長い」がいつも出て、2 回目の「あと約 n 秒」の確かめが崩れうる"
+     ],
+     "cost": "Rust 約 120 行（Gate 50・試験の道 40・試験 30）＋ dashwait の書き替え約 80 行。1 版。dashwait の確かめの数は 64 から増える",
+     "versions": "1 版",
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案 C の changes に控えを外す口が無い: dashboard.rs:562・:1386 で控えに当たると count も ops_count も呼ばれず step が 1 度も来ない（測った: 控えに当たる答えは 3.8〜14.3 ms）。「門を閉じる → 最新にする → held が来るまで待つ」は held が来ないまま時間切れになる。写しの口は A から持ち込むと書いてあるが、控えは書いていない"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案 C の ui_serve の試験の道 /__test/gate・step・held（3 本）と dashwait の watch() の書き替え約 80 行: 待ちの 1 刻みごとに道具が 1 往復（今は 250 ミリ秒ごとに見るだけ）"
+      }
+     ],
+     "seen": "時間に頼らない（刻み 250 ms と PC の速さに依らない）のは 8 案でいちばん確か。円・字・held の 3 つの数を突き合わせる評価は良い（A に持ち込む価値がある）。弱い所: 止めた糸がつながりを握る（ui_serve はつながりごとに糸）・門を閉じたまま落ちると糸が残る・前回の時間 count_ms に止めた時間が入り「前回より長い」がいつも出うる（案の risks のとおり）・「刻みごとに字の要素を作り直さない」が歩ごとにしか見えなくなる。控えを外す口が抜けている（減点）。範囲が大きく（Gate 50 行・試験の道 40 行・dashwait 80 行）、④ の小さい版としては釣り合いが悪い"
+    },
+    "D 場面のファイルで遅くする（窓のコードに口を足さない）": {
+     "id": "D",
+     "name": "D 場面のファイルで遅くする（窓のコードに口を足さない）",
+     "summary": "遅さを場面の台本 ui_window_scene.py の側で作る: 作業実績 11 台のファイルを大きくし（行を増やす・使わない大きな列）、「控えを使わない」は写しのファイルの時刻を道具が進めて（file_sigs が替わる＝本物の「ファイルが変わった後」の数え直し）起こす。前回より長いは、3 回目の前に写しを 3 倍の大きさのファイルに差し替える。Rust は 1 字も替えない",
+     "direction": "置き場: 場面の台本と道具だけ（製品にも feature にも口なし）。遅さは本物の仕事の量",
+     "changes": [
+      "tests/ui_window_scene.py: TPA_UI_HEAVY=行の数 で実績_*.sqlite3 を大きく作る（ui_scene.make は焼いた本の元なので替えず、make の後に台本が足す）",
+      "ui-eval-dashwait.mjs: slow({open, nocache}) の代わりに touchCopies(倍率)（作業フォルダの local の db_cache の写しを os.utime で進める・差し替える）。copy は大きな共有のファイルで",
+      "ui-harness.mjs: 作業フォルダの道（いまは道具に渡していない）を app.work として出す",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で終了コード 0（3 つの大きさ）",
+      "同じ PC で 5 回流して、待ちの秒の揺れ（最初の read から済むまで）を測る。dashwait の「前回より長い」は 3 倍の差で起きるかを 5 回とも",
+      "Rust の差分が 0 行（git diff --stat desktop/src が空）"
+     ],
+     "risks": [
+      "速さが PC に依る: 窓は今の作り物（1 台 400 行）では最新にするが 250 ミリ秒の内に済む（測った: 待ちが 1 刻みも見えない）。数秒にするには 1 台に数十万行が要り、作業フォルダが数百 MB になる。CI の runner と手元で秒が違い、「前回より長い」「あと約 n 秒」が揺れる",
+      "本物の写しを 9 秒にするのは無理に近い: 一時フォルダは tmpfs・ページキャッシュで GB/秒。写しの札の確かめ（7・10）は落ちる（今の窓の形で 4 件 NG のまま）",
+      "写しのファイルを外から触ると、窓の写しの台帳（世代・指紋）とずれる。写しの糸が次の周回で取り直し、数がぶれる",
+      "ui_scene.make を替えれば焼いた本 4 冊（routes・pivot・dashboard・ops）を焼き直す（sources）。替えない形にすると台本が 2 段になる"
+     ],
+     "cost": "Python 約 60 行・mjs 約 60 行。Rust 0。ただし確かめが揺れて落ちる本が残る見込み（写しの 4 件）",
+     "versions": "1 版",
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 4,
+      "steps": 5,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 5,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "lost",
+       "where": "案 D の risks「本物の写しを 9 秒にするのは無理に近い・写しの札の確かめ（7・10）は落ちる（今の窓の形で 4 件 NG のまま）」: dw-window.log の「本物の写し」の 3 件（写す札・あと約 n 秒・MB と MB/秒）を確かめる手が無くなる。作り物は一時フォルダ（tmpfs の PC もある）とページキャッシュの上で写す"
+      }
+     ],
+     "seen": "Rust を 1 字も替えないのは良いが、自分で測った数が案を支えない: 控えに当たらない数え方でもパネル 1 枚 7.3〜37.7 ms（作り物の作業実績 11 台）。250 ms の刻みで 2〜3 刻み見せるには 1 枚 1 秒前後＝今の 30〜100 倍の行（1 台に数万行）が要り、秒は PC と CI の runner で替わる（「前回より長い」「あと約 n 秒」が揺れる）。写しの時刻を外から進めると窓の写しの台帳とずれ、写しの糸が次の周回で取り直す。ui_scene.make を替えると焼いた本 4 冊（books.json の sources に tests/ui_scene.py・tools/ui_server.py）の焼き直しになるので、台本を 2 段にする手間も増える"
+    },
+    "E 遅いファイル系（FUSE）の上に作業実績の共有を置く": {
+     "id": "E",
+     "name": "E 遅いファイル系（FUSE）の上に作業実績の共有を置く",
+     "summary": "作業実績のフォルダを、読みのたびに眠る作り物のファイル系（FUSE。fusepy か Rust の fuser の小さな台本）に置く。共有から写す（copy）は本物の read が遅くなる。ダッシュボードが開くのは手元の写し（db_cache）なので、open・ops を遅くするには手元の写しの置き場も FUSE に置く。製品のコードに口が無い",
+     "direction": "置き場: OS の層（ファイル系）。遅さは本物の I/O（read の 1 回ごと）。製品・feature の口なし",
+     "changes": [
+      "program/tests/slowfs.py（新・fusepy）か desktop/examples/slowfs.rs（fuser を dev-dependencies に）: 下のフォルダを写して見せ、read のたびに設定の秒・バイト/秒だけ眠る",
+      "ui_window_scene.py: TPA_UI_SLOWFS があれば base の作業実績のフォルダと local/db_cache を FUSE に（mount と後始末 fusermount -u）",
+      "dashwait の slow() はそのまま（設定ファイルを FUSE の台本が読む）",
+      "名前付きパイプ（FIFO）は使えない: 測った。SQLite が FIFO を開くと open で止まったまま返らない（20 秒で打ち切った）",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で終了コード 0（Linux。Windows・CI の runner は流さない）",
+      "FUSE の上で写しの台帳（置き換えの rename・世代の消し）が普通のファイル系と同じ答え（mirror の lib 試験を FUSE の置き場で 1 回）",
+      "Rust の製品のコードの差分が 0 行"
+     ],
+     "risks": [
+      "新しい依存（fusepy は pip に無い形で入っていない・fuser は crate を足す＝Cargo.lock が替わる）。/dev/fuse はこの PC では root だけ（crw------- root）。CI の runner で使えるかは未確かめ",
+      "Windows では流せない（FUSE が無い）。dashwait は Linux だけの本になる",
+      "SQLite のロックと mmap が FUSE の上で振る舞いを変える（WAL・共有メモリ）。待ちの秒が設定でなく SQLite の読み方（ページの数）で決まり、open の 1 回の秒を決めにくい",
+      "控えを使わない（nocache）はファイル系では作れない（同じ指紋なら控え）。案 D の時刻を進める手を足すことになる",
+      "mount したまま道具が落ちると、作業フォルダが消せない（fusermount -u が要る）"
+     ],
+     "cost": "台本 約 150 行＋依存 1 つ＋ CI の準備。Rust の製品は 0。Linux だけ",
+     "versions": "1 版",
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 3,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "lost",
+       "where": "案 E の risks「Windows では流せない・/dev/fuse は root だけ・CI の runner は未確かめ」: dashwait が Linux の root の PC だけの本になる（今は Python の相手でどの PC でも流れる）。check-all を root でない利用者で流すと段ごと流せない"
+      }
+     ],
+     "seen": "本物の I/O で遅くする考えは筋が通るが、ダッシュボードが開くのは手元の写し（db_cache）なので、写しの置き場も FUSE に置く要があり（案のとおり）、SQLite のロック・mmap・WAL が FUSE の上で振る舞いを替える。控えを外す（nocache）はファイル系では作れず、D の時刻を進める手を足すことになる（案のとおり）＝「製品に口なし」は半分だけ。新しい依存（fusepy は入っていない・fuser は Cargo.lock を替える）。手間と落とし穴が 8 案でいちばん多い"
+    },
+    "F dashwait を焼いた進み具合の再生にする（Playwright の route）": {
+     "id": "F",
+     "name": "F dashwait を焼いた進み具合の再生にする（Playwright の route）",
+     "summary": "窓の本物の段（progress.rs）の並びを、lib の試験で 1 回記録して表（tests/fixtures/dashwait_ticks.json）に焼き、dashwait は /api/dashboard/progress と /api/dashboard/query を route で表どおりに答える（答えは窓の本物の答えを 1 回取って遅らせて返す）。開発用サーバーには口を足さない。dashwait は既に写しの場面と段 python で route を使っている",
+     "direction": "置き場: 道具の側（ブラウザの route）。遅さは再生。窓の段の正しさは lib の試験が受け持ち、dashwait は画面だけを見る",
+     "changes": [
+      "desktop/src/progress.rs の試験に「記録する」形: 作り物の Part 11 台で pivot と ops を数え、刻みごとの {stage, n, of, elapsedMs, prevMs} を JSON に（TPA_BLESS=1 で焼く）",
+      "ui-eval-dashwait.mjs: watch() の前に route を張る（query は route.fetch で窓の答えを取り、表の長さだけ待ってから fulfill。progress は表の刻みを経過の時間で選んで返す）",
+      "本物の写し（7・10）の場面は copy の刻みも表に（済んだバイト・速さ）",
+      "PYTHON_ONLY を空に",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で終了コード 0（表の再生なので PC の速さに依らない）",
+      "表の刻みが本物と同じか: lib の試験が表を作り直して比べる（古い表は落とす。焼いた本の型）",
+      "製品にも example にも口が増えない（git diff --stat desktop/src が試験の分だけ）"
+     ],
+     "risks": [
+      "「本物の段の道で待ちを起こす」（dashwait の頭の約束・版 3.97.0 の利用者の要望の確かめ）が消える: 問い合わせの答えと進み具合の数が、同じ問い合わせの中で食い違う形（前回の時間をサーバーが組みごとに覚える・数えている段だけを足す）を画面の上で見なくなる。今それを見ているのは dashwait だけ",
+      "route を張ると Playwright の「Route is already handled」（3.118.2 で直した落ち方）がまた出うる。張る本が増える",
+      "表を焼く場面（Part 11 台・ガント・ABC）の作り物が ui_window_scene と別になり、画面の組み（OPS の 4 枚）と数が合わなくなりうる",
+      "⑤ で段 python を消すとき、表も作り直す"
+     ],
+     "cost": "Rust 試験 約 80 行＋表＋ mjs 約 100 行の書き替え。1 版",
+     "versions": "1 版",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "lost",
+       "where": "案 F の risks の 1 つ目: ui-eval-dashwait.mjs:4 の約束「本物の段の道（GET /api/dashboard/progress）で待ちを起こして、刻みごとに確かめる」（版 3.97.0 の利用者の要望の確かめ）が消える。問い合わせの答えと進み具合の数が同じ問い合わせの中で食い違う形を画面の上で見る所が無くなる"
+      }
+     ],
+     "seen": "PC の速さに依らない再生で、製品に口を足さない。ただし dashwait は既に写しの場面（ui-eval-dashwait.mjs の route）と段 python で route を使っており、張る所が増えると 3.118.2 で直した「Route is already handled」の落ち方がまた出うる。表を焼く場面（Part 11 台）が ui_window_scene と別になり、画面の組みと数が合わなくなりうる。窓の段の正しさは lib の試験が受け持つとあるが、画面とサーバーの段の突き合わせは消える"
+    },
+    "G 版を 2 つに割る（3.118.3 は ⑤ の入口の表と --ui、3.118.4 で遅くする口）": {
+     "id": "G",
+     "name": "G 版を 2 つに割る（3.118.3 は ⑤ の入口の表と --ui、3.118.4 で遅くする口）",
+     "summary": "3.118.3 は文書と確かめの段だけ（⑤ の入口の表を計画書と機械で数える表に・check-all --ui）にして、製品と lib に触れない。⑤ の入口の表に「残っている Python の枝の数」を数える道具を付け、3.118.4 で遅くする口（案 A か B の形）と dashwait を窓へ。⑤ の入口の条件「73 本が窓で終了コード 0」は 3.118.4 で満たす",
+     "direction": "置き場: 版の割り。先に数える物（⑤ の残り）を作り、口は後",
+     "changes": [
+      "program/tools/stage5-count.py（新）: ⑤ で消す物を数える（Python の枝: ui-harness の TPA_UI_SERVER=python の枝・PYTHON_ONLY の数・画面の #pyBar／#pyPill の字〈今 app.js 18・index.html 2・app.css 1〉・lot.rs の \"python\" の字〈34〉・g.python() の呼び手〈4〉・凍らせた写し〈program/tests/legacy 126 ファイル・3.0 MB〉・TPA_FROZEN_PY を使う試験〈desktop/tests の 9 本〉・sidecar.rs〈884 行〉）。--check で表（tools/stage5-entry.json）と数が合わなければ落とす",
+      "RUST_PORT_PLAN.md の ⑤ の箇条を表に（消す物・条件・確かめ・先に直す物）。表の 1 行ごとに stage5-count の鍵を書く",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）（3.118.3 では dashwait は Python の相手のまま）",
+      "3.118.4: 遅くする口（案 A の 4 か所か案 B の 1 か所。この版の採点で決める）と PYTHON_ONLY を空に"
+     ],
+     "evaluation": [
+      "3.118.3: stage5-count.py --check が終了コード 0・数を 1 つ替える変異（index.html に #pyBar を 1 つ足す）で落ちる",
+      "3.118.3: check-all --ui の 4 本が窓で 0",
+      "3.118.4: 案 A と同じ（dashwait が窓で 0・製品に口が無い）"
+     ],
+     "risks": [
+      "版が 1 つ増える（push 前の確かめ 35 分 × 1 回・PR 1 つ）。④ の終わりが遅れる",
+      "数える表は、片付けの中身を替えるたびに直す手間（表と道具の 2 か所）",
+      "3.118.3 の間も ui_server.py が要る（dashwait）。⑤ の入口の条件が 3.118.4 まで満たせない"
+     ],
+     "cost": "3.118.3: Python 約 100 行＋表＋ check-all 25 行。3.118.4: 案 A と同じ",
+     "versions": "2 版",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "more_steps",
+       "where": "案 G の versions「2 版」: push 前の確かめ（check-all 約 35 分）・PR・Windows の CI が 1 回ずつ増え、⑤ の入口の条件「73 本が窓で終了コード 0」（RUST_PORT_PLAN.md:2665）は 3.118.4 まで満たせない"
+      }
+     ],
+     "seen": "⑤ で消す物を機械で数えて表と突き合わせる stage5-count.py は良い（自分で数えると案の数は 2 つ違っていた: lot.rs の \"python\" は 35〈案は 34〉、TPA_FROZEN_PY／frozen_python を使う desktop/tests は 8 本〈案は 9〉。手で書いた数はすぐずれる＝機械で数える価値の証）。ただ 3.118.3 の本題（dashwait を窓へ）を先送りするだけで、口の形は 3.118.4 の採点に回す＝この回で決める事が減らない。A に数える道具の考えを小さく持ち込めば 1 版で済む"
+    },
+    "H 遅くする口を lib の外の包み（Lot を包む example の層）だけに置く": {
+     "id": "H",
+     "name": "H 遅くする口を lib の外の包み（Lot を包む example の層）だけに置く",
+     "summary": "製品の lib に 1 行も足さず、ui_serve の中で「遅くする」をする: パネルの問い合わせ（POST /api/dashboard/query）の本文を見て、数える前に example が自分の糸で lib の progress に段を書いて（progress::step は pub）眠り、その後に本物の Lot へ渡す。控えは本文に毎回違う印を足して避ける",
+     "direction": "置き場: example の振り分けの前（lib の外）。遅さは時間。段は example が作る",
+     "changes": [
+      "examples/ui_serve.rs: dev_route の前に slow_query(req)。本文の panel.source と期間から設備の数を Lot に尋ね（/api/dashboard/sources）、progress.begin(ask) の後に step(\"read\", i, n) を書いて open の秒だけ眠る × n、終わったら Lot に渡す",
+      "控え: 本文の panel に使われない鍵（_slow: 通し番号）を足して控えの鍵を替える（dashboard.rs の key は p そのもの）",
+      "写し（copy）は example からは遅くできない（lib の写しの糸）。案 A の mirror の口だけは lib に足す",
+      "check-all.sh の任意の段 --ui（どの案も同じ物を入れる。違うのは遅くする口の作り方）: `cargo test` が組んだ target/debug/examples/ui_serve を使い（cargo test は examples も組む・dev-dependencies の feature testing つき）、ui-check の list・dash（ui-check に状態を選ぶ引数 --states を足す。今の ui-check はwalk の only を渡していない＝128 枚を全部撮る）・ui-eval-xss・ui-eval-narrow を窓の相手で流し、段ごとの記録と終了コードを summary.txt に。測った時間: xss 11 秒・narrow 294 秒（窓・1 本ずつ）。ui-check の全部は Python で 430 秒（3.118.2 の測り）",
+      "段 ⑤ の入口の表（RUST_PORT_PLAN.md の「⑤ 不要になったファイルの片付け」の箇条を、消す物・消す条件・消した後の確かめ・先に直す物の 4 列の表に書き直す）"
+     ],
+     "evaluation": [
+      "dashwait が窓で 0",
+      "lib の差分が mirror.rs の 1 か所だけ"
+     ],
+     "risks": [
+      "example が作った段と、Lot が本当に数えた段の 2 つが同じ印に続けて書かれる（作り物の read の後に本物の read 0/11 から始まる）。円が戻るので dashwait の「円の量＝字の n/m」は通っても、本物と違う形を撮る",
+      "パネルの本文に知らない鍵を足すと、layout_clean の確かめ（clean_panel）が断るか、控えの鍵の外の別の答えになる（未確かめ）",
+      "ガント・ABC の段（gantt・abc）を example が推して作ることになり、段の言葉の確かめ（作業実績を読む・ガントを組む）が本物を見ていない",
+      "製品と同じ振り分け（dev_route と Router::handle を 23 の道で比べる試験）の前に別の層が入る"
+     ],
+     "cost": "example 約 120 行＋ mirror の口。lib はほぼ 0",
+     "versions": "1 版",
+     "score": {
+      "order": 4,
+      "chunk": 5,
+      "hierarchy": 4,
+      "visual": 4,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 3,
+      "form": 3,
+      "place": 3,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "どの案も同じ「check-all.sh の任意の段 --ui: cargo test が組んだ target/debug/examples/ui_serve を使い」: 違う。Cargo.toml:20〜23 の ui_serve は test = true なので、cargo test は試験の形（examples/ui_serve-<hash>。試験の走り手）だけを組み、そのままの examples/ui_serve を作らない（作業用の小さなクレートで test=true と false の例を並べて cargo test --no-run を流して確かめた: test=true は a-<hash> だけ、false は b も出る）。しかも check-all.sh:39 は始めに $T/examples を消す。--ui の段に cargo build --locked --example ui_serve の 1 手（手元で 22 秒〜1 分 38 秒）が要る"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案 H の risks の 1 つ目と 3 つ目: example が書いた作り物の段（read 0..n）の後に Lot の本物の段が 0/11 から書かれる。ガント・ABC の段も example が推して書く。dashwait は通っても、撮るのは本物と違う待ちの形"
+      }
+     ],
+     "seen": "lib にほぼ触らないが、待ちの段を example が作るので「本物の段の道で待ちを起こす」を崩す（F と同じ）。パネルの本文に使わない鍵（_slow）を足して控えを避ける手は、layout_clean::clean_panel（dashboard.rs:1108〜1126 の panel_of の後）が知らない鍵をどう扱うか次第で、確かめの外の別の答えになりうる。3.118.2 の作った後の直しで製品と同じにそろえた振り分け（shell::dev_route と Router::handle を 23 の道で比べる試験）の前に別の層が入り、そろえた意味が薄れる。写しは結局 lib に口が要る"
+    }
+   }
+  }
+ ],
+ "first_fix_candidates": [
+  {
+   "id": "F1",
+   "what": "窓の控え（dashboard.rs:562・:1386）を外す口をどの案でも用意する（D は写しの時刻を進める）",
+   "why": "窓は最新にするを控えから答え、待ちが 1 刻みも起きない（evidence.why_fast）",
+   "where": "dashboard.rs"
+  },
+  {
+   "id": "F2",
+   "what": "写しを遅くするときは小さく刻んで書く（16 KB）",
+   "why": "COPY_CHUNK 4 MB では作り物の 1 台が 1 回の read で済み、copy_progress の済んだバイトが 0 か全部（MB/秒・あと約 n 秒の札が出ない）",
+   "where": "mirror.rs:109〜131"
+  },
+  {
+   "id": "F3",
+   "what": "dashwait の「順番待ち」の確かめは窓では起きない。記録に数を出す（空の確かめにしない）",
+   "why": "窓はパネルを一斉に数える。progress.rs の queue は Python だけの段",
+   "where": "ui-eval-dashwait.mjs の checkTicks"
+  },
+  {
+   "id": "F4",
+   "what": "ui-check に状態を選ぶ引数（--states）を足してから check-all --ui に入れる",
+   "why": "今の ui-check は walk の only を渡さず 128 枚を全部撮る（Python で 430 秒）",
+   "where": "ui-check.mjs:18〜"
+  },
+  {
+   "id": "F5",
+   "what": "dashwait の SLOW の一時フォルダと、窓の形の作業フォルダの残り（local の作り直し）を後始末する",
+   "why": "/tmp に tpa-dashwait-* 3 つと持ち主の印の無い tpa-ui-* 2 つが残っている（evidence.leftovers）",
+   "where": "ui-eval-dashwait.mjs・ui_window_scene.py"
+  },
+  {
+   "id": "F6",
+   "what": "⑤ の入口の表で index.html の #pyBar を消す行に「settings を焼き直す・Windows の nt の表を取り直す（CI 2 回）」を書く",
+   "why": "templates/index.html は焼いた本 settings の元（CLAUDE.md）",
+   "where": "RUST_PORT_PLAN.md"
+  }
+ ],
+ "for_evaluator": [
+  "分かれ目 1: 遅くする口を製品の lib の中に置くか（A・B・C。feature testing で製品には入らない）、外に置くか（D 場面・E OS・F 道具・H example）",
+  "分かれ目 2: 時間で遅くするか（A・B・H）、合図で歩ませるか（C）、本物の仕事の量か（D・E）、再生か（F）。時間の形は 250 ミリ秒の刻みと PC の速さに依る",
+  "分かれ目 3: dashwait の約束「本物の段の道で待ちを起こす」を守るか（F と H は崩す）",
+  "分かれ目 4: 3.118.3 を 1 版にするか、⑤ の表と --ui を先にした 2 版か（G）",
+  "見てほしい未確かめ: 控えを外した窓が作り物で何ミリ秒で数えるか・board（合わせた表）が open_part を何回呼ぶか・FUSE の CI での可否・窓の形の作業フォルダの残りの原因"
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・採点のみ・2026-11-25。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので案ごとの画像は無く、自分でコードを読み（dashboard.rs・mirror.rs・progress.rs・pivot.rs・operation.rs・Cargo.toml・check-all.sh・desktop.yml・ui-harness.mjs・ui-check.mjs・ui-eval-dashwait.mjs・ui_server.py・ui_window_scene.py）、自分で動かして測った: (1) cargo build --bin LotScope と cargo build --example ui_serve を --message-format=json で 1 つずつ流し features を見た（CARGO_TARGET_DIR=desktop/target・CARGO_INCREMENTAL=0。30.9 秒・22.0 秒）、(2) 作業用の小さなクレート（scratchpad/evalx）で cargo test --no-run が test=true の example と製品の bin をどう組むかを見た、(3) ui_window_scene.py serve で本物の場面を起こし、標準のダッシュボードの 6 枚を控えに当たる／当たらない本文で POST /api/dashboard/query に当てて ms を測った、(4) 案を作った係の記録 s43（dw-window.log の NG 20 件・dw-python.log・ui-times.txt）を読んだ。リポジトリのファイルはこの採点のファイルのほか替えていない（git status は採点のファイルだけ）。物差しの読み替えは 2026-11-stage4c.json と同じ: 順序＝版と段の並び・チャンク＝版の切り方・階層化＝版の狙いが 1 つか・視覚化＝効き目が数で見えるか・ステップ数＝手間と往復・考えさせない＝落とし穴の少なさ・直感的＝今までの型に沿うか・形と色／言葉と置き場＝決まりが 1 か所で同じ言葉か・整列＝範囲の釣り合い（製品の exe と ⑤ の境）・調子＝理由の明るさ",
+ "evaluation": {
+  "verified_claims": [
+   "窓が待たない理由: 正しい。dashboard.rs:561〜562（パネル）・:1385〜1386（稼働）の控えは写しの指紋 file_sigs を鍵に持ち、ファイルが替わらなければ同じ答え。Python の slow_down は nocache で routes._cache を空にしていた（ui_server.py:206〜209）",
+   "控えを外した窓の速さ（for_evaluator の未確かめ）: 測った。標準のダッシュボード 6 枚で、控えに当たると 3.8〜14.3 ms・当たらないと 7.3〜37.7 ms（計 63 → 126 ms）。合わせた表 board は 14.2 → 13.1 ms で、題を替えても数え直しの時間が変わらない（board の控えの鍵と数え方は別に見る要がある）。どれも 250 ms の刻みの内＝時間で遅くする口が要る",
+   "写しの 4 MB: 正しい。mirror.rs:28 COPY_CHUNK = 4 MiB・:109〜131 copy_shared は頭の cfg(test) SLOW_COPY で眠るだけ。copy_progress（:486〜490）の済んだバイトは一時ファイルの大きさ",
+   "feature testing は配る exe に入らない: 正しい（cargo build --bin LotScope の da_core・LotScope は [custom-protocol, default]、--example ui_serve は testing つき。配る exe は desktop.yml:232 の cargo build --release --locked）。ただし cargo test は製品の bin も testing つきで組み直す（作業用のクレートで確かめた）。check-all.sh:119 の --verify が使う debug/LotScope は cargo test の後の物＝testing つき",
+   "dashwait の窓の NG 20 件: dw-window.log で確かめた（全部「待ちが起きない」形）。Python の相手は 64 件 OK",
+   "ui-check に状態を選ぶ引数が無い: 正しい（ui-check.mjs:22〜24 は walk に only を渡さない）。ただし walk（ui-harness.mjs:1194〜）は only があっても最後に選んだ状態までの前の状態を全部たどる（visit を飛ばすだけ）。--states だけでは前の状態の手間が残る",
+   "PYTHON_ONLY は ui-harness.mjs:162、TPA_UI_SLOW_FILE は ui_window_scene.py:116〜117 の env={**os.environ…} で ui_serve まで届く",
+   "残り物: /tmp に tpa-dashwait-* 3 つ・tpa-ui-* 2 つ（案のとおり）。自分の測りで起こした場面は閉じた直後に消えていた（普通に閉じれば残らない）。ほかに tpa-delegate-* が 35 個（delegate.rs:114 の lib の試験 only_kinds_and_counts_are_written が消さない。この版の範囲の外）"
+  ],
+  "discrepancies": [
+   "全案共通の --ui の段「cargo test が組んだ target/debug/examples/ui_serve を使い」は違う: ui_serve は test = true（Cargo.toml:23）なので cargo test は examples/ui_serve-<hash>（試験の走り手）だけを組み、uplift した examples/ui_serve を作らない（作業用のクレートで test=true は a-<hash> だけ・test=false は b も、を確かめた。手元の target でも 11-24 23:31 の cargo test の跡は ui_serve-6f5ff… だけ）。check-all.sh:39 は始めに $T/examples を消すので、--ui の段は ui-harness.mjs:219 の「窓の開発用サーバーがありません」で落ちる",
+   "fifth_counts の数: lot.rs の \"python\" は 35（案は 34）、TPA_FROZEN_PY／frozen_python を使う desktop/tests は 8 本（案は 9）。ほか（g.python() 4・legacy 126 ファイル 3.0 MB・pyBar 18/2/1・sidecar.rs 884 行・router.rs 362 行・ui_server.py 226 行）は合う"
+  ],
+  "rank": "A 68.8・B 56.5・G 55.6・C 48.9・F 43.0・D 36.9・H 33.8・E 29.3。合格点 80 に届かない（決まり 2026-11-06 で 1 位 A に指摘を直して入れた形で作る）。A は Python の slow_down と同じ 4 つの口・同じ鍵で dashwait を替えずに窓へ移せ、今までの型（SLOW_COPY・lot::given の feature testing・example が lib に渡す）に沿う。C の 3 つの数の突き合わせと G の機械で数える ⑤ の表を小さく持ち込む",
+  "first_fixes": [
+   {
+    "n": 1,
+    "what": "check-all.sh の --ui の段は ui_serve を自分で組む: 段の頭で `(cd desktop && cargo build --locked --example ui_serve)`（cargo test は test = true の example を uplift せず、check-all.sh:39 が examples を消す）。組めなければ段を FAIL にして summary.txt に言う。CARGO_TARGET_DIR を替えた形は ui-harness.mjs:179 と同じ道を使う",
+    "where": "program/tools/check-all.sh・CLAUDE.md の check-all の説明",
+    "check": "rm -rf desktop/target/debug/examples の後に check-all --ui の段だけを流し、examples/ui_serve ができて 4 本が終了コード 0。段の記録に組んだ秒"
+   },
+   {
+    "n": 2,
+    "what": "slow.rs は lib の中で環境変数もファイルも読まない（設定は ui_serve が set_source で渡す関数だけ。既定は None で何もしない）。cargo test は製品の bin LotScope も testing つきで組み、check-all の --verify はその debug/LotScope を使うため、lib が TPA_UI_SLOW_FILE を読むと窓の通しの exe で口が効く",
+    "where": "desktop/src/slow.rs・examples/ui_serve.rs",
+    "check": "slow::tests に「TPA_UI_SLOW_FILE を置いても set_source が無ければ wait は 0 ms」。製品に口が無い確かめは `cargo build --release --locked --bin LotScope --message-format=json`（ほかの target を一緒に組まない・desktop.yml:232 と同じ）の da_core の features に testing が無いことと、その exe を strings して MARK が 0 件。cargo test の後の debug/LotScope には MARK がある（=feature の境の説明として記録に書く）"
+   },
+   {
+    "n": 3,
+    "what": "nocache は 2 か所の cache.get（dashboard.rs:562・:1386）を飛ばすだけでなく、合わせた表 board の数え方も確かめる（測った: board は題を替えても 14.2 → 13.1 ms で、ほかの 5 枚のように 2 倍にならない＝別の控えか鍵の外）。open_part を board が何回呼ぶかを数え、Python と同じ待ちの長さになる秒を決める",
+    "where": "desktop/src/dashboard.rs（board の数える道）・ui-eval-dashwait.mjs の秒",
+    "check": "slow::tests か lot::tests で、nocache のとき同じ本文の 2 回目も progress::counted が立つ（パネル・稼働・board の 3 形）。dashwait の「合わせた表を組む（まとまり k/2 済み）」が窓で OK"
+   },
+   {
+    "n": 4,
+    "what": "写しの口: copy の速さがあるときだけ 16 KB ずつ書いて眠り、Python と同じく名前が「実績_」で始まる元だけに効かせる。無いときは今の COPY_CHUNK 4 MB のまま。今の cfg(test) の SLOW_COPY（mirror.rs:106・使う試験は lot.rs:4517 の 1 つ）は slow.rs の同じ口に寄せ、lib の試験が並んで流れても設定を取り合わない形（試験ごとの鍵か、守りの guard で外す）にする",
+    "where": "desktop/src/mirror.rs:109〜131・slow.rs・lot.rs:4517〜4536",
+    "check": "slow::tests に「copy の速さのとき copy_progress の done が 4 刻み以上で単調に増える」・lot::tests の the_copy_stage_moves_while_waiting が新しい口で通る・cargo test --lib を 3 回続けて落ちない"
+   },
+   {
+    "n": 5,
+    "what": "C から持ち込む: dashwait の刻みごとに、頁の円の量・字の n/m と同じ時刻の GET /api/dashboard/progress の n/of を並べて突き合わせる（3 つの数）。時間で遅くする形の取りこぼしを見えるようにする",
+    "where": "program/tools/ui-eval-dashwait.mjs の sample・checkTicks",
+    "check": "dashwait を窓の相手で 3 つの大きさ・5 回続けて終了コード 0（刻み 250 ms と PC の速さで揺れないか）。秒と OK の数を記録に"
+   },
+   {
+    "n": 6,
+    "what": "順番待ち（queue）の確かめは窓では起きない（progress.rs:19・:327 の queue は Python だけ）: 空の確かめで通さず、見た数を記録に出し、窓の相手では「窓はパネルを一斉に数える（順番待ちが無い）」と 1 行で言う",
+    "where": "ui-eval-dashwait.mjs:95〜96",
+    "check": "窓の相手の記録に「順番待ち 0 件（窓は一斉）」の行・Python の相手では 1 件以上"
+   },
+   {
+    "n": 7,
+    "what": "ui-check の --states は walk の only に加えて from（ui-harness.mjs:1194 の 4 つ目の引数）も渡す。only だけでは最後に選んだ状態までの前の状態を全部たどる。--ui の段の時間を測って上限 15 分を守る",
+    "where": "program/tools/ui-check.mjs・check-all.sh",
+    "check": "node program/tools/ui-check.mjs 出力 light 1728x1152 --states list,dash で PNG が 2 状態分だけ・秒を記録。--ui の段の計の秒が summary.txt に"
+   },
+   {
+    "n": 8,
+    "what": "dashwait の一時フォルダの後始末: ui-eval-dashwait.mjs:26 の mkdtemp は try の外で、launch() が投げると（PYTHON_ONLY の throw・ui_serve が無い）finally（:233）に届かず残る。mkdtemp を try の中へ移すか process.on(\"exit\") で消し、ui-harness の sweepStale と同じく前の tpa-dashwait-* を消す",
+    "where": "program/tools/ui-eval-dashwait.mjs",
+    "check": "ui_serve を退けた形（TPA_UI_EXE=無い道）で dashwait を流し、/tmp に tpa-dashwait-* が増えない"
+   },
+   {
+    "n": 9,
+    "what": "G から持ち込む（小さく）: ⑤ の入口の表の数は手で書かない。表の行ごとに数える命令（grep・wc・find）を書き、版の中の 1 回で数えて表に入れる。手で数えた案の数は既に 2 つずれていた（lot.rs の \"python\" 35・凍らせた試験 8 本）",
+    "where": "program/docs/RUST_PORT_PLAN.md の ⑤ の表",
+    "check": "表の命令をそのまま流して同じ数（版を作る係が push 前に 1 回）"
+   },
+   {
+    "n": 10,
+    "what": "F6 を入れる: ⑤ の表の index.html の #pyBar／#pyPill を消す行に「settings を焼き直す（python program/tools/bless.py settings）・Windows の nt の表を取り直す（CI 2 回）」。ui_server.py を消す行に「先に books.json の routes・pivot・dashboard（:283・:301・:385）の sources から外す」",
+    "where": "RUST_PORT_PLAN.md",
+    "check": "python program/tools/bless.py --check が通る（この版では元を替えない）"
+   },
+   {
+    "n": 11,
+    "what": "PYTHON_ONLY を空にした後も、TPA_UI_SERVER=python の相手で dashwait が今までどおり 64 件 OK（⑤ まで比べの基準）。窓と Python の待ちの秒の違い（窓は一斉・Python は 1 つずつ）を記録に並べる",
+    "where": "ui-harness.mjs:162・ui-all.mjs",
+    "check": "ui-all.mjs の窓の表で 73 本が終了コード 0・--server python でも dashwait が 0"
+   }
+  ],
+  "ask_user": [],
+  "unverified": [
+   "FUSE の CI の runner での可否（E は 1 位でないので見ていない）",
+   "窓の形の作業フォルダの残り（tpa-ui-* 2 つ）の原因: 普通に閉じた自分の測りでは残らなかった。落ちた形（node の SIGKILL など）は流していない",
+   "ui-eval-dashwait.mjs を A の形で流した時間（A を作っていないので測れない）"
+  ],
+  "note": "tpa-delegate-* の残り 35 個は desktop/src/delegate.rs:114 の lib の試験が作業フォルダを消さないため（この版の範囲の外。直すなら試験の終わりに remove_dir_all）"
+ },
+ "built_plan": {
+  "about": "作る形（1 位 A に evaluation.first_fixes の 11 と discrepancies の 2 を入れた。1 版 3.118.3）。決まり 2026-11-06: 作った後の採点は 1 回だけ（見つかった割れは直して試験に足す）",
+  "order": [
+   "① lib の遅くする口 desktop/src/slow.rs と 4 か所の差し込み口（ff 2・3・4）",
+   "② ui_serve が TPA_UI_SLOW_FILE を読む関数を渡す",
+   "③ harness の PYTHON_ONLY を空に・dashwait の 3 つの数・順番待ちの記録・一時フォルダ（ff 5・6・8・11）",
+   "④ ui-check --states・check-all --ui／--ui-only（ff 1・7・discrepancy 1）",
+   "⑤ 計画書の ⑤ の入口の表（ff 9・10・discrepancy 2）・CLAUDE.md・版"
+  ],
+  "built_3118_3": {
+   "version": "3.118.3",
+   "ff": {
+    "1": "check-all.sh の --ui の段の頭で `cargo build --locked --example ui_serve`（step ui-build）。組めなければ「ui の段: 窓の開発用サーバー（examples/ui_serve）を組めないので、道具を流しません」を summary.txt に出して段を落とす。CARGO_TARGET_DIR は harness の UI_EXE と同じ道。--ui-only でその段だけ",
+    "2": "slow.rs は環境変数もファイルも読まない（set_source に渡す関数だけ。既定 None）。試験 slow::tests::without_a_source_nothing_waits_even_with_the_environment_variable。release の bin（cargo build --release --locked --bin LotScope --message-format=json。392 秒）の da_core・LotScope の features は [custom-protocol, default]、その exe の strings に tpa-slow-hook が 0 件、examples/ui_serve は 1 件",
+    "3": "dashboard.rs の skip_cache を 2 か所の控え（パネル・稼働）に。合わせた表はまとまりごとに同じ answer の控えを通るので別の控えは無い（採点の測りで題を替えても速さが変わらなかったのは board_query が題を持たず鍵が同じだったため）。試験 lot::tests::nocache_counts_the_same_panel_again_for_panels_boards_and_operations（パネル・合わせた表・稼働のガントの 3 形で、nocache なら 2 回目・3 回目も数え直す・口が無ければ 2 回目は控え・only に無い設備は控えのまま）。dashwait の「合わせた表を組む（まとまり k/2 済み）」は窓で OK（open 0.2 秒のまま秒を替えずに済んだ）",
+    "4": "copy_shared は slow::copy_rate があるときだけ 16 KB ずつ書いて眠る（名前が 実績_ で始まる元・only があれば名前に only の字を含む元だけ）。cfg(test) の SLOW_COPY は消し、lot の the_copy_stage_moves_while_waiting は slow::guard（copy 5000・only SLOWX）。試験 slow::tests::copying_slowly_moves_the_copied_bytes_in_many_steps（DbMirror の copy_progress の done が 4 刻み以上で単調に増える）。口を使う試験は guard で 1 本ずつ、only で絞るのでほかの試験と取り合わない",
+    "5": "dashwait の 11「3 つの数」: 頁の POST /api/dashboard/query?ask= の印を覚え、刻みごとに道具が GET /api/dashboard/progress を尋ね、段が同じ刻みで分母が同じ・頁の n がサーバーを越えず遅れは 6 まで・円の量が字の n/m と同じ。比べた刻みが 1 つも無ければ落ちる。窓の相手で 3 つの大きさ・5 回続けて終了コード 0（190 件・110〜111 秒）",
+    "6": "順番待ちは記録に出し（「記録: 大きさ 段 順番待ち n 件（窓はパネルを一斉に数える）」）、窓は 0 件・Python は 1 件以上を確かめる（Python の相手で 23・23・81・7〜10 件）",
+    "7": "ui-check.mjs --states 名前,…（状態ごとに新しい頁で walk(page, visit, [名前], 名前)。起動画面は撮らない。名前が違えば終了コード 2）。--states list,dash で 9 秒・PNG 2 枚",
+    "8": "dashwait の一時フォルダは作った直後に process の exit で消す・owner に PID・始めに持ち主の居ない（印の無い物は 1 分より前の）tpa-dashwait-* を消す。TPA_UI_EXE=無い道で流して落ちても /tmp の tpa-dashwait-* は増えない（1 → 1。走っていた別の回の 1 つ）。前の版の残り 3 つは消えた",
+    "9": "計画書の ⑤ の表は行ごとに数える命令と、それを main の上で流した数（pyBar は出てくる回数で app.js 21・index.html 2・app.css 1、lot.rs の \"python\" 35、凍らせた試験 8 本など）。⑤ の版を作る係は始める前に流し直す",
+    "10": "index.html の #pyBar／#pyPill の行に「bless.py settings で焼き直す・Windows の nt の表を取り直す（CI 2 回: 1 回目の記録を --take-nt、2 回目で比べる）」。ui_server.py の行に「先に books.json の routes・pivot・dashboard（283・301・385 行）の sources から外す」",
+    "11": "PYTHON_ONLY は {}。TPA_UI_SERVER=python の dashwait は終了コード 0（190 件・220 秒。窓は 110 秒）。ui-all の窓の表は checks"
+   },
+   "discrepancies": {
+    "ui_serve": "ff 1 のとおり --ui の段で組む",
+    "fifth_counts": "表の数は命令の答え（lot.rs の \"python\" は出てくる回数 35・行の数 34。凍らせた試験を使う desktop/tests は common.rs を含めて 8）"
+   },
+   "checks": [
+    "ui-all.mjs（窓の相手・--jobs 3）: 73 本中 73 本が終了コード 0・21.7 分・/tmp の tpa-ui-* は前後とも 2（前のセッションの持ち主の印の無い物。増えない）",
+    "ui-eval-dashwait.mjs: 窓で 3 つの大きさ・5 回続けて終了コード 0（190 件・110〜111 秒）／TPA_UI_SERVER=python で終了コード 0（190 件・220 秒）",
+    "cargo build --release --locked --bin LotScope --message-format=json: da_core・LotScope の features に testing なし・strings で tpa-slow-hook 0 件（examples/ui_serve は 1 件。cargo test の後の debug/LotScope も 0 件: 呼ぶ人の居ない set_source をリンカが落とした）",
+    "cargo test --lib（slow::tests 3・lot::tests の nocache と copytick）・cargo fmt --check・cargo clippy --all-targets -D warnings",
+    "check-all --verify: 全段 終了コード 0（py-tests Ran 986・bundle-tests Ran 10・cargo-test・cargo-test-table・nt-shape・ci-shape・verify・verify-local）",
+    "check-all --ui-only（debug/examples を消した後）: ui-build 20 秒・ui-check 9 秒・ui-xss 11 秒・ui-narrow 287 秒・ui-dashwait 111 秒・どれも 0・計 438 秒"
+   ]
+  }
+ }
+}
