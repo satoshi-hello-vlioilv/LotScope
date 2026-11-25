@@ -281,6 +281,10 @@ fn row_of(item: &Map<String, Value>) -> D<Map<String, Value>> {
     r.insert("確かめる間隔".into(), read.get("確かめる間隔").cloned().unwrap_or(json!("")));
     r.insert("古さの警告".into(), read.get("古さの警告").cloned().unwrap_or(json!("")));
     r.insert("ロット番号の列".into(), item.get("lotSet").cloned().unwrap_or(json!("")));
+    // JSON の列の展開（版 3.120.0）: 決まりのある行だけ
+    if let Some(x) = item.get("expand").filter(|x| truthy(x)) {
+        r.insert("展開".into(), x.clone());
+    }
     Ok(r)
 }
 
@@ -310,6 +314,25 @@ fn clean_row(data: &Map<String, Value>, key: Option<&str>, known: &[(String, Str
         Err(m) => return Ok(Err(m)),
     };
     row.insert("結合".into(), joins.0.clone());
+    // JSON の列の展開（版 3.120.0。src/json_expand.rs）: 送られたときだけ（空なら外す）。決まりは読み直した字で置く
+    if let Some(x) = data.get("展開") {
+        let text = match x {
+            Value::Null => String::new(),
+            Value::String(t) => pyfmt::strip(t).to_string(),
+            other => other.to_string(),
+        };
+        if text.is_empty() {
+            row.insert("展開".into(), String::new());
+        } else {
+            match crate::json_expand::Spec::parse(&Value::String(text)) {
+                Ok(spec) => {
+                    row.insert("展開".into(), spec.json().to_string());
+                }
+                Err(m) => return Ok(Err(m)),
+            }
+        }
+    }
+    let expanding = row.get("展開").is_some_and(|x| !x.is_empty());
     let roles = strs(t(&["sourcesList", "roles"]));
     let role = get(&row, "役割");
     if !role.is_empty() && !roles.contains(&role) {
@@ -360,7 +383,7 @@ fn clean_row(data: &Map<String, Value>, key: Option<&str>, known: &[(String, Str
                 "結合した表の元にするデータ元を選んでください（品質・仕掛・足したデータ元。実績と結合した表は元にできません）。".into(),
             ));
         }
-        if joins.1.is_empty() {
+        if joins.1.is_empty() && !expanding {
             return Ok(Err("結合した表は、合わせる相手を 1 つ以上決めてください（鍵: この列 = 相手の列）。".into()));
         }
         if joins.1.iter().any(|j| j.with == base) {
@@ -368,6 +391,9 @@ fn clean_row(data: &Map<String, Value>, key: Option<&str>, known: &[(String, Str
         }
         row.insert("場所".into(), String::new());
         row.insert("表".into(), String::new());
+    }
+    if expanding && base.is_empty() {
+        return Ok(Err("JSON の列の展開は、元にする表（品質・仕掛など）を選んで作ってください。".into()));
     }
     if !is_builtin && get(&row, "表示名").is_empty() {
         return Ok(Err("表示名を入れてください（見出しのタブ・ダッシュボードに出す名前）。".into()));
@@ -412,6 +438,16 @@ fn data_source_put(store: &Store, key: &str, data: &Row, base: Option<Rev>) -> R
         let row = rows[pos.unwrap()].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
         for k in &fields {
             row.insert(k.clone(), json!(pyfmt::strip(data.get(k).map(String::as_str).unwrap_or(""))));
+        }
+        // JSON の列の展開（版 3.120.0）: 送られたときだけ置く・空なら外す（送られなければ前の決まりのまま）
+        match data.get("展開").map(String::as_str) {
+            Some("") => {
+                row.remove("展開");
+            }
+            Some(x) => {
+                row.insert("展開".into(), json!(x));
+            }
+            None => {}
         }
         row.insert("キー".into(), json!(key));
         let rev = row.get("rev").map(|v| py_int(v).ok_or_else(|| MasterError::Error("版が読めません".into()))).transpose()?.unwrap_or(0);

@@ -68,6 +68,10 @@ pub enum Route {
     Check,
     JoinPreview,
     ConnCheck(String),
+    /// JSON の列の見分け（版 3.120.0。POST /api/sources/json/probe）
+    JsonProbe,
+    /// JSON の列の展開を試す（版 3.120.0。POST /api/sources/json/preview）
+    JsonPreview,
 }
 
 /// 窓が受ける道か（Flask の <key> は / を含まない空でない字）。道の全体を百分率符号を 1 回戻してから当てる（Python の web.App.handle の
@@ -81,6 +85,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("GET", "/api/data/columns") => Some(Route::DataColumns),
         ("POST", "/api/sources/check") => Some(Route::Check),
         ("POST", "/api/sources/join/preview") => Some(Route::JoinPreview),
+        ("POST", "/api/sources/json/probe") => Some(Route::JsonProbe),
+        ("POST", "/api/sources/json/preview") => Some(Route::JsonPreview),
         ("GET", p) => {
             let k = p.strip_prefix("/api/sources/")?.strip_suffix("/columns")?;
             key_ok(k).then(|| Route::SrcColumns(k.into()))
@@ -517,6 +523,72 @@ pub fn join_preview(cx: &Ctx, items: &[Map<String, Value>], body: &[u8]) -> Opti
     match cx.lists.with_joins_as(cx.conf, cx.q, plan, &s, Some(&scope), Some(joins)) {
         Err(f) => Some(f),
         Ok(out) => Some((200, json!({"stats": out.joined, "table": out.table, "equip": null}))),
+    }
+}
+
+// ------------------------------------------------------------------ JSON の列（版 3.120.0。src/json_expand.rs）
+/// 元（品質・仕掛・足したデータ元）の読むファイルと表と名前。元にできないキーは 400
+fn json_base(cx: &Ctx, items: &[Map<String, Value>], base: &str) -> Result<(std::path::PathBuf, String, String, Option<String>), Answer> {
+    let targets = crate::sources_write::join_targets(items);
+    let Some((_, name)) = targets.iter().find(|(k, _)| k == base) else {
+        return Err(err(400, "JSON の列を分ける元（品質・仕掛・足したデータ元）を選んでください。", "invalid"));
+    };
+    let plan = match cx.lists.raw_plan_opt(cx.conf, cx.q, base) {
+        Ok(Some(p)) => p,
+        Ok(None) => return Err(err(400, "この元は JSON の列を分けられません。", "invalid")),
+        Err(f) => return Err(f),
+    };
+    let Some(path) = plan.path.clone() else {
+        return Err(err(503, "元のデータを写しています。少し待ってから開き直してください。", "copying"));
+    };
+    let table = crate::lists::actual_table(&path, &plan.table, base).map_err(|e| err(503, &e, "error"))?;
+    Ok((path, table, name.clone(), plan.lot_col.clone()))
+}
+
+/// POST /api/sources/json/probe {base}: 元の先頭 500 行から、JSON に見える列ごとの形の数と勧める形
+pub fn json_probe(cx: &Ctx, items: &[Map<String, Value>], body: &[u8]) -> Option<Answer> {
+    let v: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+    let base = v.get("base").and_then(Value::as_str).unwrap_or("").to_string();
+    let (path, table, name, _) = match json_base(cx, items, &base) {
+        Ok(x) => x,
+        Err(a) => return Some(a),
+    };
+    match crate::json_expand::read_table(&path, &table, Some(crate::json_expand::PROBE_ROWS)) {
+        Err(e) => Some(err(503, &e, "error")),
+        Ok((cols, rows)) => {
+            let mut a = crate::json_expand::probe_answer(&cols, &rows);
+            a["base"] = json!(base);
+            a["name"] = json!(name);
+            Some((200, a))
+        }
+    }
+}
+
+/// POST /api/sources/json/preview {base, 展開}: 全部の行で分けた数・合わない行・見本・鍵と設備マスタ（master は設備マスタの設備名）
+pub fn json_preview(cx: &Ctx, items: &[Map<String, Value>], body: &[u8], master: &[String]) -> Option<Answer> {
+    let v: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+    let base = v.get("base").and_then(Value::as_str).unwrap_or("").to_string();
+    let spec = match crate::json_expand::Spec::parse(v.get("展開").unwrap_or(&Value::Null)) {
+        Ok(s) => s,
+        Err(e) => return Some(err(400, &e, "invalid")),
+    };
+    let (path, table, name, lot_set) = match json_base(cx, items, &base) {
+        Ok(x) => x,
+        Err(a) => return Some(a),
+    };
+    match crate::json_expand::read_table(&path, &table, None) {
+        Err(e) => Some(err(503, &e, "error")),
+        Ok((cols, rows)) => {
+            let lot = lotlist::lot_column(&cols, lot_set.as_deref());
+            match crate::json_expand::preview_answer(&cols, &rows, &spec, &lot, master) {
+                Err(e) => Some(err(400, &e, "invalid")),
+                Ok(mut a) => {
+                    a["base"] = json!(base);
+                    a["name"] = json!(name);
+                    Some((200, a))
+                }
+            }
+        }
     }
 }
 

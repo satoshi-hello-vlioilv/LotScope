@@ -656,6 +656,7 @@ async function saveSource(s, f, say) {
   }
   const body = { "表示名": f.name, "画面": f.listed ? "有" : "無", "結合": f.joins, "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, ...f.conn.row };
   if (!s || !s.builtin) Object.assign(body, { "役割": f.role, "元": f.base });
+  if (s && s.expand) body["展開"] = s.expand;     // JSON の列を分けた表（版 3.120.0）: 決まりはそのまま持ち越す（直すのは { } JSON の窓で）
   if (groupable(s)) body["グループ"] = f.group;
   const res = await withLockWait(() => masterRequest(s ? `/api/sources/${encodeURIComponent(s.key)}` : "/api/sources", TPA.json(s ? "PUT" : "POST", { ...body, base_rev: s ? s.rev || 0 : 0 })),
     (x) => say("wait", lockWaitText(x, "保存", boldName)));

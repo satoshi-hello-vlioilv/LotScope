@@ -94,6 +94,46 @@
   const REF_COLORS = ["#c9564a", "#b5822a", "#2f7d78", "#3f6591", "#5a6f77"];
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
+  /* ---- JSON の列（版 3.120.0。js/json-expand.js）: カラムの欄の入口「{ } JSON の列 n · 分ける…」と、分けた表の札の「›」 ---- */
+  const jxProbe = {};      // 元 → 見分けた JSON の列（null は読んでいる最中）
+  const jsonOf = () => { const it = sources.find((x) => x.key === t.source); try { return it && it.expand ? JSON.parse(it.expand) : {}; } catch (_) { return {}; } };
+  function jsonCols() {
+    const it = sources.find((x) => x.key === t.source);
+    return it && it.expand && it.expandStats ? (it.expandStats.cols || []) : [];
+  }
+  function jsonEntry() {
+    if (!window.JsonExpand || inGroup() || inSide() || t.source === "work") return "";
+    const base = JsonExpand.baseOf(t.source, sources);
+    if (!base) return "";
+    if (!(base in jxProbe)) {
+      jxProbe[base] = null;
+      JsonExpand.probe(base).then((d) => { jxProbe[base] = d.columns || []; }).catch(() => { jxProbe[base] = []; })
+        .then(() => { if (p && fields && $("#deFields")) $("#deFields").innerHTML = fieldsHtml(); });
+      return "";
+    }
+    const got = jxProbe[base]; if (!got || !got.length) return "";
+    const v = jsonOf(), names = got.map((c) => c.column);
+    return `<div class="de-json"><b>{ } JSON の列 ${got.length}</b><span title="${esc(names.join("・"))}">${v.列 ? `${esc(v.列)} を分けた表` : esc(names.join("・"))}</span>`
+      + `<button type="button" data-de-json title="JSON の列を、形に合う分け方で行・列に分けた表にして、このパネルで使います">${v.列 ? "直す…" : "分ける…"}</button></div>`;
+  }
+  function openJson() {
+    const base = JsonExpand.baseOf(t.source, sources);
+    JsonExpand.open({ base, from: "dash", onDone: useJsonView });
+  }
+  /** 分けた表をこのパネルのデータにして、鍵を行・値の合計を値に置く */
+  async function useJsonView(v) {
+    if (!p) return;
+    try { const d = await (await fetch("/api/dashboard/sources", { cache: "no-store" })).json(); sources = d.items || sources; } catch (_) { /* 前の並びのまま */ }
+    const auto = !String(p.title || "").trim() || p.title === autoTitle(p);
+    fieldsKey = "";
+    await setSource(v.source, "");
+    if (v.shape === "dict" && v.keyCol) t.body.rows = [{ column: v.keyCol, part: "" }];
+    if (v.valueCol) t.body.measures = [{ agg: "sum", column: v.valueCol }];
+    if (!inGroup()) { p.visual = t.body.rows.length ? "bar" : "kpi"; p.sort = t.body.rows.length ? "desc" : ""; }
+    if (auto) { p.title = v.title; const ti = $("#deTitle"); if (ti) ti.value = p.title; }
+    changed();
+    host.toast(`「${v.name}」をこのパネルのデータにしました（${v.keyCol && v.shape === "dict" ? `${v.keyCol}ごとの` : ""}${v.valueCol || ""}の合計）`);
+  }
   let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", fieldsProg = null, fieldsSeq = 0, q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
   let eoAll = null, eoKey = "";      // 並べる設備（期間・条件によらないその元のすべての設備。版 3.48.0）
   let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true, numTimer = 0;
@@ -603,17 +643,18 @@
       html += `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}"${fa("@lots", ["vals"])}><span><b>ロット数</b><small>${isWork() ? "作業の数（作業開始が同じ行は 1）" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
         + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}"${fa("@count", ["vals"])}><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
     }
-    html += fields.fields.filter((f) => hit(f.column)).map((f) => {
+    const jxc = jsonCols();   // JSON の列を分けた表の足した列（版 3.120.0）: 札の頭に「›」を付けて先に並べる
+    html += fields.fields.filter((f) => hit(f.column)).sort((a, b2) => jxc.includes(b2.column) - jxc.includes(a.column)).map((f) => {
       const c = f.column, u = used(c), anyVal = b.measures.some((m) => m.column === c);
       if (f.error) return `<div class="pv-f is-off" title="${esc(ctx.formulas[c] || "")}"><span><b>${esc(c)}<small class="sx-calc">式</small></b><small>${esc(f.error)}（一覧の「表示列」で直す）</small></span><i></i><i></i><i></i></div>`;
       const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`));
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
       const mine = ownList.includes(c);
-      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${esc(c)}${calcMark(f)}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
+      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${jxc.includes(c) ? '<span class="de-jxmark" aria-hidden="true">›</span>' : ""}${esc(c)}${calcMark(f)}</b><small>${jxc.includes(c) ? `${esc(jsonOf().列)} の${jxc.indexOf(c) === 0 && jsonOf().形 !== "list" ? "鍵" : "値"} · ` : ""}${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
         + rowBtn(c, u === "rows") + colBtn(c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
           : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"')) + "</div>";
     }).join("");
-    return html || '<p class="pv-none">当たるカラムがありません</p>';
+    return jsonEntry() + (html || '<p class="pv-none">当たるカラムがありません</p>');
   }
   function dimChip(d, role, i) {
     const ps = partsOf(d.column), pn = d.column === "@workday" ? WORKDAY_NAME : d.column === "@egroup" ? { "@panel": "このパネルのグループ", "": "（まとめ方なし）" } : PART_NAME;
@@ -1801,6 +1842,7 @@
       if (b.dataset.deRefc != null) { const r = ((p.fmt || {}).refs || []).map((x) => ({ ...x })), i = +b.closest(".de-ref").dataset.i; r[i].color = b.dataset.deRefc; setFmt("refs", r); return; }
       // 計算列
       if (b.hasAttribute("data-de-calcnew")) { openCalc(""); return; }
+      if (b.hasAttribute("data-de-json")) { openJson(); return; }
       if (b.dataset.deCalcopen != null) { e.stopPropagation(); openCalc(b.dataset.deCalcopen); return; }
       if (b.hasAttribute("data-de-calcx")) { calcEdit = null; paintCalc(); return; }
       if (b.hasAttribute("data-de-calcok")) { saveCalc(false); return; }

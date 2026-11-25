@@ -338,6 +338,8 @@ pub struct Lists {
     pub work: Mirrors,
     pub src: Mirrors,
     pub joiner: Joiner,
+    /// JSON の列を分けた表の係（版 3.120.0。この PC の作業場所の db_cache/expands）
+    pub expander: crate::json_expand::Expander,
     /// スケジュールの係（版 3.96.0。この PC の作業場所の db_cache/schedule）
     pub sched: Arc<Schedules>,
     listing: Mutex<Listing>,
@@ -351,6 +353,7 @@ impl Lists {
             work: Mirrors::new(cache_root.join("work_log"), "work_log"),
             src: Mirrors::new(cache_root.join("sources"), "src"),
             joiner: Joiner::new(cache_root.join("joins")),
+            expander: crate::json_expand::Expander::new(cache_root.join("expands")),
             sched: Arc::new(Schedules::new(cache_root.join("schedule"))),
             listing: Mutex::default(),
             list_ttl: LIST_TTL,
@@ -576,7 +579,9 @@ impl Lists {
                 plan.page_size = num(&read["page_size"], 500.0) as i64;
                 plan.cand_key = base;
                 plan.lot_col = Some(text(&s["lotSet"])).filter(|x| !x.is_empty());
-                return if joined { self.with_joins(conf, q, plan, s, None).map(Some) } else { Ok(Some(plan)) };
+                let plan = if joined { self.with_joins(conf, q, plan, s, None)? } else { plan };
+                // JSON の列の展開（版 3.120.0）: 分けた表は行の形そのものなので、結合の有無によらず当てる
+                return self.with_expand(plan, s).map(Some);
             }
             _ => {}
         }
@@ -689,6 +694,21 @@ impl Lists {
                     None => Err(error(400, "スケジュールは結合の元にできません。", Some("invalid"), &[])),
                 }
             }
+        }
+    }
+
+    /// 段取りの読むファイルを、データ元 s の JSON の列を分けた表のファイルに替える（決まりが無ければそのまま。版 3.120.0）
+    pub(crate) fn with_expand(&self, plan: Plan, s: &Value) -> Result<Plan, Fail> {
+        let Some(x) = s.get("expand").filter(|x| truthy(x)) else { return Ok(plan) };
+        let name = text(&s["name"]);
+        let spec =
+            crate::json_expand::Spec::parse(x).map_err(|e| error(400, &format!("「{name}」の展開の決まり: {e}"), Some("expand"), &[]))?;
+        let Some(base) = plan.path.clone() else { return Ok(plan) };
+        let ck = if !plan.cand_key.is_empty() { plan.cand_key.clone() } else { text(&s["key"]) };
+        let table = actual_table(&base, &plan.table, &ck).map_err(|e| error(503, &e, None, &[]))?;
+        match self.expander.path_for(&text(&s["key"]), &base, &table, &spec) {
+            Ok((path, _)) => Ok(Plan { path: Some(path), table, ..plan }),
+            Err(e) => Err(error(400, &format!("「{name}」の JSON の列を分けられませんでした: {e}"), Some("expand"), &[])),
         }
     }
 

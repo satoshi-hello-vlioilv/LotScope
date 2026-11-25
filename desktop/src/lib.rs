@@ -30,6 +30,7 @@ pub mod home;
 pub mod install;
 pub mod isdigit_table;
 pub mod join;
+pub mod json_expand;
 pub mod jsontree;
 pub mod key_split_table;
 pub mod layout_clean;

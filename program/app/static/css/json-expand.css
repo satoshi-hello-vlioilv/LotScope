@@ -1,0 +1,89 @@
+/* JSON の列を分ける窓（版 3.120.0。js/json-expand.js） */
+.jx-back{position:fixed;inset:0;background:rgba(16,28,44,.38);z-index:8990}
+.jx{position:fixed;z-index:9000;left:50%;top:50%;transform:translate(-50%,-50%);width:min(1240px,calc(100vw - 32px));max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--surface);border-radius:12px;box-shadow:0 16px 40px rgba(20,35,55,.3);overflow:hidden;color:var(--ink);font-size:13.5px}
+.jx-h{display:flex;align-items:center;gap:12px;padding:10px 18px;background:#1e3a57;color:#fff;min-width:0}
+.jx-h b{font-size:17px;white-space:nowrap}
+.jx-h small{font-size:12.5px;color:#d6e2ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-sp{flex:1}
+.jx-x{border:0;background:none;color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+.jx-bases{display:inline-flex;border:1px solid rgba(255,255,255,.45);border-radius:8px;overflow:hidden;flex:none}
+.jx-bases button{border:0;border-right:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:13px;padding:3px 12px;cursor:pointer;white-space:nowrap}
+.jx-bases button:last-child{border-right:0}
+.jx-bases button.is-on{background:#fff;color:#1e3a57;font-weight:700}
+.jx-body{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr) minmax(0,1.1fr);overflow:auto;min-height:0}
+.jx-body section{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-right:1px solid var(--line);min-width:0}
+.jx-body section:last-child{border-right:0}
+.jx-body h5{margin:0;font-size:14px;display:flex;gap:7px;align-items:center}
+.jx-body h5 i{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2d5f9e;color:#fff;font-size:12px}
+.jx-body h5 .wait-spin{width:12px;height:12px;background:none}
+.jx-cols{display:flex;flex-direction:column;gap:5px}
+.jx-col{display:flex;flex-direction:column;gap:3px;text-align:left;border:1px solid #d7e1ec;border-radius:8px;background:var(--surface);padding:6px 9px;font:inherit;font-size:13.5px;cursor:pointer;min-width:0;color:var(--ink)}
+.jx-col b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-col.is-on{border:2px solid #3f7fcf;background:#f2f7fd;padding:5px 8px}
+.jx-bar{display:flex;flex-direction:column;gap:3px;min-width:0}
+.jx-strip{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#e9eef4;min-width:60px}
+.jx-s{display:block;height:100%}.jx-s.ok{background:#3f7fcf}.jx-s.empty{background:#b8c3cf}.jx-s.ng{background:#c8382c}.jx-s.warn{background:#d98b1e}
+.jx-words{font-size:12px;color:#4c5864;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-words b{color:var(--ink);font-weight:700}.jx-words em{font-style:normal;color:#a02c22;font-weight:600}
+.jx-pats{display:flex;flex-direction:column;gap:5px}
+.jx-pat{display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid #cfd9e4;border-radius:9px;background:var(--surface);font:inherit;color:var(--ink);text-align:left;min-width:0;cursor:pointer}
+.jx-pat.is-on{border:2px solid #3f7fcf;background:#f2f7fd;padding:4px 8px}
+.jx-pat.is-no{color:#4c5864}
+.jx-pn{font-size:18px;font-weight:700;color:#2d5f9e;flex:none}
+.jx-pb{display:flex;flex-direction:column;min-width:0;flex:1}
+.jx-pb b{font-size:13.5px;display:flex;gap:6px;align-items:center;white-space:nowrap}
+.jx-pb small{font-size:12px;color:#4c5864;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-pb code{font-size:11.5px;color:#4c5864;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Consolas,monospace}
+.jx-pat em{font-style:normal;font-size:13px;font-weight:700;display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap;flex:none}
+.jx-pat em small{font-size:11.5px;font-weight:400;color:#4c5864}
+.jx-pat.is-fit em{color:#1d6b3a}
+.jx-pb .jx-rec{font-style:normal;font-size:11px;font-weight:700;color:#fff;background:#1d7a44;border-radius:9px;padding:0 7px;line-height:18px}
+.jx-names{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px}
+.jx-names label{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.jx-names input{width:110px;padding:3px 7px;border:1px solid #cfd9e4;border-radius:6px;font:inherit}
+.jx-names .jx-path input{width:96px}
+.jx-km{font-size:12.5px;color:#4c5864;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.jx-miss{border:1px solid #e1c2bd;background:#fdf3f1;color:#8a2a1f;border-radius:10px;padding:0 8px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;line-height:20px}
+.jx-miss.is-on{background:#8a2a1f;color:#fff;border-color:#8a2a1f}
+.jx-prev{border-collapse:collapse;font-size:12.5px;width:100%;table-layout:fixed}
+.jx-prev th{background:#eef3f8;color:#2b3947;font-weight:700;text-align:left;padding:3px 8px;border-bottom:1px solid #cfd9e4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-prev th small{font-weight:400;color:#4c5864;margin-left:5px;font-size:11.5px}
+.jx-prev th.is-new{background:#e1ecf9;color:#1f4f8a}
+.jx-prev th.is-num,.jx-prev td.is-num{text-align:right;font-variant-numeric:tabular-nums}
+.jx-prev td{padding:2px 8px;border-bottom:1px solid #edf1f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jx-prev td:first-child{color:#4c5864;font-size:12px}
+.jx-prev tr.is-first td{border-top:2px solid #c3d2e3}
+.jx-prev tr.jx-moreline td,.jx-prev tr.jx-cap td{color:#4c5864;font-size:12px;white-space:normal}
+.jx-prev tr.jx-cap td{background:#fdf3f1;color:#8a2a1f;font-weight:700}
+.jx-null{color:#8995a0;font-size:11.5px}
+.jx-iss{display:flex;flex-direction:column;gap:3px;font-size:13px;padding:7px 10px;border-radius:8px;background:#f6f8fb;border:1px solid #dde5ee}
+.jx-ok{color:#1d6b3a;font-weight:700}.jx-mute{color:#4c5864}.jx-ng{color:#8a2a1f}.jx-err{color:#8a2a1f}
+.jx-issues{margin:2px 0 0;padding:0 0 0 14px;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:#6b3b33}
+.jx-issues li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.jx-issues code{font-size:12px;background:#fff;border:1px solid #e1d3d0;border-radius:4px;padding:0 4px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.jx-row{white-space:nowrap;font-weight:700}
+.jx-link{border:0;background:none;color:#2d5f9e;text-decoration:underline;font:inherit;cursor:pointer;padding:0 0 0 6px}
+.jx-wait,.jx-none{color:#4c5864;font-size:13px;margin:0}
+.jx-f{display:flex;align-items:center;flex-wrap:nowrap;gap:8px 12px;min-width:0;padding:10px 18px;border-top:1px solid var(--line);background:#f6f8fb;font-size:13px}
+.jx-out{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.jx-f > .jx-mute{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.jx-f .jx-sp{flex:1 0 0}.jx-out small{color:#4c5864;margin-left:6px}
+.jx-ck{display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;flex:0 1 auto;padding:3px 8px;border-radius:6px;background:#eef6ef;border:1px solid #c9e2cf}
+.jx-ck.is-off{background:#f1f3f5;border-color:#dde3e8;color:#5d6b77}
+.jx-f .btn-primary,.jx-f .btn-ghost{height:32px;padding:0 14px;white-space:nowrap}
+.jx-jump{margin-left:8px;border:1px solid rgba(255,255,255,.6);background:transparent;color:inherit;border-radius:6px;padding:0 8px;font:inherit;cursor:pointer}
+/* 表示の下限（1280×720）: 例の JSON を畳み、説明の 1 行と下の段は残す */
+@media (max-height:760px){.jx-pb code{display:none}.jx-body section{padding:8px 12px;gap:6px}.jx-h{padding:8px 16px}.jx-f{padding:8px 16px}}
+@media (max-width:1400px){.jx-body{grid-template-columns:minmax(0,0.8fr) minmax(0,1.1fr) minmax(0,1.1fr)}.jx-names input{width:92px}}
+/* 一覧の道具の行の入口・組む所の入口・パネルの添え書き */
+.ll-jsonbtn{display:inline-flex;align-items:center;gap:4px;font-weight:700}
+.ll-jsonbtn b{font-family:ui-monospace,Consolas,monospace}
+.de-json{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:5px 7px;margin:0 0 6px;border:1px solid #b9d0ea;border-radius:8px;background:#f3f8fe;font-size:12.5px;min-width:0}
+.de-json b{white-space:nowrap}
+.de-json span{order:3;flex:1 0 100%;min-width:0;color:#4c5864;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.de-json button{margin-left:auto;border:1px solid #9db9d8;background:#fff;color:#1f4f8a;border-radius:6px;padding:1px 8px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.de-jxmark{color:#1f4f8a;font-weight:700;margin-right:2px}
+.db-psub.has-jx{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;column-gap:6px}
+.db-psub.has-jx > .db-jxn{margin-left:-6px}
+.db-psub.has-jx > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.db-psub .db-jxwarn{color:#8a2a1f;font-weight:700}

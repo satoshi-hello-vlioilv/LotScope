@@ -578,6 +578,14 @@
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
     const meta = metaOf(asked(p), a), subEl = el.querySelector(".db-psub");
     subEl.hidden = !meta || p.visual === "kpi"; subEl.textContent = meta; subEl.title = meta;
+    // JSON の列を分けた表のパネル（版 3.120.0）: 何を何行に分け、何行を数えていないか。語の途中で折らずに、入らなければ「▲ n 行…」を次の段の頭に
+    const jx = window.JsonExpand && JsonExpand.note(S.sources.find((x) => x.key === p.source), S.sources);
+    subEl.classList.toggle("has-jx", !!jx && p.visual !== "kpi");
+    if (jx && p.visual !== "kpi") {
+      subEl.hidden = false;
+      subEl.innerHTML = `<span>${esc(jx[0])}</span>${jx[1] ? `<span class="db-jxn">${esc(jx[1])}</span>` : ""}${jx[2] ? `<span class="db-jxwarn">${esc(jx[2])}</span>` : ""}`;
+      subEl.title = [meta, ...jx].filter(Boolean).join("\n");
+    }
     // 効いている絞り込みの札（見出しの下。× で 1 つずつ外す）
     const qc = Q.chips(quickOf(id)), qEl = el.querySelector(".db-pq"), hit = Q.sliceHits(p, sliceOf(p), canEquip), sl = sliceState();
     // スライサーが効いているパネルには札（外すのは道具の行のスライサーで）
@@ -1422,7 +1430,38 @@
     S.loading = false;
   }
 
+  /** JSON の列を分けた表から、鍵ごとの値の合計のパネルを足して保存する（版 3.120.0。js/json-expand.js の「パネルも足す」）→ {ok} か {why} */
+  async function addJsonPanel(v) {
+    if (!S.layout) { await start(); }
+    if (!S.layout) return { why: "ダッシュボードを読めませんでした" };
+    await loadSources();
+    let spot = freeSpot(4, 3) || freeSpot(3, 3) || freeSpot(3, 2);
+    if (!spot && S.layout.rows + 3 <= S.rowsRange[1]) { S.layout.rows += 3; spot = freeSpot(4, 3); }
+    if (!spot) return { why: "ダッシュボードに空きがありません" };
+    const rows = v.shape === "dict" && v.keyCol ? [{ column: v.keyCol, part: "" }] : [];
+    const p = { id: newId(), ...spot, title: v.title, visual: rows.length ? "bar" : "kpi", source: v.source, equip: "", sort: rows.length ? "desc" : "", top: 0, basis: "work",
+      body: { rows, cols: [], measures: [{ agg: "sum", column: v.valueCol }], grand: !rows.length, labels: true, chartAt: 0, sub: false }, filters: [], search: "", period: null };
+    S.history.push(JSON.stringify(S.layout));
+    S.layout.panels.push(p);
+    paint(); refresh(false);
+    const it = current();
+    if (!it || !canSaveIt(it)) return { why: "パネルを足しました（このダッシュボードは保存できないので、「名前を付けて保存…」で残してください）", ok: false };
+    await save();
+    return { ok: S.saved === JSON.stringify(S.layout), id: p.id };
+  }
+  /** 題で探したパネルを選んで見える所へ（足したパネルの「見る」） */
+  function focusPanelTitled(title) {
+    const p = S.layout && [...S.layout.panels].reverse().find((x) => x.title === title); if (!p) return;
+    S.sel = p.id; paint();
+    const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(p.id)}"]`);
+    if (el) { el.scrollIntoView({ block: "nearest" }); el.focus({ preventScroll: true }); }
+  }
+
+  // データ元が替わった（JSON の列を分けた表を作った など。版 3.120.0）: データの並びを読み直し、組む所にも渡す
+  document.addEventListener("tpa:sources-changed", () => { loadSources().then(() => { if (window.DashEditor) DashEditor.setSources(S.sources); }); });
+
   window.Dashboard = {
+    addJsonPanel, focusPanelTitled,
     activate() {
       S.active = true;
       start();

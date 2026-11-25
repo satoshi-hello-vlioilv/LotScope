@@ -1155,6 +1155,11 @@ pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
         let k = if key == "lot" || key == "work" { key.to_string() } else { format!("src:{key}") };
         let mut x = json!({"key": k, "name": d["name"], "role": d.get("role").filter(|r| crate::held::is_text(r))?.clone(),
                            "equip": json_truthy(&d["equipColumn"]) || key == "work", "place": json_truthy(&d["place"])});
+        // JSON の列の展開（版 3.120.0）: 分けた表は決まり（どの列を・どの形で・足した列の名前）を添える（組む所の札の「›」）
+        if let Some(e) = d.get("expand").filter(|e| json_truthy(e)) {
+            x["expand"] = e.clone();
+            x["base"] = d.get("base").cloned().unwrap_or(Value::Null);
+        }
         if key == "work" {
             x["equips"] = Value::Array(
                 shown.iter().map(|r| json!({"key": r.get("キー").cloned().unwrap_or(Value::Null), "name": r.get("設備名").cloned().unwrap_or(Value::Null)})).collect(),

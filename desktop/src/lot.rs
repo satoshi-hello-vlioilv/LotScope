@@ -1215,7 +1215,7 @@ impl Lot {
         let need: Vec<&'static str> = match &route {
             B::Check => vec![],
             B::SrcColumns(key) | B::ConnCheck(key) => sections_of_source(key),
-            B::JoinPreview => vec!["dash", "sources"],
+            B::JoinPreview | B::JsonProbe | B::JsonPreview => vec!["dash", "sources"],
             B::Fields if method == "GET" => sections_of_source(&source),
             B::Fields => sections_for_body(body),
             B::DataColumns => DASH_ALL.to_vec(),
@@ -1248,6 +1248,23 @@ impl Lot {
                     return Some((status, json!({"error": msg, "kind": kind})));
                 }
                 self.with_dash(&need, |cx| builder::join_preview(cx, &parts.items, body))
+            }
+            B::JsonProbe | B::JsonPreview => {
+                // JSON の列（版 3.120.0）: 読むだけ（分けた表は作らない）。鍵の照らし合わせは設備マスタの設備名
+                let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
+                let parts = inp.sources_parts().ok()?;
+                if route == B::JsonProbe {
+                    return self.with_dash(&need, |cx| builder::json_probe(cx, &parts.items, body));
+                }
+                let place = crate::access::Place::from_json(&inp.place);
+                let master: Vec<String> = place
+                    .rows("equipment_master")
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|r| r.get("設備名").map(worksum::py_str))
+                    .filter(|n| !n.is_empty())
+                    .collect();
+                self.with_dash(&need, |cx| builder::json_preview(cx, &parts.items, body, &master))
             }
             B::Fields | B::DataColumns => {
                 // 待っている間の段（決め 7）: 写した・読んだ設備 n/m を GET /api/dashboard/progress で答える
@@ -1728,7 +1745,14 @@ impl Lot {
                     return None;
                 }
                 let lists = self.lists_of(&s)?;
-                return dashboard::sources_answer(&Conf { v: &lists }, &crate::bundle::tables()["periods"]).map(|v| (200, v));
+                let mut v = dashboard::sources_answer(&Conf { v: &lists }, &crate::bundle::tables()["periods"])?;
+                // JSON の列を分けた表（版 3.120.0）: 最後に組んだ数（何行を何行に分け、何行を数えていないか。パネルの添え書き）
+                for x in v["items"].as_array_mut().into_iter().flatten() {
+                    let Some(spec) = x.get("expand").and_then(|e| crate::json_expand::Spec::parse(e).ok()) else { continue };
+                    let key = x["key"].as_str().unwrap_or("").strip_prefix("src:").unwrap_or("").to_string();
+                    x["expandStats"] = self.lists.expander.recent(&key, &spec).unwrap_or(Value::Null);
+                }
+                return Some((200, v));
             }
             ("GET", "/api/dashboard/equip-tree") => {
                 if let Some(r) = self.settings().ok().filter(|s| s.engine == "rust").and_then(|s| s.refuse(&sections_for(path, false))) {

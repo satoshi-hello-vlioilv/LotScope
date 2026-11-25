@@ -984,6 +984,54 @@ export const STATES = [
     await p.click('#llEquipBar [data-equip="__HOT__"]');
     await p.waitForSelector("#llSched[data-mode=hot] .sd-tl", { timeout: 20000 }); await sleep(900);
   }, "[data-next], #llSched [data-sd-pick], #llSched [data-sd-kama]"],
+  // 版 3.120.0: JSON の列を分ける窓（場面 TPA_UI_JSON=1 の JSON の列 5 つ。JSON の列の無い場面では窓を開けず、そのまま撮る）。
+  // 仕掛の一覧の道具の行の「{ } JSON」→ 窓（① 設備別通過回数 を勧めた形）・合わない行と設備マスタに無い鍵（CR1）を開いた所・
+  // 表を作る（パネルも足す）→ 足したパネルへ「見る」・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓。json-off が片付ける
+  ["json", async (p) => {
+    await closeAll(p);
+    await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "src:wip" })));
+    await p.waitForSelector("#llBody .ll-lot", { timeout: 30000 }); await sleep(1200);
+    if (!(await p.$("#llJsonBtn:not([hidden])"))) return;
+    await p.click("#llJsonBtn");
+    await p.waitForSelector("#jxWin .jx-prev", { timeout: 30000 }); await sleep(500);
+  }, "[data-next], #jxWin [data-jx-make]"],
+  ["json-check", async (p) => {
+    if (!(await p.$("#jxWin .jx-prev"))) return;
+    await p.click("#jxWin [data-jx-issues]").catch(() => {}); await sleep(200);
+    await p.click("#jxWin [data-jx-miss]").catch(() => {}); await sleep(400);
+  }, "[data-next], #jxWin [data-jx-make]"],
+  ["json-made", async (p) => {
+    if (!(await p.$("#jxWin [data-jx-make]:not([disabled])"))) return;
+    await p.click("#jxWin [data-jx-make]");
+    await p.waitForSelector(".tpa-toast [data-jx-jump]", { timeout: 60000 }); await sleep(300);
+    await p.click(".tpa-toast [data-jx-jump]");
+    await waitDash(p); await sleep(1200);
+  }, "[data-next], [data-db-editmode]"],
+  ["json-dash", async (p) => {
+    const id = await p.evaluate(() => { const s = window.Dashboard && Dashboard._layout(); const x = s && [...s.panels].reverse().find((y) => /通過回数の合計/.test(y.title || "")); return x ? x.id : ""; });
+    if (!id) return;
+    if (!(await p.$(".db-editing"))) { await p.click("[data-db-editmode]"); await sleep(500); }
+    const b = await p.$(`#dashGrid .db-p[data-id="${id}"] [data-db-edit]`);
+    if (b) await b.click(); else { await p.focus(`#dashGrid .db-p[data-id="${id}"]`); await p.keyboard.press("Enter"); }
+    await p.waitForSelector("#deFields .pv-f", { timeout: 30000 }); await p.waitForSelector("#deFields .de-json", { timeout: 20000 }).catch(() => {}); await sleep(600);
+  }, "[data-next], [data-de-apply]"],
+  ["json-dashwin", async (p) => {
+    if (!(await p.$("#deFields [data-de-json]"))) return;
+    await p.click("#deFields [data-de-json]");
+    await p.waitForSelector("#jxWin .jx-prev", { timeout: 30000 }); await sleep(500);
+  }, "[data-next], #jxWin [data-jx-make]"],
+  // 片付け（作った表と、組み込みの標準を入れ替えた物を消す。次の撮影は前と同じ形から）
+  ["json-off", async (p) => {
+    await closeAll(p);
+    const again = await p.evaluate(async () => {
+      const items = ((await (await fetch("/api/sources", { cache: "no-store" })).json()).items || []).filter((x) => x.expand);
+      for (const x of items) await fetch(`/api/sources/${encodeURIComponent(x.key)}?rev=${x.rev || ""}`, { method: "DELETE" });
+      const d = await (await fetch("/api/dashboards")).json();
+      for (const x of (d.items || []).filter((y) => y.replaces)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      return items.length > 0;
+    });
+    if (again) { await p.reload(); await sleep(1500); }
+  }, "[data-next], #llSearch"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

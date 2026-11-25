@@ -1151,7 +1151,14 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         ["key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode"];
     Ok(sources_all(settings, rows, false)?
         .into_iter()
-        .map(|d| Value::Object(KEEP.iter().map(|k| (k.to_string(), d.get(*k).cloned().unwrap_or(Value::Null))).collect()))
+        .map(|d| {
+            let mut o: Map<String, Value> = KEEP.iter().map(|k| (k.to_string(), d.get(*k).cloned().unwrap_or(Value::Null))).collect();
+            // JSON の列の展開（版 3.120.0）: 決まりのある元だけ（無い元の束は前と同じ形）
+            if let Some(e) = d.get("expand") {
+                o.insert("expand".into(), e.clone());
+            }
+            Value::Object(o)
+        })
         .collect())
 }
 
@@ -1284,6 +1291,11 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
                        "api": format!("/api/src/{k}"), "id": r.get("id").cloned().unwrap_or(Value::Null),
                        "read": read_params(settings, k, r)?, "lotSet": s(r.get("ロット番号の列"))?, "joins": joins_of(r.get("結合"))?,
                        "order": s(r.get("並び"))?, "base": s(r.get("元"))?});
+            // JSON の列の展開（版 3.120.0。src/json_expand.rs）: 決まりのある行だけ（無い行の答えは前と同じ形）
+            let expand = s(r.get("展開"))?;
+            if !expand.is_empty() {
+                d["expand"] = json!(expand);
+            }
             if full {
                 let o = d.as_object_mut().unwrap();
                 o.insert("pattern".into(), json!(""));
