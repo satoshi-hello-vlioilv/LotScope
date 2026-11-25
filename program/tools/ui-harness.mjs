@@ -544,6 +544,32 @@ export const STATES = [
   }, "[data-next], #srAdd"],
   // 版 3.54.0: データ元が多い形（利用者の画面と同じ台帳のマスタ 10 件・結合した表 1 件。見出しのタブに出さない物も）。master-sources-many-off が片付ける
   ["master-sources-many", async (p) => { await manySources(p, true); await tab(p, "equipment"); await sleep(300); await tab(p, "sources"); await sleep(1300); }, "[data-next], #srAdd"],
+  // 2026-11 の改良依頼 2「品質データもほかのデータ元と同じ汎用のデータに（消せないが、グループに入れる・移す）」の比べ（ui-proposals/2026-11-qualitygroup）:
+  // qg-list（表の頭へ送った所）→ 品質の行を右クリックしたメニュー → 「工程」へ移す（押せるときだけ）→ 品質の欄の「名前とタブ」→ 見出しの「工程」のタブ → その札の「品質」
+  // → 札の右クリック。qg-off がマスタ管理のデータ元へ戻す（次の master-sources-many-off のため）
+  ["qg-list", async (p) => { await p.evaluate(() => document.querySelector("#masterSettings .sr-page")?.scrollIntoView({ block: "start" })); await sleep(300); }, "[data-next], #srAdd"],
+  ["qg-menu", async (p) => {
+    await p.click("#masterSettings .sr-card.is-open [data-sr-close]").catch(() => {}); await sleep(300);
+    await p.evaluate(() => document.querySelector("#masterSettings .sr-page")?.scrollIntoView({ block: "start" })); await sleep(200);
+    await p.click('#masterSettings tr.sr-row[data-key="lot"] .sr-nm', { button: "right" }); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
+  ["qg-moved", async (p) => {
+    const ok = await p.evaluate(() => { const b = [...document.querySelectorAll(".tpa-menu button")].find((x) => x.textContent.includes("「工程」へ移す") && !x.disabled && x.getAttribute("aria-disabled") !== "true"); if (b) b.click(); return !!b; });
+    if (!ok) await p.keyboard.press("Escape");
+    await sleep(1500);
+    await p.evaluate(() => document.querySelector('#masterSettings tr.sr-row[data-key="lot"]')?.scrollIntoView({ block: "center" })); await sleep(200);
+  }, "[data-next], #srAdd"],
+  ["qg-edit", async (p) => { await p.click('[data-sr-edit="lot"]'); await sleep(700); await p.click('#masterSettings .sr-card.is-open [data-sr-sec="name"]').catch(() => {}); await sleep(400); }, "[data-next], [data-sr-save]"],
+  ["qg-tab", async (p) => { await closeAll(p); await p.evaluate(() => showScreen("grp:工程")); await sleep(1600); }, "[data-next], #llEquipBar button"],
+  ["qg-tab-lot", async (p) => { await p.evaluate(() => document.querySelector('#llEquipBar [data-equip="list"]')?.click()); await sleep(1600); }, "[data-next], #llEquipBar button"],
+  ["qg-tabmenu", async (p) => {
+    const sel = (await p.$('#llEquipBar [data-equip="list"]')) ? '#llEquipBar [data-equip="list"]' : "#llEquipBar .eq-chip";
+    await p.click(sel, { button: "right" }).catch(() => {}); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
+  ["qg-off", async (p) => {
+    await closeAll(p); await p.evaluate(() => showScreen("list")); await sleep(300);
+    await p.click("#masterBtn"); await sleep(900); await tab(p, "sources"); await sleep(900);
+  }, "[data-next], #srAdd"],
   ["master-sources-many-off", async (p) => { await manySources(p, false); }, "[data-next], #srAdd"],
   ["master-shifts", async (p) => {
     await p.evaluate(async () => { const it = ((await (await fetch("/api/sources")).json()).items || []).find((x) => x.key === "lot");
