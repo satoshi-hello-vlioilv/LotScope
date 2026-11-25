@@ -626,7 +626,35 @@
   "left": "前からの物（採点の 5）は直していない: (1) 1280 の組む所の値の札「通過…」は、札の中に集計のしかた・表し方の 2 つの選びと × が並ぶ作りで、狭い文の段では名前を「…」にして選びを残す決まり（版 3.92.0 からの形。名前は札の吹き出しに全部）。(2) 1280 の道具の行の説明「…空いたマスで足…」は、ボタンを 1 段に収めるために説明を「…」にする決まり（版 3.53.0 の ui-eval-toolbar）。(3) 1280 の「⇄ 入れ替え」が印だけなのは、狭い文の段で字を隠して印だけにする決まり（版 3.50.0。吹き出しと aria-label に「行と列を入れ替える」）。どれもこの版の変更ではなく、直すと文の段・道具の行の評価関数の決まりを変えることになる",
   "checks": "評価関数 ui-eval-calcpivot（41 項目すべて OK）・ui-eval-json・dashboard-more・dashunit・pivot-charts・labels・dashboard・pivot・kpimeta・dashfmt・waterfall・dash8・dashslice・dashlink・colsort はすべて終了コード 0",
   "self_check": "作った者が前（built-*）と後（built-2-*）を開いて見た。calc-list（1728・1280）: 重量t の列が 5.0008・3.9894・0.7171 と全部見え（前は 5.00...・3.98...）、重量の列も 5322.9・3989.4 が切れない。pivot-calc（1280）: 厚＝紫・薄＝オリーブ、すぐに見るの行は「ほか 1 · 組み方 ▾」で 1 段。dash-calc（1280）: 題「板厚区分ごとの重量t（品質）」、棒は 厚＝紫・薄＝オリーブで 3,330.2 と 1,610.5 の両方にラベル。json-made（1728）: 表の行の高さが広がり、総計の下の空きは約 30px。数字のパネルは前と同じ（2 段・単位なし）。json-dash（1280）: カラムの欄の頭は「ƒx ＋ このパネルだけの列」の 1 行で、元の列の札が上がった。気になる所: json-made の数字のパネルの数は大きいまま（パネルの大きさに合わせて字を大きくする決まり）",
-  "result": null,
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 9,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "一覧（score2-built-1728-v・-1536-v・-1280-v/calc-list）: 重量t の列は 3.7053・5.0008・3.9894・5.4844・5.4248・5.9465・0.7171 と全部見え、重量も 5000.8・5322.9・5484.4 が切れない（1 回目は 5.00...・3.98...、3.120.0 の before-1728 は重量の 500...・548... と合金 A30... なども切れていた）。数の列の 1 回目の減点（見切れ −5）は直った。字の列の 設備「C ...」・発生日「26/06/22 23:48:...」は 3.120.0 から残る形（長い 1 割を「…」にする決まり・前より少ない）で、この版で悪くなっていないので減点しない。1728 の右端の列が窓の縁で切れるのは横に送る表の端。集計表（pivot-calc 3 つの大きさ）: 厚＝紫・薄＝オリーブ、凡例も同じ色。組む所（dash-calc 1728・1280）の見本の棒も 厚＝紫・薄＝オリーブで 3,330.2 と 1,610.5 の両方に数値ラベル、題は「板厚区分ごとの重量t（品質）」で中身と合う（1 回目の form・考えさせない の下げ所が直った）。1280 のすぐに見るの行は「ほか 1 · 組み方 ▾」で 1 段、何かが隠れていると読める。表の数は 1,116.7・547.1・総計 4,940.7 で桁がそろう。紫とオリーブは明るさも違い、凡例と表の見出しの字もあるので色だけの区別ではない。JSON（score2-built-*-jv）: json-made の表のパネルは行が広がり総計の下の空きが 1728 で約 30px、1536・1280 は空き無し。1728 では 1 行が約 65px と高めで表がゆったりしすぎる（layout は 8 のまま）。数字のパネルの 7,949.8・1,167 はパネルに合わせて大きい。棒と表の数（933.4・1.28）はそろう。json-dash（1280）の組む所は「ƒx ＋ このパネルだけの列」の 1 行で JSON の列・元の列が上がった。値の札「通過…」は 1280 で切れるが 3.120.0（score4-built-1280）と同じ形・この版で悪くなっていないので減点しない。json-check・json-dashwin（1280）はチェックの文が 1 行に収まり、窓が収まる。標準の dash（1728・1280）は全パネルに「組む」、崩れなし。1280 の道具の行の説明「…空いたマス…」・「⇄ 入れ替え」の印だけは前からの決まりで減点しない。11px 未満の字・重なり・要らないスクロールは見つからなかった。",
+   "evaluator": "作った後の 2 回目の採点の係（案も作った物も直した物も作っていない別のエージェント・採点のみ・2026-11-25。決まり 2026-10-17・合格点 80 かつ減点なし）。作業場所（commit f611a07）の desktop で CARGO_TARGET_DIR=/home/user/LotScope/desktop/target CARGO_PROFILE_DEV_DEBUG=0 cargo build --locked --example ui_serve を組み、TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で、ui-variants.mjs now.mjs を --from calc-list（calc-list,calc-cols,pivot-calc,dash-calc）・TPA_UI_JSON=1 --from json（json〜json-off）、標準の dash は ui-check.mjs 出力 light <view> --states dash で、既定 1728・1536x864・1280x720。どれも終了コード 0。画像を 1 枚ずつ開いて見た。",
+   "scored_images": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1728-v",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1728-jv",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1728",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1536-v",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1536-jv",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1536",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1280-v",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1280-jv",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calcpivot/score2-built-1280"
+   ]
+  },
   "check_all": "check-all --verify（scratchpad/calcpivot/check2）: js-check・compileall・cargo-build・no-slow-hook・ruff・fmt-clippy・py-tests（Ran 93）・bundle-tests（Ran 13）・cargo-test・nt-shape・ci-shape・verify・verify-local すべて終了コード 0。--ui-only（check2-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait すべて終了コード 0"
  }
 }
