@@ -6,7 +6,7 @@
      - HOT コイル作業順の札（設備ごとの本数・釜番）・作業の流れの図（設備ごとの帯。帯の字は釜番）・釜番の札（押すとその釜番だけ）
      - 行の区分の色（設備停止・点検）・次工程が自分の設備・日付の境の線
      - 表示列の既定（ScheduleView の既定の列: 前工程・釜番を パス の後ろに、設備・開始予定は隠す）
-   数・行はサーバー（routes/schedule.py）が答えた物をそのまま見せる（画面で数え直さない）。 */
+   数・行はサーバー（前の版の schedule）が答えた物をそのまま見せる（画面で数え直さない）。 */
 (function () {
   "use strict";
   const $ = (s, el = document) => el.querySelector(s);
@@ -98,7 +98,7 @@
     return out;
   }
 
-  /* ---------------- 上の段（3 回目の U3 に決めた形: ui-proposals/2026-10-schedule-3.mjs・2026-10-schedule.json） ----------------
+  /* ---------------- 上の段（3 回目の U3 に決めた形: 採点 2026-10-schedule-3（記録は版 3.119.0 で片付けた）・採点 2026-10-schedule（記録は版 3.119.0 で片付けた）） ----------------
      左に主の数（最初に見る物は 1 つ）・区切り・押して絞る丸い札（色は一覧の行の色と同じ・釜番の札と同じ型）・右に時刻。設備も HOT も同じ形 */
   const chip = (key, label, n, cls = "", on = false, tip = "", extra = "") =>
     `<button type="button" class="sd-kchip${cls}${on ? " is-on" : ""}" data-sd-pick="${esc(key)}" aria-pressed="${on}"${tip ? ` title="${esc(tip)}"` : ""}>${label}${n != null ? ` <b>${esc(n)}</b>` : ""}${extra}</button>`;

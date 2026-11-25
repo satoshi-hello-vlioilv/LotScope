@@ -5,7 +5,7 @@
 日本語・半角カナ・全角英数・空欄と NULL・いろいろな日付の書き方（2桁の年・和文・8桁・ISO・時刻つき・読めない字）・
 数と数の字・同じロット番号の複数行（まとめ）・ロット番号が空の行・ビュー（行番号が無い）・WITHOUT ROWID の表。
 
-Python の試験（test_lot_list.py）と、デスクトップ版の Rust との突き合わせ（desktop/tests/lotlist_parity.rs が
+Python の試験（前の版の試験 test_lot_list）と、デスクトップ版の Rust との突き合わせ（desktop/tests/lotlist_parity.rs が
 前の版の答え合わせ役 lotlist を通して使う）が同じものを使う。
 
     python tests/lotlist_fixture.py 出力.sqlite3 [行数]

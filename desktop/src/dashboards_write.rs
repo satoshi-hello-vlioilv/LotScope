@@ -1,4 +1,4 @@
-//! ダッシュボードの道（版 3.82.0）。Python の routes/dashboard.py のダッシュボードの 5 本を窓が受ける:
+//! ダッシュボードの道（版 3.82.0）。Python の 前の版の dashboard のダッシュボードの 5 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/dashboards          … ダッシュボードの並び（自分の ID → 共通 → 共通デフォルト〈置いた物 → 組み込み〉）・いま開く標準・外した組み込み
@@ -9,7 +9,7 @@
 //! ```
 //!
 //! 中身の確かめは版 3.81.0 の部品（src/layout_clean.rs）、行の決まりは src/preset_rows.rs。組み込みのダッシュボードは Python の BUILTIN_LAYOUTS を
-//! 焼いた表（src/dash_builtins.json。program/tools/dash-builtins.py が焼き、古い表は tests/test_dash_builtins.py が止める）。
+//! 焼いた表（src/dash_builtins.json。前の版の道具 dash-builtins が焼き、古い表は 前の版の試験 test_dash_builtins が止める）。
 //! 評価関数: tests/dashboards_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 dashboards）。
 //!
 //! Python と同じにするための決まり（版 3.82.0 の案の採点の指摘）:
@@ -55,7 +55,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -119,7 +119,7 @@ fn with_builtin_replace(row: Map<String, Value>, old: Option<&Map<String, Value>
     Ok(row)
 }
 
-/// layout_view の body（中身が確かめに通らなければ {rows: 8, panels: []}。Python に任せる形は Err）
+/// layout_view の body（中身が確かめに通らなければ {rows: 8, panels: []}。答えない（製品では 503）形は Err）
 fn view_body(row: &Map<String, Value>) -> Result<Value, ()> {
     let text = s(row, "中身").filter(|t| !t.is_empty()).unwrap_or("{}");
     match clean_text(text) {

@@ -874,7 +874,7 @@ pub fn post_cm3(url: &str, base: &str, body: &[u8], timeout: Duration, n: &Net) 
         // プロキシの認証（利用者の決め: 認証は無い。対応していない）
         Ok(r) if r.status == 407 => Err(Fail::Cm3(crate::cm3_net::message(Kind::ProxyAuth, "", ""))),
         Ok(r) => Err(Fail::Cm3(format!("予定の元がHTTPエラーを返しました: {} {}", r.status, r.reason))),
-        // 設定の誤り（unknown url type・no host given）と Python に任せる形は前のまま
+        // 設定の誤り（unknown url type・no host given）と 答えない（製品では 503）形は前のまま
         Err(X::F(f)) => Err(f),
         // プロキシの言葉（届かない・その先で切れた・答えを読めない）は、その問い合わせ（30x の行き先ごと）のプロキシで open・once が決めた
         // （版 3.117.1 の作った後の直し・割れ 5: 前は最初の問い合わせにプロキシがあれば、届いた後の誤りも 30x の後の直の誤りも「届きません」）

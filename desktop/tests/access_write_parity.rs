@@ -1,4 +1,4 @@
-//! 権限のマスタを書く道（src/access_write.rs）が Python の道（routes/access.py）と同じ答えか（版 3.68.0。順 5 の 2 段目 b）。
+//! 権限のマスタを書く道（src/access_write.rs）が Python の道（前の版の access）と同じ答えか（版 3.68.0。順 5 の 2 段目 b）。
 //! 前の版の答え合わせ役 access_write が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（門番 access::guard → access_write::handle。書く係は master_store）で当て、
 //! 1 歩ごとの答え（状態・本文）と、終わった後のファイル（共有・同梱の data/・写し）を突き合わせる。
@@ -50,7 +50,7 @@ fn store_of(conf: &Value, who: &Value) -> Store {
 }
 
 /// 窓の道: 門番を通してから受ける（Lot と同じ順）
-/// None は窓が答えない（Python に任せる）
+/// None は窓が答えない（答えない（製品では 503））
 fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
     // 書く道の本文の門（版 3.104.0）: 本物の道（Lot::handle_body）と同じく、門番・部品より先
@@ -138,12 +138,12 @@ fn access_writes_match_python() {
                 ));
             }
         }
-        // 窓が答えず Python に任せる歩（版 3.77.0。置き場の行の id・版を窓が Python と同じに読めない形。書く前に断る＝ファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（版 3.77.0。置き場の行の id・版を窓が Python と同じに読めない形。書く前に断る＝ファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = answer(&store, &sc["conf"], st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

@@ -1,6 +1,6 @@
 "use strict";
 /* =========================================================================
-   変換表（版 3.42.0。マスタ「変換表」: コードの読み替え・判定表。services/conversions.py）
+   変換表（版 3.42.0。マスタ「変換表」: コードの読み替え・判定表。前の版の conversions）
    - 表を式の conv に渡す（WL.formula.setTables）。最初の表は画面に埋めた物（TPA_CONVERSIONS。読み込みを待たない）、
      マスタで直したら take で渡し直し、一覧を描き直す
    - 一覧の列に当てる計画（plan）: 表ごとに、入力に当てる列を一覧の列から探し（半角・全角の違いは見ない）、
@@ -30,7 +30,7 @@
 
   /* ---------------- 当てる計画 ---------------- */
   const norm = (s) => String(s ?? "").normalize("NFKC").replace(/\s+/g, "").toUpperCase();
-  /** 候補の名前 → 一覧の列のうち最初に当たる物（候補の順が先。同じ名前 → 半角・全角の違いを見ない）。services/conversions.py の match_column と同じ */
+  /** 候補の名前 → 一覧の列のうち最初に当たる物（候補の順が先。同じ名前 → 半角・全角の違いを見ない）。前の版の conversions の match_column と同じ */
   function matchColumn(cands, columns) {
     for (const c of cands || []) if (columns.includes(c)) return c;
     const by = new Map();

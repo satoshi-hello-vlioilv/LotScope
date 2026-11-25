@@ -1,4 +1,4 @@
-//! 品質データの写し: Rust（src/mirror.rs）が Python（app/services/db_mirror.py）と同じ手順・同じ文言・同じ台帳か。
+//! 品質データの写し: Rust（src/mirror.rs）が Python（前の版の db_mirror）と同じ手順・同じ文言・同じ台帳か。
 //! 筋書きは 前の版の答え合わせ役 mirror の STEPS（Python が別の置き場で同じ筋書きを行い、一歩ずつの結果を出す）。
 
 mod common;

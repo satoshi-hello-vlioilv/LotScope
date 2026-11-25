@@ -1,5 +1,5 @@
 {
- "about": "道の門を当てる欄（tools/path-routes.py が services/path_rules.py の ROUTES・SKIP から焼く。fields は見る順。種類 browse: 「参照…」の欄・dir: 上のフォルダ／いまの置き場・name: フォルダの名前）",
+ "about": "道の門を当てる欄（前の版の道具 path-routes が 前の版の path_rules の ROUTES・SKIP から焼く。fields は見る順。種類 browse: 「参照…」の欄・dir: 上のフォルダ／いまの置き場・name: フォルダの名前）",
  "routes": [
   {
    "method": "POST",

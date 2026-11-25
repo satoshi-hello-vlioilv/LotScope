@@ -1,8 +1,8 @@
-//! 設備グループの「に当たる（正規表現）」の書き方の確かめ（版 3.102.0。Python の services/equip_regex.py と同じ決まり・同じ言葉）。
+//! 設備グループの「に当たる（正規表現）」の書き方の確かめ（版 3.102.0。Python の 前の版の equip_regex と同じ決まり・同じ言葉）。
 //!
 //! 設備グループの決まりは Python（re）と窓（fancy-regex）の両方で当てる。2 つの読み方が同じ意味になる書き方だけを当て（"ok"）、
 //! 窓で写せない書き方（"unsupported"）・読めない書き方（"invalid"）は、保存のときに理由を添えて断り、読むときはその決まりだけ当てない。
-//! 事例の表 tests/fixtures/equip_regex_cases.json（program/tools/equip-regex-cases.py が Python の re と仕様から作る）を
+//! 事例の表 tests/fixtures/equip_regex_cases.json（前の版の道具 equip-regex-cases が Python の re と仕様から作る）を
 //! desktop/tests/equip_regex_cases.rs が読み、判定・言葉・当たりを確かめる。
 
 /// 判定

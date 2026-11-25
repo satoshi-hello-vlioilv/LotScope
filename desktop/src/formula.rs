@@ -1,8 +1,8 @@
 //! 計算列の式（版 3.59.0）。画面の式（program/app/static/js/list-formula.js）と同じ書き方・同じ答えを、Rust で計算する。
 //!
-//! Python の式（program/app/services/formula.py）を移した物。答えの基準は画面（JavaScript）で、3 つの実装は同じ事例表
+//! Python の式（前の版の formula）を移した物。答えの基準は画面（JavaScript）で、3 つの実装は同じ事例表
 //! （program/tests/fixtures/formula_cases.json。画面の答えを焼き付けた物）と突き合わせる（tests/formula_cases.rs・Python の
-//! tests/test_formula_parity.py）。決まり（JavaScript の動きに合わせる）:
+//! 前の版の試験 test_formula_parity）。決まり（JavaScript の動きに合わせる）:
 //! - 字は UTF-16 の単位の並びで持つ（JavaScript と同じ。切り出しで生まれる片割れのサロゲートもそのまま持つ）。長さ・位置・大小は単位で数える
 //! - 数は倍精度の実数。字にするときは JavaScript の String(数) と同じ書き方（js_num_text）
 //! - 空白（trim・字の区切り）は JavaScript の空白（全角の空白 U+3000 なども）

@@ -1,9 +1,9 @@
-//! マスタの置き場の 4 本（src/master_place.rs の handle・plan・move_to・status）が Python の道（routes/masters.py の GET /api/masters/status・
-//! routes/settings.py の GET /api/masters/place・POST place/check・move と services/master_place.py）と同じ答えか（版 3.101.0）。
+//! マスタの置き場の 4 本（src/master_place.rs の handle・plan・move_to・status）が Python の道（前の版の masters の GET /api/masters/status・
+//! 前の版の settings の GET /api/masters/place・POST place/check・move と 前の版の master_place）と同じ答えか（版 3.101.0）。
 //! 前の版の答え合わせ役 place が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを窓の道（Lot::place_route と同じ順: ?engine=python → 道 → move は門番 → plan → 写して切り替える）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のフォルダの中身（引っ越し先のマスタ・利用状況の記録・前の置き場の印・
-//! この PC の覚え・写し）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
+//! この PC の覚え・写し）を突き合わせる。窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。
 //! 比べない所: 場面のフォルダの道（@ROOT にそろえる）・時刻（<時刻>）・一時フォルダの名前の印。
 //! 種まきの競い合い（版 3.105.0 から窓も種をまく）: 空の共有を、窓 2 つ（別の PC）と Python（別のプロセス）が合図で一斉に読み、
 //! どのマスタも置かれるのは 1 回だけ（錠の中で共有を見直す Store::seed・Python の _seed）・中身は置いた者の写しで壊れない・
@@ -146,7 +146,7 @@ fn store_of(conf: &Value) -> Arc<Store> {
     Arc::new(Store::from_access(conf, "rs").expect("置き場の材料"))
 }
 
-/// 窓の道で 1 歩答える（None は Python に任せる）
+/// 窓の道で 1 歩答える（None は 答えない（製品では 503））
 fn answer(conf: &Value, store: &Arc<Store>, st: &Value, root: &str) -> Option<(u16, Value)> {
     let (method, path) = (st["method"].as_str().unwrap(), st["path"].as_str().unwrap());
     let route = route_of(method, path).expect("置き場の道");
@@ -275,7 +275,7 @@ fn master_place_matches_python() {
             delegated += 1;
             if let Some((status, got)) = answer(&conf, &store, st, rs) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

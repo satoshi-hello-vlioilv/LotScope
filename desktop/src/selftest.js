@@ -313,7 +313,7 @@
 
   await part("参照先", async () => {
     // 10a'') 参照先の項目（版 3.89.0 から窓が答える: settings_write.rs）: 品質の場所は一覧が使っている元と同じ。
-    // マスタの置き場（版 3.118.1 の作った後の採点の割れ 1）: /api/settings に master_share.dir の項目は無い（path_settings.py の決め）ので、
+    // マスタの置き場（版 3.118.1 の作った後の採点の割れ 1）: /api/settings に master_share.dir の項目は無い（前の版の path_settings の決め）ので、
     // 置き場の状態（/api/masters/status）・置き場の画面（/api/masters/place）・更新の置き場（/api/update/settings の masters.dir）・
     // 配った設定の置き場（place.configured。この PC の覚え〈override〉が無いとき）の 4 つが同じ置き場を言うかを見る（場面は共有を置いている）
     const rs = await get("/api/settings");

@@ -1,4 +1,4 @@
-//! フォルダ・ファイルの欄の補助（版 3.101.0。Python の services/folder_browse.py と routes/settings.py の POST /api/fs/browse・
+//! フォルダ・ファイルの欄の補助（版 3.101.0。Python の 前の版の folder_browse と 前の版の settings の POST /api/fs/browse・
 //! GET /api/fs/places）を窓が答える。読むだけで、何も書かない。
 //!
 //! - POST /api/fs/browse … そのフォルダの中（フォルダ・その欄で選べるファイル・目的ごとの印）と区切り（パンくず）。

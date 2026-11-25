@@ -1,5 +1,5 @@
 //! 設定の束の節（版 3.102.0）: 節が使うマスタ（src/bundle.rs の SECTIONS）と道が使う節（src/lot.rs の sections_for）が、
-//! 事例の表 program/tests/fixtures/bundle_cases.json と同じか（Python の routes/lotlist.SECTIONS は tests/test_bundle_sections.py が同じ表と比べる）。
+//! 事例の表 program/tests/fixtures/bundle_cases.json と同じか（Python の routes/lotlist.SECTIONS は 前の版の試験 test_bundle_sections が同じ表と比べる）。
 //! 組めない節を使う道だけを断る（ほかの道は答え続ける）決まりを 1 つの表にする。
 
 use da_core::bundle::{Builder, Env, SECTIONS};

@@ -1144,11 +1144,11 @@
  "sources": {
   "tests/fakes_lotdsp.py": "e29dbd8d50e8ebc8",
   "tests/fakes_serve.py": "b5faa043efa143de",
-  "tests/fixtures/lotdsp_fake_tables.json": "69891fd381d6bcf0",
+  "tests/fixtures/lotdsp_fake_tables.json": "6039334a6dc51353",
   "tests/fixtures/lotdsp_html_cases.json": "a8785df10c9266a5",
   "tests/fixtures/lotdsp_progress_L7150C0.html": "a237cc8ed251665d",
-  "tests/lotdsp_cdp_fake.py": "0874d6e2537442d0",
-  "tests/lotdsp_samples.py": "5f243e245e9135f6"
+  "tests/lotdsp_cdp_fake.py": "b95e99537646c9f6",
+  "tests/lotdsp_samples.py": "419eec6dde872230"
  },
  "variant": "root"
 }

@@ -1,6 +1,6 @@
 /* =========================================================================
    共有の書式（一覧の表示ルールに名前を付けて共有に置き、ほかの設備・ほかの PC で呼び出して当てる）
-   - 置き場はサーバー（GET/POST/PUT/DELETE /api/masters/formats。services/display_formats.py）。全員で 1 つ
+   - 置き場はサーバー（GET/POST/PUT/DELETE /api/masters/formats。前の版の display_formats）。全員で 1 つ
    - 中身を取り出す・当てる・元に戻すのは一覧の部品（window.LotList.formats: capture・places・apply・undo）
    - 当てた所には「どの書式の何版を当てたか」を覚える（KEY.applied）。共有の書式がその後で上書きされたら、札で知らせる
    - 書けるのは現場のマスタを書ける人（canEdit）。呼び出して当てるのは誰でも（当てた先はこの PC の覚え）

@@ -1,5 +1,5 @@
 {
- "about": "作り物の LotDsp の API の答え（札 → ロット番号 → 状態・本文・待つ秒）。画面の見本を app の読み手で読んで作った JSON を焼いた物（tests/fakes_lotdsp.py が読む。焼くのは python program/tools/lotdsp-fake-tables.py。古い表は tests/test_lotdsp_fake_tables.py が止める）",
+ "about": "作り物の LotDsp の API の答え（札 → ロット番号 → 状態・本文・待つ秒）。画面の見本を前の版の app の読み手で読んで作った JSON を焼いた物（tests/fakes_lotdsp.py が読む）。版 3.119.0 から凍った答え（焼き直す道具は app と一緒に消した。見本を変えるときは手で直し、cargo test --test lotdsp_parity で確かめる）",
  "tables": {
   "a": {
    "L7150C0": {

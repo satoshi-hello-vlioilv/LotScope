@@ -1,14 +1,14 @@
 # Python を Rust へ移す順（測って並べた表。版 3.58.1・2026-11-01）
 
 「Python が相当に優位な場合を除き、Rust に書き換える」ための下ごしらえ。文章の見立てではなく、測った数で順を決める。
-数は `python program/tools/rust-port-bench.py --calibrate 20000` で出し直せる（下の数は Linux の開発機の 1 回分。Windows の数は CI の記録から）。
+数は `python 前の版の道具 rust-port-bench --calibrate 20000` で出し直せる（下の数は Linux の開発機の 1 回分。Windows の数は CI の記録から）。
 
 ## 段 ⑤ 版 3.119.0: 不要になったファイルの片付け（済んだ）
 
 採点は `tools/ui-proposals/2026-11-stage5.json`（決まり 2026-11-06。1 位は案 A「印 1 つで 1 版に全部」70.3 点。合格点に届かないので、採点の指摘
 first_fixes の 12 を入れた形で作った。作った形はファイルの `built_plan` の `built_3119_0`）。利用者の決め 2026-11-25 のとおり 1 版にまとめた。
 
-- **消した**: program/app の .py（版の version.py の 1 つを除く）と program/app_env.py・中身の係と枠（窓の Rust の 2 本）・振り分けの中身へ回す枝・
+- **消した**: program/app の .py（版の version.py の 1 つを除く）と 前の版の app_env・中身の係と枠（窓の Rust の 2 本）・振り分けの中身へ回す枝・
   窓が Python を探す口・答え合わせ役（program/tests の答えの元 36 本と門・部品）・app を import する試験・凍らせた写しと凍らせた試験・任せる歩の予算と数える道具・
   Python の開発用サーバー・app を import して焼く・測る道具・測る例（dash_bench・routes_bench・fields_bench）・画面の中身の知らせの段と札・待ちの段 python と順番待ち・
   古い採点の記録（残したのは 2026-11-stage4d.json・2026-11-stage5.json と道具が読む 2026-11-stage2b.mjs）

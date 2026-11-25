@@ -1,4 +1,4 @@
-//! 参照先の項目の道（版 3.89.0）。Python の `routes/settings.py` の 2 本を窓が受ける:
+//! 参照先の項目の道（版 3.89.0）。Python の `前の版の settings` の 2 本を窓が受ける:
 //!
 //! ```text
 //! GET /api/settings        … 項目ごとの既定・マスタで変えた値・効いている値・行の版、共有か・共有の置き場・配った設定のファイル・マスタの版
@@ -10,7 +10,7 @@
 //!   置く字は Python の str(value)（整数は桁、小数は float の repr〈36.0・1e+16〉）
 //! - 行の書き方は master_repository.path_setting_put（「項目」が同じ最初の行を直す・無ければ足す・値が空なら消す）を master_rows::put_by_key で
 //!
-//! 窓が答えず Python に任せる形（ブラウザの欄〈exe〉は版 3.98.0 から窓も lotdsp_direct::trusted_browser で確かめて答える）: 読めない本文（NaN・1e400・
+//! 窓が答えない（製品では 503）形（ブラウザの欄〈exe〉は版 3.98.0 から窓も lotdsp_direct::trusted_browser で確かめて答える）: 読めない本文（NaN・1e400・
 //! 読みの割れる数）・表でない本文（Python は body.get で落ちる）・値が並び・表（Python の str() の書き方が要る）・版の番号に 10 進でない数の字・
 //! 置き場の行の id・版・項目・値を窓が Python と同じに読めない・道に百分率符号（Python は戻してから項目を探す）・書く係の思いがけない失敗。
 
@@ -157,7 +157,7 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
     let Some(item) = item_of(key) else {
         return Some((400, json!({"error": "知らない項目です。", "kind": "error"})));
     };
-    // get_json(force=True, silent=True) or {}（読めない本文は {}。Python に任せる本文は master_rows::py_body が決める。
+    // get_json(force=True, silent=True) or {}（読めない本文は {}。答えない（製品では 503）本文は master_rows::py_body が決める。
     // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む: 値は str() の字〈py_str〉で読む）
     let parsed = crate::master_rows::py_body_held(body)?;
     let value = match parse(item, parsed.get("value")) {
@@ -223,7 +223,7 @@ mod tests {
         assert!(p("work_log.pattern", json!("a*b*")).unwrap_err().starts_with("ファイル名の決まり「a*b*」"));
         assert_eq!(p("lot_list.source", json!("\"C:\\x.sqlite3\"")).unwrap().as_deref(), Some("C:\\x.sqlite3"));
         assert_eq!(p("update.source", json!("\"a\"; b\n\"c\" ;")).unwrap().as_deref(), Some("a;b;c"));
-        // ブラウザの欄（版 3.98.0 から窓も確かめる）・Python に任せる: 並び
+        // ブラウザの欄（版 3.98.0 から窓も確かめる）・答えない（製品では 503）: 並び
         if !cfg!(windows) {
             assert!(p("lotdsp_import.direct.browser", json!("C:\\x.exe")).unwrap_err().contains("だけを指せます"));
             assert_eq!(p("lotdsp_import.direct.browser", json!("\"/usr/bin/msedge\"")).unwrap().as_deref(), Some("/usr/bin/msedge"));

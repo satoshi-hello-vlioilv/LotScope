@@ -1,7 +1,7 @@
-//! 「参照…」の 2 本（src/folder_browse.rs の handle・browse・places）が Python の道（routes/settings.py の POST /api/fs/browse・
-//! GET /api/fs/places と services/folder_browse.py）と同じ答えか（版 3.101.0）。前の版の答え合わせ役 fs が 1 つのフォルダの木
+//! 「参照…」の 2 本（src/folder_browse.rs の handle・browse・places）が Python の道（前の版の settings の POST /api/fs/browse・
+//! GET /api/fs/places と 前の版の folder_browse）と同じ答えか（版 3.101.0）。前の版の答え合わせ役 fs が 1 つのフォルダの木
 //! （自然な並びの名前・隠し・記号リンク・目的ごとの印・400 を超える数・読めないフォルダ）に Python の道で問い合わせの並びを当て、
-//! ここでは同じフォルダに同じ並びを窓の道で当て、答え（状態・本文。断る言葉も 1 字まで）を突き合わせる。窓が答えず Python に任せる歩
+//! ここでは同じフォルダに同じ並びを窓の道で当て、答え（状態・本文。断る言葉も 1 字まで）を突き合わせる。窓が答えない（製品では 503）歩
 //! （delegates）は、窓が答えないことを見る。字の整え（tidy: ntpath・posixpath の normpath）と区切り（crumbs: Path の anchor・parts）は、
 //! POSIX と Windows の両方の決まりを 1 つの PC で事例の表（前の版の答え合わせ役 fs --tables）と突き合わせる。
 
@@ -157,7 +157,7 @@ fn folder_browse_matches_python() {
     for st in oracle["delegates"].as_array().unwrap() {
         delegated += 1;
         if let Some((status, got)) = answer(st) {
-            bad.push(format!("窓が答えた（Python に任せるはず） {} {}: 窓 {status} {got}", st["path"], st["body"]));
+            bad.push(format!("窓が答えた（答えない（製品では 503）はず） {} {}: 窓 {status} {got}", st["path"], st["body"]));
         }
     }
     eprintln!("歩 {steps}・Python に任せた歩 {delegated}");

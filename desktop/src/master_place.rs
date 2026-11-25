@@ -1,4 +1,4 @@
-//! マスタの置き場（版 3.101.0。Python の services/master_place.py と routes の GET /api/masters/status・GET /api/masters/place・
+//! マスタの置き場（版 3.101.0。Python の 前の版の master_place と routes の GET /api/masters/status・GET /api/masters/place・
 //! POST /api/masters/place/check・move）を窓が答える。
 //!
 //! - GET /api/masters/status … 置き場（手元／共有）・共有へ届くか・錠・各マスタの版（MasterStore.status＋同期フォルダの注意）。
@@ -207,7 +207,7 @@ fn read_json_j(p: &Path) -> Option<J> {
     crate::pyjson::loads(std::str::from_utf8(b).ok()?).ok()
 }
 
-/// _as_doc（送った順のまま）。読めない形・版の番号が整数でない（Python の int() の字）は None（Python に任せる）
+/// _as_doc（送った順のまま）。読めない形・版の番号が整数でない（Python の int() の字）は None（答えない（製品では 503））
 fn as_doc(raw: J) -> Option<J> {
     let (rev, at, by, rows) = match raw {
         J::Arr(rows) => (0, J::Str(String::new()), J::obj(), J::Arr(rows)),
@@ -409,7 +409,7 @@ fn server_only(par: &str) -> bool {
 }
 
 /// plan: 新しい置き場（parent\name）へ変えられるか → {ok, mode: copy|switch, dest, files, bytes, names, caution, note} / {ok: false, problem}。
-/// cwd は Python の今のフォルダ（相対の道の見方）。None は窓が Python と同じに答えられない形（Python に任せる）
+/// cwd は Python の今のフォルダ（相対の道の見方）。None は窓が Python と同じに答えられない形（答えない（製品では 503））
 pub fn plan(store: &Store, parent: &str, name: &str, cwd: &Path) -> Option<Value> {
     let nm = match check_name(name) {
         Ok(n) => n,
@@ -524,7 +524,7 @@ fn share_root(store: &Store, server: &str, name: &str, cwd: &Path) -> Option<Val
 
 // ------------------------------------------------------------------ 変える（move）
 
-/// 写すのが止まった（ValueError の理由）か、窓が答えない（Python に任せる）か、書く係が断った（錠など）か
+/// 写すのが止まった（ValueError の理由）か、窓が答えない（答えない（製品では 503））か、書く係が断った（錠など）か
 pub enum MoveError {
     Invalid(String),
     Master(MasterError),
@@ -980,7 +980,7 @@ fn gated((parent, name): (String, String), rule: &str, cwd: &Path) -> Result<(St
     Ok((v.remove("parent").unwrap_or_default(), v.remove("name").unwrap_or_default()))
 }
 
-/// 4 本の答え。None は Python に任せる（?engine=python も。move は製品では Python が断る: 写す係は窓の 1 つ）
+/// 4 本の答え。None は 答えない（製品では 503）（?engine=python も。move は製品では Python が断る: 写す係は窓の 1 つ）
 pub fn handle(
     route: Route,
     query: &str,
@@ -1112,6 +1112,9 @@ mod tests {
             b,
             "{\n \"schema\": 1,\n \"revision\": 3,\n \"updated_at\": \"\",\n \"updated_by\": {},\n \"rows\": [\n  {\n   \"b\": 1,\n   \"a\": \"字\"\n  }\n ]\n}\n"
         );
-        assert!(as_doc(crate::pyjson::loads(r#"{"rows": [], "revision": "3"}"#).unwrap()).is_none(), "int(\"3\") は Python に任せる");
+        assert!(
+            as_doc(crate::pyjson::loads(r#"{"rows": [], "revision": "3"}"#).unwrap()).is_none(),
+            "int(\"3\") は 答えない（製品では 503）"
+        );
     }
 }

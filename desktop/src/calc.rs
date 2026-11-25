@@ -1,4 +1,4 @@
-//! 転写距離・ピッチ計算（版 3.72.0。順 6 の 1 段目。program/app/services/calculator.py・equipment_names.py を写した物）。
+//! 転写距離・ピッチ計算（版 3.72.0。順 6 の 1 段目。前の版の calculator・前の版の equipment_names を写した物）。
 //! POST /api/calculate と POST /api/equipment/inspection を窓が答える（Lot::calc_route）。
 //!
 //! Python と同じ答え（同じビットの数）にするための決まり:
@@ -233,7 +233,7 @@ fn fv(v: &Value) -> f64 {
     }
 }
 
-// ---------------------------------------------------------------- 設備名の読み替え（equipment_names.py）
+// ---------------------------------------------------------------- 設備名の読み替え（前の版の equipment_names）
 
 const FIELD: &str = "同一工程";
 
@@ -480,7 +480,7 @@ impl Masters {
     }
 }
 
-// ---------------------------------------------------------------- 計算（calculator.py）
+// ---------------------------------------------------------------- 計算（前の版の calculator）
 
 const REWIND_VALUES: [&str; 3] = ["上", "下", "-"];
 

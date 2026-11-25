@@ -1,5 +1,5 @@
 {
- "about": "式の正規表現の事例（tools/formula-regex-cases.py が Python の formula.js_regex と画面の JavaScript から焼く。版 3.106.0・3.113.0）。正しい答え want は画面の JavaScript の答え js（版 3.113.0 の作った後の直しから。後読みは人が決めた SPEC_LOOKBEHIND とも同じ）。窓は cargo test --test formula_regex_cases で want と同じに読めるかを確かめる。古い表は tests/test_formula_regex_cases.py が止める",
+ "about": "式の正規表現の事例（版 3.106.0・3.113.0 に前の版の Python の js_regex と画面の JavaScript から焼いた。版 3.119.0 から凍った答え）。正しい答え want は画面の JavaScript の答え js（後読みは人が決めた SPEC_LOOKBEHIND とも同じ）。窓は cargo test --test formula_regex_cases で want と同じに読めるかを確かめる。js・jsWhy 欄が画面の今の答えと同じかは tests/test_screen_parts.py が node の tools/formula-regex-js.mjs で見る",
  "cases": [
   {
    "pattern": "^L-",

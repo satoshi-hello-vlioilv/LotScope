@@ -1,26 +1,33 @@
 """段 ⑤（版 3.119.0。不要になったファイルの片付け）の門: 消した物の名を名指す所が 0（採点 tools/ui-proposals/2026-11-stage5.json の first_fixes 9）。
 
-消した物（中身〈Python〉の係・枠・Python の開発用サーバー・答え合わせ役・凍らせた写しと凍らせた試験・任せる歩の予算と数える道具・
-窓が Python を探す口・窓が Python に任せる型）の名を、git が追跡しているファイルの中から git grep で探し、名指す所が 0 であることを見る。
+消したファイルの名の全部（tests/fixtures/fifth_removed.json の 544。版 3.119.0 の作った後の直し 3: 前は 11 の字だけを見て、消した道具・試験の名を
+今の案内として名指す所が残った）と、消した口の名（TPA_FROZEN_PY・frozen_python・locate::python・Fail::Py・delegates_budget・delegate-count・
+tests/legacy）を、git が追跡しているファイルの中から探し、名指す所が 0 であることを見る。ファイルの名は前後が字・数字・_・-・. でない所だけで
+当たる（fakes_schedule.py は schedule.py に当たらない）。
 例外は歴史の節だけ:
 - 文書（*.md）の印 `<!-- history -->` 〜 `<!-- /history -->` の中（計画書・設計書の済んだ版の記録）
 - 更新履歴（program/app/version.py の CHANGELOG・焼いた program/app/changelog.json）
 - 採点の記録（program/tools/ui-proposals。残した記録は済んだ版の決めの記録）
-- この門の試験そのもの
+- 焼いた表（desktop/tests/baked の books.json 以外。答えは凍った答えで、字を替えると焼き直しが要る）
+- この門の試験と名の表そのもの
 名を 1 つ戻すと落ちる（test_a_name_put_back_is_found）。app を import しない（標準の部品だけ）
 """
 
+import json
 import re
 import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-NAMES = ("sidecar.rs", "frame.rs", "ui_server", "_oracle.py", "tests/legacy", "TPA_FROZEN_PY", "frozen_python",
-         "delegates_budget", "delegate-count", "locate::python", "Fail::Py")
+TABLE = ROOT / "program" / "tests" / "fixtures" / "fifth_removed.json"
+REMOVED = json.loads(TABLE.read_text(encoding="utf-8"))
+WORDS = ("ui_server", "_oracle.py", "tests/legacy", "TPA_FROZEN_PY", "frozen_python", "delegates_budget", "delegate-count", "locate::python", "Fail::Py")
+NAMES = tuple(REMOVED["names"]) + WORDS
+FILE_RE = re.compile(r"(?<![\w.-])(" + "|".join(map(re.escape, sorted(REMOVED["names"], key=len, reverse=True))) + r")(?![\w-])")
 SELF = "program/tests/test_fifth_table.py"
 HISTORY = re.compile(r"<!-- history -->.*?<!-- /history -->", re.S)
-EXEMPT = (SELF, "program/app/version.py", "program/app/changelog.json")
+EXEMPT = (SELF, "program/tests/fixtures/fifth_removed.json", "program/app/version.py", "program/app/changelog.json")
 EXEMPT_DIRS = ("program/tools/ui-proposals/",)
 
 
@@ -35,15 +42,14 @@ def has_git():
 
 def found_in(path: str, text: str) -> list[str]:
     """1 つのファイルの中で名指す所（「道:行: 名」）。歴史の節は伏せる"""
-    if path in EXEMPT or path.startswith(EXEMPT_DIRS):
+    if path in EXEMPT or path.startswith(EXEMPT_DIRS) or (path.startswith("desktop/tests/baked/") and path != "desktop/tests/baked/books.json"):
         return []
     if path.endswith(".md"):
         text = HISTORY.sub(lambda m: "\n" * m.group(0).count("\n"), text)
     out = []
     for i, line in enumerate(text.splitlines(), 1):
-        for n in NAMES:
-            if n in line:
-                out.append(f"{path}:{i}: {n}")
+        out += [f"{path}:{i}: {m.group(1)}" for m in FILE_RE.finditer(line)]
+        out += [f"{path}:{i}: {n}" for n in WORDS if n in line]
     return out
 
 
@@ -53,6 +59,7 @@ def tracked_hits() -> list[str]:
     for n in NAMES:
         args += ["-e", n]
     r = run(args)
+    assert r.returncode in (0, 1), r.stderr
     out = []
     for path in r.stdout.splitlines():
         try:
@@ -69,9 +76,24 @@ class FifthGate(unittest.TestCase):
         hits = tracked_hits()
         self.assertEqual(hits, [], "消した物の名を名指す所があります（歴史の節〈<!-- history -->〉の外）:\n" + "\n".join(hits[:40]))
 
+    def test_the_table_is_every_removed_file_name(self):
+        """名の表は、消した 2 つの commit の消したファイルの名から今も追跡している名を除いた物（取り出しが浅く commit が無ければ形だけ見る）"""
+        names = REMOVED["names"]
+        self.assertEqual(names, sorted(set(names)))
+        self.assertGreaterEqual(len(names), 540)
+        live = {Path(f).name for f in run(["git", "ls-files"]).stdout.splitlines()}
+        self.assertEqual(sorted(set(names) & live), [], "今も追跡している名を表に入れない")
+        r = run(["git", "diff", "--name-only", "--diff-filter=D", REMOVED["base"], REMOVED["removed"]])
+        if r.returncode != 0:
+            self.skipTest("消した commit が取り出しに無い（浅い取り出し）")
+        want = sorted({Path(f).name for f in r.stdout.splitlines()} - live)
+        self.assertEqual(names, want)
+
     def test_a_name_put_back_is_found(self):
-        """変異: 名を 1 つ戻すと落ちる（歴史の節の中なら落ちない・節を閉じた後なら落ちる）"""
-        for n in NAMES:
+        """変異: 名を 1 つ戻すと落ちる（歴史の節の中なら落ちない・節を閉じた後なら落ちる）。ファイルの名は前後の字で区切る"""
+        self.assertEqual(found_in("desktop/src/x.rs", "// tests/fakes_schedule.py と schedule_fixture.py\n"), [], "長い名の一部には当たらない")
+        self.assertEqual(len(found_in("desktop/src/x.rs", "// 前は app/routes/schedule.py が答えた\n")), 1)
+        for n in ["web.py", "bundle-tables.py", "test_formula_parity.py", "2026-10-shortcut.mjs", *WORDS]:
             with self.subTest(n):
                 self.assertEqual(len(found_in("desktop/src/x.rs", f"// 前の {n} の代わり\n")), 1)
                 self.assertEqual(found_in("program/docs/x.md", f"<!-- history -->\n{n}\n<!-- /history -->\n"), [])

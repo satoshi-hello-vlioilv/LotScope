@@ -1,5 +1,5 @@
 //! 置き場所を探す: アプリの中身（program フォルダ）・この PC の作業場所。
-//! 作業場所の決まりは前の版の Python（版 3.119.0 で消した program/app_env.py の local_root）と同じ（前の版の PC と記録・写し・設定を共にする）。
+//! 作業場所の決まりは前の版の Python（版 3.119.0 で消した 前の版の app_env の local_root）と同じ（前の版の PC と記録・写し・設定を共にする）。
 
 use crate::brand::brand;
 use std::env;

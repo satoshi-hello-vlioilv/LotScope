@@ -1,9 +1,9 @@
-//! スケジュール（CM3。src/schedule.rs・cm3.rs・cm3_http.rs）が Python の道（routes/schedule.py・services/schedule.py・cm3_schedule.py）と
+//! スケジュール（CM3。src/schedule.rs・cm3.rs・cm3_http.rs）が Python の道（前の版の schedule・前の版の schedule・前の版の cm3_schedule）と
 //! 同じ答えか（版 3.96.0）。前の版の答え合わせ役 schedule serve が作り物の CM3（tests/schedule_fixture.Cm3Server）を起こし、場面ごとに
 //! Python の道（窓の無い形＝Python が係）の答え・置いた世代と状態のファイル・CM3 が受けた要求を書く。ここでは同じ作り物の CM3 に
 //! 本物の窓の道（Lot::handle_body。設定は窓の束の材料）で同じ並びを当て、1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）・
 //! 世代の表（列・行・値の型）と状態のファイル（seq・error・整えた答え。時刻と指紋は伏せる）・CM3 への要求（要求の行・見出しの並びと値・本文）を
-//! 突き合わせる。窓が答えず Python に任せる歩（delegate）は、窓が答えず、状態に「係を降りた」と書いたことを見る。
+//! 突き合わせる。窓が答えない（製品では 503）歩（delegate）は、窓が答えず、状態に「係を降りた」と書いたことを見る。
 //! 続けて、錠を待つ問い合わせが先に済んだ結果を使う形（黙る CM3 に 4 本同時）と、2 つのプロセス（窓と受け身の Python が rrprrp・prrrpp の
 //! 順に取り直す）で、相手の今の世代が消えない・Python が世代を置かない・CM3 への問い合わせが 1 回ずつであることを見る。
 //! 字の読み（CP932・Shift_JIS・CP1252 の 1・2 バイトの全部・UTF-8 の置き換え・charset の名前）は codecs で Python と比べる。
@@ -179,7 +179,7 @@ fn schedule_matches_python() {
                 delegated += 1;
                 if let Some((status, v)) = got {
                     bad.push(format!(
-                        "{name} [{i}] 窓が答えた（Python に任せるはず）: {status} {}",
+                        "{name} [{i}] 窓が答えた（答えない（製品では 503）はず）: {status} {}",
                         v.to_string().chars().take(200).collect::<String>()
                     ));
                 }

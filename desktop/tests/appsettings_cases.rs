@@ -1,6 +1,6 @@
 //! 配った設定の読み方（版 3.112.0。段 ③ の最初）: 仕様から人が書いた事例の表 program/tests/fixtures/appsettings_cases.json を、窓
 //! （src/bundle.rs の read_settings・inputs・build・Lot::update_settings・GET /api/config）が同じに答えるか。Python に頼らない
-//! （Python は tests/test_appsettings_cases.py が同じ表を読む）。決め: 配った設定は Python の json.loads と同じく読み、段が表でない形は
+//! （Python は 前の版の試験 test_appsettings_cases が同じ表を読む）。決め: 配った設定は Python の json.loads と同じく読み、段が表でない形は
 //! その段だけ組まず理由（stage）を付け、置き場・名乗り・権限・更新の置き場はどの段が壊れても組む。
 
 mod common;

@@ -227,7 +227,7 @@ async function boot() {
   showScreen(initialScreen());
 }
 
-/* ---------------- 版・自分の権限・切断（WaveLog と同じ管理。判定はサーバーの services/access.py の1箇所） ----------------
+/* ---------------- 版・自分の権限・切断（WaveLog と同じ管理。判定はサーバーの 前の版の access の1箇所） ----------------
    - 見出しの版の札（押すと更新履歴）。その横の札は1つで、版のことを1か所にまとめる:
        新しい版を取り込み済み（窓の更新の係 /__desktop/update）なら「更新あり」→ 更新履歴の窓で「更新して開き直す」
        ほかの人がもっと新しい版を使っている（心拍の答え）だけなら「新しい版あり」→ 取り込めない理由と次にすること
@@ -273,7 +273,7 @@ function paintMeUnknown() {
   if (state.sources) loadSources();
   if (state.pendingScreen && !state.screen) { const want = state.pendingScreen; state.pendingScreen = null; hiddenScreen(want, {}); }
 }
-/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
+/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの 前の版の access の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
    権限をまだ 1 度も読めていなければ（読んでいる最中も・読めなかった後も）、決まりのあるタブは出さない（版 3.111.0。fail-closed。
    前は読んでいる最中は出したので、窓が名乗りを決められず中身を起こしている間〈最大 125 秒〉、出さないタブが出た） */
 function tabHidden(key) { return state.me ? (state.me.hiddenTabs || []).includes(key) : true; }
@@ -910,15 +910,15 @@ function applyLot(d) {
 /* ---------------- 検索 = LotDsp 進度情報から取込 ----------------
    検索ボタンは1つ。押すと入力したロット番号で LotDsp の進度情報を読み、工程を取り込む。
    LotDsp は別サイトで、表はブラウザの中で描かれる。読む道は上から順に試す（runSearch）:
-   - LotDsp の API（ログインなし・LotSearch と同じ道。/api/lots/fetch-lotdsp-api・lotdsp_api.py）: 項目名を学び終えたあと
+   - LotDsp の API（ログインなし・LotSearch と同じ道。/api/lots/fetch-lotdsp-api・前の版の lotdsp_api）: 項目名を学び終えたあと
      （画面で読めるたびに同じロットを API でも引いて学ぶ）だけ。速く（1秒ほど）、Edge も要らない。読めなければ次の道へ回す。
    - 見えない Edge（既定・社内のログイン不要な範囲）: アプリがこの PC の Edge を画面に出さずに動かして読む
-     （/api/lots/fetch-lotdsp・lotdsp_direct.py）。ログインの欄が出たら押さずに引き返す（kind: login）。
+     （/api/lots/fetch-lotdsp・前の版の lotdsp_direct）。ログインの欄が出たら押さずに引き返す（kind: login）。
    - LotDsp の窓（ログインが要るとき・VPN）: アプリが Edge を見える窓で開き、利用者がその窓でログインする
      （アプリは ID・パスワードに触れない。ロット番号だけ欄に入れておく）。済めば、続きの検索・読み取りはアプリが行う
      （login_window: true）。ログインが要ったことは覚え、次からは最初から窓で読む（空振りを省く）。
    - どれも使えないとき: 貼り付け（Ctrl+A → Ctrl+C → Ctrl+V）か、保存した HTML ファイル。理由をダイアログで言う。
-   どの道も HTML の読み方はサーバー（lotdsp_progress.py）の1箇所。
+   どの道も HTML の読み方はサーバー（前の版の lotdsp_progress）の1箇所。
    以前はブラウザ版だけ、Edge 拡張 LotData-Link の道もあった（版 3.0.0 で外した。窓の道で同じことができる）。 */
 const LS_LAST_LOT = "tpa.lastLot.v1";
 const LS_ROUTE = "tpa.lotdsp.route.v2";   // {v: "win", at} … ログインが要った（VPN）ので LotDsp の窓を先に使う

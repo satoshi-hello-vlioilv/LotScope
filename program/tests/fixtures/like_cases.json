@@ -1,5 +1,5 @@
 {
- "_": "値の * ?（Excel と同じ）→ LIKE の型。Python の lot_list.like_pattern と Rust の lotlist.rs の like_pattern が同じ答えを出すかを突き合わせる（版 3.54.0）。match は一覧の絞り込みで当たる値（tests/test_lot_list_wildcard.py）",
+ "_": "値の * ?（Excel と同じ）→ LIKE の型。Python の lot_list.like_pattern と Rust の lotlist.rs の like_pattern が同じ答えを出すかを突き合わせる（版 3.54.0）。match は一覧の絞り込みで当たる値（前の版の試験 test_lot_list_wildcard）",
  "patterns": [
   {"value": "CR", "mode": "contains", "pattern": "%CR%", "wild": false},
   {"value": "CR", "mode": "starts", "pattern": "CR%", "wild": false},

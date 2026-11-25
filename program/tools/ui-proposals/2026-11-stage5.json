@@ -783,5 +783,14 @@
    "Windows の CI（prev 1c・sysproxy の ignored・nt の表）",
    "x86_64-pc-windows-msvc の clippy（作った係は作業用クレートで通したと書く。proc.rs の kill を cfg(test) にした所は読んで矛盾が無いことだけ見た）"
   ]
+ },
+ "built_fixed": {
+  "about": "作った後の採点（built。58.3 点・割れ 5）の割れを全部直した形（決まり 2026-11-06: 採点し直さない。直した形は突き合わせの試験に足した）",
+  "1": "tests/test_screen_parts.py に test_formula_cases_are_the_answers_of_the_screen（formula_cases.json の 4,528 事例を formula-parity.mjs で答え、js 欄と同じ。片割れの代用字は表の {\"utf16\": [単位]} の形〈units_if_lone〉にそろえて比べる＝採点の係が違うと見た 9 件はこれで同じ）・test_formula_regex_cases_are_the_answers_of_the_screen（formula_regex_cases.json の 286 の pattern を formula-regex-js.mjs で答え、js・jsWhy と同じ）・変異 test_a_changed_screen_formula_is_found（TPA_LIST_FORMULA で list-formula.js を替えた写しを読ませ、upper を toLowerCase に・regexRisk を空にすると落ちる）。app を import しない・node だけ。2 つの表の about を「凍った答え」に、CLAUDE.md の formula-parity.mjs の行を今の形に",
+  "2": "desktop/src/brand.rs の試験に Cargo.toml（include_str!）の [[bin]] name＝exe の頭（agrees_with_the_build_tools）と fixed_ids_never_change（app_id の固定値・legacy_data_dir に TransferPitchAnalyzer）を足した。標準の部品だけの program/tests/test_brand_names.py（定義・固定の目印・名前のじか書きの禁止〈変異 test_a_copied_name_is_found〉・Cargo.toml と tauri.conf.json の突き合わせ）。案内 3 か所（brand.json の _about・desktop/Cargo.toml:9・README.md:184）をこの 2 つの試験の名に",
+  "3": "門の名を消したファイルの名の全部にした: tests/fixtures/fifth_removed.json（4309e8d..a1d669f の --diff-filter=D の名 582 から、今も追跡している同じ名 38 を除いた 544）＋消した口の名 9。名は前後の字で区切って当てる。表が git の消した名と同じかの試験 test_the_table_is_every_removed_file_name（浅い取り出しでは形だけ）・変異の試験に長い名の一部に当たらないこと。名指す所は書き替えた（164 ファイル: 消した物は「前の版の 名」・記録は「採点 名（記録は版 3.119.0 で片付けた）」。今の案内として読める所は手で直した: ci.yml:19・lotdsp_samples.py・lotdsp_fake_tables.json の about〈凍った答え〉・ui_scene.py:2〜12・books.json の about と ops・seeds・masters の why・ops_parity.rs:3・capacity-truth.py・num-format-check.mjs・lotdsp-dom-cases.mjs・bless.py --check の焼き直しの言葉〈--re-source か --scope〉）。設計書 6 本（LOT_LIST・LOTDSP_IMPORT・SCHEDULE・MASTER_SHARE・SOURCES_UNIFY・SHARED_READ）は頭に 1 行を足して <!-- history --> で囲んだ。desktop/src の「Python に任せる」215 か所は「答えない（製品では 503）」に（「Python に任せた」の過去の言葉は残した）。焼いた本の元の字が替わった 10 表は bless.py --re-source で指紋だけ書き直し、表だけの形の試験で確かめた",
+  "4": "Windows でしか流れない確かめ（verify.py prev の 1c・sysproxy_cases の ignored の試験〈winreg の台本〉）は PR の CI で確かめる（desktop.yml の windows-exe の prev・windows-test の TLS とプロキシの段）。落ちたらまとめて直してから 1 回で push",
+  "5": "README の版 3.119.0 の段に、3.111.0 より前の窓が開き直せなかったときは前の版へ戻し、その PC は 3.119.0 を取り込まずに次の版を待つ（壊れない）の 1 行を足した",
+  "check_all": "check-all --verify（…/s5/check2）: js-check・compileall・cargo-build・no-slow-hook・ruff・fmt-clippy 0・py-tests 0（Ran 93・OK）・bundle-tests 0（Ran 13・OK）・cargo-test 0（70 本・380 passed・0 failed）・nt-shape 0・ci-shape 0・verify 0（PASS 46・FAIL 0）・verify-local 0（PASS 10・FAIL 0）・「すべて通りました」。--ui-only（…/s5/check2-ui）: ui-build・ui-check・ui-xss・ui-narrow・ui-dashwait 0（計 429 秒）"
  }
 }

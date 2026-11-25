@@ -1,9 +1,9 @@
-//! 小さい読む道（版 3.88.0。routes/system.py の build・changelog）を窓が答える。
+//! 小さい読む道（版 3.88.0。前の版の system の build・changelog）を窓が答える。
 //!
 //! - GET /api/build … `{"version": APP_VERSION}`（Python の jsonify と同じ字: 詰めた区切り・改行）
 //! - GET /api/changelog … app/changelog.json（`python app_build.py --release` が app/version.py の CHANGELOG を、jsonify と 1 バイトも
 //!   違わない形で焼く）を字のまま返す。焼いた版が中身（program）の版と同じで、字が jsonify の形（LF の改行で終わる。Windows の
-//!   checkout で CRLF にされていない。.gitattributes の -text）のときだけ。無い・読めない・版が違う（前の版へ戻した形など）は Python に任せる
+//!   checkout で CRLF にされていない。.gitattributes の -text）のときだけ。無い・読めない・版が違う（前の版へ戻した形など）は 答えない（製品では 503）
 //! - GET /api/health は版 3.102.0 から窓が答え（main.rs）、Python の様子を python に添える（health。主のセッションの決め 5。
 //!   窓が ok と言っても Python が止まっていれば python が "stopped"。?engine=python は Python の道＝Python が答えているかの印のまま）
 //! - ?engine=python は Python。HEAD は本文なしで Content-Length（Python と同じ）
@@ -95,7 +95,7 @@ pub fn changelog(program: &Path) -> Option<Vec<u8>> {
 /// 窓の答え（見出し・本文）
 pub type Answer = (Vec<(String, String)>, Vec<u8>);
 
-/// 窓の受け口（main.rs の native）: 窓が答えるなら (見出し, 本文)。Python に任せるなら None
+/// 窓の受け口（main.rs の native）: 窓が答えるなら (見出し, 本文)。答えないなら None（製品では 503）
 pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<Answer> {
     if !matches!(method, "GET" | "HEAD") || crate::lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
         return None;
@@ -111,7 +111,7 @@ pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<An
 }
 
 /// Flask の既定の 404 の画面の字（werkzeug の NotFound。版 3.117.3 の Python が道に当たらない GET に答えた本文。
-/// program/tests/test_favicon_answer.py が werkzeug の字と 1 バイトずつ比べる）
+/// 前の版の試験 test_favicon_answer が werkzeug の字と 1 バイトずつ比べる）
 pub const NOT_FOUND_HTML: &str = "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n\
 <p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>\n";
 
@@ -178,7 +178,7 @@ mod tests {
     fn changelog_only_when_the_baked_version_is_the_program_version() {
         let p = program("ok", "3.88.0", Some(BODY));
         assert_eq!(changelog(&p).unwrap(), BODY.as_bytes(), "焼いた字をそのまま");
-        // 版が違う（前の版へ戻した形）・無い・読めない・CRLF にされた（Windows の checkout）は Python に任せる
+        // 版が違う（前の版へ戻した形）・無い・読めない・CRLF にされた（Windows の checkout）は 答えない（製品では 503）
         let old = program("old", "3.87.0", Some(BODY));
         assert!(changelog(&old).is_none());
         let none = program("none", "3.88.0", None);

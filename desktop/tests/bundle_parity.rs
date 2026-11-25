@@ -1,4 +1,4 @@
-//! 設定の束（版 3.84.0）: 窓（src/bundle.rs）が自分で組んだ束が、Python の道（routes/lotlist.py の GET /api/lotlist/settings）の答えと
+//! 設定の束（版 3.84.0）: 窓（src/bundle.rs）が自分で組んだ束が、Python の道（前の版の lotlist の GET /api/lotlist/settings）の答えと
 //! 同じか。前の版の答え合わせ役 settings が場面ごとのフォルダ（配った設定・共有・作業場所・同梱の data/）を作って Python に尋ね、
 //! 尋ねる前の形に戻す。窓は同じフォルダから束を組み、答えを 1 字ずつ突き合わせる（conversions.rev は窓と Python で別の字なので比べない）。
 //! "delegate" の場面は窓が組まずに Python に尋ねること（束の材料を組めない）、"seed" の場面（版 3.105.0）は共有にまだ無いマスタに窓も

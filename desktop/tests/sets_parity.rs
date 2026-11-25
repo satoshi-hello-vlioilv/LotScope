@@ -1,8 +1,8 @@
-//! ダッシュボードのセットの道（src/dash_sets.rs と行の部品 src/preset_rows.rs）が Python の道（routes/dashboard.py のセットの 4 本）と
+//! ダッシュボードのセットの道（src/dash_sets.rs と行の部品 src/preset_rows.rs）が Python の道（前の版の dashboard のセットの 4 本）と
 //! 同じ答えか（版 3.79.0）。前の版の答え合わせ役 sets が場面ごとに同じ中身のフォルダを 2 つ作り、片方に Python の道で問い合わせの並びを当てる。
 //! ここではもう片方に同じ並びを窓の道（dash_sets::handle。書く係は master_store）で当て、1 歩ごとの答えと、終わった後のファイルを突き合わせる。
 //! delegates の歩（窓が読めない本文・Python の str() と同じ字にできない項目・置き場の行の形が違う・ASCII でない id の道）は、
-//! 窓が答えないこと（Python に任せる）を確かめる。切断の指示は窓の me と同じく置き場から読む（access::revocation）
+//! 窓が答えないこと（答えない（製品では 503））を確かめる。切断の指示は窓の me と同じく置き場から読む（access::revocation）
 
 mod common;
 
@@ -57,7 +57,7 @@ fn store_of(conf: &Value, who: &Value) -> Store {
     })
 }
 
-/// 窓の道（門番の外。置けるかは handle が見る）。None は窓が答えない（Python に任せる）
+/// 窓の道（門番の外。置けるかは handle が見る）。None は窓が答えない（答えない（製品では 503））
 fn ask(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
     // 書く道の本文の門（版 3.104.0）: 本物の道（Lot::handle_body）と同じく、門番・部品より先
@@ -131,12 +131,12 @@ fn dashboard_sets_match_python() {
                 ));
             }
         }
-        // 窓が答えず Python に任せる歩（書く前に断る＝窓のファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（書く前に断る＝窓のファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = ask(&store, &sc["conf"], st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

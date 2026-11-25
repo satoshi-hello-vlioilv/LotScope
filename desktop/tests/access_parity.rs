@@ -207,7 +207,7 @@ fn revocation_is_laid_over_the_remembered_me() {
 }
 
 /// 段取りの材料（lists）の出さないタブと勤務体系を直せるかは、窓の me から決める（版 3.65.1。Python が自分で作った値を上書き）。
-/// 窓が me を決められないとき・Python も決めていないときは答えない（Python に任せる）。前の版の Python の値はそのまま
+/// 窓が me を決められないとき・Python も決めていないときは答えない（答えない（製品では 503））。前の版の Python の値はそのまま
 #[test]
 fn lists_take_hidden_tabs_from_the_shell_me() {
     use da_core::lot::Settings;
@@ -239,7 +239,7 @@ fn lists_take_hidden_tabs_from_the_shell_me() {
     assert_eq!((boss["hidden"].clone(), boss["work"]["canEditShifts"].clone()), (json!([]), json!(true)), "開発者は全部のタブ・直せる");
     // 材料が無く、Python が決めた値がある（窓が権限を受け持たない前の版の Python）: その値のまま
     assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": python_lists}))), Some(python_lists.clone()));
-    // 材料が無く、Python も決めていない（権限を受け持つ窓と組んだ Python が置き場を読めなかった）: 窓は答えず Python に任せる
+    // 材料が無く、Python も決めていない（権限を受け持つ窓と組んだ Python が置き場を読めなかった）: 窓は答えず 答えない（製品では 503）
     let undecided = json!({"hidden": null, "sources": [], "work": {"canEditShifts": null, "rows": []}});
     assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": undecided}))), None, "null を「出さないタブ無し」と読まない");
     // 共有が壊れていて写しも壊れている（Python も me を決められない形。共有だけが壊れていれば写し・同梱で読む）

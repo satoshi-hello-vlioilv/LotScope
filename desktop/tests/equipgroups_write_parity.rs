@@ -1,8 +1,8 @@
-//! 設備グループの道（src/equipgroups_write.rs）が Python の道（routes/equipgroups.py の 4 本）と同じ答えか（版 3.94.0）。
+//! 設備グループの道（src/equipgroups_write.rs）が Python の道（前の版の equipgroups の 4 本）と同じ答えか（版 3.94.0）。
 //! 前の版の答え合わせ役 equipgroups が場面ごとに同じ中身の置き場を作り、py に Python の道で問い合わせの並びを当てる。ここでは rs に
 //! 同じ並びを本物の窓の道（Lot::handle_body → equipgroups_route。門番・書く係・選べる設備を数えるダッシュボードの数え方）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで。選べる設備の出どころと件数も）と、終わった後のファイル（共有・同梱の data/ の
-//! 設備グループ）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
+//! 設備グループ）を突き合わせる。窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。
 //! ファイルの比べは共有（share）と同梱の data/ だけで、この PC の写し（local/master_cache）は比べない（窓は数えるために読んだマスタの写しを置かず、
 //! 直すの誤りや錠では設備グループの写しも置かない。これまでの窓の道と同じ扱い）。共有・data/ のマスタのファイルの名前は全部の場面で比べ、
 //! 任せる歩では窓が何も置かないことを見る。共有にまだ無い数える材料（作業実績・設備マスタ・データ元）は、版 3.105.0 から窓も Python と
@@ -139,12 +139,12 @@ fn equipment_groups_match_python() {
                 ));
             }
         }
-        // 窓が答えず Python に任せる歩（書く前に断る＝ファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（書く前に断る＝ファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = call(st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {}?{} {}: 窓 {status} {}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {}?{} {}: 窓 {status} {}",
                     st["method"],
                     st["path"],
                     st["query"],

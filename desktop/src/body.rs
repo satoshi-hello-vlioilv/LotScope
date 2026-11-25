@@ -1,4 +1,4 @@
-//! 問い合わせの本文の読み方と、書く道の本文の門（版 3.104.0。Rust 化の段 ① の A）。Python の services/body_rules.py と同じ決まりを 1 か所に持つ。
+//! 問い合わせの本文の読み方と、書く道の本文の門（版 3.104.0。Rust 化の段 ① の A）。Python の 前の版の body_rules と同じ決まりを 1 か所に持つ。
 //!
 //! 本文（バイト）を読む部品は 1 つ（read）で、違いは引数（Rules）で分ける:
 //! - GATE_READ … 書く道の門（空・null は通す。Python は前の get_json(silent=True) の道）
@@ -8,7 +8,7 @@
 //! 見る順: 空 → UTF-8 → 入れ子の段（字の外の [ {）→ JSON（pyjson::loads。Python の json.loads と同じ・4,300 桁を超える整数は断る）→
 //! NaN・Infinity・1e400 → 対の無い代用字 → 表でない本文。断る言葉は日本語の {error, kind: "body"}（400）。
 //!
-//! 門を当てる道は src/body_routes.json（Python の services/body_rules.py の ROUTES を tools/body-routes.py が Python の道の並びのまま焼いた表）。
+//! 門を当てる道は src/body_routes.json（Python の 前の版の body_rules の ROUTES を 前の版の道具 body-routes が Python の道の並びのまま焼いた表）。
 //! 門は Lot::handle_body のいちばん前（Python は前の係〈門番〉の列のいちばん前）。通った本文は、整数の -0 を 0 に書き直す
 //! （Python の json.loads は int の 0、serde_json は小数の -0.0 に読むので、前は窓が任せていた）。i64 に入らない整数は書き直さず、
 //! 部品が今までどおり任せる（部品の値〈serde_json〉が桁を持てない）。

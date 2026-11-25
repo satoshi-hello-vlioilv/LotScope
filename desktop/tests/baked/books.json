@@ -1,5 +1,5 @@
 {
- "about": "焼いた本 35 本の行き先（版 3.117.0。版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉と keep の本を消した）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。案と採点は program/tools/ui-proposals/2026-11-stage3f.json）。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる。版 3.119.0 から消した答え合わせ役は入れない: 残るのは場面の台本・作り物・画面の型など）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）。windows（版 3.117.3）は Windows の表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る段 ④ の後の形）の札: table は焼いた表（posix の答えに tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす本、measure はまだ測るだけの本（Windows の CI の測りの記録を tools/bless.py --take-nt で取り込むと table になる）",
+ "about": "焼いた本 35 本の行き先（版 3.117.0。版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉と keep の本を消した）。phase: 3.115.0〜3.117.2 は窓が焼いた表で比べる本（焼いた版。理由は why。段 ④ の入口までを小さい版 4 つに刻む: 3.117.0 起こしたままの相手と equipgroups・lotdsp／3.117.1 ③-6 と schedule／3.117.2 場面の台本と pivot・routes・dashboard・ops／3.117.3 Windows の切り替えと凍らせる写し。採点 2026-11-stage3f の記録は版 3.119.0 で片付けた）。sources は焼いた時の指紋を取る元（tools/bless.py --check が今の元と比べる。版 3.119.0 から消した答え合わせ役は入れない: 残るのは場面の台本・作り物・画面の型など）。maxMB は表の大きさの上限（UTF-8 のバイト。無ければ 1.5 MB。大きい本は理由を why に書く）。bakedPhases は焼いてある版の並び（tools/bless.py・tools/ci-shape.py・tests/test_baked_tables.py はここから読む。版 3.117.0 の作った後の直し: 前は 3 か所に同じ並びを書いた）。sceneTimesWhy は、場面のファイルの更新時刻が今から 10 分より離れていてよい理由（無い本でそういうファイルがあれば bless.py --check が知らせる: 取り出しのファイルの時刻を写していないか）。windows（版 3.117.3）は Windows の表だけの形（TPA_NO_PYTHON=1。表の宣言から場面を作る段 ④ の後の形）の札: table は焼いた表（posix の答えに tests/baked/nt/<表>.json の Windows の上書きを重ねた形）と比べて落とす本、measure はまだ測るだけの本（Windows の CI の測りの記録を tools/bless.py --take-nt で取り込むと table になる）",
  "bakedPhases": [
   "3.115.0",
   "3.116.0",
@@ -23,7 +23,7 @@
     "seeds_parity"
    ],
    "sources": [],
-   "why": "場面の答え 2 試験を焼く。錠の取り合い 3 試験（窓と Python・前の版の Python）は配布の間だけ凍らせた Python を相手に残す。人の表 seeds_cases.json は第 2 の線"
+   "why": "場面の答え 2 試験を焼く。錠の取り合い 3 試験（窓と前の版の Python）は版 3.119.0 で凍らせた写しと一緒に消した（最後に流した記録は採点 2026-11-stage5 の built_plan）。人の表 seeds_cases.json は第 2 の線"
   },
   "mirror": {
    "phase": "3.115.0",
@@ -179,7 +179,7 @@
     "masters_parity"
    ],
    "sources": [],
-   "why": "場面の 25 を焼く。py と rs の同時書き・前の版の Python との錠の取り合いは配布の間だけ凍らせた Python"
+   "why": "場面の 25 を焼く。py と rs の同時書き・前の版の Python との錠の取り合いは版 3.119.0 で凍らせた写しと一緒に消した"
   },
   "access": {
    "phase": "3.115.0",
@@ -289,7 +289,7 @@
     "tests/scene_files.py"
    ],
    "maxMB": 2.5,
-   "why": "稼働（ガント）・ABC の本（版 3.117.2 で焼いた）。場面の SQLite（tools/ops-bench.py の 9 つの書き方・分かれ道・足した設備〈当たる行の上限を超える 400,001 行の HUGE も〉）は標準の部品だけの台本 tests/ui_scene.py の ops が作業フォルダの下に作り（前は /tmp/tpa-ops-*）、表は指紋だけを持つ。ops-bench.py と答え合わせ役は同じ台本の関数を呼ぶ。キーは呼んだ順の番号から・変換表の版の印は @REV。詰めた形。表が 1.5 MB を超えるのは 150 を超える組の答え（ガントの棒と ABC の品種）と、段ごとに尋ね直す設定の答え（いまを替える 10 組）"
+   "why": "稼働（ガント）・ABC の本（版 3.117.2 で焼いた）。場面の SQLite（9 つの書き方・分かれ道・足した設備〈当たる行の上限を超える 400,001 行の HUGE も〉）は標準の部品だけの台本 tests/ui_scene.py の ops が作業フォルダの下に作り（前は /tmp/tpa-ops-*）、表は指紋だけを持つ。版 3.119.0 までは前の版の稼働の評価関数と答え合わせ役も同じ台本の関数を呼んだ。キーは呼んだ順の番号から・変換表の版の印は @REV。詰めた形。表が 1.5 MB を超えるのは 150 を超える組の答え（ガントの棒と ABC の品種）と、段ごとに尋ね直す設定の答え（いまを替える 10 組）"
   },
   "dashboard": {
    "phase": "3.117.2",

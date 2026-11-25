@@ -1,5 +1,5 @@
-//! 利用状況（だれが・どの PC で・どの版を使っているか）と画面の設定の控え（版 3.71.0。順 5 の 3 段目。program/app/services/presence.py・
-//! ui_state.py を写した物）。窓（デスクトップ版）が受け持つときは、心拍・利用状況の道・使用の履歴・画面の控えの書き手は窓の 1 つだけ
+//! 利用状況（だれが・どの PC で・どの版を使っているか）と画面の設定の控え（版 3.71.0。順 5 の 3 段目。前の版の presence・
+//! 前の版の ui_state を写した物）。窓（デスクトップ版）が受け持つときは、心拍・利用状況の道・使用の履歴・画面の控えの書き手は窓の 1 つだけ
 //! （shell::SERVES の presence・ui_state。Python は心拍で書かない）。置き場とファイルの形は Python と同じ:
 //!     <key>.json          … いま使っている（心拍で at を更新。TTL を過ぎたら使っていない）
 //!     <key>.revoke.json   … 管理する人が書いた切断の指示（REVOKE_COOLDOWN のあいだ効く。読むのは access::revocation）
@@ -1006,10 +1006,10 @@ impl Presence {
         true
     }
 
-    // ---------------------------------------------------------------- 道（routes/access.py の利用状況）
+    // ---------------------------------------------------------------- 道（前の版の access の利用状況）
 
     /// 利用状況の 7 本を答える（心拍は Lot が答える）。me は窓が決めた me、shared はマスタの共有フォルダがあるか。
-    /// 本文が表でない（Python では 500）・serde_json が読めない本文は None（Python に任せる。Python の道は残してある）
+    /// 本文が表でない（Python では 500）・serde_json が読めない本文は None（答えない（製品では 503）。Python の道は残してある）
     pub fn handle(&self, me: &Value, shared: bool, method: &str, path: &str, query: &str, body: &[u8]) -> Option<(u16, Value)> {
         let role = me["flags"]["role"].as_str().unwrap_or("").to_string();
         let caps = me["caps"].clone();
@@ -1172,7 +1172,7 @@ pub fn is_route(method: &str, path: &str) -> bool {
     )
 }
 
-// ---------------------------------------------------------------- 画面の設定の控え（services/ui_state.py）
+// ---------------------------------------------------------------- 画面の設定の控え（前の版の ui_state）
 
 pub mod ui_state {
     use super::*;
@@ -1233,7 +1233,7 @@ pub mod ui_state {
         Some(load(local_root))
     }
 
-    /// 変わった名前と消した名前を控えに重ねる（ui_state.merge。POST /api/ui-state）。読めない本文（片割れの代用字など）は None（Python に任せる）。
+    /// 変わった名前と消した名前を控えに重ねる（ui_state.merge。POST /api/ui-state）。読めない本文（片割れの代用字など）は None（答えない（製品では 503））。
     /// 版 3.113.0（採点の指摘 3）: 版は桁のまま +1（Python の int と同じ字）、控えの対の無い代用字は \udXXX の字のまま書き戻す
     /// （Python も同じに直した: 前は大きさを数える encode("utf-8") の UnicodeEncodeError で 400 になり、以後どの設定も控えに入らなかった）
     pub fn post(local_root: &Path, body: &[u8]) -> Option<(u16, Value)> {

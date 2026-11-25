@@ -4530,7 +4530,7 @@
  "sources": {
   "tests/fakes_schedule.py": "521c29571fcb2f9c",
   "tests/fakes_serve.py": "b5faa043efa143de",
-  "tests/lotlist_fixture.py": "e86db539c43a64ee",
+  "tests/lotlist_fixture.py": "4061d4970a286395",
   "tests/schedule_fixture.py": "d5703c248324aa2f"
  },
  "variant": "root"

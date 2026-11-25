@@ -1,4 +1,4 @@
-//! 勤務体系のマスタの道（版 3.75.0。7 段目の手本）。Python の `routes/shifts.py` の 4 本を窓が受ける:
+//! 勤務体系のマスタの道（版 3.75.0。7 段目の手本）。Python の `前の版の shifts` の 4 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/shifts        … 一覧（区分・適用設備つき）・テンプレート・選べる設備・この PC が書けるか
@@ -12,7 +12,7 @@
 //! - 行の書き方は共通の型（src/master_rows.rs。SPECS["shift_patterns"]: 名称は 1 つずつ）。表示順の無い行は最後（row_order.next_order と同じ）
 //! - 数の読み方は pyfmt（tests/fixtures/pynum_cases.json で Python と突き合わせた 1 つの表）
 //!
-//! 窓が答えず Python に任せる形: 読めない本文・表でない本文（Python は Flask の 400〈本文の形〉か例外）・
+//! 窓が答えない（製品では 503）形: 読めない本文・表でない本文（Python は Flask の 400〈本文の形〉か例外）・
 //! 項目が並び・表のとき（Python の str() の書き方〈[1, 2]〉が要る）・i64 に入らない数・版の番号に 10 進でない数の字があるとき。
 
 use crate::access::{master_edit_can, master_scope};
@@ -44,7 +44,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "/api/masters/shifts") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), p) => {
             let id = p.strip_prefix("/api/masters/shifts/")?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -89,7 +89,7 @@ fn digits_len(s: &str) -> usize {
     s.chars().filter(|c| pyfmt::digit(*c).is_some()).count()
 }
 
-/// 本文を窓が答えてよいか（読めない・表でない本文、Python の str() と書き方の違う値は Python に任せる）
+/// 本文を窓が答えてよいか（読めない・表でない本文、Python の str() と書き方の違う値は 答えない（製品では 503））
 pub fn needs_python(body: &[u8]) -> bool {
     if body.iter().all(|b| b.is_ascii_whitespace()) {
         return true; // get_json(force=True) は空の本文を読めない（Flask の 400）
@@ -118,7 +118,7 @@ pub fn needs_python(body: &[u8]) -> bool {
         Some(x) if big(x) => return true,
         _ => {}
     }
-    // 区分: JSON の字で来たら中を読む（Python の json.loads は NaN・Infinity・1e400 を読む。窓が読めなければ Python に任せる）
+    // 区分: JSON の字で来たら中を読む（Python の json.loads は NaN・Infinity・1e400 を読む。窓が読めなければ 答えない（製品では 503））
     let parsed;
     let segs = match o.get("segments") {
         Some(Value::String(t)) if !t.is_empty() => match serde_json::from_str::<Value>(t) {

@@ -1,4 +1,4 @@
-//! 集計表・グラフの組み方のプリセットの道（版 3.81.0）。Python の routes/presets.py の 5 本を窓が受ける:
+//! 集計表・グラフの組み方のプリセットの道（版 3.81.0）。Python の 前の版の presets の 5 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/pivot-presets?source=   … 組み方の並び（自分の ID → 共通 → 共通デフォルト → 組み込み）・いま当てる標準・すぐに見るの並び
@@ -10,9 +10,9 @@
 //!
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/pivot_presets.clean_body と同じ
 //! （評価関数: tests/presets_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 presets））。組み込みの組み方は Python の BUILTINS を焼いた表
-//! （src/pivot_builtins.json。program/tools/pivot-builtins.py が焼き、古い表は tests/test_pivot_builtins.py が止める）。
+//! （src/pivot_builtins.json。前の版の道具 pivot-builtins が焼き、古い表は 前の版の試験 test_pivot_builtins が止める）。
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない本文・空の本文・表でない真の本文、本文の name・note が小数・並び・表・大きな整数、
+//! 窓が答えない（製品では 503）形: 窓が読めない本文・空の本文・表でない真の本文、本文の name・note が小数・並び・表・大きな整数、
 //! 中身の str() する所（段の part・値の column・expr）が並び・表、chartAt の字が 18 字より長い（Python の int() は 4,300 桁で断り、
 //! i64 を超えても読む）、すぐに見るの id の字が ASCII でない（Python の isdigit は「²」なども数字と読む）、置き場の行の形が違う。
 
@@ -85,7 +85,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -307,7 +307,7 @@ fn quick_key(k: &Value) -> Option<Option<String>> {
     Some((b || (!t.is_empty() && t.chars().all(crate::pyfmt::is_digit))).then_some(t))
 }
 
-/// clean_quick: 数の id か "b:鍵"・同じ物は 1 つ・QUICK_MAX まで。窓が読めない字があれば None（Python に任せる）
+/// clean_quick: 数の id か "b:鍵"・同じ物は 1 つ・QUICK_MAX まで。窓が読めない字があれば None（答えない（製品では 503））
 pub(crate) fn clean_quick(keys: &Value) -> Option<Result<Vec<String>, String>> {
     let Some(ks) = keys.as_array() else { return Some(Err("すぐに見るの並びの形が違います。".into())) };
     let mut out: Vec<String> = vec![];

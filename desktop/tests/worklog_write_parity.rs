@@ -1,8 +1,8 @@
-//! 作業実績の登録の道（src/worklog_write.rs）が Python の道（routes/worklog.py の 6 本）と同じ答えか（版 3.91.0）。
+//! 作業実績の登録の道（src/worklog_write.rs）が Python の道（前の版の worklog の 6 本）と同じ答えか（版 3.91.0）。
 //! 前の版の答え合わせ役 worklog_write が場面ごとに同じ中身の置き場を作り（実績のファイルのフォルダは共にする）、py に Python の道で
 //! 問い合わせの並びを当てる。ここでは rs に同じ並びを本物の窓の道（Lot::handle_body → worklog_route。門番・書く係・フォルダの覚え）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のファイル（共有・同梱の data/）を突き合わせる。
-//! 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。足す行のキー（Lot::set_new_key）と古さを測る時刻（Lot::set_clock）は
+//! 窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。足す行のキー（Lot::set_new_key）と古さを測る時刻（Lot::set_clock）は
 //! Python と同じに差し替える。ファイルID は Python と窓で書き方（装置の番号の幅・作った時刻の有無）が違ってよいので、
 //! 同じファイルを指す ID（same_fid）を「<fid:ファイル名>」にそろえて比べる。
 
@@ -138,12 +138,12 @@ fn work_log_registration_matches_python() {
                 ));
             }
         }
-        // 窓が答えず Python に任せる歩（書く前に断る＝ファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（書く前に断る＝ファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = call(st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

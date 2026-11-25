@@ -1,8 +1,8 @@
-//! 値の計算（四則演算。Python の services/num_expr.py・画面の num-format.js の expr と同じ読み方・同じ答え）。
+//! 値の計算（四則演算。Python の 前の版の num_expr・画面の num-format.js の expr と同じ読み方・同じ答え）。
 //!
 //! 値は x（「値」「X」も同じ）。演算子から書けば前に値を置く（「÷1000」＝x÷1000・「×100」・「+5」・「-3」）。
 //! 使える物: 数・小数点・＋ − × ÷ ^（累乗）・かっこ・全角の字。集計の値ごとの計算（aggregate の expr）が使う。
-//! 答えが同じことは事例の表 program/tests/fixtures/num_expr_cases.json で確かめる（下の試験・Python の tests/test_num_expr.py）。
+//! 答えが同じことは事例の表 program/tests/fixtures/num_expr_cases.json で確かめる（下の試験・Python の 前の版の試験 test_num_expr）。
 //! 基準の数（版 3.103.0）: ［稼働直］のように角かっこで名前を書く（中の字は値 x に読み替えない）。compile_with に使える名前を渡す。
 //! 計算の失敗は Python と同じ所で「答え無し」: 0 で割る・0 の負の累乗・負の数の小数の累乗（Python は複素数になる）・有限の数の累乗のあふれ。
 

@@ -1,13 +1,13 @@
-//! ダッシュボードの中身の確かめ（版 3.81.0。services/dashboard.py の clean_layout 一式を写した部品）。
+//! ダッシュボードの中身の確かめ（版 3.81.0。前の版の dashboard の clean_layout 一式を写した部品）。
 //!
 //! 道（GET・POST・PUT・DELETE /api/dashboards・PUT /api/dashboards-hidden）は次の版でこの部品の上に載せる。この版では部品だけを作り、
-//! Python の答えを焼いた事例の表（program/tests/fixtures/layout_cases.json。program/tools/layout-cases.py が焼き、古い表は
-//! tests/test_layout_cases.py が止める）と突き合わせる（cargo test --test layout_cases）。
+//! Python の答えを焼いた事例の表（program/tests/fixtures/layout_cases.json。前の版の道具 layout-cases が焼き、古い表は
+//! 前の版の試験 test_layout_cases が止める）と突き合わせる（cargo test --test layout_cases）。
 //!
 //! 中身は送った順を保つ木（jsontree::Tree）で読む。Python は送った順の dict で確かめるので、先頭 40 個を残す色・系列・120 字で切った後に
 //! 重なる名前（後ろが勝つ）・字にした表（str(dict)）の並びが、送った順でないと割れる。置く字は json.dumps(sort_keys=True)（join::py_dumps）。
 //!
-//! 窓が Python と同じに読めない形は Stop::Py（Python に任せる）: 数として読む字（int()・float()）が ASCII の印字できる字と空白でない
+//! 窓が Python と同じに読めない形は Stop::Py（答えない（製品では 503））: 数として読む字（int()・float()）が ASCII の印字できる字と空白でない
 //! （全角の数・\x1c〜\x1f の空白・4,000 字を超える字）、字にする並び・表の中の字に ASCII と和文の印字できる字でない物がある、
 //! Python が道の外の例外で落ちる形（外した組み込みの中身・前の版の条件の中身が表でない真の値、keys が数・真）。
 
@@ -15,7 +15,7 @@ use crate::jsontree::Tree;
 use crate::pyfmt::{self, strip};
 use serde_json::{json, Map, Value};
 
-/// 確かめを止める理由（Layout は Python の LayoutError〈画面に出す理由〉・Py は窓が答えず Python に任せる）
+/// 確かめを止める理由（Layout は Python の LayoutError〈画面に出す理由〉・Py は窓が答えない（製品では 503））
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stop {
     Layout(String),

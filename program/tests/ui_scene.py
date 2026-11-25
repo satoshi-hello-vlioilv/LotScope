@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""開発用サーバー（前の Python の開発用サーバー）と稼働の評価関数（tools/ops-bench.py）の場面の台本（版 3.117.2。標準の部品だけ。app を import しない）。
+"""焼いた本 routes・pivot・dashboard・ops の場面の台本（版 3.117.2。標準の部品だけ。app を import しない）。窓の開発用サーバーの場面
+（tests/ui_window_scene.py）も make・finish を呼ぶ。版 3.117.2〜3.118.3 は前の版の Python の開発用サーバーと稼働の評価関数も同じ台本を呼んだ。
 
     python tests/ui_scene.py 作業フォルダ 本        … 本は routes・pivot・dashboard・ops（場面を作り直す）
 
 場面は作業フォルダの下に作る（前は 前の Python の開発用サーバーの build・ops-bench.build が /tmp/tpa-ui-*・/tmp/tpa-ops-* に作った）。更新時刻は台本を流した時刻で、
 更新が止まった 1 台（HOT）だけ 40 時間前（前は 80 時間前）。作るのは SQLite の元のファイルとフォルダ・置き物のファイルまでで、マスタの登録（作業実績の
-設備・勤務体系・データ元など）は答え合わせ役と開発用サーバーが app で書く（焼いた表は登録の後のマスタのファイルを場面の宣言に持つ）。
+設備・勤務体系・データ元など）は前の版では答え合わせ役が app で書いた（焼いた表は登録の後のマスタのファイルを場面の宣言に持つ。窓の開発用サーバーは窓の書く道で書く）。
 
-答え合わせ役（前の版の答え合わせ役 routes・前の版の答え合わせ役 pivot・前の版の答え合わせ役 dashboard・前の版の答え合わせ役 ops）は、登録をはさんで make → finish → 本ごとの手直し の
-順に同じ関数を呼ぶ。Python 無しの形（TPA_NO_PYTHON=1）の窓の試験は、登録の後の形（同じ関数を続けて呼んだ物）をこの台本で作り、
+前の版の答え合わせ役（routes・pivot・dashboard・ops）は、登録をはさんで make → finish → 本ごとの手直し の順に同じ関数を呼んだ。
+窓の試験（表だけの形）は、登録の後の形（同じ関数を続けて呼んだ物）をこの台本で作り、
 焼いた表は SQLite の指紋だけを持つ（desktop/tests/common/bake.rs の script・sceneMade）。どちらも同じ関数なので、作り方は 1 か所。
 
 ファイルの番号の使い回し（版 3.117.2 の採点 first_fixes 6）: 登録の後に「見つからない」にする SL3 のファイルは消さずに、場面の外
@@ -345,7 +346,7 @@ def write_ops(path, kind, ops):
 
 
 def ops_bench(work):
-    """ops-bench.py の 9 つの書き方の設備（作業フォルダの「実績」）→ {書き方: 正しい作業の並び}"""
+    """前の版の道具 ops-bench の 9 つの書き方の設備（作業フォルダの「実績」）→ {書き方: 正しい作業の並び}"""
     folder = Path(work) / "実績"
     folder.mkdir(parents=True)
     truth = {}

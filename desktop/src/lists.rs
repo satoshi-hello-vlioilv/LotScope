@@ -1,5 +1,5 @@
-//! 一覧の段取り（版 3.60.0。Python の routes/worklog.py の worklog_plan・routes/sources.py の src_plan / raw_plan / with_joins・
-//! routes/lotlist.py の lotlist_plan を移した）。どのファイルを・どの表で・どの決まりで引くかを決め、品質・作業実績・データ元の
+//! 一覧の段取り（版 3.60.0。Python の 前の版の worklog の worklog_plan・前の版の sources の src_plan / raw_plan / with_joins・
+//! 前の版の lotlist の lotlist_plan を移した）。どのファイルを・どの表で・どの決まりで引くかを決め、品質・作業実績・データ元の
 //! 一覧とスライサーに窓（Rust）が答える。答え・失敗の言葉は Python と同じ（desktop/tests/lists_parity.rs・lot.rs の試験）。
 //!
 //! - 材料（データ元の定義・作業実績の登録・勤務体系・出さないタブ）は Python の設定の答え（/api/lotlist/settings の lists）。
@@ -7,7 +7,7 @@
 //! - 作業実績のフォルダは窓が見る（10 秒覚える）。名前が変わったファイルは、同じファイルID の物をたどる（work_log.match と同じ決まり）
 //! - 写しは窓の写しの係（mirror::Mirrors）。結合は src/join.rs
 //! - スケジュール（CM3。版 3.96.0 から窓が係）: 設備ごとに src/schedule.rs が CM3 から取って置いた世代に、データ元の結合を当てる。
-//!   設定（schedule の段）は一覧の設定の scheduleConf（窓の束から。Python に尋ねた設定には無い＝窓は答えず Python に任せる）
+//!   設定（schedule の段）は一覧の設定の scheduleConf（窓の束から。Python に尋ねた設定には無い＝窓は答えない（製品では 503））
 
 use crate::join::{Join, JoinError, Joiner, Right};
 use crate::lotlist::{self, Opts, TABLE_CANDIDATES, WORK_TABLES};
@@ -302,7 +302,7 @@ impl Conf<'_> {
     pub fn work(&self) -> &Value {
         &self.v["work"]
     }
-    /// スケジュールの設定（一覧の設定の scheduleConf）。無ければ None（窓は答えず Python に任せる）・組めなければ Some(Err)
+    /// スケジュールの設定（一覧の設定の scheduleConf）。無ければ None（窓は答えない（製品では 503））・組めなければ Some(Err)
     pub fn sched_cfg(&self) -> Option<Result<Cfg, &'static str>> {
         let v = self.v.get("scheduleConf")?;
         Some(Cfg::from_section(Some(v)))
@@ -749,7 +749,7 @@ impl Lists {
     }
 }
 
-// ------------------------------------------------------------------ スケジュール（版 3.96.0。Python の routes/schedule.py）
+// ------------------------------------------------------------------ スケジュール（版 3.96.0。Python の 前の版の schedule）
 impl Lists {
     /// 問い合わせの設備（空なら最初の設備。Python の equip_of）
     fn sch_equip(cfg: &Cfg, equip: &str) -> Result<String, Fail> {
@@ -772,7 +772,7 @@ impl Lists {
         Ok(equip.into())
     }
 
-    /// スケジュールの段取り（Python の schedule_plan）。Ok(None) は窓が答えない形（Python に任せる）
+    /// スケジュールの段取り（Python の schedule_plan）。Ok(None) は窓が答えない形（答えない（製品では 503））
     fn sch_plan(&self, conf: &Conf, q: &Quality, s: &Value, equip: &str, force: bool, joined: bool) -> Result<Option<Plan>, Fail> {
         let cfg = match conf.sched_cfg() {
             Some(Ok(cfg)) => cfg,

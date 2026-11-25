@@ -1,5 +1,5 @@
 {
- "note": "LotDsp の 9 本の道が共にする決まりの事例（版 3.98.0）。答えは仕様（program/app/services/lotdsp_rules.py の説明）から人が書いた物で、Python の答えを焼いた物ではない。Python（tests/test_lotdsp_rules.py）・窓（desktop/tests/lotdsp_cases.rs）・画面（tools/lotdsp-url-check.mjs の searchBase）が同じ表を読む。depth は {\"a\": [[…]]} の段の数。",
+ "note": "LotDsp の 9 本の道が共にする決まりの事例（版 3.98.0）。答えは仕様（前の版の lotdsp_rules の説明）から人が書いた物で、Python の答えを焼いた物ではない。Python（前の版の試験 test_lotdsp_rules）・窓（desktop/tests/lotdsp_cases.rs）・画面（tools/lotdsp-url-check.mjs の searchBase）が同じ表を読む。depth は {\"a\": [[…]]} の段の数。",
  "site": [
   {"url": "http://nlmfangyweb1a/LotDspWeb/", "base": "http://nlmfangyweb1a/LotDspWeb", "api": "http://nlmfangyweb1a/LotDspWeb/service/lotdsp/search//searchAction", "direct": "http://nlmfangyweb1a/LotDspWeb/#/lotdsp"},
   {"url": "http://nlmfangyweb1a/LotDspWeb", "base": "http://nlmfangyweb1a/LotDspWeb", "api": "http://nlmfangyweb1a/LotDspWeb/service/lotdsp/search//searchAction", "direct": "http://nlmfangyweb1a/LotDspWeb/#/lotdsp"},

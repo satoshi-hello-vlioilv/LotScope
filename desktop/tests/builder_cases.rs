@@ -1,5 +1,5 @@
 //! 組む所の読み（版 3.99.0。src/builder.rs・pivot.rs の field_sets・merge_fields・column_names）が、仕様から人が書いた事例の表
-//! program/tests/fixtures/builder_cases.json と同じ答えを出すか。Python に頼らない独立の答え（Python も同じ表を tests/test_builder_cases.py で読み、
+//! program/tests/fixtures/builder_cases.json と同じ答えを出すか。Python に頼らない独立の答え（Python も同じ表を 前の版の試験 test_builder_cases で読み、
 //! 答えは tools/builder-truth.py〈app を import しない sqlite3 だけ〉でも作り直して突き合わせる）。
 //! 事例: 札（合わせた本当の種類・空欄を 1 つ・0 と '0'・全部空欄・1,001 の境・1 台だけ空・13 台目からの列・計算列の並び）・
 //! 値の見本（空欄を除き生の値）・確かめる（欄の表・" の場所・PC の時計より先の更新時刻・役割ごとの古さの警告）
@@ -230,7 +230,7 @@ fn builder_cases_match_the_spec() {
 
 #[test]
 fn decisions_are_the_main_sessions() {
-    // 決め（主のセッションの決め 1〜7。Python の services/builder.py と同じ値。builder_parity が Python の値とも突き合わせる）
+    // 決め（主のセッションの決め 1〜7。Python の 前の版の builder と同じ値。builder_parity が Python の値とも突き合わせる）
     let d = builder::decisions();
     assert_eq!(d["kindsUnion"], json!(true));
     assert_eq!(d["equipLimit"], Value::Null);

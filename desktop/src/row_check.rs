@@ -1,5 +1,5 @@
-//! 置き場の読めない行を行ごとに隔てる決まり（版 3.107.0。Rust 化の段 ① の 4 歩目・案 E3＋E4）。Python の services/row_check.py と同じ。
-//! 事例は tests/fixtures/row_cases.json（cargo test --test row_cases。Python は tests/test_row_cases.py）。
+//! 置き場の読めない行を行ごとに隔てる決まり（版 3.107.0。Rust 化の段 ① の 4 歩目・案 E3＋E4）。Python の 前の版の row_check と同じ。
+//! 事例は tests/fixtures/row_cases.json（cargo test --test row_cases。Python は 前の版の試験 test_row_cases）。
 //!
 //! 前は置き場に読めない行が 1 行あるだけで、その道を全部 Python に任せていた（Python の答えにも誤り: NaN の行で一覧が JSON でない・
 //! 名前が数の行で 500・版の読めない行で PUT は「見つかりません」・DELETE は書かずに {ok: true}）。いまは:

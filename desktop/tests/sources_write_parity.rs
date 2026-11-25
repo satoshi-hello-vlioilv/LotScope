@@ -1,8 +1,8 @@
-//! データ元の書く道（src/sources_write.rs）が Python の道（routes/sources.py の 7 本）と同じ答えか（版 3.90.0）。
+//! データ元の書く道（src/sources_write.rs）が Python の道（前の版の sources の 7 本）と同じ答えか（版 3.90.0）。
 //! 前の版の答え合わせ役 sources_write が場面ごとに同じ中身のフォルダを作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを本物の窓の道（Lot::handle_body → sources_write_route。材料は窓の束の材料・門番・書く係）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のファイル（共有・同梱の data/）を突き合わせる。
-//! 窓が答えず Python に任せる歩（delegates）は、窓が答えないこと（書く前に断る＝ファイルは変わらない）を見る。
+//! 窓が答えない（製品では 503）歩（delegates）は、窓が答えないこと（書く前に断る＝ファイルは変わらない）を見る。
 //! 足す元のキーは Python と同じ並び（k001, k002, …）に差し替える（Lot::set_new_key）。
 
 mod common;
@@ -104,12 +104,12 @@ fn data_source_writes_match_python() {
                 ));
             }
         }
-        // 窓が答えず Python に任せる歩（書く前に断る＝ファイルは変わらない）
+        // 窓が答えない（製品では 503）歩（書く前に断る＝ファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
             if let Some((status, got)) = call(st) {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

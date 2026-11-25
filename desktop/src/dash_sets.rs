@@ -1,4 +1,4 @@
-//! ダッシュボードのセットの道（版 3.79.0）。Python の routes/dashboard.py のセットの 4 本を窓が受ける:
+//! ダッシュボードのセットの道（版 3.79.0）。Python の 前の版の dashboard のセットの 4 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/dashboard-sets        … セットの並び（自分の ID → 共通 → 共通デフォルト）・いま開く標準（standardId）・書けるか・最大の数
@@ -10,7 +10,7 @@
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/dashboard.clean_set_body と同じ
 //! （評価関数: tests/sets_parity.rs ← 焼いた表 desktop/tests/baked（前の版の答え合わせ役 sets））。置き場はマスタ dashboards の行のうち元 dashset だけ。
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
+//! 窓が答えない（製品では 503）形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
 //! 置き場のファイルか中身の字に i64 に入らない整数（H2）・道の id が i64 に入らない。
 //! 置き場の読めない行（版・型・名前が数・中身の NaN・入れ子）は版 3.107.0 から行ごとに隔てて答える（src/row_check.rs。前は任せた）。
 
@@ -39,7 +39,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は 答えない（製品では 503）（版 3.104.0）
             let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
@@ -63,7 +63,7 @@ fn item_ok(t: &str) -> bool {
 }
 
 /// セットの中身 → (中身, 置く字)（clean_set_body。字で来たら JSON として読む。読めない字・1 つも無い・多すぎるは誤り）。
-/// 字の中身を窓が Python と同じに読めないとき（NaN・-0 など）は Ok(None)＝Python に任せる
+/// 字の中身を窓が Python と同じに読めないとき（NaN・-0 など）は Ok(None)＝答えない（製品では 503）
 pub(crate) fn clean_body(body: Option<&Value>) -> Result<Option<(Value, String)>, String> {
     let parsed;
     let body = match body {
@@ -113,7 +113,7 @@ fn sets<'a>(rows: &'a [Value], login: &str) -> Vec<&'a Map<String, Value>> {
         .collect()
 }
 
-/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場を読めないときは None（Python に任せる）。
+/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場を読めないときは None（答えない（製品では 503））。
 /// i64・u64 に入らない整数のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持ち、書き戻す。前は Place::split_file で任せた）
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
@@ -184,7 +184,7 @@ pub fn handle(
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
     // 名前・備考・範囲の型は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input で任せていた）
-    // 中身を字で送り、窓が読めない字なら Python に任せる（clean_body の Ok(None)）
+    // 中身を字で送り、窓が読めない字なら 答えない（製品では 503）（clean_body の Ok(None)）
     if let Some(Value::String(t)) = d.get("body") {
         if crate::master_rows::text_split_held(t) {
             return None;

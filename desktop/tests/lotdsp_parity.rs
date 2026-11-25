@@ -1,4 +1,4 @@
-//! LotDsp の 9 本（src/lotdsp.rs・lotdsp_direct.rs）が Python の道（routes/lots.py）と同じ答えか（版 3.98.0）。
+//! LotDsp の 9 本（src/lotdsp.rs・lotdsp_direct.rs）が Python の道（前の版の lots）と同じ答えか（版 3.98.0）。
 //! 前の版の答え合わせ役 lotdsp が作り物の LotDsp の API・サイトを起こしたまま、場面ごとの Python の答え（状態・本文・1 歩ごとの
 //! 学びの覚え）と、作り物のブラウザ（tests/lotdsp_cdp_fake.py）で見えない Edge の係を通した答え・送った DevTools の命令の並びを出す。
 //! ここでは同じ設定・同じ設備マスタ・同じ作り物で窓の係に同じ本文を当て、答え・覚え・命令の並びが同じか（時刻と秒は伏せる）を見る。

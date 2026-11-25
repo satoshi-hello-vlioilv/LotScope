@@ -1,4 +1,4 @@
-//! 現場のマスタ（設備・ロール）の道（版 3.77.0）。Python の `routes/masters.py` の 8 本を窓が受ける:
+//! 現場のマスタ（設備・ロール）の道（版 3.77.0）。Python の `前の版の masters` の 8 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/equipment        … 一覧（行の並び。旧い列名 巻出し方向 は 巻取方向 に読み替える・版の無い行は 1）
@@ -13,7 +13,7 @@
 //! - 設備の確かめ（equipment_names.check_row の 3 つの言葉）は計算の読み替えと同じ部品（calc::equipment_check）
 //! - 本文も版も Content-Type によらず読む（Python も版 3.77.0 から同じ。routes/common.base_rev）
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない・読みが割れる数のある本文（master_rows::unreadable_u64_ok。版 3.105.0 から u64 に入る整数は答える）・空の本文・足す道の表でない本文・
+//! 窓が答えない（製品では 503）形: 窓が読めない・読みが割れる数のある本文（master_rows::unreadable_u64_ok。版 3.105.0 から u64 に入る整数は答える）・空の本文・足す道の表でない本文・
 //! 項目の値が並び・表のとき（Python の str() の書き方〈[1, 2]〉）・置き場の行の項目が並び・表のとき・版の番号に 10 進でない数の字があるとき。
 
 use crate::master_rows::{self, base_rev, Spec};

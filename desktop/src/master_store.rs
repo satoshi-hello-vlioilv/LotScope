@@ -1,4 +1,4 @@
-//! マスタの書く係（版 3.67.0。順 5 の 2 段目 a）。Python の `program/app/repositories/master_store.py` の MasterStore の書く所を写した物。
+//! マスタの書く係（版 3.67.0。順 5 の 2 段目 a）。Python の `前の版の master_store` の MasterStore の書く所を写した物。
 //!
 //! ```text
 //! 書く … 錠を取る → 共有から取り直す（共有にまだ無ければ写し・同梱の data/ を最初の版として置く: seed）→ 行に当てる → 版を上げる

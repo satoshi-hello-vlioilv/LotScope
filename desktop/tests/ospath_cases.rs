@@ -1,5 +1,5 @@
 //! 道の字の門（版 3.114.0。src/path_gate.rs）が事例の表 tests/fixtures/ospath_cases.json のとおりに答えるか。Python の
-//! services/path_rules.py は tests/test_ospath_cases.py で同じ表を読む。表は人が仕様と OS の決まりから書いた答え（want）と、版 3.113.0 の
+//! 前の版の path_rules は 前の版の試験 test_ospath_cases で同じ表を読む。表は人が仕様と OS の決まりから書いた答え（want）と、版 3.113.0 の
 //! Python の答え（py）を並べる。種類（browse・dir・name）× OS（posix・nt）。POSIX と Windows の両方の決まりを 1 つの PC で突き合わせ、
 //! GetFullPathNameW で整える事例（win32）は Windows でだけ流す（Windows の CI）。
 

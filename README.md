@@ -17,6 +17,7 @@ GitHub の Releases に、版ごとに配る ZIP（`LotScope-<版>-windows.zip`�
 - **版 3.118.0 から、アプリは Python を使いません**（Rust 化の段 ④）。画面・一覧・ダッシュボード・マスタ管理・スケジュール・LotDsp・配布の画面は、すべてアプリの窓（`LotScope.exe`）が答えます。Python は同梱しておらず（版 3.117.x までは各 PC に入れた Python を使いました）、この版からは PC の Python を探しも起こしもしません。
 - **版 3.119.0 で、使わなくなった Python の部品（`program\app` の .py）を消しました**（Rust 化の段 ⑤）。`program\sidecar.py` は、版 3.117.x までのアプリがこの版を取り込むときに見る 1 行の印だけを残しています（中身はありません）。
 - **PC に入れた Python は、直前の版（戻すときに使う版）が 3.118.0 以上になった PC から消してかまいません。** 3.117.x から直に 3.119.0 へ上がった PC は、前の版へ戻すときに前の版が Python を起こすので、次の版に上がるまでは残してください。
+- 版 3.111.0 より前のアプリが 3.119.0 を取り込んだあと、入口のアプリで開き直せなかったときは、前のアプリが Python の準備で確かめるので前の版へ戻し、その PC は 3.119.0 を取り込まずに次の版を待ちます（壊れはしません。次の版は取り込みます）。
 - `program` の中身: `app`（画面の部品〈`templates`・`static`〉・同梱の既定・版と名乗り〈`version.py`・`brand.json`〉）・`sidecar.py`（前の版の窓が「中身がある」と見る 1 行の印）・`config`（設定）・`data`（マスタの初期値）・`docs`（仕組みの説明）・`tests`（作り手の試験の場面と事例の表）・`tools`（作り手の道具）。
 - 利用者ごとの記録やマスタの写し・この PC へ写したアプリ（`app`）・取り込んだ新しい版（`versions`）は `%LOCALAPPDATA%\LotScope` にあります（版 3.19.0 で `TransferPitchAnalyzer` から移しました）。展開したフォルダは BOX・共有フォルダに置いて構いません（アプリはそこへ書き込みません）。
 - 開発で Git を使うときの `.git`・`.gitignore` は配る物に入れません。
@@ -181,7 +182,7 @@ GitHub の Releases に、版ごとに配る ZIP（`LotScope-<版>-windows.zip`�
 | `data_dir`（作業場所） | LotScope | 変えてよい（前の名前を `legacy_data_dir` に足す） |
 | `legacy_names`・`legacy_exe`・`legacy_data_dir`（名前の歴史） | TransferPitchAnalyzer・Defect-Analyzer／Defect-Analyzer.exe／TransferPitchAnalyzer | 名前を変えたら、前の名前を足す |
 
-食い違い（exe の名前が作る道具と違う・目印を変えた・コードに名前をじかに書いた）は、試験（`program/tests/test_brand.py`）が止めます。名前を変えた版を置き場に置くと、各 PC は目印で見分けて取り込み、この PC へ写したアプリとショートカットも新しい名前で作り直します。
+食い違い（exe の名前が作る道具と違う・目印を変えた・コードに名前をじかに書いた）は、試験（`program/tests/test_brand_names.py` と窓の `desktop/src/brand.rs` の試験）が止めます。名前を変えた版を置き場に置くと、各 PC は目印で見分けて取り込み、この PC へ写したアプリとショートカットも新しい名前で作り直します。
 
 **版 3.19.0 で Defect-Analyzer から LotScope に変えました**（作業場所も `TransferPitchAnalyzer` から `LotScope` へ）。各 PC では次のように移ります。何もする必要はありません。
 

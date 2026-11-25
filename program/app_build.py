@@ -106,7 +106,7 @@ def _write_release(base, version, digest):
 
 
 def changelog_text(v):
-    """GET /api/changelog の答えの字（前の版の routes/system.py の jsonify と 1 バイトも違わない形: 鍵の順・日本語は \\u・詰めた区切り・改行）。"""
+    """GET /api/changelog の答えの字（前の版の 前の版の system の jsonify と 1 バイトも違わない形: 鍵の順・日本語は \\u・詰めた区切り・改行）。"""
     return json.dumps({"version": v["APP_VERSION"], "entries": v["CHANGELOG"]}, ensure_ascii=True, sort_keys=True,
                       separators=(",", ":")) + "\n"
 

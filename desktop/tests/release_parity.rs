@@ -1,10 +1,10 @@
-//! 配布の置き場を変える 3 本（src/release_place.rs の handle・plan・Mover）が Python の道（routes/settings.py の
-//! POST /api/release/place/check・move・GET progress と services/release_place.py）と同じ答えか（版 3.95.0）。
+//! 配布の置き場を変える 3 本（src/release_place.rs の handle・plan・Mover）が Python の道（前の版の settings の
+//! POST /api/release/place/check・move・GET progress と 前の版の release_place）と同じ答えか（版 3.95.0）。
 //! 前の版の答え合わせ役 release_place が場面ごとに同じ中身のフォルダを 3 つ（py・rs・pd）作り、py に Python の道で問い合わせの並びを当てる。
 //! ここでは rs に同じ並びを窓の道（Lot::release_route と同じ順: ?engine=python → 道 → move は門番 gate → plan → 写す係）で当て、
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、写し終えた後の進み具合（final）、終わった後のフォルダの中身
 //! （ファイルの中身・大きさ・更新時刻〈copy2 と同じく元の時刻〉・権限）を突き合わせる。写しかけの一時フォルダが残らないことも見る。
-//! 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
+//! 窓が答えない（製品では 503）歩（delegates）は、窓が答えないことを見る。
 //! 比べない所: 道の字の場面のフォルダ（@ROOT にそろえる）・時刻（started・finished・elapsed）・一時フォルダの名前の pid と秒・
 //! 権限を読めない理由（Python の例外の字。言葉の形は比べる）・Windows の OS の言葉（Python は errno と WinError で書き分ける）。
 //! 権限の場面（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場）は、root で流すと意味を持たない
@@ -109,7 +109,7 @@ fn wait_done(m: &Mover) -> Value {
     m.progress()
 }
 
-/// 窓の道で 1 歩答える。None は窓が答えない（Python に任せる）。GET /api/update/settings は窓の me から who を組み、
+/// 窓の道で 1 歩答える。None は窓が答えない（答えない（製品では 503））。GET /api/update/settings は窓の me から who を組み、
 /// source は Python の答えの字を使う（効いている設定の重ね方は page_parity が突き合わせる）
 fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover, source: &str) -> Option<(u16, Value)> {
     let (method, path) = (st["method"].as_str().unwrap(), st["path"].as_str().unwrap());
@@ -323,7 +323,7 @@ fn release_place_matches_python() {
             delegated += 1;
             if let Some((status, got)) = answer(&sc["conf"], st, rs, &mover, "") {
                 bad.push(format!(
-                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    "{name}: 窓が答えた（答えない（製品では 503）はず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
                 ));
             }

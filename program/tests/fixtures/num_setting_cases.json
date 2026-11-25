@@ -1,5 +1,5 @@
 {
- "about": "数の設定の読み方の事例（版 3.106.0。作った後の採点の割れ 1・2）。services/num_setting.read・warn の決まり（null・空は既定、Python の float() で読める値はそのまま、読めない字は既定と知らせ）から人が書いた答え。Python は tests/test_num_setting.py、窓は cargo test --lib bundle::tests::num_setting_like_the_table（bundle::num_setting・num_warn と、一覧の lists::num が num の値）。版 3.112.0（採点の指摘 6）: 配った設定を Python の json.loads と同じく読む（窓は src/held.rs の印の字）ので、JSON の字 j で書いた値（NaN・Infinity・1e400・桁の大きな整数・-0・並び・表）の事例 jcases と、/api/config の数（max_rows は int()・心拍の秒は float()）の事例 config を足した。jcases の wantRepr は Python の repr（答えでは NaN・Infinity は null）",
+ "about": "数の設定の読み方の事例（版 3.106.0。作った後の採点の割れ 1・2）。services/num_setting.read・warn の決まり（null・空は既定、Python の float() で読める値はそのまま、読めない字は既定と知らせ）から人が書いた答え。Python は 前の版の試験 test_num_setting、窓は cargo test --lib bundle::tests::num_setting_like_the_table（bundle::num_setting・num_warn と、一覧の lists::num が num の値）。版 3.112.0（採点の指摘 6）: 配った設定を Python の json.loads と同じく読む（窓は src/held.rs の印の字）ので、JSON の字 j で書いた値（NaN・Infinity・1e400・桁の大きな整数・-0・並び・表）の事例 jcases と、/api/config の数（max_rows は int()・心拍の秒は float()）の事例 config を足した。jcases の wantRepr は Python の repr（答えでは NaN・Infinity は null）",
  "cases": [
   {
    "name": "数はそのまま",

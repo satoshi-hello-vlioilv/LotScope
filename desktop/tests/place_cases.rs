@@ -1,5 +1,5 @@
 //! 置き場と設定（版 3.100.0）の事例の表 program/tests/fixtures/place_cases.json を、窓が既に持つ同じ部品で読む（Python は
-//! tests/test_place_cases.py が同じ表を読み、答えは tools/place-truth.py〈app を import しない独立の答え〉でも確かめ直す）。
+//! 前の版の試験 test_place_cases が同じ表を読み、答えは tools/place-truth.py〈app を import しない独立の答え〉でも確かめ直す）。
 //! 3.100.0 で窓が読むのは、フォルダの名前（release_place::check_name。配布の置き場とマスタの置き場の確かめ）とタブの例外の読み方
 //! （access::tab_exceptions）。版 3.101.0 で 8 本を窓へ移し、残りの節（sort・clean・sync・marks・moves・moveRaces・tabCounts・blank・hidden）も
 //! 窓の部品（folder_browse・master_place・builder::settings_check・access::tab_exception_counts）で読む。引っ越しの写す物・写す量・

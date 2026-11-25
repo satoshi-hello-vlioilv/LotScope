@@ -1,4 +1,4 @@
-//! 異常ロット一覧: Rust（src/lotlist.rs）の答えが Python（app/services/lot_list.py）と同じか。
+//! 異常ロット一覧: Rust（src/lotlist.rs）の答えが Python（前の版の lot_list）と同じか。
 //! 試験用の品質データと問い合わせの組は program/tests/lotlist_fixture.py（Python の試験と同じ物）。
 //! 版 3.116.0 から窓の答えを焼いた表（tests/baked/lotlist.json。詰めた形。場面の品質データは台本 lotlist_fixture.py が作り、表は指紋だけ）にも持ち、Python 無しでは表とだけ比べる。
 

@@ -1,5 +1,5 @@
 //! 変換表の式の入れ子の数え方（版 3.106.0。作った後の採点の割れ 3）: program/tests/fixtures/nest_cases.json（仕様から人が書いた答え。Python は
-//! tests/test_nest_cases.py）を、窓の formula::nest_count が同じに数え、上限が conversions_write::NEST_MAX と同じか。上限ちょうどの式を窓が読めること
+//! 前の版の試験 test_nest_cases）を、窓の formula::nest_count が同じに数え、上限が conversions_write::NEST_MAX と同じか。上限ちょうどの式を窓が読めること
 use da_core::conversions_write::NEST_MAX;
 use da_core::formula::{nest_count, Formula};
 use serde_json::Value;

@@ -1,7 +1,7 @@
 //! 画面と最初の画面の読む道（版 3.85.0。版 3.95.0 から GET /api/update/settings〈src/release_place.rs〉も）: 窓（src/page.rs・bundle.rs の config・dashboard.rs の sources_answer・equip_tree_answer）が、
-//! Python の道（routes/system.py の index・config、routes/dashboard.py の dashboard_sources・dashboard_equip_tree）と同じ答えを返すか。
+//! Python の道（前の版の system の index・config、前の版の dashboard の dashboard_sources・dashboard_equip_tree）と同じ答えを返すか。
 //! 前の版の答え合わせ役 settings が束の場面と同じフォルダで Python に尋ねた答え（reads）と突き合わせる。窓の Lot には Python が居ない
-//! （設定を尋ねると失敗する）形で尋ね、窓が自分で答えた物は 1 字（JSON は値）も違わないこと、答えなかった物（Python に任せる）は
+//! （設定を尋ねると失敗する）形で尋ね、窓が自分で答えた物は 1 字（JSON は値）も違わないこと、答えなかった物（答えない（製品では 503））は
 //! Python が答えられない・窓が同じに読めない形だけであることを見る。画面の印（nonce）は @NONCE@ に揃えて比べる。
 
 mod common;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 const READS: [&str; 7] =
     ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings"];
 
-/// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
+/// 窓が答えない（答えない（製品では 503））場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
 const MUST_DELEGATE: [(&str, &str); 0] = [
     // 版 3.113.0（採点の指摘 3・4）: 画面の控えの 4 形（i64 に入らない版・字の大きな整数の版・対の無い代用字・入れ子 130 段）の画面と、
@@ -146,7 +146,7 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             if must_delegate {
-                bad.push(format!("{name} {path}: 窓が答えた（Python に任せるはず）"));
+                bad.push(format!("{name} {path}: 窓が答えた（答えない（製品では 503）はず）"));
                 continue;
             }
             if TABLE_ANSWERS.contains(&(name, path)) {

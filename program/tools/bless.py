@@ -304,7 +304,7 @@ def check(baked=None):
         now = sources_of(book)
         for rel, h in now.items():
             if t.get("sources", {}).get(rel) != h:
-                bad.append(f"{name}: 元 {rel} が焼いた時と違う（表が古い。python tools/bless.py {book} で焼き直す）")
+                bad.append(f"{name}: 元 {rel} が焼いた時と違う（表が古い。答えが同じ直しなら python tools/bless.py --re-source {book}、答えが変わるなら --scope 道の型 {book} で焼き直す）")
         for rel in set(t.get("sources", {})) - set(now):
             bad.append(f"{name}: 表に知らない元 {rel}")
         scene = t.get("scene", {})
@@ -322,7 +322,7 @@ def check(baked=None):
             bad.append(f"{name}: 答えが 1 つもありません")
     for book, b in sorted(BOOKS.items()):
         if b["phase"] in PHASES and book not in tabs.values():
-            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py {book}）")
+            bad.append(f"{book}: 焼いた表がありません（python tools/bless.py --scope all {book} で焼く）")
         if b["phase"] in PHASES and b.get("windows") not in WINDOWS:
             bad.append(f"{book}: books.json の windows の札が {b.get('windows')!r}（table か measure）")
     # Windows の上書きの表（版 3.117.3）: 形・上書きの元の posix の答えの指紋。大きさは本の表に足して上限を見る

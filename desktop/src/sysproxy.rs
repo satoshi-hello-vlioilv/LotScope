@@ -1,8 +1,8 @@
-//! CM3 へのシステムのプロキシ（版 3.117.1。段 ③-6。Python の services/sysproxy.py〈urllib の getproxies・proxy_bypass〉と同じ読み方）。
+//! CM3 へのシステムのプロキシ（版 3.117.1。段 ③-6。Python の 前の版の sysproxy〈urllib の getproxies・proxy_bypass〉と同じ読み方）。
 //!
 //! 利用者の決め（2026-11-17）: プロキシは環境変数と Windows の設定（HKCU の Internet Settings の ProxyEnable・ProxyServer・ProxyOverride）から読む。
 //! 認証は無い（利用者:合言葉 は送らない）。PAC と自動検出は読まない（ProxyEnable が 0 で AutoConfigURL があれば、届かない言葉に一言足す）。
-//! 決めは人が書いた事例の表 program/tests/fixtures/sysproxy_cases.json（cargo test --test sysproxy_cases・Python は tests/test_sysproxy_cases.py）。
+//! 決めは人が書いた事例の表 program/tests/fixtures/sysproxy_cases.json（cargo test --test sysproxy_cases・Python は 前の版の試験 test_sysproxy_cases）。
 //! 読み方の決めは純粋な関数（環境変数の並びとレジストリの値を受ける）で、OS から読むのは [`System::read`] だけ。Windows の決め（環境変数の名前は大文字・
 //! ProxyOverride は大文字小文字を区別しない）は `nt` で選ぶので、Linux の試験も Windows の決めを流せる。
 

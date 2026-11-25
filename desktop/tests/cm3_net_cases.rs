@@ -1,5 +1,5 @@
 //! CM3 に届かないときの言葉（src/cm3_net.rs）が、人が書いた事例の表 program/tests/fixtures/cm3_net_cases.json と同じか（版 3.117.1）。
-//! Python は tests/test_cm3_net_cases.py が同じ表を app/services/cm3_net.py に当てる。
+//! Python は 前の版の試験 test_cm3_net_cases が同じ表を 前の版の cm3_net に当てる。
 
 use da_core::cm3_net::{self, Kind};
 use serde_json::Value;

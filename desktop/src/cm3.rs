@@ -1,4 +1,4 @@
-//! CM3 の答えを整える（版 3.96.0。Python の services/cm3_schedule.py の _decode_body・fix_text・行の区分・_stop_text・normalize・
+//! CM3 の答えを整える（版 3.96.0。Python の 前の版の cm3_schedule の _decode_body・fix_text・行の区分・_stop_text・normalize・
 //! table_rows を写した）。字の決まり（CP932・Shift_JIS・CP1252・HTML の文字参照・charset の名前）は Python から焼いた表
 //! （src/cm3_tables.json。program/tools/cm3-tables.py が焼き、tests/test_cm3_tables.py が古い表を止める）で読む。
 //!
@@ -239,7 +239,7 @@ pub fn decode_body(raw: &[u8], content_type: Option<&str>) -> R<String> {
 }
 
 // ------------------------------------------------------------------ Python の値の字
-/// Python の str(値)（JSON から読んだ値）。印字できるか分からない字を含む並び・表の repr は Python に任せる
+/// Python の str(値)（JSON から読んだ値）。印字できるか分からない字を含む並び・表の repr は 答えない（製品では 503）
 pub fn py_str(v: &Tree) -> R<String> {
     match v {
         Tree::Str(s) => Ok(s.clone()),

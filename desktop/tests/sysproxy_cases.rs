@@ -1,5 +1,5 @@
 //! CM3 のシステムのプロキシの読み方（src/sysproxy.rs）が、人が書いた事例の表 program/tests/fixtures/sysproxy_cases.json と同じか（版 3.117.1）。
-//! Python は tests/test_sysproxy_cases.py が同じ表を urllib の関数に当てる。env・bypass・choose・pac の事例は posix と nt（Windows）の
+//! Python は 前の版の試験 test_sysproxy_cases が同じ表を urllib の関数に当てる。env・bypass・choose・pac の事例は posix と nt（Windows）の
 //! 2 つの答えを持ち、どの OS で流しても両方を確かめる（読み方は nt を選ぶ純粋な関数。版 3.117.1 の作った後の直し・割れ 1）。
 
 use da_core::sysproxy::{self, Choice, Reg, RegVal, System};

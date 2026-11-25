@@ -1,5 +1,5 @@
 //! 作る前の準備: Tauri の準備へ渡す。
-//! アイコンの絵は焼いた物を追跡ファイルとして置く（版 3.119.0。段 ⑤: 前は組むたびに Python で program/app/app_icon.py を流して描いた）:
+//! アイコンの絵は焼いた物を追跡ファイルとして置く（版 3.119.0。段 ⑤: 前は組むたびに Python で 前の版の app_icon を流して描いた）:
 //! desktop/icons/icon.ico・icon.png（exe と窓の絵）と desktop/splash/icon.png（起動画面。256px）。確かめは tests/icon_files.rs。
 
 fn main() {

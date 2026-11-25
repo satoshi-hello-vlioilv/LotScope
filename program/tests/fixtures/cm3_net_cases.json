@@ -1,5 +1,5 @@
 {
-  "about": "CM3 に届かないときの言葉の事例（版 3.117.1。採点の first_fixes 13。人の決め）。届かない理由を種類に分け、種類ごとに決めた言葉にする。種類を決める材料は OS と係ごとに違う: Python（Windows も Linux も OpenSSL の ssl。例外の型・検証の番号 verify_code・理由 reason）・窓の Linux（native-tls の OpenSSL の誤りの字。末尾の「(…)」が検証の結果）・窓の Windows（native-tls の schannel の誤りの番号〈HRESULT〉）。Python は tests/test_cm3_net_cases.py（app/services/cm3_net.py）、窓は cargo test --test cm3_net_cases（src/cm3_net.rs）が同じ表を読む。schannel の番号は Windows の CI（.github/workflows/desktop.yml の windows-test の「TLS とプロキシを Windows の本物で」）が本物の schannel の答えと比べる",
+  "about": "CM3 に届かないときの言葉の事例（版 3.117.1。採点の first_fixes 13。人の決め）。届かない理由を種類に分け、種類ごとに決めた言葉にする。種類を決める材料は OS と係ごとに違う: Python（Windows も Linux も OpenSSL の ssl。例外の型・検証の番号 verify_code・理由 reason）・窓の Linux（native-tls の OpenSSL の誤りの字。末尾の「(…)」が検証の結果）・窓の Windows（native-tls の schannel の誤りの番号〈HRESULT〉）。Python は 前の版の試験 test_cm3_net_cases（前の版の cm3_net）、窓は cargo test --test cm3_net_cases（src/cm3_net.rs）が同じ表を読む。schannel の番号は Windows の CI（.github/workflows/desktop.yml の windows-test の「TLS とプロキシを Windows の本物で」）が本物の schannel の答えと比べる",
   "decisions": [
     "時間切れは、つなぐ・プロキシの CONNECT・TLS の握手・答えを読む のどこでも同じ 1 つの言葉（urllib は「接続できません: timed out」と「応答がタイムアウト」に割れ、TLS の握手の言葉には Python の組み立ての行番号 _ssl.c:NNN が入る）。黙るプロキシは https（CONNECT）も http も同じ言葉",
     "名前が引けないは OS・DNS の字を使わない（PC で「Name or service not known」「Temporary failure in name resolution」「getaddrinfo failed」に割れた。焼いた表が PC に頼らない）",
@@ -131,7 +131,7 @@
     {"why": "桁の大きすぎる整数があります", "kind": "table", "want": "予定の元の答えを表に置けません（桁の大きすぎる整数があります）"},
     {"why": "表に置けない値（並び・表）があります", "kind": "table", "want": "予定の元の答えを表に置けません（表に置けない値（並び・表）があります）"}
   ],
-  "joinsAbout": "30x の行き先の組み方（版 3.118.0 の作った後の採点の割れ 2）: 3.117.3 の Python の urllib.request.HTTPRedirectHandler と同じ（urlparse → 道が空で名前があれば「/」→ urlunparse → quote(iso-8859-1・safe=string.punctuation) → urljoin(いまの URL, 行き先)）。loc は見出しを latin-1 で読んだ字。want は Python 3.13 の答え。Python は tests/test_cm3_net_cases.py が同じ手順で、窓は cargo test --test cm3_net_cases の joins_like_urllib が cm3_http::join_location で確かめる",
+  "joinsAbout": "30x の行き先の組み方（版 3.118.0 の作った後の採点の割れ 2）: 3.117.3 の Python の urllib.request.HTTPRedirectHandler と同じ（urlparse → 道が空で名前があれば「/」→ urlunparse → quote(iso-8859-1・safe=string.punctuation) → urljoin(いまの URL, 行き先)）。loc は見出しを latin-1 で読んだ字。want は Python 3.13 の答え。Python は 前の版の試験 test_cm3_net_cases が同じ手順で、窓は cargo test --test cm3_net_cases の joins_like_urllib が cm3_http::join_location で確かめる",
   "joins": [
     {"base": "http://h:9085/rs/rrel/Cm3SchWeb/api/x?a=1", "loc": "next?eq=L-1", "want": "http://h:9085/rs/rrel/Cm3SchWeb/api/next?eq=L-1"},
     {"base": "http://h:9085/rs/rrel/Cm3SchWeb/api/x?a=1", "loc": "../up", "want": "http://h:9085/rs/rrel/Cm3SchWeb/up"},

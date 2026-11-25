@@ -1,4 +1,4 @@
-//! 変換表の道（版 3.93.0）。Python の `routes/conversions.py` のマスタ管理の 8 本を窓が受ける:
+//! 変換表の道（版 3.93.0）。Python の `前の版の conversions` のマスタ管理の 8 本を窓が受ける:
 //!
 //! ```text
 //! GET    /api/masters/conversions               … 一覧（表示順）・比べ方・当て方・標準の名前・標準を差し替えたか・書けるか・共有か・版
@@ -11,7 +11,7 @@
 //! POST   /api/masters/conversions/defaults      … 標準を決める（from: current か bundled）
 //! ```
 //!
-//! 決まりは services/conversions.py と master_repository の conversion_* と同じ（評価関数: tests/conversions_write_parity.rs ←
+//! 決まりは 前の版の conversions と master_repository の conversion_* と同じ（評価関数: tests/conversions_write_parity.rs ←
 //! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 conversions））。本文は送った順の木（src/jsontree.rs）で読み、入力・判定・当て方の字は json.dumps の既定の
 //! 区切り（", "・": "）で書く（判定の when の鍵は送った順・同じ鍵は後ろの値を前の位置へ）。値の字は _text（0 → "0"・false → "False"・
 //! 小数は Python の repr）。範囲の端は float(str(v).replace(",", "")) と同じ読み方（pyfmt::py_float。「１,000」→ 1000・「-0」→ 0）。
@@ -19,7 +19,7 @@
 //! 一覧の形は bundle::conv_views（画面の埋める物・式の conv と同じ読み方）。標準は conversion_defaults に行があればそれ、無ければ
 //! 同梱の app/master_defaults/conversions.json。取り込みで標準にもするときは、Python と同じく 2 回に分けて書く（変換表 → 標準）。
 //!
-//! 窓が答えず Python に任せる形: 空・読めない本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文のうち Python が
+//! 窓が答えない（製品では 503）形: 空・読めない本文（Python は get_json(force=True) で 400 の HTML）・表でない真の本文のうち Python が
 //! 道の外で落ちる物（直す・標準に戻す・消す・標準を決める。500）・値が並び・表（Python の repr）・inputs が表・apply が並び・op・mode・place が
 //! 並び・表（unhashable）・2^63 以上の整数の範囲の端と表示順・式の正規表現が読めない（言葉が Python と割れうる）・入れ子の深い式・
 //! 置き場の行を窓が同じに読めない（id・版・値の形・表示順の桁・JSON の字）・標準の行の名前が字でない・標準に戻す中身の列が無い・
@@ -97,7 +97,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
 
 type Answer = (u16, Value);
 
-/// 確かめで止まる理由: Python に任せる（Delegate）か、変換表の誤り（ConversionError の言葉）
+/// 確かめで止まる理由: 答えない（製品では 503）（Delegate）か、変換表の誤り（ConversionError の言葉）
 enum Bad {
     Delegate,
     Conv(String),
@@ -316,7 +316,7 @@ fn formula_error(m: &str) -> &str {
     }
 }
 
-/// 入れ子の深さで断った言葉か（窓の段の数と Python の再帰の上限は境が違うので、この種類の失敗は Python に任せる）
+/// 入れ子の深さで断った言葉か（窓の段の数と Python の再帰の上限は境が違うので、この種類の失敗は 答えない（製品では 503））
 fn depth_error(m: &str) -> bool {
     m.contains("深すぎ")
 }

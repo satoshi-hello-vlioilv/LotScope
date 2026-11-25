@@ -264,7 +264,7 @@ pub fn body_value(body: &[u8]) -> Option<Value> {
         return serde_json::from_slice(body).ok();
     }
     let t = std::str::from_utf8(body).ok()?;
-    // 数でない値（NaN・Infinity）は読めない本文と同じに扱う（呼ぶ側が Python に任せる）
+    // 数でない値（NaN・Infinity）は読めない本文と同じに扱う（呼ぶ側が 答えない（製品では 503））
     parse(t).ok().filter(|v| !has_nonfinite(v))
 }
 

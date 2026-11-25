@@ -1,5 +1,5 @@
 //! ダッシュボードのパネルの数（版 3.62.0）: 窓（src/dashboard.rs。src/lot.rs の handle_body）が POST /api/dashboard/query に、
-//! Python の道（routes/dashboard.py の dashboard_query）と同じ答え・同じ失敗を返すか。前の版の答え合わせ役 dashboard が開発用サーバーと
+//! Python の道（前の版の dashboard の dashboard_query）と同じ答え・同じ失敗を返すか。前の版の答え合わせ役 dashboard が開発用サーバーと
 //! 同じ試験データに読めない設備・表示しない設備・設備の並び・設備の列の書きゆれ・30 を超える設備・設備グループ（正規表現・除く）・
 //! 全角の合金を足し、パネルの形ごと（数字・グラフ・合わせた表・別のデータ・設備の分け方・まとめ・設備グループの段・手で並べた順・
 //! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。スケジュールは窓の束の設定が無いこの試験では Python へ回す（None。
@@ -176,7 +176,7 @@ fn dashboard_answers_like_python() {
     let body = serde_json::to_vec(&json!({"panel": o["cases"][0]["panel"]})).unwrap();
     assert!(lot.handle_body_with("POST", "/api/dashboard/query", "engine=python", &body, &ask).is_none());
     assert!(lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).is_some(), "ふつうは窓が答える");
-    // 材料（lists.dash）を答えない中身（前の版の Python）とは、ダッシュボードを Python に任せる
+    // 材料（lists.dash）を答えない中身（前の版の Python）とは、ダッシュボードを 答えない（製品では 503）
     let mut old = settings.clone();
     old["lists"].as_object_mut().unwrap().remove("dash");
     lot.invalidate();

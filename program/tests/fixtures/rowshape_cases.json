@@ -1,5 +1,5 @@
 {
- "about": "置き場の行・設定・控えの形の事例（版 3.113.0。採点の指摘 1）。仕様から人が書いた正しい答え（want・why など）と、版 3.112.0 の Python の答え（py）を並べる。want が py と違う形は Python も同じ版で直した。窓は cargo test --test row_cases の rowshape_like_the_table、Python は tests/test_row_cases.py の RowShape が同じ表を読む。rows: 変換表・標準の行の形（why は隔てる理由・null は読む。view は conversions.view の答えの一部）。worklog: 作業実績の登録（listed は一覧に出すか・skipped は知らせるか）。sources: データ元の結合（joins は data_join.parse の答え）。keymap: LotDsp の学び（/api/config・/api/lotdsp/status の lotdsp_api）。cells: 変換表の行・標準に置く値（標準にする・標準に戻す。版 3.113.0 の作った後の直し）。seconds: LotDsp の設定の秒（direct.timeout_seconds・既定 60）。uistate: 画面の控え（GET の版の字と名前・POST {changed: {tpa.x: \"1\"}} の後の版と残る名前）",
+ "about": "置き場の行・設定・控えの形の事例（版 3.113.0。採点の指摘 1）。仕様から人が書いた正しい答え（want・why など）と、版 3.112.0 の Python の答え（py）を並べる。want が py と違う形は Python も同じ版で直した。窓は cargo test --test row_cases の rowshape_like_the_table、Python は 前の版の試験 test_row_cases の RowShape が同じ表を読む。rows: 変換表・標準の行の形（why は隔てる理由・null は読む。view は conversions.view の答えの一部）。worklog: 作業実績の登録（listed は一覧に出すか・skipped は知らせるか）。sources: データ元の結合（joins は data_join.parse の答え）。keymap: LotDsp の学び（/api/config・/api/lotdsp/status の lotdsp_api）。cells: 変換表の行・標準に置く値（標準にする・標準に戻す。版 3.113.0 の作った後の直し）。seconds: LotDsp の設定の秒（direct.timeout_seconds・既定 60）。uistate: 画面の控え（GET の版の字と名前・POST {changed: {tpa.x: \"1\"}} の後の版と残る名前）",
  "rows": [
   {
    "name": "入力が表（手で直した共有の行）",

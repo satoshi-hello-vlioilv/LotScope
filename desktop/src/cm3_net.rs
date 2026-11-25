@@ -1,8 +1,8 @@
-//! CM3 に届かないときの言葉（版 3.117.1。段 ③-6。Python の services/cm3_net.py と同じ言葉）。
+//! CM3 に届かないときの言葉（版 3.117.1。段 ③-6。Python の 前の版の cm3_net と同じ言葉）。
 //!
 //! 届かない理由を種類（[`Kind`]）に分け、種類ごとに決めた言葉にする。種類を決める材料は、窓の TLS（Linux は OpenSSL の字、Windows は schannel の
 //! 誤りの番号）と io の誤りの種類。決めと言葉は人が書いた事例の表 program/tests/fixtures/cm3_net_cases.json（cargo test --test cm3_net_cases・
-//! Python は tests/test_cm3_net_cases.py）。
+//! Python は 前の版の試験 test_cm3_net_cases）。
 
 pub const HINT: &str = "（社内 LAN か VPN につながっているか確かめてください）";
 

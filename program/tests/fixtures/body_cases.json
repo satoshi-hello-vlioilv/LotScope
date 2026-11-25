@@ -1,5 +1,5 @@
 {
- "about": "本文の読み方の事例（版 3.104.0）。仕様（RFC 8259・services/body_rules.py の決まり）から人が書いた答え。Python（tests/test_body_cases.py）と窓（cargo test --test body_cases）が同じ表を読む。raw は本文の字（UTF-8 で送る）・hex はバイト。want は門の引数ごと（read・need・lotdsp）の答え: ok は読んだ値の json.dumps(ensure_ascii=False)、error は断る言葉。版 3.104.0 の作った後の採点から: routes は道ごとの門（need・read・null）、unquote は百分率符号を戻した道（Python の urllib.parse.unquote）",
+ "about": "本文の読み方の事例（版 3.104.0）。仕様（RFC 8259・前の版の body_rules の決まり）から人が書いた答え。Python（前の版の試験 test_body_cases）と窓（cargo test --test body_cases）が同じ表を読む。raw は本文の字（UTF-8 で送る）・hex はバイト。want は門の引数ごと（read・need・lotdsp）の答え: ok は読んだ値の json.dumps(ensure_ascii=False)、error は断る言葉。版 3.104.0 の作った後の採点から: routes は道ごとの門（need・read・null）、unquote は百分率符号を戻した道（Python の urllib.parse.unquote）",
  "cases": [
   {
    "name": "空（0 バイト）",
