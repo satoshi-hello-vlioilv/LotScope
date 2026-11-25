@@ -120,6 +120,9 @@ try {
   const want5 = total(await ask(p, cond));
   const shown5 = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0], P("wipClass"));
   check(`⑤ 条件（製造材質 ＝ A1100）でサーバーと同じ総計（${want5}）に減る`, num(shown5) === want5 && want5 < wipTotal, { shown5, want5 });
+  // 版 3.120.0: 条件の札の字が全部見える（前は × の 20px の幅が札の本体にも当たり、字が切れた）
+  const chips5 = await p.$$eval("#dbEditor .df-chip .df-chipb", (xs) => xs.map((x) => ({ t: x.textContent, sw: x.scrollWidth, cw: x.clientWidth })));
+  check("⑤ 組む所の条件の札（製造材質）の字が全部見える", chips5.length > 0 && chips5.every((c) => c.sw <= c.cw + 1 && c.cw > 40), chips5);
   await p.click("[data-de-apply]"); await sleep(600);
   const applied = (await layout(p)).panels.find((x) => x.id === "wipClass");
   check("⑤ 当てると組みに入る（表・条件 1 つ）", applied.visual === "none" && applied.filters.length === 1, applied);

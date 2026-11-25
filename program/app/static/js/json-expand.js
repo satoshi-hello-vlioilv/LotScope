@@ -191,7 +191,7 @@
       + `<div class="jx-iss" role="status"><span class="jx-ok">✓ ${fmt(s.fit)} 行を ${fmt(made)} 行に分けます</span>`
       + (s.rows - s.fit ? `<span class="jx-mute">分けずに残す ${fmt(s.rows - s.fit)} 行（${[s.empty ? `空 ${fmt(s.empty)}` : "", s.broken ? `壊れ ${fmt(s.broken)}` : "", s.other ? `違う形 ${fmt(s.other)}` : ""].filter(Boolean).join(" · ")}）は足した列を空のまま 1 行で残し、合わせて ${fmt(s.out)} 行</span>` : "")
       + (s.text && VALUED.has(st.shape) ? `<span class="jx-mute">数でない値 ${fmt(s.text)} 個は字のまま（合計には入りません）</span>` : "")
-      + (bad ? `<span class="jx-ng">▲ ${fmt(bad)} 行は分けられません（${words}）<button type="button" class="jx-link" data-jx-issues aria-expanded="${st.show === "issues"}">${st.show === "issues" ? "閉じる" : "見る"}</button></span>` : "")
+      + (bad ? `<span class="jx-ng">▲ 分けずに残す ${fmt(s.rows - s.fit)} 行のうち ${fmt(bad)} 行は分けられません（${words}）<button type="button" class="jx-link" data-jx-issues aria-expanded="${st.show === "issues"}">${st.show === "issues" ? "閉じる" : "見る"}</button></span>` : "")
       + (bad && st.show === "issues" ? `<ul class="jx-issues">${issues}${bad > (pre.issues || []).length ? `<li class="jx-mute">ほか ${fmt(bad - (pre.issues || []).length)} 行（足した列は空のまま 1 行で残します）</li>` : ""}</ul>` : "")
       + (pre.renamed || []).map((r) => `<span class="jx-mute">「${esc(r.from)}」は元の表にもあるので「${esc(r.to)}」にします</span>`).join("")
       + "</div>";
@@ -207,7 +207,7 @@
     const pan = st.from === "dash" ? `<span class="jx-mute" title="作ると、組んでいるパネルのデータにします">このパネルで${KEYED.has(st.shape) ? "鍵ごとの値の合計" : "値の合計"}にします</span>`
       : `<label class="jx-ck${panelOk ? "" : " is-off"}"><input type="checkbox" data-jx-panel${st.panel && panelOk ? " checked" : ""}${panelOk ? "" : " disabled"}>新しいダッシュボードに「${esc(panelTitle())}」を作る</label>`;
     return `<div class="jx-fl"><span class="jx-out">できる表 <b>${esc(st.col ? tableName() : "")}</b>${out}${had ? '<small>（作ってある表の決まりを直します）</small>' : ""}</span>${pan}</div><span class="jx-sp"></span>`
-      + `<button type="button" class="btn-ghost" data-jx-close>やめる</button><button type="button" class="btn-primary" data-jx-make${can ? "" : " disabled"}>${st.busy ? "…" : st.from === "dash" ? "表を作ってパネルに使う" : had ? "表を直す" : "表を作る"}</button>`;
+      + `<button type="button" class="btn-ghost" data-jx-close>やめる</button><button type="button" class="btn-primary" data-jx-make${can ? "" : " disabled"}>${st.busy ? "…" : st.from === "dash" ? (had ? "表を直してパネルに使う" : "表を作ってパネルに使う") : had ? "表を直す" : "表を作る"}</button>`;
   }
   function paint() {
     const win = document.getElementById("jxWin"); if (!win || !st) return;

@@ -1432,11 +1432,13 @@
 
   /** JSON の列を分けた表から、鍵ごとの値の合計のパネルを、新しいダッシュボード（名前は分けた表の名前）に作って開く（版 3.120.0。js/json-expand.js の
       「新しいダッシュボードに…を作る」）。組み込みの標準・ほかのダッシュボードは書き換えない。同じ名前の自分のダッシュボードがあれば、それを作り直す → {ok, name} か {why} */
+  let lastMade = null;   // 最後に作ったダッシュボード（「見る」で来たときに、作った知らせを出し直す）
   async function addJsonPanel(v) {
     if (!S.layout) { await start(); }
     await Promise.all([loadSources(), loadList()]);
     const rows = v.shape === "dict" && v.keyCol ? [{ column: v.keyCol, part: "" }] : [];
-    const p = { id: "p1", x: 0, y: 0, w: Math.min(COLS, 8), h: 5, title: v.title, visual: rows.length ? "bar" : "kpi", source: v.source, equip: "", sort: rows.length ? "desc" : "", top: 0, basis: "work",
+    // パネルが 1 枚なので、全幅・全部の段に広げる（右と下を空けない）
+    const p = { id: "p1", x: 0, y: 0, w: COLS, h: 8, title: v.title, visual: rows.length ? "bar" : "kpi", source: v.source, equip: "", sort: rows.length ? "desc" : "", top: 0, basis: "work",
       body: { rows, cols: [], measures: [{ agg: "sum", column: v.valueCol }], grand: !rows.length, labels: true, chartAt: 0, sub: false },
       // 空の鍵（分けずに残した行）は数えない（「大きい順に n / m」の m に入れない）
       filters: rows.length ? [{ column: v.keyCol, op: "not_empty", value: "" }] : [], search: "", period: null };
@@ -1447,12 +1449,15 @@
     const r = had ? await writeLayout("PUT", had.id, { body, base_rev: had.rev }, `「${name}」を作り直しました`)
       : await writeLayout("POST", null, { name, scope: "me", standard: false, body }, `ダッシュボード「${name}」を作りました`);
     if (r.error) return { why: r.error };
+    lastMade = { name, at: Date.now() };
     return { ok: true, name, id: p.id };
   }
   /** 題で探したパネルを選んで見える所へ（足したパネルの「見る」） */
   function focusPanelTitled(title) {
     const p = S.layout && [...S.layout.panels].reverse().find((x) => x.title === title); if (!p) return;
     S.sel = p.id; paint();
+    // 作った知らせ（say は 6 秒で消える）は、「見る」で来たときに出し直す（窓の大きさ・作るのにかかった秒によらず出る）
+    if (lastMade && Date.now() - lastMade.at < 10 * 60 * 1000) say(`ダッシュボード「${lastMade.name}」を作りました`);
     const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(p.id)}"]`);
     if (el) { el.scrollIntoView({ block: "nearest" }); el.focus({ preventScroll: true }); }
   }

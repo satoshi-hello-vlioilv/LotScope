@@ -106,6 +106,8 @@ try {
   // 4. 合わない行・設備マスタに無い鍵
   await p.click("#jxWin [data-jx-issues]"); await sleep(250);
   const iss = await p.$$eval("#jxWin .jx-issues li", (xs) => xs.map((x) => x.textContent));
+  const ng = await p.$eval("#jxWin .jx-ng", (x) => x.textContent);
+  check("「▲ 分けずに残す k 行のうち n 行は分けられません」（内訳と分かる言い方）", ng.includes(`分けずに残す ${fmt(T.rows - T.fit)} 行のうち ${fmt(T.broken + T.other)} 行は分けられません`), ng);
   check("合わない行の「見る」で例が出る（閉じていない・② 値の並びです）", iss.some((x) => x.includes("閉じていない")) && iss.some((x) => x.includes("② 値の並びです")), iss);
   const miss = (pre.keyMaster || {}).missing || [];
   check("設備マスタに無い鍵に CR1 がある", miss.some((m) => m.key === "CR1"), pre.keyMaster);
@@ -150,6 +152,9 @@ try {
       note: el ? (el.querySelector(".db-pb") || el).textContent : "", dash: s.id };
   });
   const D = await sumsOf(p);
+  const lay = await p.evaluate(() => { const s = Dashboard._state(); const x = s.layout.panels[0] || {}; return { n: s.layout.panels.length, w: x.w, h: x.h, rows: s.layout.rows, msg: (document.querySelector("#dashBar .db-msg") || {}).textContent || "" }; });
+  check("作ったダッシュボードのパネル 1 枚は全幅・全部の段（右と下が空かない）", lay.n === 1 && lay.w === 12 && lay.h === lay.rows, lay);
+  check("「見る」で来たとき、見出しの横に「ダッシュボード『仕掛 › 設備別通過回数』を作りました」", lay.msg.includes("ダッシュボード「仕掛 › 設備別通過回数」を作りました"), lay);
   const keys = Object.keys(T.sums).sort(), dk = D ? Object.keys(D.sums).sort() : [];
   check("ダッシュボードに足したパネル（設備ごとの通過回数の合計）があり、データは分けた表", D && D.seen && D.source === `src:${made1.key}`, D);
   check(`パネルの設備ごとの合計が、独立に数えた合計と同じ（${keys.length} 設備）`, D && JSON.stringify(dk) === JSON.stringify(keys) && keys.every((k) => near(D.sums[k], T.sums[k])), { D: D && D.sums, T: T.sums });
@@ -169,10 +174,12 @@ try {
     marks: [...document.querySelectorAll("#deFields .pv-f")].filter((x) => x.querySelector(".de-jxmark")).map((x) => x.querySelector("b").textContent) }));
   check("組む所のカラムの欄に入口「{ } JSON の列 5」", de.entry.includes("JSON の列 5"), de);
   check("組む所の札に「› 設備」「› 通過回数」", de.marks.includes("›設備") && de.marks.includes("›通過回数"), de);
+  const chips = await p.$$eval("#dbEditor .df-chip .df-chipb", (xs) => xs.map((x) => ({ t: x.textContent, sw: x.scrollWidth, cw: x.clientWidth })));
+  check("組む所の条件の札（設備 が空欄でない）の字が全部見える", chips.length > 0 && chips.some((c) => /空欄でない/.test(c.t)) && chips.every((c) => c.sw <= c.cw + 1), chips);
   await p.click("#deFields [data-de-json]"); await p.waitForSelector("#jxWin .jx-prev", { timeout: 30000 }); await sleep(300);
   const fromDash = await p.evaluate(() => { const sm = document.querySelector("#jxWin .jx-out small"); return { base: (document.querySelector("#jxWin .jx-bases .is-on") || {}).textContent, make: (document.querySelector("#jxWin [data-jx-make]") || {}).textContent, small: sm ? parseFloat(getComputedStyle(sm).fontSize) : 99 }; });
   check("「（作ってある表の決まりを直します）」の字が 12px 以上", fromDash.small >= 12, fromDash);
-  check("組む所の入口から同じ窓が、組んでいるデータ（仕掛）を選んで開く", fromDash.base === "仕掛" && /パネルに使う/.test(fromDash.make), fromDash);
+  check("組む所の入口から同じ窓が、組んでいるデータ（仕掛）を選んで開き、作ってある表は「表を直してパネルに使う」", fromDash.base === "仕掛" && fromDash.make === "表を直してパネルに使う", fromDash);
   await p.keyboard.press("Escape"); await sleep(200);
   await p.close();
 
