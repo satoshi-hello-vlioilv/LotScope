@@ -29,7 +29,7 @@ import { launch, sleep, waitDash, PROGRAM, CAP_LAYOUT, STATES } from "./ui-harne
 const OUT = path.resolve(process.argv[2] || path.join(os.tmpdir(), "ui-eval-capacity"));
 fs.mkdirSync(OUT, { recursive: true });
 const VIEWS = [{ width: 1728, height: 1152 }, { width: 1536, height: 864 }, { width: 1280, height: 720 }];
-const NOW = "2026-10-03 10:00:00";      // 開発用サーバーの「いま」（ui_server の DASHBOARD_NOW: 試験データの翌日の 10 時）
+const NOW = "2026-10-03 10:00:00";      // 開発用サーバーの「いま」（開発用サーバーの場面の DASHBOARD_NOW〈ui_window_scene.py の NOW・ui_server.py〉: 試験データの翌日の 10 時）
 let bad = 0, ok = 0;
 const check = (cond, what) => { if (cond) ok++; else { bad++; console.log(`NG ${what}`); } };
 const near = (a, b, tol = 1e-6) => (a == null || b == null ? a == null && b == null : Math.abs(a - b) <= tol * Math.max(1, Math.abs(b)));

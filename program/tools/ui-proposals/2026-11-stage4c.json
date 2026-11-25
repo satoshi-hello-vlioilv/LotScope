@@ -831,5 +831,100 @@
     "起動の初期値（Python の開発用サーバーと同じく当てない）"
    ]
   }
+ },
+ "built_score": {
+  "name": "作った後（版 3.118.2）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/b31182/px（作った係の撮った物）と scratchpad/eval（切り出し・字の取り出し）",
+  "evaluator": "作った係ではない別のエージェント（2026-11-24）。差分 28 ファイルを読み、自分で流した: cargo test --lib shell（4 本 ok）・node ui-eval-xss.mjs（窓で OK・11.6 秒・後に /tmp/tpa-ui-* は 39 のまま）・ui-eval-xss を 6 秒後に SIGTERM/SIGINT/SIGKILL で止めて後始末を見た・ui-eval-dashwait.mjs を既定（窓）で単独に流した（exit 1・NG 52/176）・ui_serve を空の作業フォルダで起こして curl（/favicon.ico・/api/shutdown・Origin・chunked）・両相手（TPA_UI_SERVER=window/python）でダッシュボードを開き TIME_MASK の要素の字を取った・作った係の画素の記録（b31182/px の py-win-*.json・py-py.json）を読み、違いの大きい 4 枚（dash-series・master-presence・master-sources・pydown-fold）を PIL で切り出して自分で見た。check-all（b31182/check1/summary.txt）は全段 0 を確かめた（流し直していない）",
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 7,
+    "effortless": 5,
+    "intuitive": 6,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "px/py-win-1728.json の pydown-fold-light（違いの囲み 2080×1387・全面）を名前だけで許した。切り出し eval/pydown.png: Python は見出しの札「中身停止」、窓は「待機中」＝撮るはずの状態が窓で出ていない。検索欄の焦点の輪の違いも同じ許しに隠れた"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "ui-harness.mjs の TIME_MASK（.db-psub・.dp-kmeta・.db-meta）: 両相手のダッシュボードで字を取ると .db-psub は「実績・全設備　前日 10/2（現場歴）」、.db-meta は「…設備なし 13…」。時計でない期間・件数まで 0 にして灰で塗るので、相手の違いが画素の比べに出ない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "ui-diff.mjs の --allow は画像の名前だけで許す（囲み・画素の上限なし）。理由の表は scratchpad の px/allow.json だけで、リポジトリの 2026-11-stage4c.json は built_3118_2.pixels.allow の入れ子（ui-diff にそのまま渡せない）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "node program/tools/ui-eval-dashwait.mjs を単独で流すと既定の窓に当たり NG 52/176・exit 1。Python の相手が要ると道具も CLAUDE.md の行も言わない（ui-all の PYTHON_ONLY だけが知る）"
+    }
+   ],
+   "seen": "良い所: 製品の答えは変わっていない（main.rs の native は window_reads〈favicon・/__desktop/info〉→ /__desktop/* と終了・更新 → shell::answer の順で、移した中身は 1 字ずつ同じ。lot_for は Lot::new → delegate::set_dir → set_program → Builder → retired → set_bundle の前と同じ順。門番は製品が guard → lot.access_check、ui_serve が shell::refuse → lot.access_check で同じ）。焼いた本の元 6 ファイルは差分に無い・新しい台本 2 本は app を import しない。ui_serve は std だけで cfg(windows) の分かれが無く Windows でも組める。後始末は例外・SIGINT・SIGTERM で子も作業フォルダも残らない（自分で確かめた）。ui-all は本ごとにプロセスの組で止める。足りない所: 画素の比べが「理由のない違い 0」を名前だけの許しと時計でない字の伏せで出している・pydown-fold が窓で撮れていない・dashwait の単独の流しが黙って落ちる・ui_serve が favicon を製品と違う 503 で答える。"
+  },
+  "cracks": {
+   "C1": "（中）違いを許すのが画像の名前単位で、囲み・画素数の上限が無い。全面が違う pydown-fold-light（2080×1387）や master-presence-light（19,334 画素）も 1 行の理由で丸ごと許すので、同じ画像の別の所に出た本物の違いを隠す。理由の表もリポジトリに置かれておらず（px/allow.json は scratchpad）、ui-diff に渡せる形で再現できない",
+   "C2": "（中）窓の相手では pydown-fold の状態（中身停止を畳んだ形）が撮れない。窓の心拍が absent を答え、作り物の「中身停止」を次の心拍で「待機中」に戻すため。ui-check の pydown-fold-light は狙いと違う絵で、ui-eval-narrow の pydown-fold も同じ状態を見ていない恐れ。採点 F12 の「作り物のまま残す」は作り物が効いていて初めて成り立つ",
+   "C3": "（中）「時計の字」として伏せる要素に時計でない字が入る: .db-psub（元・設備・期間・条件の数）・.dp-kmeta（期間・目標の値）・.db-meta（設備なしの数）。数字を 0 にしてから灰で塗るので、窓と Python の期間・件数・目標の違いは画素の比べに出ない。「Python と窓の違いは理由の表の物だけ」の確かめの範囲が狭い",
+   "C4": "（中低）既定の相手が窓になったので、dashwait を単独で流すと遅くする口（TPA_UI_SLOW_FILE）が効かず黙って落ちる。道具の中に相手の確かめも案内も無い。ui-all の PYTHON_ONLY だけが Python の相手にする",
+   "C5": "（低中）ui_serve は製品の振り分けの前段 window_reads を通らない。/favicon.ico に製品は 404（small_reads::favicon・数えない）、ui_serve は 503 window_unanswered で答えて「unanswered GET /favicon.ico」を数える。shell.rs の「順は製品の振り分けと同じ」と食い違う（Chromium は頁ごとに favicon を尋ねる）",
+   "C6": "（低）製品は lot.leave()（いま使っているの印を消す・記録を書き切る）を呼ぶが、ui_serve は 200 を返すだけ。計画（ff4「200 で終わる」）から「続ける」に変えたのは記録済みだが、leave を呼ばないことは書いていない。終了を押した後の利用状況の画面が製品と違う",
+   "C7": "（低）満たしていない: Python 同士で 8 枚が違う（データ元の表のスケジュールの場所の字 127.0.0.1:ポート・46×13px と、かかった時間）。伏せずに理由の表で許した。計画の check の言葉と結果が食い違うのを built_3118_2 は「許す」で済ませている",
+   "C8": "（低）MASK のときの作業フォルダは決めた名前 os.tmpdir()/tpa-ui-mask で、始めに rmSync する。ui-all.mjs（既定 --jobs 3）を TPA_UI_MASK=1 で流すと、並んだ本どうしが相手の作業フォルダを消す。ui-all は TMPDIR を本ごとに分けない（作った係は手で unshare して避けた）",
+   "C9": "（低）「Python を起こす所は TPA_UI_SERVER=python の枝 1 か所」（ff6 の check・⑤ の入口）に対し、harness の中で SERVER の分かれが 3 か所、ui-all が TPA_UI_SERVER を別に読む。⑤ で消すときの拾い漏れの種",
+   "C10": "（低）node を SIGKILL すると作業フォルダ tpa-ui-* が残る（子の台本と ui_serve は標準入力が閉じて止まる）。例外・SIGINT・SIGTERM では残らない",
+   "C11": "（低）言葉が前のまま: 「ui_server.py の TPA_UI_WORK_STALE／TPA_UI_BAD_ROWS」「開発用サーバー（ui_server.py）」。版 3.118.2 から既定の相手は窓の台本 ui_window_scene.py が同じ環境変数を読む",
+   "C12": "（低）計画の ff2 の check（移す前の main の答えと同じ status・Content-Type・X-TPA-By）のうち、比べるのは status と Content-Type だけで、移す前の答え（本文）とも X-TPA-By とも比べていない。読みでは同じ（移した中身は字のまま）だが、試験では守られていない",
+   "C13": "（低）Transfer-Encoding: chunked の本文を読まず Content-Length 0 として扱う（本文の欠けた 400 になる）・表に無い状態（422 など）は理由句が空。いまの道具は Content-Length で送るので害は無い"
+  },
+  "ff": {
+   "1": "満たした（6 ファイルは差分に無い・新しい 2 本は app を import しない）",
+   "2": "満たした（製品の答えは変わらない）。ただし ui_serve は window_reads を通らない（C5）・試験は status と Content-Type だけ（C12）",
+   "3": "満たした（lot_for の順は前と同じ・控えの置き場の試験あり）",
+   "4": "満たした（計画からの変更 /api/shutdown は記録済み。leave を呼ばない C6）",
+   "5": "満たした（権限の行は base/data の list に 1 行。共有の形では窓が最初の読みで写すので、窓を起こす前に書くのが要。登録 5 種は書く道）",
+   "6": "おおむね満たした（後始末は例外・INT・TERM で残らない。KILL で残る C10・分かれが 3 か所 C9）",
+   "7": "満たした",
+   "8": "満たした（ui-all.mjs）。MASK と並べた流しがぶつかる C8",
+   "9": "3.118.3 へ（計画どおり）。単独の dashwait が黙って落ちる C4",
+   "10": "形はできたが確かめが緩い（C1・C2・C3・C7）",
+   "11": "満たした（計画書の ⑤ の一覧と入口）",
+   "12": "満たした（CLAUDE.md）。道具の頭の言葉が前のまま C11"
+  },
+  "fixed": "直した事は \"built_fixed\"（このファイルの次の節）"
+ },
+ "built_fixed": {
+  "about": "作った後の採点（53.2 点・1 回）の割れ C1〜C13 の直し（決まり 2026-11-06: 割れを全部直し、その形を試験に足して通ったら終わり。採点し直さない）。版は 3.118.2 のまま（更新履歴は app_build.py --release --amend）。製品の答えは替えない（favicon は同じ答えのまま lib へ移した）。焼いた本の元 6 ファイルは変えない",
+  "cracks": {
+   "C1": "直した: ui-diff.mjs --allow は画像の大きさごとの {名前: {why, boxes: [[x, y, 幅, 高さ]…], max}}（名前だけ・囲みの無い許しは形の誤りで止める）。違う画素が全部囲みの中で max 以下のときだけ「許す」、囲みの外の 1 画素・上限超えは「違う」（許しの外: 囲みの外に n 画素／囲みの中が n 画素）。表はリポジトリの program/tools/ui-diff-allow/2026-11-stage4c.json（3 つの大きさ × 26 枚。囲みは違う画素のまとまりに 6px の余白・max は数の 1.25 倍＋20）。--tol n（色の差 n 以下を同じ。窓と Python は 8: 絵の縁のにじみ）。確かめ: 表から囲みを 1 つ抜く・max を 10 にすると「許しの外」で unexplained 2・名前だけの表は Error。pydown-fold の全面の許しは無くなった（C2 で 0 画素）",
+   "C2": "直した: PYDOWN_STEPS の pydown で /api/heartbeat の答えに python {state: stopped} を添える（Playwright の route・撮り終わるまで）。pydown-fold は 3.5 秒（心拍 1 回）待ってから見出しの札が「中身停止」かを確かめ、違えば止める。確かめ: px7 で pydown・pydown-fold が窓と Python で 3 つの大きさとも 0 画素（前は窓が「待機中」）・検索欄の焦点の輪の違いも出ない。ui-eval-narrow の pydown-fold も同じ PYDOWN_STEPS",
+   "C3": "直した: TIME_MASK（要素ごと）をやめ TIME_TEXT（要素の中の時刻の字だけを span.tpa-mask で包み、数字を 0 にして伏せる）。対象: #llFresh・#llStale・.db-when・.db-meta・.sr-state small の中の時刻、.sd-meta の取得の時刻、集計の n ms、起動画面の経過の秒、ダッシュボードの待ちの秒、作り物の予定の元のポート。.db-psub・.dp-kmeta（期間・件数・目標）と .db-meta の「設備なし 13」は伏せない。頁が書き直しても MutationObserver が描く前に当て直す（前は #llFresh・#elapsed が撮る前に戻った）",
+   "C4": "直した（自分で Python を選ぶ形）: 相手の決めを harness の PYTHON_ONLY と serverFor に。ui-eval-dashwait.mjs を単独で流すと「Python の開発用サーバーで流します（理由）」と 1 行で言って Python を相手にし、TPA_UI_SERVER=window なら流さずに止める。理由: 遅くする口を窓へ置くのは 3.118.3 の計画（feature testing の下）で、この版は道具が黙って落ちないことを直す。CLAUDE.md の dashwait の行と道具の頭にも書いた",
+   "C5": "直した: 窓の絵（/favicon.ico）を main.rs の window_reads から lib の shell::answer の頭へ移した（製品の答えは同じ 404 の画面・\"shell\"・数えない）。開発用サーバーは lib の shell::dev_route を通るので同じ答え。試験: shell::tests::the_dev_route_answers_the_favicon_and_leaves_on_shutdown・main.rs の the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info（本物の Lot で）・the_dev_server_route_answers_like_the_product_router",
+   "C6": "直した: dev_route の POST /api/shutdown は Lot::leave（いま使っているの印を消し記録を書き切る）の後に 200（待ち受けは続ける）。試験: 心拍で置かれた印が終了で消える（leave を外す変異で落ちた）",
+   "C7": "直した: 作り物の予定の元のポート（127.0.0.1:n）と集計の n ms・ダッシュボードの待ちの秒・スケジュールの取得の時刻を TIME_TEXT で伏せ、ダッシュボードの道具の行の 6 秒で消える一言は消えるのを待って撮る（7 秒まで）・マスタ管理のタブは選ばれたまま 1 秒残るまで押し直す（窓も Python も 1 度ずつ「設備マスタ」のまま撮れた）。結果（px7・--tol 8）: Python 同士は 1728・1280 で 128 枚とも 0 画素、1536 は利用状況の使った時間（「1 回・2 分」）の 1 枚だけで、許しの表で許す",
+   "C8": "直した: TPA_UI_MASK=1 でも作業フォルダは乱数の名前（tpa-ui-mask の決めた名前と rmSync をやめた）。画面に出る作業フォルダの字（字・入力欄の値・薄い見本の字・「参照…」のパンくずの名前だけの段）を shot が /tmp/tpa-ui-mask・tpa-ui-mask に差し替える。並べて撮れる（px2〜px7 は 3 本ずつ並べて撮った。unshare 無し）",
+   "C9": "直した: Python を起こすのは harness の startPython の 1 つ・窓は startWindow・startServer の分かれは 1 行。相手の決めは PYTHON_ONLY と serverFor の 1 か所で、ui-all.mjs は harness から import する（ui-all の PYTHON_ONLY と TPA_UI_SERVER の読みを消した）",
+   "C10": "直した: 場面の台本 ui_window_scene.py の serve の finally で、窓と CM3 を止めた後に作業フォルダを消す（node が SIGKILL でも標準入力が閉じてここへ来る）。Python の形（ui_server.py は変えない）は、harness が作業フォルダの横に持ち主の印（作業フォルダ.owner に PID）を置き、次に起こすとき sweepStale が持ち主の居ない物を消す（印の無い物には触れない）。確かめ: ui-eval-xss を 8 秒で kill -KILL → 窓の形は作業フォルダが消え .owner だけ残り、次の起動で消えた。Python の形も次の起動で作業フォルダごと消えた",
+   "C11": "直した: ui-eval-numwarn・ui-eval-skiprows・ui-eval-dashwait・ui-eval-capacity の頭の言葉を「開発用サーバーの場面〈既定の窓は tests/ui_window_scene.py・TPA_UI_SERVER=python は ui_server.py〉」に。CLAUDE.md の numwarn・skiprows・dashwait の行も",
+   "C12": "直した: main.rs の native の最後を lot_answer に出し、bin の試験 the_dev_server_route_answers_like_the_product_router が製品の本物の振り分け（Router::handle を native〈window_reads → lot_answer〉・製品の門番 guard・中身なしで）と開発用サーバーの shell::dev_route（ui_serve が X-TPA-By: shell を足す）を 23 の道（窓の絵 GET・HEAD・版・更新履歴・生きているか〈engine=python も〉・心拍・画面 GET・HEAD・engine=python・調べる道具・権限の 2 本・データ元・config・画面の控えの書く・読む・静的ファイル・static の外・知らない道・%2F の道・門番の書く道 2）で、状態・見出し全部・本文・X-TPA-By まで突き合わせる（画面の nonce と作業場所の道だけ伏せる）。移していない部品の答え（small_reads::favicon・reply・health・window_unanswered）とも比べる",
+   "C13": "直した: ui_serve は Transfer-Encoding（identity 以外）の本文を 411 Length Required・kind length_required で断る（振り分けへ渡さない）。理由句の表に 405・411・412・422・423・428・429・502・504（無ければ \"Status\"）。試験は example の tests（Cargo.toml の [[example]] ui_serve test = true で cargo test が流す）: chunked_bodies_are_refused_with_411_and_lengths_are_read"
+  },
+  "tests_added": [
+   "cargo test --lib shell::tests::the_dev_route_answers_the_favicon_and_leaves_on_shutdown",
+   "cargo test --bin LotScope the_dev_server_route_answers_like_the_product_router",
+   "cargo test --example ui_serve chunked_bodies_are_refused_with_411_and_lengths_are_read",
+   "node program/tools/ui-diff.mjs … --allow program/tools/ui-diff-allow/2026-11-stage4c.json --tol 8（3 つの大きさで理由のない違い 0）",
+   "ui-check の pydown-fold の札の確かめ（PYDOWN_STEPS）"
+  ],
+  "ui_all": "窓の相手で 73 本（直した harness・22.3 分・--jobs 3）: 71 本が終了コード 0。落ちた 2 本（ui-eval-dashwait〈Python の相手〉の 1280 の「字の要素を作り直さない」1 件・ui-eval-virtual のまとめの見出しの 0.5 の位置）は並べて流した時の速さの揺れで、1 本ずつ流し直して 2 本とも 0（dashwait 176 件・virtual 17 件）。dashwait を単独で流すと Python を選ぶ 1 行を出して通り、TPA_UI_SERVER=window では止まる。流した後に /tmp/tpa-ui-* は 0。記録は scratchpad/b31182/win-fix・win-fix2"
  }
 }

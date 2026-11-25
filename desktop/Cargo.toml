@@ -16,6 +16,12 @@ path = "src/lib.rs"
 name = "LotScope"
 path = "src/main.rs"
 
+# 窓の開発用サーバー（版 3.118.2。撮る・採点する道具の相手）。cargo test でその試験〈本文の読み方〉も流す（作った後の採点の割れ C13）
+[[example]]
+name = "ui_serve"
+path = "examples/ui_serve.rs"
+test = true
+
 [features]
 # 起動画面を exe に埋め込む本番の形。外すと Tauri の開発の形になる
 default = ["custom-protocol"]

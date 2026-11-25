@@ -3295,7 +3295,7 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
   （calc はあり・engine は無い）」
 - **流す台本**: `program/tools/ui-all.mjs 出力 [--server window|python] [--jobs 3] [--base 基準]`（本ごとの終了コード・秒・OK／NG の行を results.json と table.md に。
   窓の表でも Python の相手で流す本は `PYTHON_ONLY`〈dashwait〉）。画素の比べは `program/tools/ui-diff.mjs`（Chromium の canvas）と、ui-check の
-  `TPA_UI_MASK=1`（時計の字の要素〈harness の TIME_MASK〉を伏せ、動く絵を止める）
+  `TPA_UI_MASK=1`（時計の字〈harness の TIME_TEXT。作った後の直しで要素ごとから時刻などの字だけへ〉を伏せ、動く絵を止める）
 - **3.118.3 へ送った物**: 遅くする口（TPA_UI_SLOW_FILE の open・ops・only・nocache・copy）を feature testing の下に置き、ui-eval-dashwait.mjs を窓で。
   check-all の任意の段 --ui（ui-check の list・dash と ui-eval-xss・ui-eval-narrow。窓が相手）
 - **⑤ まで作り物のまま**（採点 F12）: 中身（Python）の様子を作り物にする本（ui-eval-pydown の tpa:python の知らせ・dashwait の段 python）は、⑤ で画面の #pyBar／#pyPill と
@@ -3310,6 +3310,25 @@ info の頭に比べた物（[形]・[道どうし]・[場面]・[決めた答�
 - **画素の比べ**（TPA_UI_MASK=1・ui-check の 128 枚）: Python 同士で 120 枚が 0 画素（8 枚は作り物の CM3 のポート・かかった時間の字）。Python と窓は
   1728 で 97・1536 で 101・1280 で 102 枚が 0 画素、残りは理由の表の物だけ（権限の表の 1 行・データ元の表の写しの状態と CM3 のポート・利用状況の置き場の道・
   中身の様子の作り物・撮る時の速さ〈元データの札の言葉・消える案内・かかった時間〉）。理由のない違いは 0
+
+#### 作った後の採点（1 回・C1〜C13）の割れの直し（採点のファイルの built_fixed）
+
+- **画素の比べの許しを囲みと上限つきに**（C1）: `ui-diff.mjs --allow` は画像の大きさごとの {名前: {why, boxes, max}}。囲みの外の 1 画素・上限を超えた数は「違う」。
+  表は `program/tools/ui-diff-allow/2026-11-stage4c.json`（リポジトリ）。`--tol 2` で図の縁のにじみ（色の差 1〜2）を同じに数える
+- **pydown-fold を窓で撮る**（C2）: PYDOWN_STEPS が心拍の答えにも「止まっている」を添え（route）、見出しの札が「中身停止」かを確かめてから撮る
+- **伏せるのは時刻の字だけ**（C3・C7）: TIME_TEXT（件数の行・ダッシュボードの道具の行と元・データ元の表の中の時刻の字、作り物の予定の元のポート、
+  集計のかかった ms、起動画面の経過の秒）を span で包んで伏せる。期間・件数・目標・元の名前は伏せない。頁が書き直しても MutationObserver が当て直す
+- **作業フォルダ**（C8・C10）: TPA_UI_MASK=1 でも乱数の名前（画面の作業フォルダの字を /tmp/tpa-ui-mask に差し替える）で、並べて撮れる。
+  場面の台本が終わるときに作業フォルダを消し、Python の形は持ち主の印（作業フォルダ.owner）で次に起こすときに消す
+- **相手を決める 1 か所**（C4・C9）: harness の PYTHON_ONLY・serverFor・startPython（Python を起こすのはここだけ）。dashwait は単独でも Python を選んで 1 行で言い、
+  TPA_UI_SERVER=window なら止める。ui-all は harness を import する
+- **開発用サーバーの振り分けを lib に**（C5・C6・C12・C13）: `shell::dev_route`（/__desktop/* は 404・終了は Lot::leave の後に 200・窓の絵は製品と同じ 404〈shell::answer へ移した〉）。
+  ui_serve は Transfer-Encoding の本文を 411 で断る。試験は `shell::tests::the_dev_route_answers_the_favicon_and_leaves_on_shutdown`・
+  main.rs の `the_dev_server_route_answers_like_the_product_router`（製品の Router::handle と 23 の道で状態・見出し・本文・X-TPA-By）・
+  `cargo test --example ui_serve`（chunked の 411）
+- 結果: 画素の比べ（TPA_UI_MASK=1・ui-check の 128 枚・`--tol 8`・Python 2 回と窓 1 回を 3 本並べて撮った）: Python 同士は 1728・1280 で 128 枚とも 0 画素、
+  1536 は利用状況の使った時間の 1 枚（許しの表で許す）。Python と窓は 3 つの大きさとも 102 枚が 0 画素・26 枚は全部許しの表の囲みの中で上限以下（理由のない違い 0。
+  pydown・pydown-fold は 0 画素）。ui-all の窓の表は 73 本中 71 本が 0・落ちた 2 本（dashwait・virtual）は並べた速さの揺れで、1 本ずつ流し直して 0
 
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）

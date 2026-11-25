@@ -69,6 +69,11 @@ fn engine_python(query: &str) -> bool {
 /// Lot が答える道（版 3.118.2 に main.rs の native から移した。振る舞いは前のまま）。None はほかへ回す（/static/・門番・window_unanswered）
 pub fn answer(lot: &Lot, req: &Req, ctx: &Ctx) -> Option<Reply> {
     match (req.method, req.path) {
+        // 窓の絵（版 3.118.1。版 3.118.2 の作った後の採点の割れ C5 で main.rs の window_reads からここへ）: WebView2・Chromium が頁ごとに
+        // 自分で尋ねる。版 3.117.3 の Python と同じ 404 の画面で答える（窓が答えなかった数に入れない）。開発用サーバーも同じ答え
+        (method @ ("GET" | "HEAD"), "/favicon.ico") => {
+            crate::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
+        }
         // 版と更新履歴（版 3.88.0。src/small_reads.rs）: Python の準備を待たずに答える。?engine=python・焼いた更新履歴の版が中身と
         // 違う・無いときは Python に任せる
         (method @ ("GET" | "HEAD"), path @ ("/api/build" | "/api/changelog")) => {
@@ -129,6 +134,28 @@ pub fn answer(lot: &Lot, req: &Req, ctx: &Ctx) -> Option<Reply> {
         ("GET", "/api/sources") => lot.sources_list(req.query).map(|(status, v)| Reply { status, ..json_reply(&v) }),
         (method, path) => lot.handle_body(method, path, req.query, req.body).map(|(status, v)| Reply { status, ..json_reply(&v) }),
     }
+}
+
+/// 開発用サーバー（examples/ui_serve.rs。撮る・採点する道具の相手）の振り分け（版 3.118.2 の作った後の採点の割れ C5・C6・C12 で
+/// example から lib へ。試験〈下の tests と main.rs の bin の試験〉が製品の振り分けと突き合わせる）。製品の native の頭と同じ順:
+/// 窓そのもの（Tauri）だけが答える /__desktop/* は 404（撮る台本が Playwright で作り物を返す）・POST /api/shutdown は使い終わり
+/// （Lot::leave: いま使っているの印を消し、記録を書き切る。製品と同じ）の後に 200 で答え、待ち受けは続ける（撮る道具が「終了」を押しても
+/// 次の頁を開ける）→ answer（窓の係。窓の絵も）→ /static/ → refuse（門番 → window_unanswered）。答えた係はいつも "shell"（X-TPA-By）
+pub fn dev_route(lot: &Lot, req: &Req, ctx: &Ctx, static_dir: &Path) -> Reply {
+    if req.path.starts_with("/__desktop/") {
+        return error_reply(404, "not_found", "開発用サーバーは窓の操作に答えません。");
+    }
+    if (req.method, req.path) == ("POST", "/api/shutdown") {
+        lot.leave();
+        return json_reply(&json!({"ok": true}));
+    }
+    if let Some(r) = answer(lot, req, ctx) {
+        return r;
+    }
+    if let (true, Some(rest)) = (req.method == "GET" || req.method == "HEAD", req.path.strip_prefix("/static/")) {
+        return static_file(static_dir, rest, req.query);
+    }
+    refuse(lot, req)
 }
 
 /// 窓の係も /static/ も答えなかった道（中身を起こさない形）: 門番（Lot::access_check。百分率符号を戻した道で見る）を通してから、
@@ -350,6 +377,69 @@ mod tests {
         assert!(work.join("local").join("ui_state.json").exists(), "控えは Env.local の下");
         let page = String::from_utf8(ask("GET", "/", "", b"").unwrap().body).unwrap();
         assert!(page.contains("tpa.shell.v1"), "画面の TPA_UI_STATE に載る");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// 版 3.118.2 の作った後の採点の割れ C5・C6: 開発用サーバーの振り分け（dev_route）は、窓の絵を製品と同じ 404 の画面で答えて
+    /// 窓が答えなかった数に入れず、POST /api/shutdown で使い終わり（Lot::leave: いま使っているの印を消す）をしてから 200 で答え、
+    /// /__desktop/* は 404（撮る台本の作り物が答える）
+    #[test]
+    fn the_dev_route_answers_the_favicon_and_leaves_on_shutdown() {
+        let work = std::env::temp_dir().join(format!("da-shell-dev-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        for d in [work.join("local"), work.join("base").join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let program = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": ""}}).to_string()).unwrap();
+        let env = Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
+        let (lot, _) = lot_for(env, &program);
+        let python_now = PythonNow::absent;
+        let log = |_: &str| {};
+        let ctx = Ctx { program: &program, python_now: &python_now, absent: true, log: &log };
+        let sd = crate::page::static_dir(&program);
+        let go = |method: &str, path: &str| dev_route(&lot, &Req { method, path, query: "", body: b"{}" }, &ctx, &sd);
+        let icon = go("GET", "/favicon.ico");
+        assert_eq!(
+            (icon.status, icon.body),
+            (404, crate::small_reads::favicon("GET", "/favicon.ico").unwrap().1),
+            "窓の絵は製品と同じ画面"
+        );
+        assert!(!crate::delegate::unanswered_map().as_object().unwrap().keys().any(|k| k.contains("favicon")), "窓の絵は数えない");
+        assert_eq!(go("GET", "/__desktop/install").status, 404);
+        // いま使っているの印（利用状況の置き場の <鍵>.json）が心拍で置かれ、終了で消える
+        let marks = || -> Vec<std::path::PathBuf> {
+            let mut out = vec![];
+            let mut stack = vec![work.clone()];
+            while let Some(d) = stack.pop() {
+                for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                    let p = e.path();
+                    if p.is_dir() {
+                        stack.push(p);
+                    } else if p.parent().is_some_and(|d| d.ends_with("presence")) && p.extension().is_some_and(|x| x == "json") {
+                        out.push(p);
+                    }
+                }
+            }
+            out
+        };
+        assert_eq!(go("POST", "/api/heartbeat").status, 200);
+        // 利用状況は裏の糸が書く（版 3.71.0）
+        let t = Instant::now();
+        while marks().is_empty() && t.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let before = marks();
+        assert!(
+            !before.is_empty(),
+            "心拍でいま使っているの印: {:?}",
+            std::fs::read_dir(work.join("local")).map(|d| d.flatten().map(|e| e.path()).collect::<Vec<_>>())
+        );
+        let bye = go("POST", "/api/shutdown");
+        assert_eq!((bye.status, serde_json::from_slice::<serde_json::Value>(&bye.body).unwrap()), (200, json!({"ok": true})));
+        let gone: Vec<_> = before.iter().filter(|p| !p.exists()).collect();
+        assert!(!gone.is_empty(), "終了で印を消す（使い終わり）: 前 {before:?} 後 {:?}", marks());
         let _ = std::fs::remove_dir_all(&work);
     }
 

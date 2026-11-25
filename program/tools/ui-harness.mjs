@@ -157,8 +157,23 @@ export async function launch() {
   };
 }
 
-/** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す） */
-export const SERVER = process.env.TPA_UI_SERVER === "python" ? "python" : "window";
+/** 窓にまだ無い口を使う本 → 理由（版 3.118.2 の作った後の採点の割れ C4・C9: 相手を決めるのはこの表と serverFor の 1 か所。ui-all.mjs も
+    ここを読む）。この本は既定で Python の相手で流す（版 3.118.3 で窓へ） */
+export const PYTHON_ONLY = {
+  "ui-eval-dashwait.mjs": "遅くする口（TPA_UI_SLOW_FILE）が窓にまだ無い（版 3.118.3 で feature testing の下に置く）",
+};
+/** 開発用サーバーの相手（版 3.118.2）: "window"（既定）か "python"（TPA_UI_SERVER=python。段 ⑤ で消す）。PYTHON_ONLY の本は
+    TPA_UI_SERVER が無ければ python（1 行で言う）、window を頼まれたら流さずに止める（黙って落ちない） */
+export function serverFor(tool, asked = process.env.TPA_UI_SERVER) {
+  if (PYTHON_ONLY[tool]) {
+    if (asked === "window") throw new Error(`${tool} は窓の開発用サーバーではまだ流せません（${PYTHON_ONLY[tool]}）。TPA_UI_SERVER を外すか python にしてください`);
+    return "python";
+  }
+  return asked === "python" ? "python" : "window";
+}
+const TOOL = path.basename(process.argv[1] || "");
+export const SERVER = serverFor(TOOL);
+if (PYTHON_ONLY[TOOL] && process.env.TPA_UI_SERVER !== "python") console.log(`[ui-harness] ${TOOL} は Python の開発用サーバーで流します（${PYTHON_ONLY[TOOL]}）`);
 /** 窓の開発用サーバーの実行ファイル（cargo build --example ui_serve） */
 export const UI_EXE = process.env.TPA_UI_EXE
   || path.join(process.env.CARGO_TARGET_DIR || path.resolve(PROGRAM, "../desktop/target"), "debug", "examples", process.platform === "win32" ? "ui_serve.exe" : "ui_serve");
@@ -172,46 +187,88 @@ function freePort() {
   });
 }
 
-/** 開発用サーバーを作業フォルダ（tpa-ui-*）で起こす → { base, stop }。stop は子を止めて作業フォルダを消す。
-    子の出力の最初の「LISTEN http://…」の行（窓の形）か、最初の 1 行（Python の形。ポートはこちらで選んだ物）を待つ */
-export async function startServer() {
-  // TPA_UI_MASK=1（画素の比べ）は作業フォルダの名前を決めた形に（マスタの置き場・利用状況の画面に道が出る。乱数の名前だと撮るたびに違う）。
-  // 並べて撮るときは、撮る物ごとに別の一時フォルダ（TMPDIR）で
-  const work = process.env.TPA_UI_MASK === "1" ? path.join(os.tmpdir(), "tpa-ui-mask") : fs.mkdtempSync(path.join(os.tmpdir(), "tpa-ui-"));
-  if (process.env.TPA_UI_MASK === "1") { fs.rmSync(work, { recursive: true, force: true }); fs.mkdirSync(work, { recursive: true }); }
-  const env = { ...process.env, TPA_UI_WORK: work };
-  let server, base;
-  if (SERVER === "python") {
-    const port = await freePort();
-    base = `http://127.0.0.1:${port}`;
-    server = spawn("python", ["-u", path.join(PROGRAM, "tools/ui_server.py"), String(port)], { stdio: ["pipe", "pipe", "inherit"], env });
-  } else {
-    if (!fs.existsSync(UI_EXE)) throw new Error(`窓の開発用サーバーがありません（${UI_EXE}）。cd desktop && cargo build --example ui_serve で組んでください`);
-    server = spawn("python", ["-u", path.join(PROGRAM, "tests/ui_window_scene.py"), "serve", work, UI_EXE], { stdio: ["pipe", "pipe", "inherit"], env });
+/** 作業フォルダの持ち主の印（作業フォルダの横の 作業フォルダ.owner に node の PID。版 3.118.2 の作った後の採点の割れ C10） */
+const ownerOf = (work) => `${work}.owner`;
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
+/** 前に node が SIGKILL などで後始末できずに残した作業フォルダ（持ち主の PID がもう居ない tpa-ui-*）を消す。持ち主の印の無い物には触れない */
+export function sweepStale(dir = os.tmpdir()) {
+  const gone = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!/^tpa-ui-.+\.owner$/.test(f)) continue;
+    const owner = path.join(dir, f), work = owner.slice(0, -".owner".length);
+    const pid = Number(fs.readFileSync(owner, "utf-8").trim());
+    if (pid && alive(pid)) continue;
+    fs.rmSync(work, { recursive: true, force: true });
+    fs.rmSync(owner, { force: true });
+    gone.push(work);
   }
+  return gone;
+}
+const removeWork = (work) => { fs.rmSync(work, { recursive: true, force: true }); fs.rmSync(ownerOf(work), { force: true }); };
+
+/** Python の開発用サーバー（tools/ui_server.py。段 ⑤ でこの関数ごと消す: Python を起こすのはここだけ）→ { server, ready(出力), grace } */
+async function startPython(env) {
+  const port = await freePort();
+  const server = spawn("python", ["-u", path.join(PROGRAM, "tools/ui_server.py"), String(port)], { stdio: ["pipe", "pipe", "inherit"], env });
+  // 最初の 1 行で待ち受けを始めた（ポートはこちらで選んだ物）。止めるときは待たずに SIGTERM
+  return { server, ready: (buf) => (buf.includes("\n") ? `http://127.0.0.1:${port}` : null), grace: 0 };
+}
+
+/** 窓の開発用サーバー（場面の台本 tests/ui_window_scene.py が作業フォルダに場面を作り、ui_serve を起こす）→ { server, ready(出力), grace } */
+function startWindow(env, work) {
+  if (!fs.existsSync(UI_EXE)) throw new Error(`窓の開発用サーバーがありません（${UI_EXE}）。cd desktop && cargo build --example ui_serve で組んでください`);
+  const server = spawn("python", ["-u", path.join(PROGRAM, "tests/ui_window_scene.py"), "serve", work, UI_EXE], { stdio: ["pipe", "pipe", "inherit"], env });
+  // 「LISTEN http://…」の行で待ち受けを始めた。止めるときは標準入力を閉じ、台本が窓を止めて作業フォルダを消すのを 10 秒まで待つ
+  return { server, ready: (buf) => buf.match(/LISTEN (http:\/\/127\.0\.0\.1:\d+)/)?.[1] || null, grace: 10000 };
+}
+
+/** いまの作業フォルダ（TPA_UI_MASK=1 の shot が画面の字の中の作業フォルダを決めた字に差し替える。版 3.118.2 の作った後の採点の割れ C8） */
+let maskWork = "";
+/** 画面に出る作業フォルダの代わりの字（TPA_UI_MASK=1） */
+export const MASK_WORK = "/tmp/tpa-ui-mask";
+/** 差し替える字の組: 作業フォルダの道（書いたまま・実の道）→ MASK_WORK、名前だけ（「参照…」の窓のパンくずの段）→ tpa-ui-mask */
+const maskWorks = () => (maskWork ? [[maskWork, MASK_WORK], [fs.realpathSync(maskWork), MASK_WORK], [path.basename(maskWork), path.basename(MASK_WORK)]] : []);
+
+/** 開発用サーバーを作業フォルダ（tpa-ui-*。乱数の名前で、並べて流してもぶつからない）で起こす → { base, stop, work }。
+    stop は子を止めて作業フォルダを消す */
+export async function startServer() {
+  sweepStale();
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "tpa-ui-"));
+  fs.writeFileSync(ownerOf(work), String(process.pid));
+  maskWork = work;
+  const env = { ...process.env, TPA_UI_WORK: work };
+  let started;
+  try {
+    started = SERVER === "python" ? await startPython(env) : startWindow(env, work);
+  } catch (e) {
+    removeWork(work);
+    throw e;
+  }
+  const { server, ready, grace } = started;
   // 道具が close を呼ばずに終わった（例外・process.exit）ときも、子を止めて作業フォルダを消す（前は ui_server.py が残り、
-  // 標準エラーをつかんだまま ui-all.mjs の待ちを止めた。版 3.118.2）
-  const atExit = () => { try { server.kill("SIGKILL"); } catch { /* 済み */ } try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* 済み */ } };
+  // 標準エラーをつかんだまま ui-all.mjs の待ちを止めた。版 3.118.2）。node が SIGKILL で消えたときは、窓の形は台本が標準入力の
+  // 閉じたのを見て作業フォルダを消し、Python の形は次に起こすときの sweepStale が消す
+  const atExit = () => { try { server.kill("SIGKILL"); } catch { /* 済み */ } try { removeWork(work); } catch { /* 済み */ } };
   process.once("exit", atExit);
   const stop = async () => {
     process.off("exit", atExit);
     if (server.exitCode === null && server.signalCode === null) {
       const gone = new Promise((done) => server.once("exit", done));
-      server.stdin.end();                       // 窓の形: 台本が窓を止めてから終わる
-      const t = setTimeout(() => server.kill(), SERVER === "python" ? 0 : 10000);
+      server.stdin.end();
+      const t = setTimeout(() => server.kill(), grace);
       await gone;
       clearTimeout(t);
     }
-    fs.rmSync(work, { recursive: true, force: true });
+    removeWork(work);
   };
+  let base;
   try {
     base = await new Promise((done, fail) => {
       let buf = "";
       server.stdout.on("data", (d) => {
         buf += d.toString();
-        const m = buf.match(/LISTEN (http:\/\/127\.0\.0\.1:\d+)/);
-        if (m) done(m[1]);
-        else if (SERVER === "python" && buf.includes("\n")) done(base);
+        const b = ready(buf);
+        if (b) done(b);
       });
       server.once("exit", (c) => fail(new Error(`開発用サーバーが終わりました（${c}）`)));
     });
@@ -223,22 +280,75 @@ export async function startServer() {
   return { base, stop, work };
 }
 
-/** 時計の字の要素（版 3.118.2。撮るたびに変わる: 件数の行の元データの時刻・ダッシュボードの「n:nn の数」・パネルの元の時刻・
-    データ元の表の写した時刻・元データが古いの知らせ）。TPA_UI_MASK=1 のとき shot が伏せる（画素の比べ ui-diff.mjs で、相手の違いと雑音を分ける） */
-export const TIME_MASK = ["#llFresh", "#llStale", ".db-when", ".db-meta", ".sr-state small", ".db-psub", ".dp-kmeta"];
+/** 時計の字（版 3.118.2。撮るたびに変わる字だけ。作った後の採点の割れ C3・C7 で要素ごと伏せるのをやめ、要素の中の時刻などの字だけにした）。
+    TPA_UI_MASK=1 のとき shot がこの字だけを span で包み、数字を 0 にして伏せる（画素の比べ ui-diff.mjs で、相手の違いと雑音を分ける）。
+    元・設備・期間・条件・件数・目標の字（.db-psub・.dp-kmeta・.db-meta の時刻の外）は伏せないので、相手の違いは比べに出る */
+const CLOCK = String.raw`\d{4}[-/]\d{1,2}[-/]\d{1,2}[ T]\d{1,2}:\d{2}(:\d{2})?|\d{1,2}/\d{1,2} \d{1,2}:\d{2}(:\d{2})?|\d{1,2}:\d{2}(:\d{2})?`;
+export const TIME_TEXT = [
+  // 件数の行の元データの時刻・古さの知らせ・ダッシュボードの「n:nn の数」と元の時刻・データ元の表の写した時刻
+  { sel: "#llFresh, #llStale, .db-when, .db-meta, .sr-state small", re: CLOCK, why: "時刻（写した・確かめた・数えた時刻）" },
+  // スケジュールの「取得 hh:mm」（.sd-meta の最後の太字。予定の元の更新と完了予定は作り物の決めた時刻なので伏せない）
+  { sel: ".sd-meta > b:last-of-type", re: CLOCK, why: "予定の元から取った時刻" },
+  { sel: "#llPivot", re: String.raw`\d+ms`, why: "集計表のかかった時間" },
+  // ダッシュボードの待ちの経過・残りの秒（「数え直し・29.8 秒」「あと約 3 秒」。撮った時にまだ数え直していたパネル）
+  { sel: "#dashGrid .db-p, #dashBar", re: String.raw`\d+(\.\d+)? 秒`, why: "ダッシュボードの待ちの秒" },
+  { sel: "#elapsed", re: String.raw`\d+(\.\d+)? 秒`, why: "起動画面の経過の秒" },
+  // 作り物の CM3（予定の元）のポート: 起こすたびに OS が選ぶ（Python の開発用サーバーの中の CM3 も）
+  { sel: "body", re: String.raw`127\.0\.0\.1:\d+`, why: "作り物の予定の元のポート" },
+];
 
-/** 頁を撮る（TPA_UI_MASK=1 なら時計の字を伏せ、動く絵を止める。ui-check.mjs） */
+/** 頁を撮る（TPA_UI_MASK=1 なら作業フォルダの字を決めた字にし、時計の字を伏せ、動く絵を止める。ui-check.mjs）。
+    差し替えは頁の中の MutationObserver が描き直しのたびに当て直す（時計の字は頁が刻みごとに書き直すので、1 度当てるだけでは撮る前に
+    戻ることがあった: 件数の行の元データの時刻・起動画面の経過の秒。MutationObserver は描く前に呼ばれる） */
 export async function shot(page, file) {
   if (process.env.TPA_UI_MASK !== "1") return page.screenshot({ path: file });
-  // 時刻の数字は 0 にそろえてから伏せる（字の幅が撮った時刻で変わり、後ろの部品が 1〜2px ずれるのを止める）
-  await page.evaluate((sels) => {
-    for (const el of document.querySelectorAll(sels.join(","))) {
-      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(/\d/g, "0");
+  await page.evaluate(([rules, works, as]) => {
+    const swap = (t) => works.reduce((x, [w, to]) => (w && x.includes(w) ? x.split(w).join(to) : x), t);
+    const apply = () => {
+      // 作業フォルダ（乱数の名前）を決めた字に（字・入力欄の値・薄い見本の字）
+      const all = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = all.nextNode(); n; n = all.nextNode()) { const t = swap(n.nodeValue); if (t !== n.nodeValue) n.nodeValue = t; }
+      for (const el of document.querySelectorAll("input, textarea")) {
+        const t = swap(el.value); if (t !== el.value) el.value = t;
+        const ph = el.getAttribute("placeholder"); if (ph && swap(ph) !== ph) el.setAttribute("placeholder", swap(ph));
+      }
+      // 時計の字だけを span.tpa-mask で包み、数字を 0 にそろえる（字の幅が撮った時刻で変わり、後ろの部品がずれるのを止める）
+      for (const { sel, re } of rules) {
+        for (const el of document.querySelectorAll(sel)) {
+          const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          const nodes = [];
+          for (let n = w.nextNode(); n; n = w.nextNode()) if (!n.parentElement?.closest(".tpa-mask")) nodes.push(n);
+          for (const n of nodes) {
+            const t = n.nodeValue, ms = [...t.matchAll(new RegExp(re, "g"))];
+            if (!ms.length) continue;
+            const f = document.createDocumentFragment();
+            let at = 0;
+            for (const m of ms) {
+              if (m.index > at) f.append(t.slice(at, m.index));
+              const s = document.createElement("span");
+              s.className = "tpa-mask";
+              s.textContent = m[0].replace(/\d/g, "0");
+              f.append(s);
+              at = m.index + m[0].length;
+            }
+            if (at < t.length) f.append(t.slice(at));
+            n.replaceWith(f);
+          }
+        }
+      }
+    };
+    window.__tpaMask = apply;
+    if (!window.__tpaMaskObs) {
+      let busy = false;
+      window.__tpaMaskObs = new MutationObserver(() => { if (busy) return; busy = true; try { window.__tpaMask(); } finally { busy = false; } });
+      window.__tpaMaskObs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["placeholder"] });
     }
-  }, TIME_MASK).catch(() => {});
-  const mask = TIME_MASK.map((s) => page.locator(s));
-  return page.screenshot({ path: file, mask, maskColor: "#888", animations: "disabled", caret: "hide" });
+    apply();
+  }, [TIME_TEXT, maskWorks(), MASK_WORK]).catch(() => {});
+  // ダッシュボードの道具の行の一言（「見出しで動かす・四隅で大きさ・空いたマスで足す」など）は 6 秒で消える。撮った時にまだ出ているかが撮る速さで
+  // 替わるので、消えるのを待つ（7 秒まで。版 3.118.2 の作った後の直しで、Python 同士でも dash-ops-ranks-each が違った）
+  await page.waitForFunction(() => !(document.querySelector("#dashBar .db-msg")?.textContent || "").trim(), null, { timeout: 7000 }).catch(() => {});
+  return page.screenshot({ path: file, mask: [page.locator(".tpa-mask")], maskColor: "#888", animations: "disabled", caret: "hide" });
 }
 
 /** ダッシュボードのパネルが描き終わるまで待つ（数えています・写しています の札が消える） */
@@ -276,11 +386,24 @@ export function PYDOWN_STEPS() {
       await p.reload().catch(() => {});
       p.off("dialog", accept);
       await p.waitForSelector("#llBody tr[data-i]", { timeout: 30000 }).catch(() => {});
+      // 心拍の答えにも中身の様子「止まっている」を添える（撮り終わるまで。版 3.118.2 の作った後の採点の割れ C2: 窓の開発用サーバーの心拍は
+      // python=absent を答え、作り物の「中身停止」を次の心拍で「待機中」に戻していた。Python の開発用サーバーは python を答えないので残っていた）
+      await p.route("**/api/heartbeat", async (route) => {
+        const r = await route.fetch().catch(() => null);
+        const j = r ? await r.json().catch(() => ({})) : {};
+        await route.fulfill({ json: { ...j, python: { state: "stopped", why: PY_WHY } } });
+      });
       await sleep(600);
       await p.evaluate((why) => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "stopped", why } })), PY_WHY);
       await sleep(400);
     }, "[data-next], #pyBar [data-py]"],
-    ["pydown-fold", async (p) => { await p.click('#pyBar [data-py="fold"]'); await sleep(300); }, "[data-next], #pyPill"],
+    ["pydown-fold", async (p) => {
+      await p.click('#pyBar [data-py="fold"]'); await sleep(300);
+      // 撮るはずの状態（段を畳んで見出しの札「中身停止」）になったかを確かめてから撮る（次の心拍の後も）
+      await sleep(3500);
+      const pill = await p.evaluate(() => { const e = document.querySelector("#pyPill"); return e && !e.hidden && e.offsetParent !== null ? e.textContent.trim() : ""; });
+      if (!/中身停止/.test(pill)) throw new Error(`pydown-fold: 見出しの札が「中身停止」ではありません（${pill || "出ていない"}）`);
+    }, "[data-next], #pyPill"],
   ];
 }
 
@@ -1000,8 +1123,18 @@ export async function buildWeight(p) {
 }
 
 /** マスタ管理のタブを押す（見えていなくても押す） */
-function tab(p, key) {
-  return p.$eval(`#masterTabs [data-tab="${key}"]`, (b) => b.click());
+async function tab(p, key) {
+  // マスタ管理を開いた直後は、開く処理があとから既定のタブを選び直すことがある（版 3.118.2 の作った後の直しで、窓の相手の
+  // master-release-recommended が 1 度「設備マスタ」のまま撮られた）。押したタブが選ばれ、1 秒たっても選ばれたままになるまで押し直す（8 回まで）
+  const sel = `#masterTabs [data-tab="${key}"]`;
+  const on = () => p.$eval(sel, (b) => b.classList.contains("active")).catch(() => false);
+  for (let i = 0; i < 8; i++) {
+    if (!(await on())) await p.$eval(sel, (b) => b.click());
+    await sleep(300);
+    if (!(await on())) continue;
+    await sleep(700);                 // 選ばれたまま残るか（開く処理の後からの選び直しに負けない）
+    if (await on()) return;
+  }
 }
 
 /** データ元が多い形（on: 足す／false: 足した物を消す）。利用者の画面にあった台帳のマスタ（共有の .sqlite3。写していない形）と、

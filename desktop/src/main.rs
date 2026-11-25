@@ -190,10 +190,7 @@ fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
 /// AppHandle の要らない 2 つをここに出した。native の頭で呼ぶ）
 fn window_reads(req: &router::Req, backend: &dyn Backend, info: &serde_json::Value) -> Option<Reply> {
     match (req.method, req.path) {
-        // 窓の絵（版 3.118.1）: WebView2 が自分で尋ねる。版 3.117.3 の Python と同じ 404 の画面で答える（窓が答えなかった数に入れない）
-        (method @ ("GET" | "HEAD"), "/favicon.ico") => {
-            da_core::small_reads::favicon(method, "/favicon.ico").map(|(headers, body)| Reply { status: 404, headers, body })
-        }
+        // 窓の絵（/favicon.ico）は版 3.118.2 の作った後の採点の割れ C5 から lib の shell::answer（開発用サーバーも同じ答え）
         // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py）。Python が起きていなくても載る（自己診断・verify.py が使う）
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
@@ -338,20 +335,24 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                 selftest_finish(&app, &result);
                 Some(json_reply(&json!({"received": true})))
             }
-            // Lot が答える道（版 3.118.2 から lib の src/shell.rs の 1 か所。開発用サーバー examples/ui_serve.rs も同じ物を通る）:
-            // 版と更新履歴・生きているか・心拍・画面・LotDsp の調べる道具・権限の読む 2 本・データ元の並び・窓の書く道と読む道
-            (method, path) => {
-                let python_now = || backend.python_now();
-                let ctx = da_core::shell::Ctx { program: &program, python_now: &python_now, absent: backend.absent(), log: &log };
-                let r = da_core::shell::answer(&lot, req, &ctx)?;
-                // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
-                if method == "PUT" && r.status == 200 && path.starts_with("/api/settings/update.") {
-                    upd.wake();
-                }
-                Some(r)
-            }
+            // Lot が答える道（版 3.118.2 から lib の src/shell.rs の 1 か所。開発用サーバー examples/ui_serve.rs も同じ物を通る）
+            _ => lot_answer(req, backend, &lot, &program, &|| upd.wake()),
         })
     })
+}
+
+/// Lot が答える道（native の最後。版 3.118.2 の作った後の採点の割れ C12 で外へ出し、bin の試験が本物の振り分け〈Router::handle〉を通して
+/// 開発用サーバーの振り分け shell::dev_route と突き合わせる）: 窓の絵・版と更新履歴・生きているか・心拍・画面・LotDsp の調べる道具・
+/// 権限の読む 2 本・データ元の並び・窓の書く道と読む道。wake は更新の係を起こす（参照先の更新の置き場を書いた後）
+fn lot_answer(req: &router::Req, backend: &dyn Backend, lot: &Lot, program: &std::path::Path, wake: &dyn Fn()) -> Option<Reply> {
+    let python_now = || backend.python_now();
+    let ctx = da_core::shell::Ctx { program, python_now: &python_now, absent: backend.absent(), log: &log };
+    let r = da_core::shell::answer(lot, req, &ctx)?;
+    // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
+    if req.method == "PUT" && r.status == 200 && req.path.starts_with("/api/settings/update.") {
+        wake();
+    }
+    Some(r)
 }
 
 /// 更新の置き場の設定（置き場・だれが・マスタの置き場）。版 3.95.0 から窓が読み（src/release_place.rs・Lot::update_settings）、
@@ -1154,19 +1155,54 @@ mod tests {
         (a.status().as_u16(), a.headers()["x-tpa-by"].to_str().unwrap().to_string(), a.body().clone())
     }
 
+    /// 試験の作業場所に組んだ Lot（製品と同じ shell::lot_for）と中身のフォルダ
+    fn test_lot(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, Arc<Lot>) {
+        let work = std::env::temp_dir().join(format!("da-main-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        for d in [work.join("local"), work.join("base").join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let program = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": ""}}).to_string()).unwrap();
+        let env =
+            da_core::bundle::Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
+        let (lot, _) = da_core::shell::lot_for(env, &program);
+        (work, program, lot)
+    }
+
+    /// 製品の native の形（窓の情報・窓の絵 → Lot が答える道。Tauri に頼る道は除く）と製品の門番で組んだ本物の振り分け
+    fn product_router(lot: Arc<Lot>, program: std::path::PathBuf) -> Router<Absent> {
+        let info = json!({"app_id": "test", "program_version": "0.0.0"});
+        let l2 = lot.clone();
+        Router {
+            static_dir: da_core::page::static_dir(&program),
+            backend: Absent,
+            native: Box::new(move |req, backend| {
+                window_reads(req, backend, &info).or_else(|| lot_answer(req, backend, &l2, &program, &|| ()))
+            }),
+            guard: guard(lot),
+            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
+        }
+    }
+
+    fn ask_with(r: &Router<Absent>, method: &str, path_query: &str, body: &[u8]) -> (u16, Vec<(String, String)>, Vec<u8>) {
+        let q = tauri::http::Request::builder().method(method).uri(format!("tpa://localhost{path_query}")).body(body.to_vec()).unwrap();
+        let a = r.handle(&q);
+        let mut h: Vec<(String, String)> =
+            a.headers().iter().map(|(k, v)| (k.as_str().to_ascii_lowercase(), v.to_str().unwrap_or("").to_string())).collect();
+        h.sort();
+        (a.status().as_u16(), h, a.body().clone())
+    }
+
     /// 版 3.118.1 の作った後の採点の割れ 7（first_fixes 8）: 本物の振り分けと native の頭の window_reads を通して、
     /// /favicon.ico は窓が Flask の 404 の画面で答え（窓が答えなかった数に入れない）、/__desktop/info の unanswered に
-    /// 窓が答えなかった道の形と回数が載る（自己診断の「窓が答えない道が無い」が読む鍵）
+    /// 窓が答えなかった道の形と回数が載る（自己診断の「窓が答えない道が無い」が読む鍵）。版 3.118.2 の作った後の採点の割れ C5 から
+    /// 窓の絵は lib の shell::answer が答える（native の最後の Lot が答える道で）
     #[test]
     fn the_window_answers_the_favicon_and_counts_unanswered_routes_in_its_info() {
-        let info = json!({"app_id": "test", "program_version": "0.0.0"});
-        let r = Router {
-            static_dir: std::env::temp_dir(),
-            backend: Absent,
-            native: Box::new(move |req, backend| window_reads(req, backend, &info)),
-            guard: Box::new(|_, _| Ok(None)),
-            after: Box::new(|_, _, _| panic!("中身が答えていないので後始末しない")),
-        };
+        let (work, program, lot) = test_lot("favicon");
+        let r = product_router(lot, program);
         let (st, by, body) = ask(&r, "GET", "/favicon.ico");
         let (_, page) = da_core::small_reads::favicon("GET", "/favicon.ico").unwrap();
         assert_eq!((st, by.as_str(), &body), (404, "shell", &page), "窓の絵は Flask の 404 の画面");
@@ -1182,5 +1218,86 @@ mod tests {
         assert!(!u.keys().any(|k| k.contains("favicon")), "窓の絵は窓が答えなかった数に入れない: {v}");
         assert!(u.keys().all(|k| k.starts_with("unanswered")), "{v}");
         assert_eq!((v["python_state"].as_str(), v["program_version"].as_str()), (Some("absent"), Some("0.0.0")), "{v}");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// 版 3.118.2 の作った後の採点の割れ C12: 開発用サーバーの振り分け（shell::dev_route。examples/ui_serve.rs が呼び、見出しに
+    /// X-TPA-By: shell を足して書く）が、製品の本物の振り分け（Router::handle を native〈window_reads → lot_answer〉・製品の門番 guard・
+    /// 中身なしで通す）と、同じ道の表で状態・見出し（全部）・本文・X-TPA-By まで同じ。画面の印（nonce）は頁ごとに替わるので伏せて比べる。
+    /// 移す前の答え（版 3.118.1 の main.rs）に当たる、移していない部品の答えとも比べる: 窓の絵は small_reads::favicon の画面・
+    /// 版は small_reads::reply・生きているかは small_reads::health・窓が答えない道は window_unanswered の 503 と 404
+    #[test]
+    fn the_dev_server_route_answers_like_the_product_router() {
+        // 書く道（画面の控え・心拍）で状態が進むので、製品の振り分けと開発用サーバーはそれぞれ同じ形の作業場所で同じ順に当てる
+        let (work, program, plot) = test_lot("dev-product");
+        let (dwork, _, lot) = test_lot("dev-shell");
+        let r = product_router(plot, program.clone());
+        let static_dir = da_core::page::static_dir(&program);
+        let python_now = da_core::presence::PythonNow::absent;
+        let lines = Mutex::new(vec![]);
+        let logl = |l: &str| lines.lock().unwrap().push(l.to_string());
+        let ctx = da_core::shell::Ctx { program: &program, python_now: &python_now, absent: true, log: &logl };
+        let (pw, dw) = (work.to_string_lossy().into_owned(), dwork.to_string_lossy().into_owned());
+        let nonce = |b: &[u8]| {
+            let t = String::from_utf8_lossy(b).replace(&pw, "@WORK").replace(&dw, "@WORK");
+            let re = regex::Regex::new(r#"nonce(-|=")[A-Za-z0-9+/=_-]+"#).unwrap();
+            re.replace_all(&t, "nonce$1@NONCE").into_owned()
+        };
+        let ui_state = br#"{"changed": {"tpa.dev.v1": "{\"a\": 1}"}, "removed": []}"#;
+        let cases: Vec<(&str, &str, &[u8])> = vec![
+            ("GET", "/favicon.ico", b""),
+            ("HEAD", "/favicon.ico", b""),
+            ("GET", "/api/build", b""),
+            ("GET", "/api/changelog", b""),
+            ("GET", "/api/health", b""),
+            ("GET", "/api/health?engine=python", b""),
+            ("POST", "/api/heartbeat", b"{}"),
+            ("GET", "/", b""),
+            ("HEAD", "/", b""),
+            ("GET", "/?engine=python", b""),
+            ("GET", "/lotdsp-link", b""),
+            ("GET", "/api/access/me", b""),
+            ("GET", "/api/masters/access", b""),
+            ("GET", "/api/sources", b""),
+            ("GET", "/api/config", b""),
+            ("POST", "/api/ui-state", ui_state),
+            ("GET", "/api/ui-state", b""),
+            ("GET", "/static/js/app.js?v=1", b""),
+            ("GET", "/static/../templates/index.html", b""),
+            ("GET", "/api/no-such-route", b""),
+            ("GET", "/api/sources/a%2Fb/columns", b""),
+            ("POST", "/api/masters/access", b"{}"),
+            ("PUT", "/api/masters/%61ccess/1", b"{}"),
+        ];
+        for (method, pq, body) in cases {
+            let (path, query) = pq.split_once('?').unwrap_or((pq, ""));
+            let (st, heads, got) = ask_with(&r, method, pq, body);
+            let d = da_core::shell::dev_route(&lot, &da_core::shell::Req { method, path, query, body }, &ctx, &static_dir);
+            let mut dh: Vec<(String, String)> = d.headers.iter().map(|(k, v)| (k.to_ascii_lowercase(), v.clone())).collect();
+            dh.push(("x-tpa-by".into(), "shell".into()));
+            dh.sort();
+            let (pn, dn) = (nonce(&got), nonce(&d.body));
+            let (ph, dhn): (Vec<_>, Vec<_>) = (
+                heads.iter().map(|(k, v)| (k.clone(), nonce(v.as_bytes()))).collect(),
+                dh.iter().map(|(k, v)| (k.clone(), nonce(v.as_bytes()))).collect(),
+            );
+            assert_eq!((st, &ph), (d.status, &dhn), "{method} {pq}: 状態と見出し");
+            assert_eq!(pn, dn, "{method} {pq}: 本文");
+        }
+        // 移していない部品の答え（移す前の main.rs と同じ部品）
+        let (st, _, body) = ask_with(&r, "GET", "/favicon.ico", b"");
+        assert_eq!((st, body), (404, da_core::small_reads::favicon("GET", "/favicon.ico").unwrap().1));
+        let (st, _, body) = ask_with(&r, "GET", "/api/build", b"");
+        assert_eq!((st, body), (200, da_core::small_reads::reply("GET", "/api/build", "", &program).unwrap().1));
+        let (_, _, body) = ask_with(&r, "GET", "/api/health", b"");
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&body).unwrap(), da_core::small_reads::health("absent"));
+        let (st, _, body) = ask_with(&r, "GET", "/api/no-such-route", b"");
+        let w = da_core::shell::window_unanswered("GET", "/api/no-such-route", "/api/no-such-route", "");
+        assert_eq!((st, body), (503, w.body));
+        // 窓の絵は窓が答えなかった数に入れない（開発用サーバーも）
+        assert!(!da_core::delegate::unanswered_map().as_object().unwrap().keys().any(|k| k.contains("favicon")));
+        for w in [&work, &dwork] {
+            let _ = std::fs::remove_dir_all(w);
+        }
     }
 }

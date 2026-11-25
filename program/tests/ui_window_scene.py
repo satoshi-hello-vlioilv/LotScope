@@ -14,7 +14,7 @@
 4. 権限の表に撮る人（この PC の名乗り getpass.getuser）を「開発者・編集可」で 1 行足す（Python の開発用サーバーは判定を差し替えた: as_role）
 5. 窓の開発用サーバーを起こし（TPA_DASHBOARD_NOW は試験データの翌日の 10 時）、登録を書く道で当てる
 6. TPA_UI_BAD_ROWS の読めない行・TPA_UI_SHARE=down の名前替え・ui_scene.finish（ui_server.py と同じ順と中身）
-7. 「LISTEN http://127.0.0.1:ポート」の 1 行を出し、標準入力が閉じるまで起こしておく（閉じたら窓と CM3 を止める）
+7. 「LISTEN http://127.0.0.1:ポート」の 1 行を出し、標準入力が閉じるまで起こしておく（閉じたら窓と CM3 を止め、作業フォルダを消す）
 
 起動の初期値（検査計・最初の管理者・釜番日付）は当てない（Python の開発用サーバーと同じ）。キーは窓の乱数のまま（道具は画面と API から読む）。
 """
@@ -199,6 +199,9 @@ def serve(work, exe):
     finally:
         w.stop()
         cm3["close"]()
+        # 作業フォルダの持ち主はこの台本（版 3.118.2 の作った後の採点の割れ C10）: 起こした node が SIGKILL で消えても、標準入力が閉じて
+        # ここへ来るので、窓と CM3 を止めた後に消す（harness の stop・exit も消すが、node が殺されたときは走らない）
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def main():

@@ -5,7 +5,8 @@
 // 本ごとに、作業のフォルダ（出力フォルダ/run/本）を今のフォルダにして node で流し、終了コード・秒・「OK／NG」の行の数を
 // 出力フォルダの results.json と table.md に書く（出力は logs/本.log）。結果は終了コードで読む（最後の 1 行で判断しない）。
 // 相手（開発用サーバー）は ui-harness.mjs の TPA_UI_SERVER（既定は窓）。窓の相手のときは、最初に窓の開発用サーバーを組む
-// （cargo build --example ui_serve。--no-build で組まない）。窓にまだ無い口を使う本（PYTHON_ONLY）は、窓の表でも Python の相手で流し、表に印を付ける。
+// （cargo build --example ui_serve。--no-build で組まない）。窓にまだ無い口を使う本（ui-harness.mjs の PYTHON_ONLY）は、窓の表でも Python の相手で流し、表に印を付ける。
+// TPA_UI_MASK=1（画素の比べ）でも並べて流せる（作業フォルダは本ごとに乱数の名前・画面に出る作業フォルダの字は shot が決めた字に差し替える）。
 // --base に前の表（Python の相手で流した基準）を渡すと、基準でも落ちていた本を「前から」と分けて数える（窓だけで落ちる本が 0 かを見る）。
 
 import { spawn, execFileSync } from "node:child_process";
@@ -17,10 +18,8 @@ const TOOLS = path.dirname(fileURLToPath(import.meta.url));
 const PROGRAM = path.resolve(TOOLS, "..");
 const DESKTOP = path.resolve(PROGRAM, "../desktop");
 
-/** 窓にまだ無い口を使う本 → 理由（窓の表でも Python の相手で流す。版 3.118.3 で窓へ） */
-export const PYTHON_ONLY = {
-  "ui-eval-dashwait.mjs": "遅くする口（TPA_UI_SLOW_FILE）が窓にまだ無い（版 3.118.3 で feature testing の下に置く）",
-};
+// 相手を決めるのは ui-harness.mjs の 1 か所（PYTHON_ONLY・serverFor・SERVER。版 3.118.2 の作った後の採点の割れ C9）
+import { PYTHON_ONLY, SERVER, serverFor } from "./ui-harness.mjs";
 
 /** 引数の要る本の引数（OUT は本ごとの出力のフォルダ）。ほかは引数なし（既定の大きさ・出力なし） */
 const ARGS = {
@@ -31,7 +30,7 @@ const ARGS = {
 };
 
 function opts(argv) {
-  const o = { out: "", server: process.env.TPA_UI_SERVER === "python" ? "python" : "window", jobs: 3, only: null, skip: [], base: "", build: true };
+  const o = { out: "", server: SERVER, jobs: 3, only: null, skip: [], base: "", build: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--server") o.server = argv[++i];
@@ -73,7 +72,7 @@ function runOne(name, o) {
   const shots = path.join(run, "shots");
   fs.mkdirSync(shots, { recursive: true });
   const args = [path.join(TOOLS, name), ...(ARGS[name] ? ARGS[name](shots) : [])];
-  const server = PYTHON_ONLY[name] ? "python" : o.server;
+  const server = serverFor(name, o.server === "python" ? "python" : undefined);
   const log = path.join(o.out, "logs", name.replace(/\.mjs$/, ".log"));
   const t0 = Date.now();
   return new Promise((done) => {

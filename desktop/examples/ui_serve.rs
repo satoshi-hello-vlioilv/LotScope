@@ -2,17 +2,20 @@
 //!
 //!     cargo run --example ui_serve -- 作業フォルダ [ポート] [--stdin]
 //!
-//! 製品の窓と同じ lib の振り分け（src/shell.rs: answer → /static/ → 門番 → window_unanswered）と Lot の組み立て（shell::lot_for）で、
+//! 製品の窓と同じ lib の振り分け（src/shell.rs の dev_route: 製品の native の頭と同じく /__desktop/*・終了 → answer〈窓の絵も〉→ /static/ →
+//! 門番 → window_unanswered。main.rs の bin の試験 the_dev_server_route_answers_like_the_product_router が製品の Router::handle と突き合わせる）と
+//! Lot の組み立て（shell::lot_for）で、
 //! 窓の答えを HTTP で配る。Tauri の窓は作らない（画面は Playwright の Chromium が開く）。場面（作業フォルダの base・local・
 //! appsettings.json）は program/tests/ui_window_scene.py が作り、この実行ファイルを起こす。
 //!
 //! - 中身（Python）は無い形（製品の段 ④ と同じ absent）。起動の初期値（run_seeds）は当てない（Python の開発用サーバーと同じ）
-//! - 窓だけが答える /__desktop/* は 404（撮る台本が Playwright で作り物の答えを返す）。POST /api/shutdown は 200 で答え、待ち受けは続ける
-//!   （撮る道具が「終了」を押しても次の頁を開ける）
+//! - 窓だけが答える /__desktop/* は 404（撮る台本が Playwright で作り物の答えを返す）。POST /api/shutdown は製品と同じく使い終わり
+//!   （Lot::leave）の後に 200 で答え、待ち受けは続ける（撮る道具が「終了」を押しても次の頁を開ける）
 //! - ポート 0 なら OS が選ぶ。待ち受けを始めたら「LISTEN http://127.0.0.1:ポート」の 1 行を出す
 //! - --stdin: 標準入力が閉じたら終わる（起こした台本が落ちても残らない）
 //! - この PC の中（127.0.0.1）からだけ答える。書き込みは Origin があれば同じ置き場だけ（Python の開発用サーバー web.foreign_request と同じ）
-//! - 1 つのつながりに 1 本の糸・keep-alive なし・本文は 8 MB まで
+//! - 1 つのつながりに 1 本の糸・keep-alive なし・本文は 8 MB まで。本文は Content-Length で受け、Transfer-Encoding（chunked など）は
+//!   411 で断る（黙って空の本文にしない。版 3.118.2 の作った後の採点の割れ C13）
 
 use da_core::bundle::Env;
 use da_core::presence::PythonNow;
@@ -79,14 +82,16 @@ struct Head {
     host: String,
     origin: Option<String>,
     length: usize,
+    /// Transfer-Encoding の値（chunked など。あれば 411 で断る）
+    encoding: Option<String>,
 }
 
-fn read_head(r: &mut BufReader<&TcpStream>) -> Option<Head> {
+fn read_head(r: &mut impl BufRead) -> Option<Head> {
     let mut line = String::new();
     r.read_line(&mut line).ok()?;
     let mut parts = line.split_whitespace();
     let (method, target) = (parts.next()?.to_string(), parts.next()?.to_string());
-    let mut head = Head { method, target, host: String::new(), origin: None, length: 0 };
+    let mut head = Head { method, target, host: String::new(), origin: None, length: 0, encoding: None };
     loop {
         let mut h = String::new();
         if r.read_line(&mut h).ok()? == 0 {
@@ -102,6 +107,7 @@ fn read_head(r: &mut BufReader<&TcpStream>) -> Option<Head> {
             "host" => head.host = v.to_string(),
             "origin" => head.origin = Some(v.to_string()),
             "content-length" => head.length = v.parse().unwrap_or(0),
+            "transfer-encoding" => head.encoding = Some(v.to_string()),
             _ => {}
         }
     }
@@ -126,37 +132,41 @@ fn foreign(head: &Head, port: u16) -> Option<&'static str> {
 fn serve(stream: TcpStream, port: u16, lot: &da_core::lot::Lot, static_dir: &Path, program: &Path) -> std::io::Result<()> {
     let mut r = BufReader::new(&stream);
     let Some(head) = read_head(&mut r) else { return Ok(()) };
-    let reply = if let Some(why) = foreign(&head, port) {
-        Reply { status: 403, headers: vec![("Content-Type".into(), "text/plain; charset=utf-8".into())], body: why.as_bytes().to_vec() }
-    } else if head.length > BODY_LIMIT {
-        shell::error_reply(413, "body", "本文が大きすぎます（8 MB まで）。")
-    } else {
-        let mut body = vec![0u8; head.length];
-        r.read_exact(&mut body)?;
-        let (path, query) = head.target.split_once('?').unwrap_or((head.target.as_str(), ""));
-        route(lot, &Req { method: &head.method, path, query, body: &body }, static_dir, program)
-    };
+    let reply = answer_head(&head, port, &mut r, |req| route(lot, req, static_dir, program))?;
     write_reply(&stream, &head.method, reply)
 }
 
-/// 製品の振り分け（Router::handle の中身なしの枝）と同じ順。窓そのもの（Tauri）だけが答える道は作り物
+/// 見出しを読んだ後: よその頁・Transfer-Encoding（411）・大きすぎる本文（413）を断り、本文を読んで振り分けに渡す
+fn answer_head(head: &Head, port: u16, r: &mut impl Read, route: impl Fn(&Req) -> Reply) -> std::io::Result<Reply> {
+    if let Some(why) = foreign(head, port) {
+        return Ok(Reply {
+            status: 403,
+            headers: vec![("Content-Type".into(), "text/plain; charset=utf-8".into())],
+            body: why.as_bytes().to_vec(),
+        });
+    }
+    if let Some(te) = head.encoding.as_deref().filter(|te| !te.trim().eq_ignore_ascii_case("identity")) {
+        return Ok(shell::error_reply(
+            411,
+            "length_required",
+            &format!("本文は Content-Length で送ってください（開発用サーバーは Transfer-Encoding: {te} を読みません）。"),
+        ));
+    }
+    if head.length > BODY_LIMIT {
+        return Ok(shell::error_reply(413, "body", "本文が大きすぎます（8 MB まで）。"));
+    }
+    let mut body = vec![0u8; head.length];
+    r.read_exact(&mut body)?;
+    let (path, query) = head.target.split_once('?').unwrap_or((head.target.as_str(), ""));
+    Ok(route(&Req { method: &head.method, path, query, body: &body }))
+}
+
+/// 製品の振り分けと同じ順（lib の shell::dev_route。窓そのもの〈Tauri〉だけが答える道は作り物）
 fn route(lot: &da_core::lot::Lot, req: &Req, static_dir: &Path, program: &Path) -> Reply {
-    if req.path.starts_with("/__desktop/") {
-        return shell::error_reply(404, "not_found", "開発用サーバーは窓の操作に答えません。");
-    }
-    if (req.method, req.path) == ("POST", "/api/shutdown") {
-        return shell::json_reply(&serde_json::json!({"ok": true}));
-    }
     let python_now = PythonNow::absent;
     let log = |line: &str| eprintln!("{line}");
     let ctx = Ctx { program, python_now: &python_now, absent: true, log: &log };
-    if let Some(r) = shell::answer(lot, req, &ctx) {
-        return r;
-    }
-    if let (true, Some(rest)) = (req.method == "GET" || req.method == "HEAD", req.path.strip_prefix("/static/")) {
-        return shell::static_file(static_dir, rest, req.query);
-    }
-    shell::refuse(lot, req)
+    shell::dev_route(lot, req, &ctx, static_dir)
 }
 
 fn reason(status: u16) -> &'static str {
@@ -168,11 +178,20 @@ fn reason(status: u16) -> &'static str {
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
+        405 => "Method Not Allowed",
         409 => "Conflict",
+        411 => "Length Required",
+        412 => "Precondition Failed",
         413 => "Payload Too Large",
+        422 => "Unprocessable Entity",
+        423 => "Locked",
+        428 => "Precondition Required",
+        429 => "Too Many Requests",
         500 => "Internal Server Error",
+        502 => "Bad Gateway",
         503 => "Service Unavailable",
-        _ => "",
+        504 => "Gateway Timeout",
+        _ => "Status",
     }
 }
 
@@ -189,4 +208,43 @@ fn write_reply(mut stream: &TcpStream, method: &str, r: Reply) -> std::io::Resul
         stream.write_all(&r.body)?;
     }
     stream.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn head_of(text: &str) -> Head {
+        read_head(&mut BufReader::new(text.as_bytes())).expect("見出しを読める")
+    }
+
+    /// 版 3.118.2 の作った後の採点の割れ C13: Transfer-Encoding: chunked の本文を黙って空にせず 411 で断る（振り分けへ渡さない）。
+    /// Content-Length の本文はそのまま渡す。よその頁・大きすぎる本文も前と同じに断る
+    #[test]
+    fn chunked_bodies_are_refused_with_411_and_lengths_are_read() {
+        let never = |_: &Req| -> Reply { panic!("振り分けへ渡さない") };
+        let h = head_of("POST /api/ui-state HTTP/1.1\r\nHost: 127.0.0.1:9\r\nTransfer-Encoding: chunked\r\n\r\n");
+        let r = answer_head(&h, 9, &mut "5\r\nhello\r\n0\r\n\r\n".as_bytes(), never).unwrap();
+        assert_eq!(r.status, 411);
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&r.body).unwrap()["kind"], "length_required");
+        assert_eq!(reason(411), "Length Required");
+        let h = head_of("POST /api/x?a=1 HTTP/1.1\r\nHost: localhost:9\r\nContent-Length: 5\r\n\r\n");
+        let r = answer_head(&h, 9, &mut "hello".as_bytes(), |req| {
+            assert_eq!((req.method, req.path, req.query, req.body), ("POST", "/api/x", "a=1", &b"hello"[..]));
+            shell::json_reply(&serde_json::json!({"ok": true}))
+        })
+        .unwrap();
+        assert_eq!(r.status, 200);
+        let h = head_of("POST /api/x HTTP/1.1\r\nHost: 127.0.0.1:9\r\nTransfer-Encoding: identity\r\nContent-Length: 0\r\n\r\n");
+        assert_eq!(answer_head(&h, 9, &mut "".as_bytes(), |_| shell::json_reply(&serde_json::json!({}))).unwrap().status, 200);
+        let h = head_of("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+        assert_eq!(answer_head(&h, 9, &mut "".as_bytes(), never).unwrap().status, 403);
+        let h = head_of("POST /api/x HTTP/1.1\r\nHost: 127.0.0.1:9\r\nOrigin: http://evil.example\r\nContent-Length: 0\r\n\r\n");
+        assert_eq!(answer_head(&h, 9, &mut "".as_bytes(), never).unwrap().status, 403);
+        let h = head_of(&format!("POST /api/x HTTP/1.1\r\nHost: 127.0.0.1:9\r\nContent-Length: {}\r\n\r\n", BODY_LIMIT + 1));
+        assert_eq!(answer_head(&h, 9, &mut "".as_bytes(), never).unwrap().status, 413);
+        for s in [200, 201, 204, 304, 400, 403, 404, 405, 409, 411, 413, 422, 423, 428, 500, 503] {
+            assert!(!reason(s).is_empty(), "{s} の理由句");
+        }
+    }
 }
