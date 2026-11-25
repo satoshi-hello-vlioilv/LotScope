@@ -1430,24 +1430,24 @@
     S.loading = false;
   }
 
-  /** JSON の列を分けた表から、鍵ごとの値の合計のパネルを足して保存する（版 3.120.0。js/json-expand.js の「パネルも足す」）→ {ok} か {why} */
+  /** JSON の列を分けた表から、鍵ごとの値の合計のパネルを、新しいダッシュボード（名前は分けた表の名前）に作って開く（版 3.120.0。js/json-expand.js の
+      「新しいダッシュボードに…を作る」）。組み込みの標準・ほかのダッシュボードは書き換えない。同じ名前の自分のダッシュボードがあれば、それを作り直す → {ok, name} か {why} */
   async function addJsonPanel(v) {
     if (!S.layout) { await start(); }
-    if (!S.layout) return { why: "ダッシュボードを読めませんでした" };
-    await loadSources();
-    let spot = freeSpot(4, 3) || freeSpot(3, 3) || freeSpot(3, 2);
-    if (!spot && S.layout.rows + 3 <= S.rowsRange[1]) { S.layout.rows += 3; spot = freeSpot(4, 3); }
-    if (!spot) return { why: "ダッシュボードに空きがありません" };
+    await Promise.all([loadSources(), loadList()]);
     const rows = v.shape === "dict" && v.keyCol ? [{ column: v.keyCol, part: "" }] : [];
-    const p = { id: newId(), ...spot, title: v.title, visual: rows.length ? "bar" : "kpi", source: v.source, equip: "", sort: rows.length ? "desc" : "", top: 0, basis: "work",
-      body: { rows, cols: [], measures: [{ agg: "sum", column: v.valueCol }], grand: !rows.length, labels: true, chartAt: 0, sub: false }, filters: [], search: "", period: null };
-    S.history.push(JSON.stringify(S.layout));
-    S.layout.panels.push(p);
-    paint(); refresh(false);
-    const it = current();
-    if (!it || !canSaveIt(it)) return { why: "パネルを足しました（このダッシュボードは保存できないので、「名前を付けて保存…」で残してください）", ok: false };
-    await save();
-    return { ok: S.saved === JSON.stringify(S.layout), id: p.id };
+    const p = { id: "p1", x: 0, y: 0, w: Math.min(COLS, 8), h: 5, title: v.title, visual: rows.length ? "bar" : "kpi", source: v.source, equip: "", sort: rows.length ? "desc" : "", top: 0, basis: "work",
+      body: { rows, cols: [], measures: [{ agg: "sum", column: v.valueCol }], grand: !rows.length, labels: true, chartAt: 0, sub: false },
+      // 空の鍵（分けずに残した行）は数えない（「大きい順に n / m」の m に入れない）
+      filters: rows.length ? [{ column: v.keyCol, op: "not_empty", value: "" }] : [], search: "", period: null };
+    const body = { rows: 8, panels: [p] };
+    const name = String(v.name || "JSON の列").slice(0, 40);
+    const had = S.list.find((x) => !x.builtin && x.canEdit && x.name === name && x.scope === "me");
+    S.edit = false; S.sel = "";
+    const r = had ? await writeLayout("PUT", had.id, { body, base_rev: had.rev }, `「${name}」を作り直しました`)
+      : await writeLayout("POST", null, { name, scope: "me", standard: false, body }, `ダッシュボード「${name}」を作りました`);
+    if (r.error) return { why: r.error };
+    return { ok: true, name, id: p.id };
   }
   /** 題で探したパネルを選んで見える所へ（足したパネルの「見る」） */
   function focusPanelTitled(title) {
@@ -1475,6 +1475,7 @@
     /** 案を撮る道具から: スライサーの字（compact で詰めた形）。置き場を替える案が、道具の行の外に描くため */
     _slicerHtml: (compact = false) => (compact ? D.compactHtml : D.barHtml)(sliceState(), sliceInfo()),
     _setLayout(l) { S.layout = TPA.clone(l); S.saved = JSON.stringify(S.layout); S.answers.clear(); paint(); refresh(true); },
+    _open(id) { open(id); },                   // 評価関数（ui-eval-json.mjs）から: そのダッシュボードを開く（版 3.120.0）
     _layout: () => TPA.clone(S.layout),        // 評価関数の見る口（版 3.103.0。tools/ui-eval-capacity.mjs）
     _state: () => ({ id: S.id, edit: S.edit, layout: TPA.clone(S.layout), answers: Object.fromEntries([...S.answers].map(([k, v]) => [k, v.d || { error: v.err }])) }),
   };

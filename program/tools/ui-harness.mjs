@@ -986,7 +986,7 @@ export const STATES = [
   }, "[data-next], #llSched [data-sd-pick], #llSched [data-sd-kama]"],
   // 版 3.120.0: JSON の列を分ける窓（場面 TPA_UI_JSON=1 の JSON の列 5 つ。JSON の列の無い場面では窓を開けず、そのまま撮る）。
   // 仕掛の一覧の道具の行の「{ } JSON」→ 窓（① 設備別通過回数 を勧めた形）・合わない行と設備マスタに無い鍵（CR1）を開いた所・
-  // 表を作る（パネルも足す）→ 足したパネルへ「見る」・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓。json-off が片付ける
+  // 表を作る（新しいダッシュボードに作る）→ 知らせ（json-toast）→ 足したパネルへ「見る」・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓。json-off が片付ける
   ["json", async (p) => {
     await closeAll(p);
     await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "src:wip" })));
@@ -1000,10 +1000,14 @@ export const STATES = [
     await p.click("#jxWin [data-jx-issues]").catch(() => {}); await sleep(200);
     await p.click("#jxWin [data-jx-miss]").catch(() => {}); await sleep(400);
   }, "[data-next], #jxWin [data-jx-make]"],
-  ["json-made", async (p) => {
+  // 表を作った直後の知らせ（「…を作り、新しいダッシュボード「…」に「…」を足しました 見る」）
+  ["json-toast", async (p) => {
     if (!(await p.$("#jxWin [data-jx-make]:not([disabled])"))) return;
     await p.click("#jxWin [data-jx-make]");
-    await p.waitForSelector(".tpa-toast [data-jx-jump]", { timeout: 60000 }); await sleep(300);
+    await p.waitForSelector(".tpa-toast [data-jx-jump]", { timeout: 60000 }); await sleep(500);
+  }, "[data-next], .tpa-toast [data-jx-jump]"],
+  ["json-made", async (p) => {
+    if (!(await p.$(".tpa-toast [data-jx-jump]"))) return;
     await p.click(".tpa-toast [data-jx-jump]");
     await waitDash(p); await sleep(1200);
   }, "[data-next], [data-db-editmode]"],
@@ -1027,7 +1031,8 @@ export const STATES = [
       const items = ((await (await fetch("/api/sources", { cache: "no-store" })).json()).items || []).filter((x) => x.expand);
       for (const x of items) await fetch(`/api/sources/${encodeURIComponent(x.key)}?rev=${x.rev || ""}`, { method: "DELETE" });
       const d = await (await fetch("/api/dashboards")).json();
-      for (const x of (d.items || []).filter((y) => y.replaces)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      for (const x of (d.items || []).filter((y) => y.replaces || (!y.builtin && / › /.test(y.name || "")))) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      TPA.local.set("tpa.dash.v1", {});
       return items.length > 0;
     });
     if (again) { await p.reload(); await sleep(1500); }

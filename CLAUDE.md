@@ -124,7 +124,7 @@ python program/tools/ui_score.py 採点.json                                    
   カードの分けて出す・大きな窓（版 3.56.0）: 組み込みの「タブで分ける」の 2 つ目のタブ・「畳める見出し」・「5 列」（card-tabs・card-fold・card-dense。card の続き）。
   スケジュール（版 3.57.0。ScheduleView を移した）: 設備 L-1 の予定（主の数・区分の札・完了予定と CM3 の時刻）と HOT コイル作業順（主の数・設備の札・抜き出し方・作業の流れの図・釜番の札）
   （sch・sch-hot。--from sch で撮る。作り物の CM3 は `tests/schedule_fixture.py`。仕掛の作り物に釜番の列〈設計_PIT炉番炉順〉を足してある）。
-  JSON の列の展開（版 3.120.0。場面は TPA_UI_JSON=1 で、品質データと仕掛に JSON の列 5 つ〈5 つの形・壊れた行・空・違う形〉を足す〈tests/ui_window_scene.py の json_cells〉。JSON の列の無い場面では窓を開けずにそのまま撮る）: 仕掛の一覧の「{ } JSON」の窓・合わない行と設備マスタに無い鍵（CR1）を開いた所・表を作ってパネルも足した後のダッシュボード・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓（json・json-check・json-made・json-dash・json-dashwin。--from json。json-off が片付ける）。
+  JSON の列の展開（版 3.120.0。場面は TPA_UI_JSON=1 で、品質データと仕掛に JSON の列 5 つ〈5 つの形・壊れた行・空・違う形〉を足す〈tests/ui_window_scene.py の json_cells〉。JSON の列の無い場面では窓を開けずにそのまま撮る）: 仕掛の一覧の「{ } JSON」の窓・合わない行と設備マスタに無い鍵（CR1）を開いた所・表を作ってパネルも足した後のダッシュボード・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓（json・json-check・json-toast〈作った直後の知らせ〉・json-made・json-dash・json-dashwin。--from json。json-off が片付ける）。
   集計の組み替え（版 3.50.0）: 札を引いている途中（worklog-pivot-dnd）・値の計算の段に ÷1000 を当てた所（worklog-pivot-calc）・重量の小数を 1 桁にした所（worklog-pivot-dec。版 3.50.1）・ウォーターフォール（dash-waterfall）。
   保存先（版 3.49.0）: 全員（共有）に「標準」★・全員の既定に「標準」と「標準ダッシュボード」を置いた ▾ の面と、同じ名前「標準」を全員の既定へ名前を付けて保存する所（dash-save-pop・dash-saveas。dash-save-off が片付ける）。
   試験用の作業実績は設備 12 台で、1 台はファイルが見つからない・1 台は更新が止まった形。ANF は焼鈍炉の形（版 3.47.0: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列だけ・書き忘れ 2 回・いま炉の中）。作業開始（BOX実績_作業開始_日付）が同じ分割ロットを含み、作業終了（BOX実績_作業終了_日付。版 3.46.0）もある。
@@ -218,7 +218,7 @@ python program/tools/ui_score.py 採点.json                                    
   写している間は「写した 5/11」〈合わせた表も。前は 6/12〉と道具の行の札 1 つ・Python に任せた形は経過だけ・順番待ち〈Python〉と写しを待つ間は前回と比べない〈比べるのは数え始めてからの時間〉・
   本物の写し〈TPA_UI_SLOW_FILE の copy: バイト/秒で作業実績の写しを遅くする〉で札に「あと約 n 秒」〈速さが分かるまでは経過の秒〉と説明に MB・MB/秒。段を記録する係は窓 `desktop/src/progress.rs`〈`cargo test --lib progress`・
   `lot::tests::the_window_answers_dashboard_progress`・写しの数え方は `dashboard::tests::copying_is_counted_within_one_data_source`〉）。
-  `ui-eval-json.mjs`（版 3.120.0。利用者の依頼 2026-11-17「６）JSONデータ列」。TPA_UI_JSON=1 を自分で付ける: 仕掛の一覧の「{ } JSON」の窓の ① 列の帯と勧める形が窓の見分けの答え・② の行の数と ③ の分ける行と下の段の できる表 が試す答えと同じ・試す答えの数〈分ける・空・壊れ・違う形・できる行〉が一覧の全部の行を JSON.parse で数えた独立の答えと同じ・見本が元の行の鍵の順と値・合わない行の例と理由・設備マスタに無い鍵〈CR1〉の行の例・名前をその場で ③ の見出しへ・表を作る → データ元に並び件数が同じ・足したパネルの設備ごとの合計が独立の合計と同じ・添え書き・開き直しても残る・組む所の入口と「›」の札と同じ窓・3 つの大きさで窓が収まり、説明の 1 行と できる表 を畳まず、名前が切れない。分ける決まりは人の事例の表 `tests/fixtures/json_expand_cases.json` を `cargo test --test json_expand_cases` が窓〈`desktop/src/json_expand.rs`〉と突き合わせる）。
+  `ui-eval-json.mjs`（版 3.120.0。利用者の依頼 2026-11-17「６）JSONデータ列」。TPA_UI_JSON=1 を自分で付ける: 仕掛の一覧の「{ } JSON」の窓の ① 列の帯と勧める形が窓の見分けの答え・② の行の数と ③ の分ける行と下の段の できる表 が試す答えと同じ・試す答えの数〈分ける・空・壊れ・違う形・できる行〉が一覧の全部の行を JSON.parse で数えた独立の答えと同じ・見本が元の行の鍵の順と値・合わない行の例と理由・設備マスタに無い鍵〈CR1〉の行の例・名前をその場で ③ の見出しへ・表を作る → データ元に並び件数が同じ・新しいダッシュボードに作り組み込みの標準を書き換えない・足したパネルの設備ごとの合計が独立の合計と同じ・添え書き・開き直しても残る・組む所の入口と「›」の札と同じ窓・3 つの大きさで標準の数字のパネルの数が残り・棒が 1 色・窓が収まり、説明の 1 行と できる表 を畳まず、名前が切れない。分ける決まりは人の事例の表 `tests/fixtures/json_expand_cases.json` を `cargo test --test json_expand_cases` が窓〈`desktop/src/json_expand.rs`〉と突き合わせる）。
   値の計算の式の読み方は、画面（num-format.js）と窓（num_expr.rs）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・Rust の num_expr の試験）。どれも終了コード 0 で OK
 - 窓の突き合わせの試験（Rust 化の段 ①〜④ で作った評価関数。版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉と凍らせた写しを消し、表だけの形にした）:
   `cargo test --test <本>_parity` ほか 35 本は、焼いた表 `desktop/tests/baked/<表>.json`（場面の宣言・問い合わせ・窓の答え・道の型。行き先と元は `books.json`）の

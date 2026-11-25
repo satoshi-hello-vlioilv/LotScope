@@ -64,6 +64,12 @@
     try { st.items = await sources(); } catch (e) { st.err = e.message; }
     if (!st) return;
     if (!bases(st.items).some((b) => b.key === st.base)) st.base = (bases(st.items)[0] || {}).key || "lot";
+    // 札に出す元: 先頭 500 行に JSON の列がある元だけ（見分けは覚える。読めない元は出さない）
+    const keys = bases(st.items).map((b) => b.key);
+    const got = await Promise.all(keys.map((k) => probe(k).then((d) => (d.columns || []).length > 0).catch(() => false)));
+    if (!st) return;
+    st.withJson = new Set(keys.filter((k, i) => got[i]));
+    if (!st.withJson.has(st.base) && st.withJson.size) st.base = [...st.withJson][0];
     await pickBase(st.base);
   }
   function close() {
@@ -115,7 +121,7 @@
     return `<span class="jx-bar"><span class="jx-strip">${seg(fit, "ok", s.name)}${seg(c.empty, "empty", "空")}${seg(c.broken, "ng", "壊れ")}${seg(c.other, "warn", "違う形")}</span><span class="jx-words">${words.join(" · ")}</span></span>`;
   }
   function baseChips() {
-    const bs = bases(st.items);
+    const bs = bases(st.items).filter((b) => !st.withJson || st.withJson.has(b.key) || b.key === st.base);
     if (!bs.length) return "";
     return `<span class="jx-bases" role="radiogroup" aria-label="どの表から作るか">${bs.map((b) => `<button type="button" role="radio" aria-checked="${b.key === st.base}" class="${b.key === st.base ? "is-on" : ""}" data-jx-base="${esc(b.key)}">${esc(b.name)}</button>`).join("")}</span>`;
   }
@@ -131,7 +137,8 @@
       const x = pre && pre.shapes[s.k];
       const fit = x ? x.fit : 0, on = s.k === st.shape;
       const few = fit * 2 < rows && s.k !== best;
-      const n = !pre ? "…" : !fit ? "合いません" : few ? `${fmt(fit)} 行だけ合う` : s.k === "nest" ? `${fmt(rows)} 行・列 +${fmt(x.cols)}` : `${fmt(x.out)} 行`;
+      const split = x ? x.out - (rows - fit) : 0;   // 分けた行（分けずに残す行は入れない。③ の「n 行を m 行に分けます」の m と同じ）
+      const n = !pre ? "…" : !fit ? "合いません" : few ? `${fmt(fit)} 行だけ合う` : s.k === "nest" ? `${fmt(rows)} 行・列 +${fmt(x.cols)}` : `${fmt(split)} 行に`;
       const sub = !pre ? "" : !fit ? `中身は ${shapeOf(best).n} ${shapeOf(best).name}` : `合う ${pct(fit, rows)}`;
       const cls = !pre ? "" : s.k === best ? " is-fit" : fit ? " is-alt" : " is-no";
       return `<button type="button" role="radio" aria-checked="${on}" class="jx-pat${cls}${on ? " is-on" : ""}" data-jx-shape="${s.k}">`
@@ -145,7 +152,8 @@
     let master = "";
     if (keyed && km && km.master) {
       const miss = km.missing || [];
-      master = `<div class="jx-km">設備マスタに ${fmt(km.in)} / ${fmt(km.keys)}${miss.length ? " · " : ""}${miss.slice(0, 4).map((m) => `<button type="button" class="jx-miss${st.missingOpen === m.key ? " is-on" : ""}" data-jx-miss="${esc(m.key)}" title="押すと、この鍵を含む行の例を ③ に出します">${esc(m.key)} が無い</button>`).join(" ")}${miss.length > 4 ? ` ほか ${miss.length - 4}` : ""}</div>`;
+      master = `<div class="jx-km">設備マスタに ${fmt(km.in)} / ${fmt(km.keys)}${miss.length ? " · " : ""}${miss.slice(0, 4).map((m) => `<button type="button" class="jx-miss${st.missingOpen === m.key ? " is-on" : ""}" data-jx-miss="${esc(m.key)}" title="設備マスタに無い鍵です。押すと、この鍵を含む行の例を ③ に出します">${esc(m.key)} が無い</button>`).join(" ")}${miss.length > 4 ? ` ほか ${miss.length - 4}` : ""}`
+        + (miss.length ? `<span class="jx-kmw">（設備マスタに無い設備名。綴りの違い・新しい設備なら）<button type="button" class="jx-link" data-jx-master>設備マスタに足す…</button></span>` : "") + "</div>";
     }
     return `<div class="jx-names">${keyed ? `<label>鍵の列<input data-jx-name="key" value="${esc(st.key)}" maxlength="40" aria-label="鍵の列の名前"></label>` : ""}`
       + `${valued ? `<label>値の列<input data-jx-name="value" value="${esc(st.value)}" maxlength="40" aria-label="値の列の名前"></label>` : ""}`
@@ -181,7 +189,7 @@
     const words = [s.broken ? `壊れた JSON ${fmt(s.broken)}` : "", s.other ? `違う形 ${fmt(s.other)}` : ""].filter(Boolean).join(" · ");
     return `<table class="jx-prev"><thead>${head}</thead><tbody>${body}</tbody></table>`
       + `<div class="jx-iss" role="status"><span class="jx-ok">✓ ${fmt(s.fit)} 行を ${fmt(made)} 行に分けます</span>`
-      + (s.empty ? `<span class="jx-mute">空 ${fmt(s.empty)} 行は分けずに 1 行のまま残します</span>` : "")
+      + (s.rows - s.fit ? `<span class="jx-mute">分けずに残す ${fmt(s.rows - s.fit)} 行（${[s.empty ? `空 ${fmt(s.empty)}` : "", s.broken ? `壊れ ${fmt(s.broken)}` : "", s.other ? `違う形 ${fmt(s.other)}` : ""].filter(Boolean).join(" · ")}）は足した列を空のまま 1 行で残し、合わせて ${fmt(s.out)} 行</span>` : "")
       + (s.text && VALUED.has(st.shape) ? `<span class="jx-mute">数でない値 ${fmt(s.text)} 個は字のまま（合計には入りません）</span>` : "")
       + (bad ? `<span class="jx-ng">▲ ${fmt(bad)} 行は分けられません（${words}）<button type="button" class="jx-link" data-jx-issues aria-expanded="${st.show === "issues"}">${st.show === "issues" ? "閉じる" : "見る"}</button></span>` : "")
       + (bad && st.show === "issues" ? `<ul class="jx-issues">${issues}${bad > (pre.issues || []).length ? `<li class="jx-mute">ほか ${fmt(bad - (pre.issues || []).length)} 行（足した列は空のまま 1 行で残します）</li>` : ""}</ul>` : "")
@@ -193,11 +201,12 @@
   function footHtml() {
     const pre = st.pre, can = !!pre && pre.stats.fit > 0 && !st.busy;
     const had = viewFor(st.items, st.base, st.col);
-    const out = pre ? `（${fmt(pre.rows)} → ${fmt(pre.stats.out)} 行）` : "";
+    const ps = pre && pre.stats, keep = ps ? ps.rows - ps.fit : 0;
+    const out = ps ? `：${fmt(ps.out - keep)} 行${keep ? ` ＋ 分けずに残す ${fmt(keep)} 行 ＝ ${fmt(ps.out)} 行` : ""}（元 ${fmt(pre.rows)} 行）` : "";
     const panelOk = VALUED.has(st.shape);
     const pan = st.from === "dash" ? `<span class="jx-mute" title="作ると、組んでいるパネルのデータにします">このパネルで${KEYED.has(st.shape) ? "鍵ごとの値の合計" : "値の合計"}にします</span>`
-      : `<label class="jx-ck${panelOk ? "" : " is-off"}"><input type="checkbox" data-jx-panel${st.panel && panelOk ? " checked" : ""}${panelOk ? "" : " disabled"}>ダッシュボードに「${esc(panelTitle())}」のパネルも足す</label>`;
-    return `<span class="jx-out">できる表 <b>${esc(st.col ? tableName() : "")}</b>${out}${had ? '<small>（作ってある表の決まりを直します）</small>' : ""}</span>${pan}<span class="jx-sp"></span>`
+      : `<label class="jx-ck${panelOk ? "" : " is-off"}"><input type="checkbox" data-jx-panel${st.panel && panelOk ? " checked" : ""}${panelOk ? "" : " disabled"}>新しいダッシュボードに「${esc(panelTitle())}」を作る</label>`;
+    return `<div class="jx-fl"><span class="jx-out">できる表 <b>${esc(st.col ? tableName() : "")}</b>${out}${had ? '<small>（作ってある表の決まりを直します）</small>' : ""}</span>${pan}</div><span class="jx-sp"></span>`
       + `<button type="button" class="btn-ghost" data-jx-close>やめる</button><button type="button" class="btn-primary" data-jx-make${can ? "" : " disabled"}>${st.busy ? "…" : st.from === "dash" ? "表を作ってパネルに使う" : had ? "表を直す" : "表を作る"}</button>`;
   }
   function paint() {
@@ -205,7 +214,7 @@
     const focus = document.activeElement && win.contains(document.activeElement) ? document.activeElement.dataset : null;
     const name = focus && (focus.jxName || (focus.jxPath !== undefined ? "path" : ""));
     win.innerHTML = `<header class="jx-h"><b>{ } JSON の列を分ける</b>${baseChips()}<small>${st.probe ? `中身の先頭 ${fmt(st.probe.read)} 行を読みました` : ""}</small><span class="jx-sp"></span><button type="button" class="jx-x" data-jx-close aria-label="閉じる">×</button></header>`
-      + `<div class="jx-body"><section class="jx-s1"><h5><i>1</i>列</h5><div class="jx-cols">${colsHtml()}</div></section>`
+      + `<div class="jx-body"><section class="jx-s1"><h5><i>1</i>列<small class="jx-h5n">帯は先頭 ${fmt((st.probe && st.probe.read) || 500)} 行の割合</small></h5><div class="jx-cols">${colsHtml()}</div></section>`
       + `<section class="jx-s2"><h5><i>2</i>分け方</h5>${st.col ? `<div class="jx-pats" role="radiogroup" aria-label="分け方">${patsHtml()}</div>${namesHtml()}` : ""}</section>`
       + `<section class="jx-s3"><h5><i>3</i>見本と確かめ${st.busy ? '<i class="wait-spin" aria-hidden="true"></i>' : ""}</h5><div class="jx-pv">${st.col ? previewHtml() : ""}</div></section></div>`
       + `<footer class="jx-f">${footHtml()}</footer>`;
@@ -238,6 +247,7 @@
     if (b.hasAttribute("data-jx-issues")) { st.show = st.show === "issues" ? "" : "issues"; paint(); return; }
     if (b.dataset.jxMiss) { st.missingOpen = st.missingOpen === b.dataset.jxMiss ? "" : b.dataset.jxMiss; paint(); return; }
     if (b.hasAttribute("data-jx-make")) make();
+    if (b.hasAttribute("data-jx-master")) { close(); if (window.openMasterAt) window.openMasterAt("equipment"); }
   }
   /** 表を作る: データ元に足す（同じ元・同じ列の表があれば決まりを直す）→ 分けた表を組んでおく → パネル */
   async function make() {
@@ -268,7 +278,7 @@
     if (wantPanel && window.Dashboard && Dashboard.addJsonPanel) {
       const got = await Dashboard.addJsonPanel(view);
       if (got && got.ok) {
-        TPA.toast(`「${view.name}」を作り、ダッシュボードに「${view.title}」を足しました`, { rest: "見る → ダッシュボード" });
+        TPA.toast(`「${view.name}」を作り、新しいダッシュボード「${got.name}」に「${view.title}」を足しました`, { rest: "見る → ダッシュボード", ms: 15000 });
         showJump(view.title);
         return;
       }
@@ -306,8 +316,9 @@
       const base = (list || []).find((x) => x.key === (item.base === "lot" ? "lot" : `src:${item.base}`));
       const head = `${base ? base.name : item.base} › ${e.列} を ${shapeOf(e.形).n} ${shapeOf(e.形).name} で分けた`;
       if (!st2) return [head, "", ""];
-      const made = st2.out - (st2.rows - st2.fit), bad = st2.broken + st2.other;
-      return [head, `（${fmt(st2.fit)} → ${fmt(made)} 行）`, bad ? `▲ ${fmt(bad)} 行は数えていません` : ""];
+      const made = st2.out - (st2.rows - st2.fit);
+      const keep = st2.rows - st2.fit;
+      return [head, `（${fmt(st2.fit)} 行を ${fmt(made)} 行に）`, keep ? `▲ 分けずに残した ${fmt(keep)} 行は数えていません` : ""];
     },
   };
 })();

@@ -65,10 +65,11 @@
 .jx-link{border:0;background:none;color:#2d5f9e;text-decoration:underline;font:inherit;cursor:pointer;padding:0 0 0 6px}
 .jx-wait,.jx-none{color:#4c5864;font-size:13px;margin:0}
 .jx-f{display:flex;align-items:center;flex-wrap:nowrap;gap:8px 12px;min-width:0;padding:10px 18px;border-top:1px solid var(--line);background:#f6f8fb;font-size:13px}
-.jx-out{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.jx-fl{display:flex;flex-direction:column;gap:3px;min-width:0;flex:0 1 auto}
+.jx-out{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .jx-f > .jx-mute{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
-.jx-f .jx-sp{flex:1 0 0}.jx-out small{color:#4c5864;margin-left:6px}
-.jx-ck{display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;flex:0 1 auto;padding:3px 8px;border-radius:6px;background:#eef6ef;border:1px solid #c9e2cf}
+.jx-f .jx-sp{flex:1 0 0}.jx-out small{color:#4c5864;margin-left:6px;font-size:12px}
+.jx-ck{display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;align-self:flex-start;padding:3px 8px;border-radius:6px;background:#eef6ef;border:1px solid #c9e2cf}
 .jx-ck.is-off{background:#f1f3f5;border-color:#dde3e8;color:#5d6b77}
 .jx-f .btn-primary,.jx-f .btn-ghost{height:32px;padding:0 14px;white-space:nowrap}
 .jx-jump{margin-left:8px;border:1px solid rgba(255,255,255,.6);background:transparent;color:inherit;border-radius:6px;padding:0 8px;font:inherit;cursor:pointer}
@@ -87,3 +88,6 @@
 .db-psub.has-jx > .db-jxn{margin-left:-6px}
 .db-psub.has-jx > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .db-psub .db-jxwarn{color:#8a2a1f;font-weight:700}
+.jx-body h5 .jx-h5n{font-weight:400;font-size:12px;color:#4c5864;margin-left:4px}
+.jx-kmw{font-size:12px;color:#4c5864}
+.jx-fl > .jx-mute{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

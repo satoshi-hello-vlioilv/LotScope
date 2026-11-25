@@ -127,7 +127,7 @@
     const auto = !String(p.title || "").trim() || p.title === autoTitle(p);
     fieldsKey = "";
     await setSource(v.source, "");
-    if (v.shape === "dict" && v.keyCol) t.body.rows = [{ column: v.keyCol, part: "" }];
+    if (v.shape === "dict" && v.keyCol) { t.body.rows = [{ column: v.keyCol, part: "" }]; t.filters = [{ column: v.keyCol, op: "not_empty", value: "" }]; }
     if (v.valueCol) t.body.measures = [{ agg: "sum", column: v.valueCol }];
     if (!inGroup()) { p.visual = t.body.rows.length ? "bar" : "kpi"; p.sort = t.body.rows.length ? "desc" : ""; }
     if (auto) { p.title = v.title; const ti = $("#deTitle"); if (ti) ti.value = p.title; }
