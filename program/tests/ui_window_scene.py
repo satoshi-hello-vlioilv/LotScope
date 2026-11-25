@@ -13,7 +13,7 @@
    仕掛・マスタの置き場を差し替える。TPA_UI_WORK_STALE は作業実績の古さの時間・TPA_UI_SHARE=shared/down は共有のマスタの置き場）
 4. 権限の表に撮る人（この PC の名乗り getpass.getuser）を「開発者・編集可」で 1 行足す（Python の開発用サーバーは判定を差し替えた: as_role）
 5. 窓の開発用サーバーを起こし（TPA_DASHBOARD_NOW は試験データの翌日の 10 時）、登録を書く道で当てる
-6. TPA_UI_BAD_ROWS の読めない行・TPA_UI_SHARE=down の名前替え・ui_scene.finish（前の Python の開発用サーバー と同じ順と中身）
+6. TPA_UI_BAD_ROWS の読めない行（TPA_UI_JSON=1 は 1 の後に品質データと仕掛へ JSON の列 5 つを足す）・TPA_UI_SHARE=down の名前替え・ui_scene.finish（前の Python の開発用サーバー と同じ順と中身）
 7. 「LISTEN http://127.0.0.1:ポート」の 1 行を出し、標準入力が閉じるまで起こしておく（閉じたら窓と CM3 を止め、作業フォルダを消す）
 
 起動の初期値（検査計・最初の管理者・釜番日付）は当てない（Python の開発用サーバーと同じ）。キーは窓の乱数のまま（道具は画面と API から読む）。
@@ -59,6 +59,56 @@ GROUPS = [
     {"name": "CR ライン", "set": "ライン別", "equipment": ["CR1", "CR2"]},
     {"name": "L ライン", "set": "ライン別", "equipment": [], "rules": [{"op": "prefix", "value": "L-"}], "note": "名前が L- で始まる設備"},
 ]
+
+
+# JSON の列（版 3.120.0 の改良「JSON の列の展開」の案を撮るため。TPA_UI_JSON=1 のときだけ足す。ほかの評価関数の場面は変えない）
+JSON_EQUIP = ["ANF", "DL2", "HOT", "KEN", "L-1", "L-2", "LS3", "TLV", "CR1"]
+JSON_COLUMNS = ["設備別通過回数", "測定値", "工程履歴", "仕様", "設備別実績"]
+
+
+def json_cells(i):
+    """品質データの i 行目（0 から）の JSON の列 5 つ（標準の 5 形）と、壊れた行・空・違う形の行。乱数は行の番号から決める（再現できる）"""
+    import random as _random
+    r = _random.Random(1000 + i)
+    eq = sorted(r.sample(JSON_EQUIP, r.randint(3, 8)))
+    # ① 名前→値の辞書（設備ごとの加重平均通過回数）
+    d1 = json.dumps({e: round(r.choice([1, 1, 2, r.uniform(0, 2)]), 3) for e in eq}, ensure_ascii=False, separators=(",", ":"))
+    if i % 50 == 7:
+        d1 = ""                                          # 空（2%）
+    elif i % 250 == 11:
+        d1 = d1[:-6]                                     # 壊れた JSON（閉じていない）
+    elif i % 300 == 13:
+        d1 = "[1, 2]"                                    # 違う形（並び）
+    # ② 値の並び（測定値）
+    d2 = json.dumps([r.randint(1, 9) for _ in range(r.randint(1, 5))])
+    if i % 40 == 3:
+        d2 = '[3, 5, "欠"]'                              # 数でない値の混ざった並び
+    # ③ 表の並び（工程履歴）
+    d3 = json.dumps([{"設備": e, "回": r.randint(1, 3), "日": f"2026-10-{r.randint(1, 28):02d}"} for e in eq[:r.randint(1, 3)]],
+                    ensure_ascii=False)
+    # ④ 入れ子の辞書（仕様）
+    d4 = json.dumps({"寸法": {"幅": r.choice([1000, 1200, 1250]), "厚": r.choice([0.3, 0.5, 1.0])}, "検査": {"者": r.choice(["担当1", "担当2"])}},
+                    ensure_ascii=False)
+    if i % 120 == 5:
+        d4 = "{'寸法': 1200}"                             # 壊れた JSON（引用符が ' ）
+    # ⑤ 名前→表の辞書（設備別実績）
+    d5 = json.dumps({e: {"回": r.randint(1, 3), "分": r.randint(5, 90)} for e in eq[:4]}, ensure_ascii=False, separators=(",", ":"))
+    if i % 60 == 9:
+        d5 = None                                        # NULL
+    return [d1, d2, d3, d4, d5]
+
+
+def add_json_columns(path):
+    """品質データ・仕掛の表「仕掛」に JSON の列 5 つを足す（TPA_UI_JSON=1）"""
+    import sqlite3
+    db = sqlite3.connect(path)
+    for c in JSON_COLUMNS:
+        db.execute(f'ALTER TABLE "仕掛" ADD COLUMN [{c}]')
+    ids = [r[0] for r in db.execute('SELECT rowid FROM "仕掛" ORDER BY rowid')]
+    db.executemany('UPDATE "仕掛" SET ' + ",".join(f"[{c}] = ?" for c in JSON_COLUMNS) + " WHERE rowid = ?",
+                   [json_cells(i) + [rid] for i, rid in enumerate(ids)])
+    db.commit()
+    db.close()
 
 
 # 登録で書くマスタ（Python の開発用サーバーが共有の置き場へ先に置いた物）
@@ -157,6 +207,9 @@ def register(w, masters):
 def serve(work, exe):
     work = Path(work)
     made = ui_scene.make(work)
+    if os.environ.get("TPA_UI_JSON"):          # JSON の列の展開の案を撮る形（版 3.120.0）
+        add_json_columns(made["quality"])
+        add_json_columns(made["wip"])          # 仕掛にも（ダッシュボードの組む所の撮る形〈仕掛区分のパネル〉が仕掛のデータを組むため）
     cm3 = fakes_serve.start("uicm3", str(made["wip"]))
     share_mode = os.environ.get("TPA_UI_SHARE", "")
     master_share = work / "マスタ共有"
