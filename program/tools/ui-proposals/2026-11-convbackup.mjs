@@ -174,7 +174,7 @@ function lib() {
   };
   /* 押した物（どの案も同じ印。頁の中の再描画に負けないよう、文書の捕まえる段で受ける） */
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-cvb-hist],[data-cvb-diff],[data-cvb-pt],[data-cvb-close],[data-cvb-bundled],[data-cvb-pre-import],[data-cvb-pre-bundled],[data-cvb-tab],[data-cvb-undo],[data-cvb-noop]");
+    const t = e.target.closest("[data-cvb-hist],[data-cvb-diff],[data-cvb-pt],[data-cvb-close],[data-cvb-bundled],[data-cvb-pre-import],[data-cvb-pre-bundled],[data-cvb-tab],[data-cvb-undo],[data-cvb-noop],[data-cvb-th],[data-cvb-io],[data-cvb-all]");
     if (!t) return;
     const ds = t.dataset;
     if (ds.cvbHist != null) CB.view = CB.view === "hist" ? "edit" : "hist";
@@ -543,7 +543,362 @@ const CSS_E = `
 .cbe-h{margin:0;font-size:15px}
 `;
 
+
+/* ==================================================================================================
+   2 回目（rounds[1]）。1 回目の採点（E 76.8・A 75.8・C 74.0・B 58.8・D 55.1）の指摘から:
+   (1) 一覧の下の「同梱に戻す」の下線のリンクをやめ、標準・同梱は戻す／履歴の置き場の中へ。一覧の下は状態とボタン 2 つ（書き出す・取り込むは ▾ の面）
+   (2) 時点を押したら同じ画面の右に差（「次へ」なし）  (3) 表の頭から 2 手で 1 表を戻す入口「この表の履歴 ▾」（撮る状態 cvb-th）
+   (4) 知らせは貼り付けない（送っても後ろに被らない）。保存の範囲は保存のボタンの隣にも短く残す
+   (5) 持ち越し: 一覧の札「直した · 日時／同梱のまま」（1 回目 D）と、壊す操作を保存の隣から外す「⋯」（1 回目 C）
+   案: F 履歴と戻すの窓（E の改め）・G 履歴のタブ（A の改め）・H 表の中で見比べる（新）・I 管理の「バックアップ」の頁（新）・J 標準をやめて戻すを 1 つに（新）
+   ================================================================================================== */
+function lib2() {
+  const CB = window.CB;
+  if (CB.r2) return; CB.r2 = true;
+  CB.view = "edit"; CB.sel = "p3"; CB.filter = null; CB.io = false; CB.std = "同梱のプリセット";
+  const STATE = { "管理分類": "11/26 10:42", "課名": "11/20 13:05", "地取区分": "11/12 08:50" };
+  const hhmm = () => { const d = new Date(), p = (n) => String(n).padStart(2, "0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; };
+  /* 押した物（2 回目の印）。1 回目の lib の受け口の後で動く（hook） */
+  CB.hook2 = (ds) => {
+    if (ds.cvbTh != null) { CB.view = "win"; CB.filter = CB.name(); CB.sel = "p3"; CB.row = null; CB.open = null; }
+    if (ds.cvbAll != null) { CB.filter = null; CB.row = null; }
+    if (ds.cvbIo != null) CB.io = !CB.io;
+    if (ds.cvbPreImport != null) { CB.view = "edit"; CB.io = true; }
+    if (ds.cvbClose != null) { CB.view = "edit"; CB.filter = null; CB.open = null; CB.row = null; CB.io = false; CB.cmp = null; }
+    if (ds.cvbPt) CB.open = null;
+  };
+  /** 一覧の札（1 回目 D から持ち越し）: 直した · 日時／同梱のまま */
+  CB.chips = (page) => page.querySelectorAll("[data-cv-pick]").forEach((b) => {
+    if (b.querySelector(".cbd-st")) return;
+    const s = STATE[b.querySelector("b").textContent];
+    b.insertAdjacentHTML("beforeend", s ? `<span class="cbd-st is-mine">直した · ${s}</span>` : '<span class="cbd-st">同梱のまま</span>');
+  });
+  /** 表の頭: 保存の隣から壊す操作を外して「⋯」へ（1 回目 C から持ち越し）。th は「この表の履歴 ▾」の印（hist ならその印） */
+  CB.head = (page, { th = "data-cvb-th", label = "履歴 ▾" } = {}) => {
+    const top = page.querySelector(".cv-top"); if (!top || top.querySelector(".cbx-more")) return;
+    top.querySelector("[data-cv-reset]")?.remove(); top.querySelector("[data-cv-delete]")?.remove();
+    const save = top.querySelector("[data-cv-save]");
+    if (save && save.textContent === "保存") save.textContent = "この表を保存";
+    save?.insertAdjacentHTML("beforebegin", `<button type="button" class="cb-btn" ${th} title="この表だけの戻せる時点と、戻すと何が変わるか">${label}</button>`
+      + '<button type="button" class="cb-btn cbx-more" data-cvb-noop title="この表を消す・この表だけ書き出す" aria-haspopup="menu" aria-label="この表のほかの操作">⋯</button>');
+  };
+  /** 保存の範囲を保存のボタンの隣にも短く（知らせは貼り付けないので、送っても見える所に） */
+  CB.savedChip = (page) => {
+    const n = page.querySelector("#cvNotice.ok"), top = page.querySelector(".cv-top");
+    if (!n || !n.dataset.cb || !top || top.querySelector(".cbx-saved")) return;
+    top.querySelector("[data-cvb-th], [data-cvb-hist]")?.insertAdjacentHTML("beforebegin", `<span class="cbx-saved" title="${CB.esc(n.textContent)}">✓ この表だけ保存 ${hhmm()}</span>`);
+  };
+  /** 一覧の下: 状態とボタン 2 つ（書き出す・取り込むは ▾ の面）。同梱・標準のリンクは置かない */
+  CB.foot = (page, { status, main }) => {
+    const io = page.querySelector(".cv-io"); if (!io) return;
+    // 一覧の下（1728 でも送った先）ではなく、一覧の頭のすぐ下に置く（いつも見える）
+    const head = page.querySelector(".sh-list-head");
+    if (head && head.nextElementSibling !== io) head.after(io);
+    const b = io.querySelector(".cv-std b"); if (b) CB.std = b.textContent === "取り込んだ表" ? "自分で決めた表" : b.textContent;
+    if (page.querySelector(".cv-imp")) CB.io = false;   // 取り込む前の確かめが出たら ▾ の面は閉じる
+    const key = `${status()}|${CB.io}`;
+    if (io.dataset.cbk === key) return;
+    io.dataset.cbk = key;
+    io.innerHTML = `<div class="cbx-status">${status()}</div><div class="cbx-btns">${main}<button type="button" class="cb-btn" data-cvb-io aria-expanded="${CB.io}">書き出す・取り込む ${CB.io ? "▴" : "▾"}</button></div>`
+      + (CB.io ? `<div class="cbx-iopop"><button type="button" class="pv-btn" data-cv-export>↓ 全部の表を書き出す</button><button type="button" class="pv-btn" data-cvb-noop>↓ この表だけ書き出す</button><button type="button" class="pv-btn" data-cv-import>↑ 取り込む…（読む前に違いを見せます）</button></div>` : "")
+      + '<button type="button" hidden data-cvb-pre-import></button>';
+  };
+  CB.lastBk = () => `${CB.points[2].day} ${CB.points[2].time}（全体）`;
+  /** 戻せる時点の札（f があればその表を含む時点だけ。違いの数もその表だけ） */
+  CB.ptsHtml = (f, { bundled = true, bundledAttr = "" } = {}) => (CB.points || []).filter((p) => !f || p.scope === "all" || p.scope.includes(f))
+    .concat(bundled && CB.bundled && (!f || CB.bundled.tables.some((t) => t.name === f)) ? [CB.bundled] : []).map((p) => {
+      const n = CB.diff(p, f ? [f] : null).filter((d) => d.st !== "same"), d0 = n[0];
+      const diffText = f ? (d0 ? CB.what(d0) : "今と同じ") : (n.length ? `今と違う表 ${n.length}` : "今と同じ");
+      return `<button type="button" class="cb-pt${p.id === CB.sel && CB.open !== "bundled" ? " is-on" : ""}" data-cvb-pt="${p.id}"${p.preset ? ` ${bundledAttr}` : ""}><span class="cb-pt1"><b>${p.preset ? "同梱のプリセット" : `${p.day} ${p.time}`}</b>${CB.kChip(p)}${CB.scChip(p)}</span>`
+        + `<span class="cb-pt2">${p.preset ? CB.esc(p.who) : `${CB.esc(p.why)} · ${CB.who(p)}`}</span><span class="cb-pt3">${CB.esc(diffText)}</span></button>`;
+    }).join("");
+  /** 右の欄: 選んだ時点に戻すと何が変わるか（時点を押したらすぐ。「次へ」なし） */
+  CB.detailHtml = (f) => {
+    const p = CB.point(CB.sel), only = f ? [f] : null, ds = CB.diff(p, only), ch = ds.filter((d) => d.st !== "same");
+    const go = f ? `「${CB.esc(f)}」をこの時点に戻す` : `選んだ ${ch.length} 表を戻す`;
+    return `<div class="cbx-dhead"><div class="cba-title"><b>${p.preset ? "同梱のプリセット" : `${p.day} ${p.time}`}</b>${CB.kChip(p)}${CB.scChip(p)}<span class="cb-note">${p.preset ? CB.esc(p.who) : `${CB.esc(p.why)} · ${CB.who(p)}`}</span></div>
+      <p class="cb-say">この時点に戻すと: <b>${f ? (ch.length ? CB.esc(CB.what(ch[0])) : "変わりません") : `${ch.length} 表が変わります`}</b>${f ? "（ほかの表は変えません）" : `（同じ ${ds.length - ch.length} 表は変わりません）`}</p>
+      <div class="cbx-go"><button type="button" class="btn-primary" data-cvb-noop${ch.length ? "" : " disabled"}>${go}</button>${!f && p.scope === "all" && !p.preset ? `<button type="button" class="cb-btn" data-cvb-noop>全体（${p.tables.length} 表）をこの時点に戻す</button>` : ""}<span class="cb-note">戻す前の今も自動で残すので、戻した後でも取り消せます</span></div></div>
+      ${CB.diffHtml(p, { open: CB.row, only, check: !f })}`;
+  };
+  /** 標準（各表の「標準に戻す」の戻る先）の段と、同梱にするときの確かめ（右の欄に出す） */
+  CB.stdBar = () => `<div class="cbx-std"><span>標準（各表を「標準に戻す」ときの戻る先）: <b>${CB.esc(CB.std)}</b></span><span class="cbx-sp"></span>`
+    + `<button type="button" class="cb-btn" data-cvb-noop>今の表を標準にする…</button><button type="button" class="cb-btn" data-cvb-bundled>同梱のプリセットを標準にする…</button></div>`;
+  CB.bundledPane = () => `<div class="cbx-dhead"><div class="cba-title"><b>標準を同梱のプリセットにしますか？</b></div>${CB.bundledHtml()}
+      <div class="cbx-go"><button type="button" class="cb-btn is-danger" data-cvb-pt="${CB.sel}">同梱のプリセットを標準にする</button><button type="button" class="cb-btn" data-cvb-pt="${CB.sel}">やめる</button></div></div>
+    <table class="cb-dt"><thead><tr><th>表</th><th>今の表</th><th>戻る先（今の標準）</th><th>戻る先（同梱）</th></tr></thead><tbody>${CB.bundledDiff().map((d) =>
+      `<tr class="${d.same ? "is-same" : ""}"><td><b>${CB.esc(d.name)}</b></td><td>${d.now} 行</td><td>${d.now} 行</td><td>${d.then} 行 ${d.same ? CB.stChip("same") : CB.stChip("chg")}</td></tr>`).join("")}</tbody></table>`;
+  /** 左右の欄（窓・タブ・頁で同じ形） */
+  CB.twoPane = ({ std = true, bundledAttr = "" } = {}) => {
+    const f = CB.filter;
+    return `${std ? CB.stdBar() : ""}${f ? `<div class="cbx-filter">「${CB.esc(f)}」を含む時点だけを出しています <button type="button" class="cb-lnk" data-cvb-all>全部の表の時点 ›</button></div>` : ""}
+      <div class="cbx-two"><aside class="cbx-left"><div class="cbx-mk"><button type="button" class="cb-btn" data-cvb-noop>＋ 全体をバックアップ</button><button type="button" class="cb-btn" data-cvb-noop>＋ 表を選んで…</button></div>
+        <div class="cbx-h">戻せる時点（新しい順）</div>${CB.ptsHtml(f, { bundledAttr })}</aside>
+      <section class="cbx-right">${CB.open === "bundled" ? CB.bundledPane() : CB.detailHtml(f)}</section></div>`;
+  };
+  CB.modal = (page, title, inner) => page.insertAdjacentHTML("beforeend", `<div class="cbx-dlg" role="dialog" aria-label="${CB.esc(title)}"><div class="cbx-card"><div class="cbx-head"><b>${CB.esc(title)}</b><span class="cb-note">開発者・メンテナンス者だけ</span><button type="button" class="cb-btn" data-cvb-close>閉じる</button></div><div class="cbx-body">${inner}</div></div></div>`);
+  CB.css2 = `
+    .cv-page > #cvNotice{position:static;box-shadow:none}
+    .cv-editor .sh-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:6px}
+    .cv-editor .sh-item > small{grid-column:1/-1}
+    .cbd-st{grid-column:2;grid-row:1;font-size:11.5px;font-weight:800;color:#5a6775;white-space:nowrap}.cbd-st.is-mine{color:#8a4d00}
+    .cv-top .cv-name{min-width:200px}
+    .cbx-saved{font-size:12.5px;font-weight:700;color:#1d6b3c;white-space:nowrap;margin-right:2px}
+    .cv-io{display:grid;gap:8px;margin:2px 0 10px;padding:8px 10px;border:1px solid #dbe2ea;border-radius:9px;background:#f7f9fb}
+    .cbx-status{font-size:12.5px;line-height:1.6;color:#2c3a48}.cbx-status b{font-weight:800}
+    .cbx-btns{display:grid;grid-template-columns:1fr;gap:6px}.cbx-btns .cb-btn{padding:5px 8px;text-align:left}   /* 狭い欄なので 1 列（ボタンの字を折らない） */
+    .cbx-iopop{display:grid;gap:4px;padding:6px;border:1px solid #dbe2ea;border-radius:8px;background:#f7f9fb}.cbx-iopop .pv-btn{justify-content:flex-start;text-align:left}
+    .cbx-dlg{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(15,30,50,.32)}
+    .cbx-card{width:min(1180px,94vw);height:min(820px,88vh);display:grid;grid-template-rows:auto minmax(0,1fr);background:#fff;border-radius:12px;box-shadow:0 18px 48px rgba(10,25,45,.3);overflow:hidden}
+    .cbx-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e3e8ee}.cbx-head b{font-size:16px}.cbx-head .cb-note{flex:1}
+    .cbx-body{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0;padding:10px 16px 0}
+    .cbx-std{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 10px;margin-bottom:8px;border-radius:8px;background:#f3f6f9;font-size:13px}.cbx-sp{flex:1}
+    .cbx-filter{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:#2c3a48}
+    .cbx-two{display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:14px;min-height:0}
+    .cbx-left,.cbx-right{min-height:0;overflow:auto;padding-bottom:14px}
+    .cbx-mk{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.cbx-h{font-size:12.5px;font-weight:800;color:#4b5866;margin:2px 0 6px}
+    .cbx-dhead{position:sticky;top:0;z-index:2;background:#fff;padding-bottom:6px;border-bottom:1px solid #e3e8ee;margin-bottom:4px}
+    .cba-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cba-title b{font-size:16px}
+    .cbx-go{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+  `;
+}
+/** 2 回目の案の共通の始め（CSS を足し、受け口をつなぐ） */
+function start2(css) {
+  const CB = window.CB;
+  if (CB.started) return false; CB.started = true;
+  document.head.append(Object.assign(document.createElement("style"), { textContent: CB.css + CB.css2 + css }));
+  return true;
+}
+
+/* ------------------------------------------------------------------ F: 履歴と戻すの窓（1 回目 E の改め。流れ） */
+function scriptF() {
+  const CB = window.CB;
+  if (!window.__cbStart2(window.__cbCSS)) return;
+  CB.onBundled = () => {};
+  CB.hook = (ds) => {
+    CB.hook2(ds);
+    if (ds.cvbHist != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbPreBundled != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbBundled != null) CB.open = "bundled";
+  };
+  CB.keep(() => {
+    CB.common();
+    const page = CB.page(); if (!page || !CB.points) return;
+    CB.chips(page); CB.head(page); CB.savedChip(page);
+    CB.foot(page, { status: () => `標準: <b>${CB.esc(CB.std)}</b><br>最後のバックアップ: ${CB.lastBk()}`,
+      main: '<button type="button" class="cb-btn is-main" data-cvb-hist>⟲ 履歴と戻す…</button><button type="button" hidden data-cvb-pre-bundled></button>' });
+    const key = `${CB.view}|${CB.sel}|${CB.row}|${CB.open}|${CB.filter}`;
+    if (page.dataset.cbk === key && !CB.dirty && (CB.view !== "win" || page.querySelector(".cbx-dlg"))) return;
+    CB.dirty = false; page.dataset.cbk = key;
+    page.querySelector(".cbx-dlg")?.remove();
+    if (CB.view !== "win") return;
+    CB.modal(page, CB.filter ? `「${CB.filter}」の履歴と戻す` : "変換表の履歴と戻す", CB.twoPane({ std: true }));
+  });
+}
+const CSS_F = ``;
+
+/* ------------------------------------------------------------------ G: 履歴のタブ（1 回目 A の改め。置き場） */
+function scriptG() {
+  const CB = window.CB;
+  if (!window.__cbStart2(window.__cbCSS)) return;
+  CB.onBundled = () => {};
+  CB.hook = (ds) => {
+    CB.hook2(ds);
+    if (ds.cvbTh != null) CB.view = "hist";
+    if (ds.cvbHist != null) { CB.view = "hist"; CB.filter = null; CB.open = null; }
+    if (ds.cvbPreBundled != null) { CB.view = "hist"; CB.filter = null; CB.open = null; }
+    if (ds.cvbBundled != null) CB.open = "bundled";
+  };
+  CB.keep(() => {
+    CB.common();
+    const page = CB.page(); if (!page || !CB.points) return;
+    CB.chips(page); CB.head(page); CB.savedChip(page);
+    CB.foot(page, { status: () => `標準: <b>${CB.esc(CB.std)}</b><br>最後のバックアップ: ${CB.lastBk()}`,
+      main: '<button type="button" class="cb-btn" data-cvb-hist>⟲ 履歴とバックアップ</button><button type="button" hidden data-cvb-pre-bundled></button>' });
+    let tabs = page.querySelector(".cba-tabs");
+    if (!tabs) { page.querySelector(".sh-editor").insertAdjacentHTML("beforebegin", '<div class="cba-tabs" role="tablist"></div>'); tabs = page.querySelector(".cba-tabs"); }
+    const key = `${CB.view}|${CB.sel}|${CB.row}|${CB.open}|${CB.filter}`;
+    if (tabs.dataset.k === key && !CB.dirty) return;
+    CB.dirty = false; tabs.dataset.k = key;
+    const on = CB.view === "hist";
+    tabs.innerHTML = `<button type="button" role="tab" class="cba-tab${on ? "" : " is-on"}" data-cvb-close>表を直す</button>`
+      + `<button type="button" role="tab" class="cba-tab${on ? " is-on" : ""}" data-cvb-hist>履歴とバックアップ <span class="cba-n">${CB.points.length}</span></button>`
+      + '<span class="cba-sp"></span><span class="cb-note">開発者・メンテナンス者だけ</span>';
+    page.classList.toggle("cba-hist", on);
+    page.querySelector(".cbg-pane")?.remove();
+    if (!on) return;
+    tabs.insertAdjacentHTML("afterend", `<div class="cbg-pane">${CB.twoPane({ std: true })}</div>`);
+    tabs.scrollIntoView({ block: "nearest" });
+  });
+}
+const CSS_G = `
+.cba-tabs{display:flex;align-items:center;gap:4px;margin:0 0 10px;border-bottom:1px solid #dbe2ea}
+.cba-tab{font:inherit;font-size:14px;font-weight:800;color:#3e4f60;background:none;border:0;border-bottom:3px solid transparent;padding:7px 14px 6px;cursor:pointer;white-space:nowrap}
+.cba-tab.is-on{color:#163a63;border-bottom-color:#2f6db3}
+.cba-n{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#e5eefb;color:#1f4f8a;font-size:11.5px;line-height:18px}
+.cba-sp{flex:1}
+.cv-page.cba-hist > .sh-editor{display:none}
+.cbg-pane .cbx-two{align-items:start}.cbg-pane .cbx-left,.cbg-pane .cbx-right{overflow:visible}
+.cbg-pane .cbx-right{border:1px solid #dbe2ea;border-radius:10px;padding:10px 14px;background:#fff}
+.cbg-pane .cbx-dhead{position:static}
+`;
+
+/* ------------------------------------------------------------------ H: 表の中で見比べる（新。見せ方） */
+function scriptH() {
+  const CB = window.CB;
+  if (!window.__cbStart2(window.__cbCSS)) return;
+  CB.onBundled = () => {};
+  CB.cmp = null;
+  CB.hook = (ds) => {
+    CB.hook2(ds);
+    if (ds.cvbHist != null) { CB.view = "drop"; CB.open = null; }   // 閉じるのは面の「閉じる」
+    if (ds.cvbDiff != null) { CB.cmp = "p3"; CB.view = "edit"; }
+    if (ds.cvbTh != null) { CB.view = "win"; CB.filter = null; }
+    if (ds.cvbPreBundled != null) { CB.view = "drop"; CB.open = null; }
+    if (ds.cvbBundled != null) CB.open = "bundled";
+  };
+  CB.keep(() => {
+    CB.common();
+    const page = CB.page(); if (!page || !CB.points) return;
+    CB.chips(page); CB.head(page, { th: "data-cvb-hist", label: `履歴 ${CB.view === "drop" ? "▴" : "▾"}` }); CB.savedChip(page);
+    CB.foot(page, { status: () => `標準: <b>${CB.esc(CB.std)}</b><br>最後のバックアップ: ${CB.lastBk()}`,
+      main: '<button type="button" class="cb-btn" data-cvb-th>⟲ 全体の履歴と戻す…</button><button type="button" hidden data-cvb-pre-bundled></button>' });
+    const key = `${CB.view}|${CB.cmp}|${CB.open}|${CB.name()}`;
+    const need = (CB.view === "drop" && !page.querySelector(".cbh-drop")) || (CB.cmp && !page.querySelector(".cbh-band")) || (CB.view === "win" && !page.querySelector(".cbx-dlg"));
+    if (page.dataset.cbk === key && !CB.dirty && !need) return;
+    CB.dirty = false; page.dataset.cbk = key;
+    page.querySelectorAll(".cbh-drop,.cbh-band,.cbh-was,.cbx-dlg").forEach((e) => e.remove());
+    page.querySelectorAll(".cbh-del,.cbh-chg").forEach((e) => e.classList.remove("cbh-del", "cbh-chg"));
+    const nm = CB.name(), top = page.querySelector(".cv-top");
+    if (CB.view === "win") { CB.modal(page, "変換表の履歴と戻す（全体）", CB.twoPane({ std: true })); return; }
+    if (CB.view === "drop" && top) {
+      const pts = CB.points.filter((p) => p.scope === "all" || p.scope.includes(nm)).concat([CB.bundled]);
+      const body = CB.open === "bundled" ? `<div class="cba-conf"><b>標準を同梱のプリセットにしますか？</b>${CB.bundledHtml()}<div class="cbx-go"><button type="button" class="cb-btn is-danger" data-cvb-pt="p3">同梱のプリセットを標準にする</button><button type="button" class="cb-btn" data-cvb-pt="p3">やめる</button></div></div>`
+        : `<table class="cb-dt cbh-t"><tbody>${pts.map((p) => { const d = CB.diff(p, [nm])[0];
+          return `<tr><td class="cbd-when"><b>${p.preset ? "同梱のプリセット" : `${p.day} ${p.time}`}</b><br>${CB.kChip(p)}${CB.scChip(p)}</td><td>${p.preset ? CB.esc(p.who) : `${CB.esc(p.why)} · ${CB.who(p)}`}<br><span class="cbd-n">${d.now} → ${d.then} 行</span> ${CB.stChip(d.st)} ${CB.what(d).split("・").map((w) => `<span class="cb-who">${CB.esc(w)}</span>`).join("・")}</td>`
+            + `<td class="cbd-act"><button type="button" class="cb-btn"${p.id === "p3" ? " data-cvb-diff" : " data-cvb-noop"}>表で見比べる</button></td></tr>`; }).join("")}</tbody></table>`;
+      top.insertAdjacentHTML("afterend", `<div class="cbh-drop" role="dialog" aria-label="この表の履歴"><div class="cbd-hh"><b>「${CB.esc(nm)}」の履歴（新しい順）</b><span class="cb-note">見比べてから戻します</span><button type="button" class="cb-btn" data-cvb-close>閉じる</button></div>${body}
+        <div class="cbx-std cbh-std"><span>標準: <b>${CB.esc(CB.std)}</b></span><span class="cbx-sp"></span><button type="button" class="cb-btn" data-cvb-bundled>同梱のプリセットを標準にする…</button></div></div>`);
+      return;
+    }
+    if (CB.cmp) {
+      const p = CB.point(CB.cmp), d = CB.diff(p, [nm])[0], grid = page.querySelector(".cv-gridwrap");
+      if (!grid || !d) return;
+      const dels = d.rows.filter((r) => r.kind === "del").map((r) => r.i + 1);
+      grid.insertAdjacentHTML("beforebegin", `<div class="cbh-band" role="status"><span class="cbh-lab">見比べ中</span><span><b>${p.day} ${p.time}</b>（${CB.esc(p.why)}）に戻すと: ${CB.esc(CB.what(d))}${dels.length ? `（消えるのは ${dels.join("・")} 行目。表の下の方）` : ""}。下の表の印の所が変わります</span>`
+        + '<span class="cbh-acts"><button type="button" class="btn-primary" data-cvb-noop>この形に戻す</button><button type="button" class="cb-btn" data-cvb-close>見比べをやめる</button></span></div>');
+      d.rows.forEach((r) => {
+        const tr = page.querySelector(`.cv-gridwrap tr[data-r="${r.i}"]`), td = tr && tr.querySelector(".cv-out"); if (!td) return;
+        tr.classList.add(r.kind === "del" ? "cbh-del" : "cbh-chg");
+        td.insertAdjacentHTML("beforeend", `<div class="cbh-was">${r.kind === "del" ? "戻すと この行は消える" : `戻すと「${CB.esc(r.then)}」`}</div>`);
+      });
+      page.querySelector(".cbh-band").scrollIntoView({ block: "start" });   // 帯を上に置き、下に判定表の印の行が見えるように
+    }
+  });
+}
+const CSS_H = `
+.cv-page .cv-detail{position:relative}
+.cbh-drop{position:absolute;right:14px;top:62px;z-index:8;width:min(720px,calc(100% - 28px));max-height:min(560px,70vh);overflow:auto;padding:10px 12px;background:#fff;border:1px solid #c9d3de;border-radius:10px;box-shadow:0 12px 32px rgba(15,30,50,.22)}
+.cbd-hh{display:flex;align-items:center;gap:8px;margin-bottom:4px}.cbd-hh .cb-note{flex:1}
+.cbh-t td{vertical-align:top}.cbd-when{white-space:nowrap}.cbd-n{white-space:nowrap;font-variant-numeric:tabular-nums;margin-right:4px}.cbd-act{white-space:nowrap;text-align:right}
+.cbh-t.cb-dt td:nth-child(2):nth-child(n){white-space:normal;line-height:1.6}
+.cbh-std{margin:8px 0 0}
+.cbh-band{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 8px;padding:8px 12px;border-radius:9px;border:1px solid #e6c98f;background:#fff8e8;font-size:13.5px;color:#3d2c08}
+.cbh-lab{padding:0 8px;border-radius:999px;background:#7a4b00;color:#fff;font-size:11.5px;font-weight:800;line-height:20px}
+.cbh-band > span:nth-child(2){flex:1 1 300px;min-width:0}.cbh-acts{display:flex;gap:8px;flex:none;margin-left:auto}
+.cv-gridwrap tr.cbh-chg > td{background:#fff6e0}
+.cv-gridwrap tr.cbh-del > td{background:#fdecec}
+.cbh-was{margin-top:3px;font-size:12px;font-weight:800;color:#7a4b00;white-space:normal}
+tr.cbh-del .cbh-was{color:#9b1c1c}
+.cba-conf{padding:10px 12px;border:1px solid #e2b4b4;border-left:4px solid #c0392b;border-radius:9px;background:#fff8f7}
+`;
+
+/* ------------------------------------------------------------------ I: 管理の「バックアップと戻す」の頁（新。置き場） */
+function scriptI() {
+  const CB = window.CB;
+  if (!window.__cbStart2(window.__cbCSS)) return;
+  CB.onBundled = () => {};
+  CB.hook = (ds) => {
+    CB.hook2(ds);
+    if (ds.cvbHist != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbPreBundled != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbBundled != null) CB.open = "bundled";
+  };
+  CB.keep(() => {
+    CB.common();
+    const tabs = document.querySelector("#masterTabs");
+    if (tabs && !tabs.querySelector(".cbi-nav")) {
+      const last = [...tabs.querySelectorAll(".tab")].pop();
+      last?.insertAdjacentHTML("afterend", '<button type="button" class="tab cbi-nav" data-cvb-hist role="tab" title="変換表のバックアップと戻す（開発者・メンテナンス者だけ）">バックアップ <span class="tab-state">🔒</span></button>');
+    }
+    const box = document.querySelector("#masterSettings"), page = CB.page();
+    if (!box || !CB.points) return;
+    const on = CB.view === "win";
+    tabs?.querySelector(".cbi-nav")?.classList.toggle("active", on);
+    tabs?.querySelector('[data-tab="conv"]')?.classList.toggle("cbi-off", on);
+    if (page) {
+      CB.chips(page); CB.head(page); CB.savedChip(page);
+      CB.foot(page, { status: () => `標準: <b>${CB.esc(CB.std)}</b><br>最後のバックアップ: ${CB.lastBk()}`,
+        main: '<button type="button" class="cb-btn" data-cvb-hist>⟲ バックアップと戻す ›</button><button type="button" hidden data-cvb-pre-bundled></button>' });
+      page.hidden = on;
+    }
+    const key = `${CB.view}|${CB.sel}|${CB.row}|${CB.open}|${CB.filter}`;
+    if (box.dataset.cbk === key && !CB.dirty && (!on || box.querySelector(".cbi-page"))) return;
+    CB.dirty = false; box.dataset.cbk = key;
+    box.querySelector(".cbi-page")?.remove();
+    if (!on) return;
+    box.insertAdjacentHTML("beforeend", `<section class="cbi-page"><div class="cbi-top"><button type="button" class="cb-lnk" data-cvb-close>‹ 変換表へ戻る</button><h2>バックアップと戻す</h2><span class="cb-note">開発者・メンテナンス者だけ。変換表を書くたびに、書く前の形を自動で残します（自動は 50 回分・手で取った物は消すまで）</span></div>
+      <div class="cbi-what"><span class="cbi-lab">対象</span><button type="button" class="cbi-m is-on">変換表 <small>${CB.nTables()} 表</small></button><span class="cb-note">（ほかのマスタも、あとで同じ形で）</span></div>
+      ${CB.twoPane({ std: true })}</section>`);
+    box.scrollTop = 0;
+  });
+}
+const CSS_I = `
+#masterTabs .cbi-nav{display:flex;align-items:center;justify-content:space-between;gap:6px}
+#masterTabs .tab.active.cbi-off{background:none;color:inherit;box-shadow:none;border-left-color:transparent}
+.cbi-page{display:grid;gap:8px}
+.cbi-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}.cbi-top h2{margin:0;font-size:19px}.cbi-top .cb-note{flex:1 1 300px}
+.cbi-what{display:flex;align-items:center;gap:8px}.cbi-lab{font-size:12.5px;font-weight:800;color:#4b5866}
+.cbi-m{font:inherit;font-size:13.5px;font-weight:800;padding:4px 12px;border-radius:999px;border:1px solid #2f6db3;background:#eaf2fc;color:#163a63}.cbi-m small{font-weight:700;color:#3e4f60}
+.cbi-page .cbx-two{align-items:start}.cbi-page .cbx-left,.cbi-page .cbx-right{overflow:visible}
+.cbi-page .cbx-right{border:1px solid #dbe2ea;border-radius:10px;padding:10px 14px;background:#fff}.cbi-page .cbx-dhead{position:static}
+`;
+
+/* ------------------------------------------------------------------ J: 標準をやめて「戻す」を 1 つに（新。減らし方） */
+function scriptJ() {
+  const CB = window.CB;
+  if (!window.__cbStart2(window.__cbCSS)) return;
+  CB.onBundled = () => {};
+  CB.hook = (ds) => {
+    CB.hook2(ds);
+    if (ds.cvbHist != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbPreBundled != null) { CB.view = "win"; CB.filter = null; CB.open = null; }
+    if (ds.cvbBundled != null) { CB.sel = "pb"; CB.open = null; CB.row = null; }
+  };
+  CB.keep(() => {
+    CB.common();
+    const page = CB.page(); if (!page || !CB.points) return;
+    CB.chips(page); CB.head(page); CB.savedChip(page);
+    CB.foot(page, { status: () => `最後のバックアップ: <b>${CB.lastBk()}</b><br>同梱のプリセットと違う表: 3`,
+      main: '<button type="button" class="cb-btn is-main" data-cvb-hist>⟲ 履歴と戻す…</button><button type="button" hidden data-cvb-pre-bundled></button>' });
+    const key = `${CB.view}|${CB.sel}|${CB.row}|${CB.filter}`;
+    if (page.dataset.cbk === key && !CB.dirty && (CB.view !== "win" || page.querySelector(".cbx-dlg"))) return;
+    CB.dirty = false; page.dataset.cbk = key;
+    page.querySelector(".cbx-dlg")?.remove();
+    if (CB.view !== "win") return;
+    CB.modal(page, CB.filter ? `「${CB.filter}」の履歴と戻す` : "変換表の履歴と戻す",
+      `<p class="cbj-say">戻せる物はここに 1 つにまとめました: 自動で残した時点・手で取ったバックアップ・<b>同梱のプリセット</b>（アプリに入っている元の形）。どれに戻すときも、右で違いを見てから戻します。</p>${CB.twoPane({ std: false, bundledAttr: "data-cvb-bundled" })}`);
+  });
+}
+const CSS_J = `
+.cbj-say{margin:0 0 8px;font-size:13px;line-height:1.6;color:#2c3a48}
+`;
+
+
 const LIB = S(lib);
+const LIB2 = S(lib2);
+const R2 = (fn, css) => [["script", LIB], ["script", LIB2],
+  ["script", `window.__cbStart2 = ${start2}; window.__cbCSS = ${JSON.stringify(css)};`], ["script", S(fn)]];
 export const PROPOSALS = [
   { key: "now", name: "今（版 3.124.0）", css: "", ops: [] },
   { key: "A", name: "「履歴とバックアップ」のタブ（時点を選ぶと、表ごとに戻すと何が変わるかを並べ、選んだ表か全体を戻す）", css: "", ops: [["script", LIB], ["script", `document.head.append(Object.assign(document.createElement("style"),{textContent:window.CB.css+${JSON.stringify(CSS_A)}}))`], ["script", S(scriptA)]] },
@@ -551,4 +906,10 @@ export const PROPOSALS = [
   { key: "C", name: "壊す操作を 1 つの窓に畳む（一覧の下は「バックアップと戻す…」だけ。戻す・同梱は違いを見て確かめてから）", css: "", ops: [["script", LIB], ["script", `document.head.append(Object.assign(document.createElement("style"),{textContent:window.CB.css+${JSON.stringify(CSS_C)}}))`], ["script", S(scriptC)]] },
   { key: "D", name: "表ごとの版と状態を見せる（一覧に「直した・同梱のまま」、表の頭に版と最後の保存、この表の履歴）", css: "", ops: [["script", LIB], ["script", `document.head.append(Object.assign(document.createElement("style"),{textContent:window.CB.css+${JSON.stringify(CSS_D)}}))`], ["script", S(scriptD)]] },
   { key: "E", name: "戻す手順の窓（① いつの形に → ② どの表を → ③ 確かめて戻す）", css: "", ops: [["script", LIB], ["script", `document.head.append(Object.assign(document.createElement("style"),{textContent:window.CB.css+${JSON.stringify(CSS_E)}}))`], ["script", S(scriptE)]] },
+  // 2 回目（rounds[1]）。どの案も: 一覧の下は状態とボタン 2 つ（同梱・標準のリンクなし）・一覧の札・表の頭の「⋯」と「履歴 ▾」（この表の履歴）・知らせは貼り付けない
+  { key: "F", name: "履歴と戻すの窓（左に時点、押すと右にすぐ差。標準・同梱も窓の上の段に）", css: "", ops: R2(scriptF, CSS_F) },
+  { key: "G", name: "履歴のタブ（表の頭の「履歴 ▾」でこの表だけの時点に。標準・同梱はタブの上の段）", css: "", ops: R2(scriptG, CSS_G) },
+  { key: "H", name: "表の中で見比べる（この表の履歴から選ぶと、判定表の行に「戻すと…」の印。全体は窓で）", css: "", ops: R2(scriptH, CSS_H) },
+  { key: "I", name: "管理の「バックアップと戻す」の頁（マスタ管理の左の管理の段に。変換表の頁は直すことだけ）", css: "", ops: R2(scriptI, CSS_I) },
+  { key: "J", name: "標準をやめて「戻す」を 1 つに（同梱のプリセットも戻せる時点の 1 つ）", css: "", ops: R2(scriptJ, CSS_J) },
 ];

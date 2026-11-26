@@ -646,6 +646,11 @@ export const STATES = [
   ["cvb-saved", async (p) => { await p.click("[data-cv-save]"); await p.waitForSelector("#cvNotice.ok", { timeout: 8000 }); await sleep(500); }, "[data-next], [data-cv-save]"],
   ["cvb-hist", async (p) => { await p.click("[data-cvb-hist]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
   ["cvb-diff", async (p) => { await p.click("[data-cvb-diff]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
+  // 2 回目（2026-11-convbackup の rounds[1]）: 表の頭の「この表の履歴 ▾」（[data-cvb-th]）を押した所。今と 1 回目の案は何も起きない
+  ["cvb-th", async (p) => {
+    await p.click("[data-cvb-close]", { timeout: 800 }).catch(() => {}); await sleep(200);
+    await p.click("[data-cvb-th]", { timeout: 1500 }).catch(() => {}); await sleep(700);
+  }, "[data-next], [data-cv-save]"],
   ["cvb-import", async (p) => {
     await p.click("[data-cvb-close]", { timeout: 800 }).catch(() => {}); await sleep(200);
     const doc = await p.evaluate(async () => ({ kind: "tpa-conversions", version: 1, items: (await (await fetch("/api/masters/conversions/export")).json()).items }));
