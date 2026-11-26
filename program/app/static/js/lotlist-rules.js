@@ -124,7 +124,7 @@
       if (!sd) return "''";
       if (sd.kind === "self") return self;
       if (sd.kind === "column") return `[${sd.column}]`;
-      if (sd.kind === "calc") return fixExpr(sd.expr);
+      if (sd.kind === "calc") { const e = fixExpr(sd.expr); if (F().check(e).ok) return e; notes.add(`式「${String(sd.expr || "")}」は読めないので、空欄として比べます（版 3.123.0。前は式全体が読めなくなった）`); return "''"; }
       return lit(sd.value, notes, asText);
     };
     const cond = (c) => {
@@ -161,7 +161,7 @@
       const gs = orGroups(items).map((g) => g.map((it) => (isGroup(it) ? `(${it.items.length ? logic(it.items) : "1"})` : cond(it))).join(" and "));
       return gs.length > 1 ? gs.map((g) => `(${g})`).join(" or ") : gs[0];
     };
-    const out = (r) => { const t = r && r.text; if (typeof t === "string" && t.startsWith("=")) return fixExpr(t.slice(1)); if (t === "" || t == null) return self; return lit(t, notes); };
+    const out = (r) => { const t = r && r.text; if (typeof t === "string" && t.startsWith("=")) { const e = fixExpr(t.slice(1)); if (F().check(e).ok) return e; notes.add(`出す値の式「${t}」は読めないので、その行の値は空欄にしました`); return "''"; } if (t === "" || t == null) return self; return lit(t, notes); };
     let tail = self; const body = [];
     for (const r of (rows || [])) {
       if (r.color) notes.add("色（●良い・悪い…）は式にできません。色が要るなら、式の列にも同じルールを付けてください");
@@ -193,6 +193,29 @@
   const depthOf = (path) => path.split(".").length - 2;  // 行のすぐ下＝0
   const OP_READ = { eq: "＝", ne: "≠", gt: "＞", ge: "≧", lt: "＜", le: "≦", contains: "を含む", startsWith: "で始まる", endsWith: "で終わる",
     empty: "が空欄", notEmpty: "が空欄でない", between: "が範囲内", regex: "が正規表現に一致", formula: "" };
+  /* 読み方（ことばで1行）。明示のかっこは（ ）、かつ が先に結ぶ所は［ ］で示す（同じ段に かつ と または が混ざるときだけ）。
+     side は左辺・右辺を字にする関数（窓の中は列の表示名、表示列の窓のルールの 3 行も同じ道。版 3.123.0） */
+  function readItems(items, side) {
+    const condRead = (c) => {
+      const L = side(c.left), w = OP_READ[c.op] ?? c.op;
+      if (c.op === "formula") return `${L} が真`;
+      if (NO_RIGHT.has(c.op)) return `${L} ${w}`;
+      if (c.op === "between") return `${L} が ${side(c.right)}〜${side(c.right2)}`;
+      return /^[＝≠＞≧＜≦]$/.test(w) ? `${L} ${w} ${side(c.right)}` : `${L} が ${side(c.right)} ${w}`;
+    };
+    const gs = orGroups(items).map((g) => g.map((it) => (isGroup(it) ? `（${readItems(it.items, side)}）` : condRead(it))).join(" かつ "));
+    const mixed = gs.length > 1 && orGroups(items).some((g) => g.length > 1);
+    return gs.map((g, i) => (mixed && orGroups(items)[i].length > 1 ? `［${g}］` : g)).join(" または ");
+  }
+  const sideWith = (labelOf, selfLabel) => (sd) => {
+    if (!sd) return "";
+    if (sd.kind === "self") return selfLabel;
+    if (sd.kind === "column") return labelOf(sd.column);
+    if (sd.kind === "calc") return `式〔${String(sd.expr || "").slice(0, 24)}〕`;
+    return `「${sd.value ?? ""}」`;
+  };
+  /** ルールの行の読み方（表示列の窓の「ルールで作る」の 3 行。条件の無い行は「どれにも当てはまらないとき」） */
+  const readRow = (row, labelOf = (c) => c) => ((row && row.conditions || []).length ? readItems(row.conditions, sideWith(labelOf, "この列")) : "どれにも当てはまらないとき");
   /** 組み立て（行の並び）→ 式。この列の作り方で、計算列（元の値が無い列）は「この列」を空欄として扱う */
   const formulaOf = (rows, { column = "", computed = false } = {}) => toFormula(rows, { column, ...(computed ? { self: "''" } : {}) });
   const grow = (el) => { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight + 2, 160)}px`; };
@@ -202,9 +225,10 @@
     let panel = null, win = null, draft = null, mode = "raw", selfColumn = "", src = null, onDone = null, hits = [];
     let ruleName = "", toFormulaCb = null;                                   // 読み替えルールだけ
     let tab = "build", written = "", synced = "", computed = false;           // この列の作り方だけ
+    let chosenRule = "";                                                         // 作り方の「保存したルール」で選んだルール（版 3.123.0。作った列だけ）
     let tryTimer = 0;                                                        // 打つ手が止まるのを待つ
     let shot = "";                                                           // 開いたときの中身（保存していない変更の見張り。版 3.43.0）
-    const now = () => JSON.stringify([draft, mode, fx && tab === "write" ? written : ""]);
+    const now = () => JSON.stringify([draft, mode, fx && tab === "write" ? written : "", fx && tab === "rule" ? `rule:${chosenRule}` : ""]);
     const isDirty = () => !!panel && !panel.hidden && now() !== shot;
     const key = fx ? "list:fx" : "list:rule";
     TPA.unsaved.watch(key, { scope: "list", dirty: isDirty, label: () => (q(".lr-title") || {}).textContent || cfg.label,
@@ -221,7 +245,8 @@
     const blankRow = () => ({ conditions: [blankCond()], text: "", ...(fx ? {} : { color: "" }) });
     const defaultRow = () => ({ conditions: [], text: "", ...(fx ? {} : { color: "" }) });
     const buildExpr = () => formulaOf(draft, { column: selfColumn, computed }).expr;
-    const currentExpr = () => (!fx || tab === "build" ? buildExpr() : written);
+    const ruleExpr = () => (chosenRule ? formulaOf(get(chosenRule), { column: selfColumn, computed: true }).expr : "");
+    const currentExpr = () => (!fx || tab === "build" ? buildExpr() : tab === "rule" ? ruleExpr() : written);
 
     function ensurePanel() {
       if (panel) return panel;
@@ -235,20 +260,22 @@
           <span class="lr-seg"><button type="button" data-mode="raw" role="radio">元のデータ</button><button type="button" data-mode="shown" role="radio">表示の値</button></span>
           <small class="lr-mode-note"></small></div>`;
       const tabs = fx ? `<div class="lr-tabs" role="tablist" aria-label="作り方">
-          <button type="button" role="tab" data-tab="build">組み立てる<small>条件で分ける（表示ルールと同じ組み立て）</small></button>
+          <button type="button" role="tab" data-tab="rule" hidden>≡ 保存したルール<small>押すとこの列の値になります</small></button>
+          <button type="button" role="tab" data-tab="build">組み立てる<small>条件で分ける（ルールと同じ組み立て）</small></button>
           <button type="button" role="tab" data-tab="write">式を書く<small>計算・文字の加工など何でも</small></button></div>` : "";
+      const rulePane = fx ? '<div class="lr-pane lr-rulepane" data-pane="rule" hidden><div class="lr-rcards" role="radiogroup" aria-label="この列の値を決める物"></div></div>' : "";
       const write = fx ? `<div class="lr-pane lr-writepane" data-pane="write" hidden>
           <div class="lr-writebox"><textarea class="lr-write" rows="7" spellcheck="false" aria-label="式" placeholder="例: [製造板厚] * [幅]　／　if([数量] > 100, '大', '小')"></textarea></div>
           <small class="lr-write-state"></small>
           <details class="lr-parts" open><summary>部品から作る<small>計算する・文字をつなぐ・取り出す・空なら別の値・丸める（作った式を欄に入れます）</small></summary><div class="lr-fbbox"></div></details>
           <details class="lc-help"><summary>書き方</summary><table>${F().help.map(([a, b]) => `<tr><td><code>${esc(a)}</code></td><td>${esc(b)}</td></tr>`).join("")}</table></details></div>` : "";
       panel.innerHTML = `
-        <div class="lc-head" data-drag><div><small class="lc-eyebrow">${fx ? "この列の作り方" : "読み替えルール"}</small><h3 class="lr-title"></h3>
+        <div class="lc-head" data-drag><div><small class="lc-eyebrow">${fx ? "この列の作り方" : "ルール"}</small><h3 class="lr-title"></h3>
           <small class="lr-usage"></small></div>
           <button type="button" class="lc-x" data-act="close" title="閉じる（保存していない変更があれば、どうするかを聞きます）" aria-label="閉じる">×</button></div>
         <div class="lr-body">
           <aside class="lr-try" aria-label="試した結果"></aside>
-          <div class="lr-main">${tabs}
+          <div class="lr-main">${tabs}${rulePane}
             <div class="lr-pane" data-pane="build">
               <div class="lr-head"><p class="lr-lead">${lead}</p>${modeHtml}</div>
               <p class="lr-warn" hidden></p>
@@ -268,14 +295,21 @@
           <button type="button" data-act="cancel">やめる</button><button type="button" class="lc-primary" data-act="save">${fx ? "当てる" : "保存"}</button></div>`;
       document.body.append(panel);
       panel.addEventListener("click", (e) => {
-        const b = e.target.closest("[data-act], [data-mode], [data-tab]"); if (!b || b.disabled || !panel.contains(b)) return;
+        const b = e.target.closest("[data-act], [data-mode], [data-tab], [data-rule]"); if (!b || b.disabled || !panel.contains(b)) return;
         if (b.dataset.tab) { setTab(b.dataset.tab); return; }
+        if (b.dataset.rule != null) { pickRule(b.dataset.rule); return; }
         if (b.dataset.mode) { mode = b.dataset.mode; paintMode(); refreshCounts(); return; }
         ({ close: tryClose, cancel: close, save, delete: remove, clear: clearFormula,
           row: () => addRow(blankRow()), default: () => addRow(defaultRow()),
+          newrule: () => { if (src && src.newRule) src.newRule((name) => { if (name) pickRule(name); else renderRulePane(); }); },
+          conv: () => { close(); if (src && src.openConv) src.openConv(); },
           fx: () => { const box = q(".lr-fx"); box.hidden = !box.hidden; b.setAttribute("aria-expanded", String(!box.hidden)); renderFx(); } })[b.dataset.act]?.();
       });
-      panel.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); tryClose(); } });
+      panel.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); tryClose(); return; }
+        const card = e.target.closest && e.target.closest(".lr-rcard[data-rule], .lr-rcard[data-act]");
+        if (card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); card.click(); }
+      });
       if (fx) {
         const ta = q(".lr-write");
         TPA.onText(ta, () => { written = ta.value; scheduleTry(); });   // 打つ手が止まったら、式の確かめと試した結果（先頭12件）だけを描き直す
@@ -342,25 +376,7 @@
         + `<button type="button" class="lr-cond-del" data-path="${path}" title="この条件を消す" aria-label="この条件を消す">×</button></div>`;
     }
     /* 読み方（ことばで1行）。明示のかっこは（ ）、かつ が先に結ぶ所は［ ］で示す（同じ段に かつ と または が混ざるときだけ） */
-    function sideRead(sd) {
-      if (!sd) return "";
-      if (sd.kind === "self") return labelOf(selfColumn);
-      if (sd.kind === "column") return labelOf(sd.column);
-      if (sd.kind === "calc") return `式〔${String(sd.expr || "").slice(0, 24)}〕`;
-      return `「${sd.value ?? ""}」`;
-    }
-    function condRead(c) {
-      const L = sideRead(c.left), w = OP_READ[c.op] ?? c.op;
-      if (c.op === "formula") return `${L} が真`;
-      if (NO_RIGHT.has(c.op)) return `${L} ${w}`;
-      if (c.op === "between") return `${L} が ${sideRead(c.right)}〜${sideRead(c.right2)}`;
-      return /^[＝≠＞≧＜≦]$/.test(w) ? `${L} ${w} ${sideRead(c.right)}` : `${L} が ${sideRead(c.right)} ${w}`;
-    }
-    function readOf(items) {
-      const gs = orGroups(items).map((g) => g.map((it) => (isGroup(it) ? `（${readOf(it.items)}）` : condRead(it))).join(" かつ "));
-      const mixed = gs.length > 1 && orGroups(items).some((g) => g.length > 1);
-      return gs.map((g, i) => (mixed && orGroups(items)[i].length > 1 ? `［${g}］` : g)).join(" または ");
-    }
+    const readOf = (items) => readItems(items, sideWith(labelOf, labelOf(selfColumn)));
     function hitStat(ri) {
       if (draft.slice(0, ri).some(isDefaultRow)) return { dead: true, note: "この上に「どれにも当てはまらないとき」があるため、ここへは決して来ません" };
       const n = hits[ri];
@@ -389,6 +405,16 @@
     function recount() {
       const rows = (src && src.rows ? src.rows() : []).slice(0, TRY_ROWS);
       hits = draft.map(() => 0);
+      const keyOf = (r, fallback) => (src && src.key ? src.key(r) : fallback);
+      if (fx && tab === "rule") {
+        const rr = chosenRule ? get(chosenRule) : [];
+        hits = rr.map(() => 0);
+        return rows.map((r) => {
+          const fr = src.formulaRow(r), hit = chosenRule ? match(rr, fr, selfColumn) : null, i = hit ? rr.indexOf(hit) : -1;
+          if (i >= 0) hits[i]++;
+          return { index: i, seen: keyOf(r, null), out: { text: hit ? String(textOf(hit, fr) ?? "") : "", color: hit && hit.color } };
+        });
+      }
       if (fx) {
         const expr = currentExpr(), c = expr.trim() ? calcOf(expr) : null;
         return rows.map((r) => {
@@ -396,14 +422,14 @@
           const hit = tab === "build" ? match(draft, fr, selfColumn) : null, i = hit ? draft.indexOf(hit) : -1;
           if (i >= 0) hits[i]++;
           const v = c ? c.run(fr) : expr.trim() ? null : src.seen(r);
-          return { index: i, seen: src.seen(r), out: { text: v == null ? "" : String(v) } };
+          return { index: i, seen: keyOf(r, src.seen(r)), out: { text: v == null ? "" : String(v) } };
         });
       }
       return rows.map((r) => {
         const vr = src.ruleRow(r, selfColumn, mode);
         const hit = match(draft, vr, selfColumn), i = hit ? draft.indexOf(hit) : -1;
         if (i >= 0) hits[i]++;
-        return { index: i, seen: vr[selfColumn], out: src.cellWith(r, selfColumn, draft, mode) };
+        return { index: i, seen: src.seenOf ? src.seenOf(r, selfColumn, vr) : vr[selfColumn], out: src.cellWith(r, selfColumn, draft, mode) };
       });
     }
     function render() {
@@ -513,12 +539,13 @@
     function scheduleCounts() { clearTimeout(tryTimer); tryTimer = setTimeout(refreshCounts, TYPE_IDLE_MS); }
     function renderTry(picked) {
       const list = picked || [], hit = list.filter((p) => p.index >= 0).length;
-      const showHits = !fx || tab === "build";
-      const cap = fx ? `${hasSelf() ? `${esc(labelOf(selfColumn))} の` : ""}先頭${list.length}件・${tab === "build" ? "組み立てた式" : "書いた式"}の結果`
+      const showHits = !fx || tab !== "write";
+      const keyTitle = src && src.keyTitle ? src.keyTitle(selfColumn) : "条件が見た値";
+      const cap = fx ? `${hasSelf() ? `${esc(labelOf(selfColumn))} の` : ""}先頭${list.length}件・${tab === "rule" ? (chosenRule ? `ルール「${esc(chosenRule)}」の答え` : "ルールを選ぶと答えが出ます") : tab === "build" ? "組み立てた式の結果" : "書いた式の結果"}`
         : `${esc(labelOf(selfColumn))} の先頭${list.length}件・${mode === "shown" ? "表示の値" : "元のデータ"}で比べています`;
       q(".lr-try").innerHTML = `<div class="lr-try-head"><b>試した結果</b><small>${cap}</small>
         ${showHits ? `<span class="lr-try-sum"><i class="is-hit">当てはまった ${hit}件</i><i class="is-miss">当てはまらない ${list.length - hit}件</i></span>` : ""}</div>
-        <ul class="lr-try-list">${list.map((p, k) => { const seen = p.seen == null ? `${k + 1}件目` : String(p.seen ?? "") || "（空欄）"; return `<li class="${p.index >= 0 ? "is-hit" : "is-miss"}"><code title="条件が見た値">${esc(seen)}</code><span aria-hidden="true">→</span>`
+        <ul class="lr-try-list">${list.map((p, k) => { const seen = p.seen == null ? `${k + 1}件目` : String(p.seen ?? "") || "（空欄）"; return `<li class="${p.index >= 0 ? "is-hit" : "is-miss"}"><code title="${esc(keyTitle)}">${esc(seen)}</code><span aria-hidden="true">→</span>`
           + `<b class="${p.out && p.out.color ? "cell-" + p.out.color : ""}">${esc((p.out && p.out.text) || "（空欄）")}</b>${!showHits ? "<span></span>" : p.index >= 0 ? `<span class="lr-which">${p.index + 1}行目</span>` : '<span class="lr-nohit">当てはまらず</span>'}</li>`; }).join("") || "<li>データがありません</li>"}</ul>`;
     }
     function paintMode() {
@@ -543,7 +570,7 @@
     }
     function renderUsage() {
       const el = q(".lr-usage");
-      if (fx) { el.textContent = computed ? "式で作る列（元のデータに無い列。並べ替えもできます）。組み立てるか、式を書いて作ります" : "元のデータの値を、組み立てた式・書いた式で作り替えます"; return; }
+      if (fx) { el.textContent = computed ? "元のデータに無い列です。保存したルール・組み立て・式のどれかで値を決めます（並べ替え・集計表も同じ値）" : "元のデータの値を、組み立てた式・書いた式で作り替えます"; return; }
       const used = src && src.usage ? src.usage(ruleName) : null;
       el.textContent = !used ? "" : !used.length ? "まだどの列でも使っていません" : `使っている列: ${used.slice(0, 4).join("、")}${used.length > 4 ? ` ほか${used.length - 4}件` : ""}（直すと全部に効きます）`;
     }
@@ -574,7 +601,41 @@
       qa("[data-pane]").forEach((p) => { p.hidden = p.dataset.pane !== tab; });
       const ta = q(".lr-write");
       if (tab === "write") { ta.value = written; paintWrite(); requestAnimationFrame(() => ta.focus()); }
+      if (tab === "rule") renderRulePane();
       paintWarn(); renderTry(recount());
+    }
+    /* ---- 作り方の「保存したルール」（版 3.123.0。作った列だけ）: カードを押すと選んだこと（✓）。押す物は「当てる」1 つ。
+       選んだカードの下に、表示列の窓と同じ 3 行（条件 → 値の札 → 件数の棒）。並びの最後に「＋ 新しいルール」と「⇄ 変換表（マスタ）で作る」 */
+    function pickRule(name) {
+      if (!fx) return;
+      chosenRule = name;
+      renderRulePane(); renderTry(recount());
+    }
+    function renderRulePane() {
+      const box = q(".lr-rcards"); if (!box) return;
+      const all = src && src.rows ? src.rows() : [];
+      const card = (name) => {
+        const rows = get(name), on = name === chosenRule;
+        const vals = [...new Set(rows.map((r) => String(r.text || "")).filter((t) => t && !t.startsWith("=")))].slice(0, 4);
+        const used = src && src.usage ? src.usage(name) : [];
+        let detail = "";
+        if (on) {
+          const n = rows.map(() => 0);
+          all.forEach((r) => { const hit = match(rows, src.formulaRow(r), selfColumn); if (hit) n[rows.indexOf(hit)]++; });
+          const max = Math.max(1, ...n);
+          detail = `<ol class="lr-rrows" aria-label="ルール「${esc(name)}」の行と件数（${all.length} 行）">${rows.map((r, i) => `<li><span class="lr-rread" title="${esc(readRow(r, labelOf))}">${esc(readRow(r, labelOf))}</span>`
+            + `<b class="lr-rval${r.color ? " cell-" + esc(r.color) : ""}">${esc(String(r.text || "") || "（空欄）")}</b>`
+            + `<span class="lr-rbar" aria-hidden="true"><i class="${r.color ? "cell-" + esc(r.color) : ""}" style="width:${Math.round((n[i] / max) * 100)}%"></i></span><span class="lr-rn">${n[i]}</span></li>`).join("")}</ol>`
+            + `<small class="lr-rcap">一覧の ${all.length} 行をこのルールで数えた件数</small>`;
+        }
+        return `<div class="lr-rcard${on ? " is-on" : ""}" role="radio" tabindex="0" aria-checked="${on}" data-rule="${esc(name)}"><span class="lr-rchk" aria-hidden="true">${on ? "✓" : ""}</span>`
+          + `<span class="lr-rname"><b>≡ ${esc(name)}</b><small>${rows.length} 行${used.length ? `・使っている列 ${used.length}` : ""}</small></span>`
+          + `<span class="lr-rvals">${vals.map((v) => `<i>${esc(v)}</i>`).join("")}</span></div>${detail}`;
+      };
+      const ns = names();
+      box.innerHTML = (ns.length ? ns.map(card).join("") : '<p class="lc-empty">保存したルールはまだありません。</p>')
+        + '<div class="lr-rcard lr-rcard-sub" role="button" tabindex="0" data-act="newrule"><span class="lr-rchk" aria-hidden="true">＋</span><span class="lr-rname"><b>新しいルールを作る…</b><small>条件 → 値・色を組み立て、名前を付けてほかの列でも使う</small></span></div>'
+        + (src && src.openConv ? '<div class="lr-rcard lr-rcard-sub" role="button" tabindex="0" data-act="conv"><span class="lr-rchk" aria-hidden="true">⇄</span><span class="lr-rname"><b>変換表（マスタ）で作る…</b><small>マスタの変換表で区分の列を足す（表示列の窓の「変換表」の帯）</small></span></div>' : "");
     }
     /* 部品から作る（式ビルダー。条件で分けるは組み立てるの方で作るので、ここでは出さない）。開くたびに作り直す（列が替わる） */
     function mountParts() {
@@ -593,18 +654,19 @@
     function save() {
       if (!fx) {
         put(ruleName, draft, { self: mode }); write();
-        note(`表示ルール「${ruleName}」を保存しました（${draft.length}行）`);
+        note(`ルール「${ruleName}」を保存しました（${draft.length}行）`);
         close(); if (onDone) onDone(ruleName);
         return;
       }
+      if (tab === "rule" && !chosenRule) { note("ルールを選んでください（カードを押すと選びます）"); return; }
       const expr = currentExpr(), chk = expr.trim() ? F().check(expr) : null;
       if (chk && !chk.ok) { note(`式に誤りがあるので当てられません: ${chk.error}`); return; }
       const build = tab === "build" ? TPA.clone(draft) : null;
-      close(); if (onDone) onDone({ formula: expr, build });
+      close(); if (onDone) onDone(tab === "rule" ? { formula: expr, build: null, rule: chosenRule } : { formula: expr, build });
     }
     function remove() {
       const used = src && src.usage ? src.usage(ruleName) : [];
-      if (!confirm(`表示ルール「${ruleName}」を削除します。` + (used && used.length ? `\nいま ${used.length}件の列で使っています。消すと、その列は元の値のまま表示されます。` : "") + "\nよろしいですか？")) return;
+      if (!confirm(`ルール「${ruleName}」を削除します。` + (used && used.length ? `\nいま ${used.length}件の列で使っています。消すと、元の列は元の値のまま、ルールで作った列は空欄になります。` : "") + "\nよろしいですか？")) return;
       put(ruleName, null); write();
       close(); if (onDone) onDone("");
     }
@@ -612,7 +674,8 @@
     function close() { if (panel && !panel.hidden) { win.remember(); panel.hidden = true; } }
     /* 開く。
        読み替え: o = {name（空なら新規＝名前を聞く）, column, source, onDone(名前), toFormula(式)}
-       作り方: o = {column, computed, formula, build（組み立ての行。式と合うときだけ組み立てるで開く）, source, onDone({formula, build})} */
+       作り方: o = {column, computed, formula, build（組み立ての行。式と合うときだけ組み立てるで開く）, rule（ルールで作る列のルールの名前）, source,
+              onDone({formula, build, rule})}。作った列は「保存したルール」のタブも出す（ルールで作る列・まだ式の無い列はそのタブで開く。版 3.123.0） */
     function open(o) {
       src = o.source; selfColumn = String(o.column || ""); onDone = o.onDone || null;
       if (fx) {
@@ -620,9 +683,11 @@
         const f = String(o.formula || ""), b = Array.isArray(o.build) && o.build.length ? TPA.clone(o.build) : null;
         draft = b || [blankRow()];
         const fromBuild = !!b && formulaOf(b, { column: selfColumn, computed }).expr === f;
-        tab = f.trim() && !fromBuild ? "write" : "build";
+        chosenRule = computed && o.rule ? String(o.rule) : "";
+        tab = chosenRule || (computed && !f.trim() && names().length) ? "rule" : f.trim() && !fromBuild ? "write" : "build";
         written = f; synced = fromBuild ? f : buildExpr();
         ensurePanel(); win.place();
+        q('[data-tab="rule"]').hidden = !computed;
         q(".lr-title").textContent = `「${labelOf(selfColumn)}」の作り方`;
         q('[data-act="clear"]').hidden = computed || !f.trim();
         mountParts();
@@ -634,7 +699,7 @@
       toFormulaCb = o.toFormula || null;
       ruleName = String(o.name || "").trim();
       if (!ruleName) {
-        ruleName = (prompt("新しい表示ルール\n複数の列から使い回すための名前を付けます（例: 有無フラグ、合否）", "") || "").trim().slice(0, 60);
+        ruleName = (prompt("新しいルール\n複数の列から使い回すための名前を付けます（例: 有無フラグ、合否、管理区分）", "") || "").trim().slice(0, 60);
         if (!ruleName) return;
       }
       const saved = get(ruleName);
@@ -642,7 +707,7 @@
       mode = selfMode(ruleName);
       ensurePanel(); win.place(); paintMode();
       q(".lr-fx").hidden = true; q('[data-act="fx"]').setAttribute("aria-expanded", "false");
-      q(".lr-title").textContent = `表示ルール「${ruleName}」`;
+      q(".lr-title").textContent = `ルール「${ruleName}」`;
       q('[data-act="delete"]').hidden = !saved.length;
       panel.hidden = false;
       renderUsage(); render();
@@ -650,7 +715,7 @@
     }
     return { open, close, isOpen: () => !!panel && !panel.hidden };
   }
-  const ruleEditor = makeEditor({ kind: "rule", id: "llRulePanel", label: "読み替えルール", rect: RECT });
+  const ruleEditor = makeEditor({ kind: "rule", id: "llRulePanel", label: "ルール", rect: RECT });
   const fxEditor = makeEditor({ kind: "formula", id: "llFxPanel", label: "この列の作り方", rect: "tpa.lotlist.fxPanelRect.v1", w: 1240, h: 780 });
 
   /** 共有の書式（lotlist-formats.js）: ルールそのもの（{rows, self}）を取り出す・入れる（同じ名前は書式の内容にそろえる） */
@@ -661,7 +726,7 @@
     return true;
   }
 
-  window.LotListRules = { names, selfMode, match, textOf, compile: calcOf, SELF_KEY, raw, putRaw, formulaOf,
+  window.LotListRules = { names, selfMode, match, textOf, compile: calcOf, SELF_KEY, raw, putRaw, formulaOf, rowsOf: get, readRow,
     open: ruleEditor.open, openFormula: fxEditor.open, closeFormula: fxEditor.close, formulaOpen: fxEditor.isOpen,
     _toFormula: toFormula };   // 評価用
 })();

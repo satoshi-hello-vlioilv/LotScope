@@ -72,6 +72,16 @@ export const CALC_LAYOUT = { "lotlist:仕掛": { order: ["ロット番号", "発
   formulas: { "重量t": "[重量]/1000", "材調質": "concat([合金], \"-\", [調質])", "板厚区分": "if([板厚]>=1, \"厚\", \"薄\")",
     "寸法": "[板厚] & \"x\" & [板幅]" } } };   // 寸法は読めない式（& は式に無い）。読めない計算列の見せ方の比べ
 
+// 読み替えの列（readcol-*。2026-11 の比べ）: 式の無い作った列「管理区分」に、ほかの列（合金・板厚）を条件にした読み替えルールだけを付けた形
+const RC_RULE = { rows: [
+  { conditions: [{ join: "and", left: { kind: "column", column: "合金" }, op: "eq", right: { kind: "value", value: "A5052" } },
+    { join: "and", left: { kind: "column", column: "板厚" }, op: "ge", right: { kind: "value", value: "1" } }], text: "5052厚板", color: "ok" },
+  { conditions: [{ join: "and", left: { kind: "column", column: "合金" }, op: "startsWith", right: { kind: "value", value: "A3" } }], text: "3000系", color: "warn" },
+  { conditions: [], text: "その他", color: "muted" }], self: "raw" };
+export const READCOL = { r: { "管理区分": RC_RULE }, l: { "lotlist:仕掛": { ...CALC_LAYOUT["lotlist:仕掛"],
+  order: ["ロット番号", "発生日", "設備", "不良名", "合金", "板厚", "管理区分", "重量", "重量t", "調質", "板幅", "客先"],
+  formulas: { "重量t": "[重量]/1000", "管理区分": "" }, rules: { "管理区分": "管理区分" }, ruleCols: { "管理区分": "管理区分" } } } };   // ruleCols: ルールで作る列（版 3.123.0。式は画面がルールからそろえる）
+
 // 件数の行が混んだ所（crowded。headers の続き）: スライサーで設備を 2 つ選び、色付けを 1 つ（不良名が汚れ）
 const CROWDED = {
   slicer: { open: { lot: false }, place: "left", tables: { "仕掛": [{ column: "設備", sel: ["CR1", "L-1"] }, { column: "不良名", sel: [] }] } },
@@ -1138,6 +1148,36 @@ export const STATES = [
   ["calc-off", async (p) => {
     await closeAll(p);
     await p.evaluate(async () => { TPA.local.set("tpa.lotlist.layout.v1", {}); TPA.local.set("tpa.lotlist.pivot.v1", {}); TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState(); });
+    await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1500);
+  }, "[data-next], #llSearch"],
+  // 2026-11 読み替えの列（利用者の改良依頼 2026-11-17 の 3「表示列の読み替えルールのさらなる汎用化」。比べは ui-proposals/2026-11-readcol）:
+  // 品質の表「仕掛」に、式の無い作った列「管理区分」と読み替えルール「管理区分」（合金・板厚を条件に 5052厚板・3000系・その他）を付けた形（READCOL）。
+  // readcol-list（一覧の 管理区分 の列）→ readcol-cols（表示列の窓で 管理区分 を選び ③ 読み替え を開いた所）→ readcol-rule（「ルールを編集」の窓）
+  // → readcol-new（「＋ 列を作る」で新しい列「区分」を足した直後に開く作り方の窓）。readcol-off が片付ける。--from readcol-list で撮る
+  ["readcol-list", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async ({ l, r }) => { TPA.local.set("tpa.lotlist.layout.v1", l); TPA.local.set("tpa.lotlist.rules.v1", r); TPA.local.set("tpa.lotlist.pivot.v1", {}); await TPA.saveUiState(); }, READCOL);
+    await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload();
+    await p.waitForSelector("#llBody tr[data-i]"); await sleep(800);
+  }, "[data-next], #llHead th.is-calc"],
+  ["readcol-cols", async (p) => {
+    await p.click("#llColBtn"); await sleep(600);
+    await p.click('#lcList li[data-col="管理区分"]').catch(() => {}); await sleep(400);
+    // ③ 読み替えの段（版 3.122.0 までの形）か、ルールで作る列なら作り方の段（版 3.123.0 から ③ は無い）を開く
+    await p.evaluate(() => { const st = document.querySelector('.lc-step[data-step="rule"]') ? "rule" : "fx"; const s = document.querySelector(`.lc-step[data-step="${st}"]`); if (s && !s.classList.contains("is-open")) s.querySelector("h4").click(); }); await sleep(500);
+  }, "[data-next], #lcSave"],
+  ["readcol-rule", async (p) => { await p.click("#lcRuleEdit").catch(() => {}); await sleep(700); }, "[data-next], #llRulePanel [data-act=save]"],
+  ["readcol-new", async (p) => {
+    // ルールの窓を閉じ（直していないので聞かれない）、表示列の窓の「＋ 列を作る」で名前「区分」を答える
+    await p.evaluate(() => document.querySelector('#llRulePanel:not([hidden]) [data-act="close"]')?.click()); await sleep(400);
+    p.once("dialog", (d) => d.accept("区分").catch(() => {}));
+    await p.evaluate(() => document.querySelector("#lcAddCol")?.click()); await sleep(1000);
+    // 版 3.123.0: 作り方の窓は「保存したルール」のタブで開く。ルールのカード（管理区分）を押して選んだ所（3 行と件数・試した結果）
+    await p.evaluate(() => document.querySelector('#llFxPanel:not([hidden]) .lr-rcard[data-rule="管理区分"]')?.click()); await sleep(600);
+  }, "[data-next], #llFxPanel [data-act=save]"],
+  ["readcol-off", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async () => { TPA.local.set("tpa.lotlist.layout.v1", {}); TPA.local.set("tpa.lotlist.rules.v1", {}); TPA.local.set("tpa.lotlist.pivot.v1", {}); await TPA.saveUiState(); });
     await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1500);
   }, "[data-next], #llSearch"],
 ];

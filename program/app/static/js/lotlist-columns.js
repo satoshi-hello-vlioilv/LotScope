@@ -26,9 +26,10 @@
     overflow: "tpa.lotlist.overflow.v1",   // 入り切らない文字: ellipsis（…で切る）／clip（記号なしで切る）／wrap（折り返す）
     freeze: "tpa.lotlist.freeze.v1",       // 左に固定する列の数（先頭から）
   };
-  // builds: 作り方を組み立てた行（表示ルールと同じ形。lotlist-rules.js）。式がその組み立てから作った物のときだけ、組み立てるで開き直す
-  const KEYS = ["order", "hidden", "widths", "locks", "names", "formats", "aligns", "formulas", "rules", "builds"];
-  const empty = () => ({ order: [], hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, formulas: {}, rules: {}, builds: {} });
+  // builds: 作り方を組み立てた行（ルールと同じ形。lotlist-rules.js）。式がその組み立てから作った物のときだけ、組み立てるで開き直す
+  // ruleCols: ルールで作る列（版 3.123.0。作った列 → ルールの名前）。式はルールと同じ意味の式にいつもそろえる（syncRules）
+  const KEYS = ["order", "hidden", "widths", "locks", "names", "formats", "aligns", "formulas", "rules", "builds", "ruleCols"];
+  const empty = () => ({ order: [], hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, formulas: {}, rules: {}, builds: {}, ruleCols: {} });
   // 作った列を消す印（行のごみ箱・札の「削除」・作り方の段の「この列を削除」で同じ絵。版 3.44.0）
   const TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4"/></svg>';
   const CELL_COLORS = new Set(["ok", "ng", "warn", "muted"]);   // 読み替えのルールの色（lotlist-rules.js の COLORS）
@@ -70,17 +71,40 @@
     l.aligns = al; l.widths = w;
     return l;
   }
+  /* ルールで作る列（版 3.123.0。利用者の改良依頼 2026-11-17 の 3。決め方: ui-proposals/2026-11-readcol の G）:
+     ruleCols[c] はルールの名前。列の式は、そのルールと同じ意味の式（lotlist-rules.js の toFormula。この列＝空欄）にいつもそろえ、
+     色のために同じルールを読み替え（rules[c]）にも付ける。式にそろえるので、並べ替え・値で絞る・スライサー・集計表・ダッシュボードは
+     式の列と同じ道で窓が数える（式は窓の formula.rs が画面と同じ答えを出す: rule_formula_cases）。ルールが無い・空なら式は '' で、列は空欄 */
+  const ruleExprCache = new Map();
+  function ruleExpr(name, c) {
+    const R = window.LotListRules;
+    if (!R || !R.rowsOf) return "''";
+    const rows = R.rowsOf(name), k = `${c}\u0000${name}\u0000${JSON.stringify(rows)}`;
+    if (!ruleExprCache.has(k)) {
+      if (ruleExprCache.size > 200) ruleExprCache.clear();
+      ruleExprCache.set(k, rows.length ? R.formulaOf(rows, { column: c, computed: true }).expr : "''");
+    }
+    return ruleExprCache.get(k);
+  }
+  function syncRules(l, t) {
+    const src = srcCols[t] || [];
+    Object.entries(l.ruleCols || {}).forEach(([c, name]) => {
+      if (!name || src.includes(c)) { delete l.ruleCols[c]; return; }   // 元の列はルールで作り替えない（読み替えのまま）
+      l.formulas[c] = ruleExpr(name, c); l.rules[c] = name; delete l.builds[c];
+    });
+    return l;
+  }
   function get(t) {
     const out = norm(savedOf(t));
     [draft[t], live[t]].forEach((layer) => { if (layer) KEYS.forEach((k) => { if (k in layer) out[k] = TPA.clone(layer[k]); }); });
-    return safeLayout(out);
+    return syncRules(safeLayout(out), t);
   }
   const writeSaved = () => LS.set(KEY.layouts, saved);
   function stage(t, patch) { draft[t] = Object.assign(draft[t] || {}, patch); }
   function discard(t) { delete draft[t]; }
   function isDirty(t) { return !!draft[t] && Object.keys(draft[t]).length > 0; }
   /** 保存した設定と本当に違うか（同じ値を入れ直しただけなら違わない。保存していない変更の見張り: 版 3.43.0） */
-  function changedFrom(t) { const base = norm(savedOf(t)); return !!draft[t] && Object.keys(draft[t]).some((k) => !TPA.unsaved.same(draft[t][k], base[k])); }
+  function changedFrom(t) { const base = syncRules(norm(savedOf(t)), t), cur = get(t); return !!draft[t] && Object.keys(draft[t]).some((k) => !TPA.unsaved.same(cur[k], base[k])); }
   function save(t) { saved[t] = get(t); delete draft[t]; writeSaved(); }
   function patch(t, p) { saved[t] = Object.assign(norm(savedOf(t)), p); writeSaved(); }
   function hold(t, p) { live[t] = Object.assign(live[t] || {}, p); }
@@ -270,7 +294,10 @@
     if (a.head) parts.push(`見出し ${ALIGN_NAME[a.head]}`);
     return { text: parts.join("・") || "自動", set: parts.length > 0 };
   }
+  const ruleColOf = (t, c) => (isComputed(t, c) && get(t).ruleCols[c]) || "";
   function stepFx(t, c) {
+    const rc = ruleColOf(t, c);
+    if (rc) return { text: window.LotListRules.names().includes(rc) ? `≡ ルール「${rc}」` : `ルール「${rc}」が見つかりません`, set: true };
     const src = String(get(t).formulas[c] || "").trim();
     if (isComputed(t, c)) return { text: !src ? "式を入れてください" : window.WL.formula.check(src).ok ? "式で作る列" : "式に誤り", set: true };
     return src ? { text: "式で作り替え", set: true } : { text: "元の値のまま", set: false };
@@ -615,14 +642,15 @@
   }
   /* ---------------- 変換表（版 3.42.0。conversions.js・決め方: ui-proposals/2026-10-conv*） ----------------
      列の一覧の上の帯: この表に当てられる変換表の数と「まとめて当てる」。「選ぶ」で帯の下に表ごとの選び（列の一覧は隠さない）。
-     当てた列の行には札（作り替えた列＝読み替え・足した列＝＋列）。札は式の conv('表', …) から読む（手で書いた式も同じ） */
+     当てた列の行には札（作り替えた列＝変換表・足した列＝＋列。版 3.123.0 まで作り替えた列は「読み替え」で、ルールの段と言葉が重なっていた）。
+     札は式の conv('表', …) から読む（手で書いた式も同じ） */
   let convOpen = false, convOff = new Set();
   const CONV_RE = /^\s*conv\(\s*(['"])(.*?)\1/;
   function convTag(t, c, calc) {
     const m = String(get(t).formulas[c] || "").match(CONV_RE);
     if (!m) return "";
     return calc ? `<span class="lc-cvtag is-add" title="変換表「${esc(m[2])}」で足した列">＋列 ${esc(m[2])}</span>`
-      : `<span class="lc-cvtag" title="変換表「${esc(m[2])}」で値を読み替えています">読み替え ${esc(m[2])}</span>`;
+      : `<span class="lc-cvtag" title="変換表「${esc(m[2])}」で値を作り替えています">変換表 ${esc(m[2])}</span>`;
   }
   function renderConv() {
     const box = $("#lcConv"), C = window.Conversions;
@@ -686,7 +714,7 @@
     const t = ctx.target, c = focusCol, box = $("#lcDetail");
     if (!c || !ctx.columns.includes(c)) { box.innerHTML = '<p class="lc-empty">左で列を選ぶと、ここで見え方を整えられます。</p>'; return; }
     const l = get(t), f = l.formats[c] || {}, a = l.aligns[c] || {};
-    const calc = isComputed(t, c), fsrc = l.formulas[c] || "";
+    const calc = isComputed(t, c), fsrc = l.formulas[c] || "", rc = ruleColOf(t, c);
     const vals = ctx.rows.map((r) => rawOf(t, c, r)).filter((v) => v != null && String(v).trim() !== "");
     const kinds = { num: 0, date: 0, text: 0 };
     vals.forEach((v) => { if (parseDateTime(v)) kinds.date++; else if (Number.isFinite(Number(String(v).replace(/,/g, "")))) kinds.num++; else kinds.text++; });
@@ -699,15 +727,18 @@
     const ruleNames = window.LotListRules ? window.LotListRules.names() : [];
     const dec = f.decimals == null ? "" : String(f.decimals);
     const nChanged = distinctRows.filter((r) => { const o = cell(t, c, r); return o.text !== o.raw; }).length;
-    const stepResult = { text: !distinctRows.length ? "値がありません" : nChanged ? `${distinctRows.length} 件中 ${nChanged} 件が変わる` : "変わりません", set: nChanged > 0 };
+    const rule = rc ? ruleView(t, c, rc) : null;
+    const stepResult = rule ? { text: rule.values.length ? `${rule.values.length} つの値（${rule.values.slice(0, 3).join("・")}${rule.values.length > 3 ? "…" : ""}）` : "値がありません", set: rule.values.length > 0 }
+      : { text: !distinctRows.length ? "値がありません" : nChanged ? `${distinctRows.length} 件中 ${nChanged} 件が変わる` : "変わりません", set: nChanged > 0 };
+    const os = rc && openStep === "rule" ? "fx" : openStep;   // ルールで作る列には ③ が無い（ルールは作り方の段で選ぶ）
     // 段: 見出しを押して開く・畳む（開くのは 1 つ）。見出しの右に今の値（変えていれば濃く）
-    const step = (key, mark, title, sum) => `<section class="lc-step${openStep === key ? " is-open" : ""}" data-step="${key}">`
-      + `<h4 role="button" tabindex="0" aria-expanded="${openStep === key}">${mark ? `<i>${mark}</i>` : ""}${title}`
+    const step = (key, mark, title, sum) => `<section class="lc-step${os === key ? " is-open" : ""}" data-step="${key}">`
+      + `<h4 role="button" tabindex="0" aria-expanded="${os === key}">${mark ? `<i>${mark}</i>` : ""}${title}`
       + `<span class="lc-now${sum.set ? " is-set" : ""}">${esc(sum.text)}</span><b class="lc-chev" aria-hidden="true"></b></h4>`;
     box.innerHTML = `
       <div class="lc-card"><div class="lc-cardhead"><b>${esc(label(t, c))}</b>${calc ? `<button type="button" class="lc-danger lc-carddel" data-lc-cdel title="この作った列を削除します（Delete。保存するまでは元に戻せます）">${TRASH}削除</button>` : ""}</div>
-        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
-        <dt>値の種類</dt><dd>${guess}</dd>${c === ctx.lotColumn ? "<dt>この列について</dt><dd>押すとそのロットを検索します。隠せません（並びはどこへでも動かせます）。</dd>" : ""}</dl></div>
+        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${rc ? `ルール「${esc(rc)}」で作る列` : `${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}`}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
+        <dt>値の種類</dt><dd>${rule ? `ルールで決まる ${rule.values.length} つの値` : guess}</dd>${c === ctx.lotColumn ? "<dt>この列について</dt><dd>押すとそのロットを検索します。隠せません（並びはどこへでも動かせます）。</dd>" : ""}</dl></div>
       ${step("look", "1", "見せ方", stepLook(t, c))}
         <label>表示名<input id="lcName" value="${esc(l.names[c] || "")}" placeholder="${esc(c)}" maxlength="40"></label>
         <div class="lc-field"><span>幅</span>
@@ -718,13 +749,19 @@
         <div class="lc-field"><span>見出しの揃え</span>${[["", "中央（既定）"], ["follow", "データに合わせる"], ["left", "左"], ["right", "右"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcAH" value="${k}"${(a.head || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
       </section>
       ${step("fx", calc ? '<span class="lc-fxmark">ƒx</span>' : "式", "この列の作り方", stepFx(t, c))}
-        <div class="lc-fxsum">
+        ${calc ? `<div class="lc-fxtop"><div class="lc-fxseg" role="radiogroup" aria-label="この列の作り方"><button type="button" role="radio" data-lc-fxmode="fx" aria-checked="${!rc}" class="${rc ? "" : "is-on"}" title="式（組み立てる・式を書く）で作ります">ƒx 式で作る</button>`
+          + `<button type="button" role="radio" data-lc-fxmode="rule" aria-checked="${!!rc}" class="${rc ? "is-on" : ""}" title="保存したルール（条件 → 値・色）の答えをこの列の値にします。式は書きません">≡ ルールで作る</button></div>`
+          + (rule ? `<span class="lc-rulepick"><select id="lcRuleCol" aria-label="この列の値を決めるルール">${ruleNames.map((n) => `<option value="${esc(n)}"${rc === n ? " selected" : ""}>${esc(n)}</option>`).join("")}${ruleNames.includes(rc) ? "" : `<option value="${esc(rc)}" selected>${esc(rc)}（見つかりません）</option>`}<option value="__new">＋ 新しいルールを作る…</option></select>`
+          + `<button type="button" id="lcRuleEdit"${ruleNames.includes(rc) ? "" : " disabled"}>ルールを編集</button></span>` : "") + "</div>" : ""}
+        ${rule ? `<ol class="lc-rrows" aria-label="ルール「${esc(rc)}」の行と件数（${ctx.rows.length} 行）" title="上から順に見て、最初に当てはまった行の値がこの列の値です（色も）。並べ替え・絞り込み・集計表でも同じ値">${rule.rows.map((r) => `<li><span class="lc-rread" title="${esc(r.read)}">${esc(r.read)}</span>`
+          + `<b class="lc-rval${r.color ? " cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</b><span class="lc-rbar" aria-hidden="true"><i class="${r.color ? "cell-" + r.color : ""}" style="width:${r.pct}%"></i></span><span class="lc-rn">${r.n}</span></li>`).join("") || '<li class="lc-empty">このルールには行がありません（列は空欄）</li>'}</ol>` : ""}
+        <div class="lc-fxsum"${rule ? " hidden" : ""}>
           <code class="lc-fxcode${fchk && !fchk.ok ? " is-ng" : ""}${String(fsrc).trim() ? "" : " is-none"}">${String(fsrc).trim() ? esc(fsrc) : calc ? "（式がまだありません）" : "式なし（元の値のまま）"}</code>
           <small class="lc-fxhow">${fromBuild ? `組み立て ${l.builds[c].length}行から作った式` : String(fsrc).trim() ? "書いた式" : "組み立てる（表示ルールと同じ組み立て）か、式を書いて作れます"}</small>
           ${String(fsrc).trim() ? `<small id="lcFxState" class="lc-fxstate ${fchk && !fchk.ok ? "is-ng" : "is-ok"}">${fchk.ok ? `使える式です（使っている列: ${esc(fchk.columns.join("、") || "なし")}）` : esc(fchk.error)}</small>` : ""}
           ${String(fsrc).trim() && fchk && fchk.ok ? `<div class="lc-fxtry"><span>先頭3件の結果</span>${ctx.rows.slice(0, 3).map((r) => `<code>${esc(String(tidy(rawOf(t, c, r)) ?? "")) || "（空欄）"}</code>`).join("")}</div>` : ""}
         </div>
-        <div class="lc-fxacts"><button type="button" id="lcFxOpen" class="lc-primary" title="別の窓で、組み立てるか式を書いて作ります（窓の中で打っている間は一覧を描き直しません）">${String(fsrc).trim() ? "作り方を開く…" : "作り方を作る…"}</button>
+        <div class="lc-fxacts"${rule ? " hidden" : ""}><button type="button" id="lcFxOpen" class="lc-primary" title="別の窓で、組み立てるか式を書いて作ります（窓の中で打っている間は一覧を描き直しません）">${String(fsrc).trim() ? "作り方を開く…" : "作り方を作る…"}</button>
           ${!calc && String(fsrc).trim() ? '<button type="button" id="lcFxClear" title="式を外し、元のデータの値をそのまま出します">式を外す</button>' : ""}
 </div>
       </section>
@@ -738,13 +775,14 @@
             <input id="lcPattern" value="${esc(f.pattern || "yyyy/MM/dd")}" maxlength="60"><small class="lc-hint">y=年 M=月 d=日 H=時 m=分 s=秒 ddd=曜日（2つ重ねると0埋め）</small></div>` : ""}
         ${f.kind && f.kind !== "datetime" ? `<div class="lc-field"><span>単位</span><input id="lcPre" value="${esc(f.prefix || "")}" maxlength="8" placeholder="前（例: ¥）"><input id="lcSuf" value="${esc(f.suffix || "")}" maxlength="8" placeholder="後（例: mm）"></div>` : ""}
       </section>
-      ${step("rule", "3", "読み替え", stepRule(t, c))}
+      ${rule ? "" : `${step("rule", "3", "読み替え", stepRule(t, c))}
         <div class="lc-field"><span>ルール</span><select id="lcRule"><option value="">しない</option>${ruleNames.map((n) => `<option value="${esc(n)}"${l.rules[c] === n ? " selected" : ""}>${esc(n)}</option>`).join("")}<option value="__new">＋ 新しいルールを作る…</option></select>
           <button type="button" id="lcRuleEdit"${l.rules[c] ? "" : " disabled"}>ルールを編集</button></div>
         <small class="lc-hint">読み替えが当たった行はその言葉で確定し、当たらなければ書式で整形します。どちらもできない値は元のまま表示します。</small>
-      </section>
+      </section>`}
       ${step("result", "", "結果", stepResult)}
-        ${distinctRows.length ? `<table><tr><th>元の値</th><th></th><th>一覧に出る値</th></tr>${distinctRows.map((r) => { const o = cell(t, c, r); return `<tr><td>${esc(o.raw)}</td><td>→</td><td class="${o.color ? "cell-" + o.color : ""}">${o.text === o.raw ? `${esc(o.text)} <small>変わりません</small>` : esc(o.text)}</td></tr>`; }).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>'}
+        ${rule ? (rule.values.length ? `<table><tr><th>この列の値</th><th>件数（${ctx.rows.length} 行）</th></tr>${rule.rows.filter((r) => r.n).map((r) => `<tr><td class="${r.color ? "cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</td><td>${r.n} 件</td></tr>`).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>')
+          : distinctRows.length ? `<table><tr><th>元の値</th><th></th><th>一覧に出る値</th></tr>${distinctRows.map((r) => { const o = cell(t, c, r); return `<tr><td>${esc(o.raw)}</td><td>→</td><td class="${o.color ? "cell-" + o.color : ""}">${o.text === o.raw ? `${esc(o.text)} <small>変わりません</small>` : esc(o.text)}</td></tr>`; }).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>'}
       </section>`;
     const setL = (p) => { stage(t, p); ctx.rerender(); renderPanel(); };
     const setF = (p) => { const F = Object.assign({}, get(t).formats); F[c] = Object.assign({}, F[c] || {}, p); if (!F[c].kind) delete F[c]; setL({ formats: F }); };
@@ -779,6 +817,18 @@
     $("#lcSuf")?.addEventListener("change", (e) => setF({ suffix: e.target.value.slice(0, 8) }));
     // この列の作り方: 別の窓（lotlist-rules.js の作り方の窓。表示ルールと同じ組み立て＋式を書く）で作り、「当てる」で下書きへ
     $("#lcFxOpen").addEventListener("click", () => openFormula(c));
+    // ルールで作る（版 3.123.0）: 作り方の 2 択・ルールの選び。ルールで作る列では ③ 読み替えの段を出さず、ルールを選ぶ所はここ 1 か所
+    $$("[data-lc-fxmode]", box).forEach((b) => b.addEventListener("click", () => {
+      const L = get(t);
+      if (b.dataset.lcFxmode === "fx") { if (!L.ruleCols[c]) return; const RC = Object.assign({}, L.ruleCols); delete RC[c]; setL({ ruleCols: RC }); return; }
+      if (L.ruleCols[c]) return;
+      const name = (L.rules[c] && ruleNames.includes(L.rules[c]) ? L.rules[c] : ruleNames[0]) || "";
+      if (name) setRuleCol(c, name); else openRuleFor(c, "");
+    }));
+    $("#lcRuleCol")?.addEventListener("change", (e) => {
+      if (e.target.value === "__new") { e.target.value = rc; openRuleFor(c, ""); return; }
+      setRuleCol(c, e.target.value);
+    });
     // 集計表で値に置く（版 3.121.0）: 直していれば保存して閉じ、一覧の集計表・グラフでこの列を値に置く（lotlist-pivot.js）
     $("#lcFxPivot")?.addEventListener("click", async () => {
       if (changedFrom(t)) { save(t); ctx.rerender(); }
@@ -790,12 +840,12 @@
     // 読み替え: 選ぶ／新しく作る／編集する（編集の窓は lotlist-rules.js）
     const openRule = (name) => window.LotListRules.open({ name, column: c, source: ruleSource(), toFormula: (expr) => setFormula(c, { formula: expr, build: null }),
       onDone: (saved) => { const Rr = Object.assign({}, get(t).rules); if (saved) Rr[c] = saved; else if (Rr[c] === name) delete Rr[c]; setL({ rules: Rr }); } });
-    $("#lcRule").addEventListener("change", (e) => {
+    $("#lcRule")?.addEventListener("change", (e) => {
       const v = e.target.value;
       if (v === "__new") { e.target.value = l.rules[c] || ""; openRule(""); return; }
       const Rr = Object.assign({}, get(t).rules); if (v) Rr[c] = v; else delete Rr[c]; setL({ rules: Rr });
     });
-    $("#lcRuleEdit").addEventListener("click", () => { if (get(t).rules[c]) openRule(get(t).rules[c]); });
+    $("#lcRuleEdit")?.addEventListener("click", () => { if (rc) openRuleFor(c, rc); else if (get(t).rules[c]) openRule(get(t).rules[c]); });
   }
   /* ---------------- 作った列を消す・足す・動かす（版 3.44.0。利用者の要望 2026-10-17 の 4・5） ----------------
      消す入口: 一覧の行の 🗑・右クリック・Delete キー・右の札の「削除」（どれも removeCols。同じ絵と言葉）。
@@ -810,7 +860,7 @@
     focusCol = gone.has(focusCol) ? list.filter((k) => !gone.has(k))[Math.max(0, at - 1)] || null : focusCol;
     sel = new Set(keep([...sel]));
     window.LotListRules.closeFormula();
-    stage(t, { formulas: drop(L.formulas), builds: drop(L.builds), names: drop(L.names), formats: drop(L.formats), aligns: drop(L.aligns), widths: drop(L.widths), rules: drop(L.rules),
+    stage(t, { formulas: drop(L.formulas), builds: drop(L.builds), ruleCols: drop(L.ruleCols), names: drop(L.names), formats: drop(L.formats), aligns: drop(L.aligns), widths: drop(L.widths), rules: drop(L.rules),
       order: keep(L.order), hidden: keep(L.hidden), locks: keep(L.locks) });
     ctx.rerender(); renderPanel();
     $("#lcNote").textContent = `${calc.length} 列を削除しました（保存で確定します。閉じると元に戻ります）`;
@@ -824,7 +874,7 @@
     const L = get(t), order = ordered(t, ctx.columns, ctx.lotColumn);
     order.splice(after && order.includes(after) ? order.indexOf(after) + 1 : order.length, 0, name);
     const p = { formulas: Object.assign({}, L.formulas, { [name]: formula }), order };
-    if (copyOf) ["builds", "formats", "aligns", "rules"].forEach((k) => { if (L[k][copyOf] != null) p[k] = Object.assign({}, L[k], { [name]: TPA.clone(L[k][copyOf]) }); });
+    if (copyOf) ["builds", "formats", "aligns", "rules", "ruleCols"].forEach((k) => { if (L[k][copyOf] != null) p[k] = Object.assign({}, L[k], { [name]: TPA.clone(L[k][copyOf]) }); });
     stage(t, p);
     focusCol = name; sel = new Set([name]); openStep = "fx"; ctx.rerender(); renderPanel();
     if (!formula) openFormula(name);
@@ -896,23 +946,44 @@
         : { icon: "🗑", label: "この列を削除", disabled: true, why: "元データの列は削除できません（「一覧から隠す」で隠せます）", run: () => {} },
     ] });
   }
+  /** 作った列 c を、ルール name で作る列にする（下書き。式はそろえる＝syncRules） */
+  function setRuleCol(c, name) {
+    const t = ctx.target, L = get(t);
+    stage(t, { ruleCols: Object.assign({}, L.ruleCols, { [c]: name }), rules: Object.assign({}, L.rules, { [c]: name }) });
+    ctx.rerender(); renderPanel();
+  }
+  /** ルールの窓を、ルールで作る列 c のために開く（name が空なら新しいルール。保存した名前でこの列を作る。消したら列は空欄のまま残す） */
+  function openRuleFor(c, name, done) {
+    window.LotListRules.open({ name, column: c, source: ruleSource(), toFormula: null,
+      onDone: (saved) => { if (saved) setRuleCol(c, saved); else { ctx.rerender(); renderPanel(); } if (done) done(saved); } });
+  }
+  /** 表示列の窓の「ルールで作る」の 3 行と結果: ルールの行ごとに読み方・値・色と、いまの一覧の行のうちその行に当たった数 */
+  function ruleView(t, c, name) {
+    const R = window.LotListRules, rows = R.rowsOf(name), n = rows.map(() => 0);
+    ctx.rows.forEach((r) => { const hit = R.match(rows, ruleRow(t, r, c, "raw"), c); if (hit) n[rows.indexOf(hit)]++; });
+    const max = Math.max(1, ...n);
+    const out = rows.map((r, i) => ({ read: R.readRow(r, (k) => label(t, k)), text: String(r.text || ""), color: CELL_COLORS.has(r.color) ? r.color : "", n: n[i], pct: Math.round((n[i] / max) * 100) }));
+    return { rows: out, values: [...new Set(out.filter((r) => r.n).map((r) => r.text || "（空欄）"))] };
+  }
   /** 列 c の式が、保存してある組み立てから作った物か（そうなら作り方の窓を組み立てるで開く） */
   function isBuilt(t, c) {
     const l = get(t), b = l.builds[c];
     return Array.isArray(b) && b.length > 0 && window.LotListRules.formulaOf(b, { column: c, computed: isComputed(t, c) }).expr === String(l.formulas[c] || "");
   }
   /** 列 c の作り方を下書きに入れる（{formula, build}。build は組み立ての行・書いた式なら null）。元の列で式が空なら式を外す */
-  function setFormula(c, { formula, build }) {
+  function setFormula(c, { formula, build, rule }) {
     const t = ctx.target, L = get(t), Fm = Object.assign({}, L.formulas), B = Object.assign({}, L.builds), calc = isComputed(t, c);
+    const RC = Object.assign({}, L.ruleCols), Rr = Object.assign({}, L.rules);
     if (String(formula).trim() || calc) Fm[c] = String(formula); else delete Fm[c];
     if (build && build.length) B[c] = TPA.clone(build); else delete B[c];
-    stage(t, { formulas: Fm, builds: B }); ctx.rerender(); renderPanel();
+    if (rule && calc) { RC[c] = rule; Rr[c] = rule; delete B[c]; } else delete RC[c];   // 式・組み立てで当てたら、ルールで作る列ではなくなる（色の読み替えは残す）
+    stage(t, { formulas: Fm, builds: B, ruleCols: RC, rules: Rr }); ctx.rerender(); renderPanel();
   }
   /** 作り方の窓を開く（表示ルールと同じ組み立て＋式を書く。窓の中で打っている間は、一覧も表示列の窓も描き直さない） */
   function openFormula(c) {
     const t = ctx.target, l = get(t), calc = isComputed(t, c);
     window.LotListRules.openFormula({ column: c, computed: calc, formula: String(l.formulas[c] || ""), build: l.builds[c] || null,
-      source: fxSource(c), onDone: (v) => setFormula(c, v) });
+      rule: calc ? l.ruleCols[c] || "" : "", source: fxSource(c), onDone: (v) => setFormula(c, v) });
   }
   /* 作り方の窓へ渡す「いまの一覧」（列・行と、式が見る行）。式が見る行は一覧のセルと同じ（baseRow。[この列] は作り替える前の値） */
   function fxSource(c) {
@@ -924,6 +995,11 @@
       labelOf: (k) => (label(t, k) !== k ? `${label(t, k)}（${k}）` : k),
       formulaRow: (r) => baseRow(t, r, c),
       seen: (r) => (calc ? null : r[c]),
+      // 元の値の無い列は、試した結果の左に行の番号でなくロット番号（版 3.123.0）
+      ...(calc ? { key: (r) => r[ctx.lotColumn] ?? "", keyTitle: () => `${label(t, ctx.lotColumn)}（この列には元の値が無いので、行をロット番号で示します）` } : {}),
+      usage: (name) => ruleUsage(name),
+      newRule: (done) => window.LotListRules.open({ name: "", column: c, source: ruleSource(), onDone: (saved) => done(saved) }),
+      openConv: () => { convOpen = true; renderConv(); requestAnimationFrame(() => $("#lcConv")?.scrollIntoView({ block: "nearest" })); },
       toast: (m) => ctx.toast && ctx.toast(m),
     };
   }
@@ -941,6 +1017,9 @@
       labelOf: (k) => (label(t, k) !== k ? `${label(t, k)}（${k}）` : k),
       ruleRow: (r, c, mode) => ruleRow(t, r, c, mode),
       cellWith: (r, c, rows, mode) => cellWith(t, c, r, rows, mode),
+      // 元の値の無い列（作った列）は、試した結果の左にロット番号（版 3.123.0。前は「1件目」）
+      seenOf: (r, c, vr) => (isComputed(t, c) ? r[ctx.lotColumn] ?? "" : vr[c]),
+      keyTitle: (c) => (isComputed(t, c) ? `${label(t, ctx.lotColumn)}（この列には元の値が無いので、行をロット番号で示します）` : "条件が見た値"),
       usage: (name) => ruleUsage(name),
       toast: (m) => ctx.toast && ctx.toast(m),
     };
@@ -1105,7 +1184,7 @@
     const keepObj = (o) => Object.fromEntries(Object.entries(o).filter(([c]) => have.has(c)));
     Object.keys(b.formulas).forEach((c) => have.add(c));          // 計算列は式そのものが列の元なので、いつも持ち込める
     stage(ctx.target, { formulas: b.formulas, order: keepArr(b.order), hidden: keepArr(b.hidden), locks: keepArr(b.locks), widths: keepObj(b.widths),
-      names: keepObj(b.names), formats: keepObj(b.formats), aligns: keepObj(b.aligns), rules: keepObj(b.rules) });
+      names: keepObj(b.names), formats: keepObj(b.formats), aligns: keepObj(b.aligns), rules: keepObj(b.rules), ruleCols: keepObj(b.ruleCols) });
     ctx.rerender(); renderPanel();
     return [...mentioned].filter((c) => !have.has(c)).length;
   }
@@ -1156,7 +1235,7 @@
     formulaContext(match) {
       const out = { formulas: {}, names: {} };
       Object.keys({ ...DEFAULTS, ...saved }).filter(match).sort().forEach((t) => {
-        const l = norm(savedOf(t));
+        const l = syncRules(norm(savedOf(t)), t);
         Object.entries(l.formulas).forEach(([c, f]) => { if (String(f || "").trim() && !(c in out.formulas)) out.formulas[c] = String(f); });
         Object.entries(l.names).forEach(([c, n]) => { if (n && !(c in out.names)) out.names[c] = n; });
       });
