@@ -651,5 +651,25 @@
    "advice": "3 回目の 1 位は P（83.0）で合格点 80 に届いた（2 位 N 81.1・3 位 M 81.0・Q 78.4・R 78.3）。どの案も減点は無い。2 回目の指摘 4 つ（1280 の数字のパネルの印・面の縁がパネルの縁にそろう・1280 の表の行・言葉と札）は M・N・P・R で直っている。P を作るときに直す所: (1) 頭の帯にデータの名前（仕掛）を戻す（M にはあり P で消えた。タブの頭か題の行に）。(2) タブの × と全部を閉じる × の区別: 全部を閉じる方は「すべて閉じる」の字か、タブの列から離して置き、title を付ける。Esc はいまのタブを閉じる、などの決まりを 1 つにする。(3) タブが多いとき（5 つ以上）の形を決めて撮る（古いタブを畳む・「…」に入れる）。1280 で 4 つが入る幅は確かめた。(4) 1280 の表の最後の行の字が上下半分で切れる（drill-light-P の 11 行目）。行の高さの倍数で表の高さを決める（行の途中で切らない）か、計の行の上に薄い影を付けて送れることを見せる。(5) 表の横の送りは送り棒が見えず、右に列があることが表の端の切れでしか分からない。右の端に薄い影（送れる印）を付け、計の行の「列 15」を押すと列の一覧を出す、など。(6) 1280 の数字のパネルの薄い橙の地は、上の端が 1,200 の字の中ほどにあり数の上半分が地から出る（s3-kpi-1280.png）。地を数の段の字の上の端まで広げる。(7) 入口はホバーの札だけで、押せる数であることが前もって見えない。数の上でカーソルを指にし、組む所の説明か初回の知らせで 1 度だけ教える。(8) N の内訳（製造材質の多い値）は原因探しに効くので、作るときにタブの面の範囲の札の右の「内訳 ▾」として畳んで入れてもよい（その場合、小さな棒は値に比例させ、パネルの棒と違う色にする）。(9) 面の下になったパネルは見えないので、押したパネルの橙の縁と影は残す（M・P の形）。R のように面にも同じ橙の縁を付けない。"
   }
  ],
- "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-drilldown.mjs --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off を 既定（1728×1152）・--view 1536x864・--view 1280x720 で 1 回ずつ（どれも終了コード 0）。出力 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score1-1728・score1-1536・score1-1280。sheet-* で全体を見たうえで、1728 は全案の drill-entry・drill・drill-chart・drill-kpi・drill-more を 1 枚ずつ、1536 は A の drill、1280 は A の drill-chart・B の drill と drill-more・C の drill・D の drill-kpi・E の drill-more・F の drill と drill-entry を 1 枚ずつ開いて見た。押した後の動きは画像に出ないので、画像で見える範囲で付けた"
+ "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-drilldown.mjs --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off を 既定（1728×1152）・--view 1536x864・--view 1280x720 で 1 回ずつ（どれも終了コード 0）。出力 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score1-1728・score1-1536・score1-1280。sheet-* で全体を見たうえで、1728 は全案の drill-entry・drill・drill-chart・drill-kpi・drill-more を 1 枚ずつ、1536 は A の drill、1280 は A の drill-chart・B の drill と drill-more・C の drill・D の drill-kpi・E の drill-more・F の drill と drill-entry を 1 枚ずつ開いて見た。押した後の動きは画像に出ないので、画像で見える範囲で付けた",
+ "self_check_built": {
+  "version": "3.126.0",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/built-1728・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/built-1536・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/built-1280（dash-light.png・drill-entry.png・drill.png・drill-chart.png・drill-kpi.png・drill-more.png。撮る状態 drill-entry〜drill-more を本物の画面で）",
+  "seen": [
+   "drill-entry（3 つの大きさ）: 横棒「保留」を右クリックしたメニューのいちばん上に「☰ この数の明細を見る（保留 216）」。押した数の名前が項目に入る。メニューの置き場は今までのパネルのメニューと同じ（押した点から）",
+   "drill（合わせた表の L-1）: 明細の面は左の 2 枚（横棒・直近 14 日）を丸ごと覆い、縁はパネルの縁にそろう。押したパネル（合わせた表）は橙の縁と影、L-1 の仕掛ロット数のセルに橙の枠。頭の帯に「明細」・データの名前「仕掛」・タブ「L-1 231 ×」・一時の言葉・「すべて閉じる」。題の行「L-1 231 行 ✓ パネルと同じ 231 ロット」、範囲の札「期間 なし・設備 L-1」と「内訳 ▾」、組みに使った列（残仕掛設備ｺｰｽ）が先頭で橙の地。表の高さは行の倍数で、1280 で 10 行・1728 で 24 行。計の行「計 231 行・ロット数 231　列 16（値の無い 20 列は畳んでいます）」",
+   "drill-chart（横棒の保留）: 面は右の合わせた表を丸ごと覆い、押した横棒と 216 は見える（橙の縁）",
+   "drill-kpi（数字の仕掛ロット数）: 面は上の段の下の全幅。数字のパネルは数の段全体が淡い橙の地（線を引かないので 1,200 と「ロット」に線が被らない。1280 でも地が数の上の端まで届く）。タブは「保留 216」「仕掛ロット数 1,200」の 2 つ、題は「仕掛ロット数（総計）」",
+   "drill-more（合わせた表の 5 つの設備を順に押した）: 1728 は「前の 3 ▾」＋2 つのタブ、1536 も同じ、1280 は「前の 4 ▾」＋いまのタブ 1 つと短い一時の言葉「一時の表示」（頭の帯の字が切れない・重ならない）。押した L-2 の 125 に橙の枠"
+  ],
+  "fixed": [
+   "表の高さを行の倍数にする計算: 最初は面の中の段の高さを scrollHeight で引いて、1280 で表が 3 行に潰れた（dev-1280/drill の 1 回目）→ 表を 0 にした上で、ほかの段の高さを足して残りを行の倍数に",
+   "タブが多いとき: 1280 で「一時の表示（組みは変わりません）」が「すべて閉じる」に重なった → タブを 2 つまで減らす → 言葉を短く → タブを 1 つ → 言葉は吹き出しだけ、の順に（字を切らない）",
+   "総計のタブの名前が「総計」だけでどのパネルか分からない → タブはパネルの題、題の行は「仕掛ロット数（総計）」",
+   "右クリックの項目の名前: 押した数の名前を吹き出しだけに入れていた → 項目の字「この数の明細を見る（保留 216）」に",
+   "明細の Excel のファイル名のアプリ名を brand（meta tpa-app）から（test_brand_names）"
+  ],
+  "checks": "ui-eval-drill.mjs（3 つの大きさ）OK・ui-eval-dashmenu・ui-eval-dashboard・ui-eval-dashslice OK・cargo test --test dash_parity（明細の段: 焼いた場面のセル 300 以上で、明細から数え直した数＝セルの数＝パネルの答え。小計・総計・その他・合わせた表・合わせるの側・設備ごとの系列・理由）OK。check-all --verify: ci-shape 以外の段は終了コード 0（ci-shape は check-all を ruff 0.15.20 の venv を PATH の先に置いて流したため、nopy の利用者 daemon が入れない置き場の python を独立の答えに使って落ちた。PATH を戻して ci-shape.py だけを流し直して runner 38・nopy 38・nodns 6 本すべて通った）。check-all --ui-only: すべて通った",
+  "left": "合わせた表の「前日の実績」の直のセルを押すと、作業実績の設備ごとのファイルの行（1 設備）なので「一覧で開く」で作業実績のその設備の一覧へ。設備をまたぐ数（前日の実績本数 21）は一覧の 1 つの画面に入らないので「一覧で開く」を押せず理由を出す（Excel・コピーで全部の行）"
+ }
 }
