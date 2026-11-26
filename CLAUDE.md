@@ -127,6 +127,7 @@ python program/tools/ui_score.py 採点.json                                    
   JSON の列の展開（版 3.120.0。場面は TPA_UI_JSON=1 で、品質データと仕掛に JSON の列 5 つ〈5 つの形・壊れた行・空・違う形〉を足す〈tests/ui_window_scene.py の json_cells〉。JSON の列の無い場面では窓を開けずにそのまま撮る）: 仕掛の一覧の「{ } JSON」の窓・合わない行と設備マスタに無い鍵（CR1）を開いた所・表を作ってパネルも足した後のダッシュボード・そのパネルを組む所（入口と「›」の札）・組む所から開いた窓（json・json-check・json-toast〈作った直後の知らせ〉・json-made・json-dash・json-dashwin。--from json。json-off が片付ける）。
   計算列を集計表・グラフで使う（版 3.121.0。--from calc-list で撮る）: 品質の表「仕掛」に計算列 4 つ（重量t＝[重量]/1000・材調質＝concat・板厚区分＝if・寸法＝読めない式。ui-harness の CALC_LAYOUT）を作った一覧・表示列の窓で 重量t を選んだ所（「集計表で値に置く」）・集計表（合金ごと・板厚区分別の重量t の合計。カラムの欄の頭の「ƒx 計算列」）・組む所（品質。板厚区分を行・重量t を値）（calc-list・calc-cols・pivot-calc・dash-calc。calc-off が片付ける）。
   品質データをグループに入れる・移す（版 3.122.0。--from master で撮る。データ元が多い形〈manySources〉）: 品質の行を表の頭へ送った所・右クリックのメニュー〈「グループ（押すと移す）」のまとまりと今のグループの ✓〉・「工程」へ移した直後の帯・品質の欄〈グループの札・押せない「このデータ元を消す」〉・見出しの工程のタブ〈「› 品質」〉・そのタブで品質の一覧を開いた所（qg-list・qg-menu・qg-moved・qg-edit・qg-tab・qg-tab-lot。qg-off が品質とスケジュールを元の置き場へ戻す）。
+  ルールで作る列（版 3.123.0。--from readcol-list で撮る）: 品質の表「仕掛」に、ルール「管理区分」（合金・板厚 → 5052厚板・3000系・その他）で作る列を置いた一覧・表示列の窓の作り方の段（「ƒx 式で作る｜≡ ルールで作る」と 3 行の件数）・ルールの窓・「＋ 列を作る」で足した列の作り方の窓で保存したルールのカードを押した所（readcol-list・readcol-cols・readcol-rule・readcol-new。readcol-off が片付ける）。
   集計の組み替え（版 3.50.0）: 札を引いている途中（worklog-pivot-dnd）・値の計算の段に ÷1000 を当てた所（worklog-pivot-calc）・重量の小数を 1 桁にした所（worklog-pivot-dec。版 3.50.1）・ウォーターフォール（dash-waterfall）。
   保存先（版 3.49.0）: 全員（共有）に「標準」★・全員の既定に「標準」と「標準ダッシュボード」を置いた ▾ の面と、同じ名前「標準」を全員の既定へ名前を付けて保存する所（dash-save-pop・dash-saveas。dash-save-off が片付ける）。
   試験用の作業実績は設備 12 台で、1 台はファイルが見つからない・1 台は更新が止まった形。ANF は焼鈍炉の形（版 3.47.0: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列だけ・書き忘れ 2 回・いま炉の中）。作業開始（BOX実績_作業開始_日付）が同じ分割ロットを含み、作業終了（BOX実績_作業終了_日付。版 3.46.0）もある。
@@ -227,6 +228,7 @@ python program/tools/ui_score.py 採点.json                                    
   3 つの大きさで札の名前と 2 段目〈式〉が切れず語の途中で折れない・すぐに見るの行が 1 段・表の同じ値の小数の桁がそろう・一覧の計算列の値に小数の誤差が出ない。
   窓の集計の道が calc を受けて数えることは `lot::tests::hidden_tabs_unknown_sources_and_window_copies`）。
   `ui-eval-qualitygroup.mjs`（版 3.122.0。利用者の改良依頼 2026-11-17 の 2: 品質の行の ⠿・錠つきのスイッチ〈錠は「タブを外せない」だけ〉・メニューのグループのまとまりと ✓・右クリック／⠿ を引く／欄の札で移して `/api/sources` のグループが合う・結合した表が元に付いて動く・移した直後の帯が表に被らず［元に戻す］が効く・見出しのグループのタブ 1 手で品質の一覧〈件数がサーバーと同じ〉・札の切り替えと Alt＋1・読み直しても残る・スケジュールのグループが保存で残る・3 つの大きさで品質の入ったグループのタブが見出しに残りはみ出さない。窓の側は `bundle::tests::quality_data_moves_like_other_sources` と sources_write の行の試験）。
+  `ui-eval-readcol.mjs`（版 3.123.0。利用者の改良依頼 2026-11-17 の 3: ルールで作る列のセル・並べ替えの問い合わせに式が付き全部の行が昇順・集計表の件数が、サーバーの答えと全部の行をルールで数えた独立の答えの両方と同じ・札と 3 行の件数・③ 読み替えの段が無い・ルールの窓の言葉と試した結果のロット番号・作り方の窓の保存したルール・式とルールの切り替え・3 つの大きさで結果の段が欄の中。ルール → 式の決まりは人の事例の表 `tests/fixtures/rule_formula_cases.json` を、画面は `rule-formula-check.mjs`〈`tests/test_screen_parts.py` からも〉、窓は `cargo test --test rule_formula_cases` が突き合わせる）。
   値の計算の式の読み方は、画面（num-format.js）と窓（num_expr.rs）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・Rust の num_expr の試験）。どれも終了コード 0 で OK
 - 窓の突き合わせの試験（Rust 化の段 ①〜④ で作った評価関数。版 3.119.0〈段 ⑤〉で答え合わせ役〈Python の道〉と凍らせた写しを消し、表だけの形にした）:
   `cargo test --test <本>_parity` ほか 35 本は、焼いた表 `desktop/tests/baked/<表>.json`（場面の宣言・問い合わせ・窓の答え・道の型。行き先と元は `books.json`）の
@@ -242,7 +244,7 @@ python program/tools/ui_score.py 採点.json                                    
   古くなる: 答えが変わらない直しは `--re-source`、答えが変わる直しは `--scope`（settings の画面は `GET /`）で焼き直し、Windows の nt の表を CI 2 回（`--take-nt`）で取り直す
 - 窓の試験のうち人の事例の表と組で見る物（どれも `cargo test --test <名前>`）: body_cases・pynum_cases・pyfloat_cases・jsonnum_cases・bigint_cases・row_cases・
   name_key_cases・layout_cases・seeds_cases・boot_cases・appsettings_cases・sysproxy_cases・cm3_net_cases・ospath_cases・place_cases・builder_cases・bundle_cases・
-  calc_cases・calc_error_cases・json_expand_cases（版 3.120.0）・formula_cases・formula_regex_cases・equip_regex_cases・nest_cases・lotdsp_cases・probe_rows・icon_files（焼いたアイコンの絵。版 3.119.0）。
+  calc_cases・calc_error_cases・json_expand_cases（版 3.120.0）・rule_formula_cases（版 3.123.0）・formula_cases・formula_regex_cases・equip_regex_cases・nest_cases・lotdsp_cases・probe_rows・icon_files（焼いたアイコンの絵。版 3.119.0）。
   事例の表を Python の標準の部品から焼く道具（app を import しない）: `tools/pyfloat-cases.py`・`jsonnum-cases.py`・`isdigit-table.py`・`printable-table.py`・
   `key-split-table.py`・`cm3-tables.py`（古い表は `tests/test_*_table(s).py`・`test_*_cases.py` が止める）。app から焼いた表（`desktop/src/*_builtins.json`・`bundle_tables.json`・
   `body_routes.json`・`path_routes.json`・`tests/fixtures/*_cases.json` の多く）は版 3.119.0 から凍った答え（作り直す道具は app と一緒に消した）
