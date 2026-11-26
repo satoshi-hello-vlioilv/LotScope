@@ -637,9 +637,8 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-cw{white-space:nowrap}   /* 値・比べ方の言葉の塊は折らない（塊の間でだけ折る） */
 .cv-or{display:block;color:#5c6b7a;font-size:11px;line-height:1.3}
 .cv-any{color:#6b7785}
-.cv-grid th:nth-child(2),.cv-out{width:1%}   /* 出す値の列は中身の幅（空きは条件の列へ） */
-.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{field-sizing:content;width:var(--cv-outw,120px);min-width:0;max-width:none;min-height:28px;height:auto;resize:none;overflow:hidden;padding-top:4px;padding-bottom:3px;line-height:1.4;vertical-align:middle;font-weight:800;color:#163a5f}
-.cv-ra{white-space:nowrap;width:1%}.cv-ra .icon-btn{display:inline-grid;width:21px;height:21px;font-size:12px;vertical-align:middle}
+.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{field-sizing:content;width:var(--cv-outw,120px);min-width:0;max-width:none;word-break:keep-all;overflow-wrap:normal;min-height:28px;height:auto;resize:none;overflow:hidden;padding-top:4px;padding-bottom:3px;line-height:1.4;vertical-align:middle;font-weight:800;color:#163a5f}
+.cv-ra{white-space:nowrap}.cv-ra .icon-btn{display:inline-grid;width:21px;height:21px;font-size:12px;vertical-align:middle}
 .cv-edrow > td{background:#f7fafd}
 .cv-celled{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--h-input);border-radius:9px;background:#fff}
 .cv-celledhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cv-celledhead small{color:var(--muted)}
@@ -874,4 +873,19 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-grid th.cv-ra{background:var(--surface-4);z-index:2}
 .cv-grid tr.is-cell > td.cv-ra{background:#f7fafd}
 /* 狭い窓では左の表の一覧を詰め、判定表に幅を回す（版 3.124.0） */
-@media (max-width:1400px){.sh-editor.cv-editor{grid-template-columns:190px minmax(0,1fr)}}
+/* 列の幅を測る間だけの形（layoutGrid）: 最小＝折らない塊の幅・望む＝1 行の幅。セルを直す行は測らない */
+.cv-grid.cv-measure{table-layout:auto!important}
+.cv-grid.cv-m-min{width:0!important}
+.cv-grid.cv-m-max,.cv-grid.cv-m-body{width:max-content!important}
+.cv-grid.cv-m-max th,.cv-grid.cv-m-max td,.cv-grid.cv-m-max .cv-c,.cv-grid.cv-m-body td,.cv-grid.cv-m-body .cv-c{white-space:nowrap}
+.cv-grid.cv-m-body thead th{font-size:0}
+.cv-grid.cv-measure tr.cv-edrow{display:none}
+/* 狭い表では行の ↑↓× を「⋯」の 1 つに */
+.cv-rmenu{display:none!important}
+.cv-grid.is-tight .cv-ra .icon-btn{display:none!important}
+.cv-grid.is-tight .cv-ra .cv-rmenu{display:inline-grid!important}
+/* 左の表の一覧の名前は語の途中で折らない（括弧・空白でだけ。版 3.124.0） */
+.cv-editor .sh-item b{word-break:keep-all;overflow-wrap:anywhere}
+/* 判定表の枠は表の幅に合わせる（列の幅を画面で決めて余りを流さないので、枠だけが広く残らない。版 3.124.0） */
+.cv-gridwrap{width:fit-content;max-width:100%;box-sizing:border-box}
+.cv-topx{display:inline-flex;align-items:center;gap:6px;flex:none}

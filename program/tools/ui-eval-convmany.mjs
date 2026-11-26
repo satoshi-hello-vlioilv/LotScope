@@ -12,6 +12,8 @@
 //    「データに無い名前を足す」の欄と「足す」に届く（その点の一番上の要素が欄そのもの）・押した札が見えている
 // ⑤ ↑ で順を替えて保存 → 保存した表の順と札の順が同じ（開き直しても）
 // ⑥ 表示列の窓の変換表の帯（選ぶ ▾）: 表の名前・理由の字が切れない・列の一覧が 100px 以上残る
+// ⑦ 6 つの状態（課名・CONV_MANY・セルを直す所・選ぶ面・管理分類・表示列の窓の帯）で、ボタン・札・見出し・小見出し・判定表のセルの字が枠からはみ出さない・
+//    語の途中で段が替わらない・ボタンの字は 1 行・判定表に 40px 以上の空きがあればどのセルも 2 段にならない・左の一覧は 240px 以上
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, CONV_MANY, convMany } from "./ui-harness.mjs";
 
@@ -68,10 +70,58 @@ function gridMeasure() {
     return { t: th.textContent.trim(), fits: th.scrollWidth <= th.clientWidth + 1, inside: r.left >= wr.left - 1 && r.right <= wr.right + 1, breaks: badBreaks(th) }; });
   // 条件の札の塊（値・比べ方の言葉）が 1 段に収まる（塊の途中で折れない）
   const units = [...w.querySelectorAll(".cv-c .cv-cw")].filter((u) => u.getClientRects().length > 1).map((u) => u.textContent);
-  const ra = [...w.querySelectorAll("td.cv-ra .icon-btn")].filter((b) => { const r = b.getBoundingClientRect(); return r.right > wr.right + 1 || r.left < wr.left - 1; }).length;
+  const raBtns = [...w.querySelectorAll("td.cv-ra .icon-btn")].filter((b) => b.offsetParent !== null);   // 狭い表では ↑↓× の代わりに「⋯」
+  const ra = raBtns.filter((b) => { const r = b.getBoundingClientRect(); return r.right > wr.right + 1 || r.left < wr.left - 1; }).length + (raBtns.length ? 0 : 1);
   const rows = [...w.querySelectorAll("tbody tr[data-r]")];
   return { ths, units, ra, hscroll: w.scrollWidth - w.clientWidth, rows: rows.length, seen: rows.filter((r) => r.getBoundingClientRect().bottom <= Math.min(panel.bottom, wr.bottom) + 1).length,
     scroll: document.querySelector("#masterSettings").scrollTop };
+}
+/** 頁の中: 変換表のタブ（と表示列の窓の変換表の帯・選ぶ面）の字の崩れを数える */
+function auditPage() {
+  const vis = (el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.width > 0 && r.height > 0; };
+  const texts = (el) => { const out = [], tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); for (let n; (n = tw.nextNode());) if (n.data.trim()) out.push(n); return out; };
+  const lines = (el) => { const tops = []; for (const n of texts(el)) { const rg = document.createRange(); rg.selectNodeContents(n);
+    for (const r of rg.getClientRects()) if (r.width > 0.5 && !tops.some((t) => Math.abs(t - r.top) < 4)) tops.push(r.top); } return tops.length; };
+  const badBreaks = (el) => {
+    const out = [];
+    for (const node of texts(el)) {
+      let prevTop = null;
+      for (let i = 0; i < node.length; i++) {
+        const rg = document.createRange(); rg.setStart(node, i); rg.setEnd(node, i + 1);
+        const rc = rg.getClientRects()[0]; if (!rc || !rc.width) continue;
+        if (prevTop != null && rc.top > prevTop + 4 && !/[\s）)・･/_,、]/.test(node.data[i - 1]) && !/[（(\s]/.test(node.data[i])) out.push(node.data.slice(Math.max(0, i - 4), i) + "／" + node.data.slice(i, i + 4));
+        prevTop = rc.top;
+      }
+    }
+    return out;
+  };
+  const scope = ["#masterSettings", ".cv-colpop", "#lcConv"].map((s) => document.querySelector(s)).filter(Boolean);
+  const all = (sel) => scope.flatMap((r) => [...r.querySelectorAll(sel)]).filter(vis);
+  const name = (el) => (el.textContent || "").trim().slice(0, 24);
+  const btns = all("button:not(.cv-cbtn):not(.cv-colsbtn):not(.sh-item)");
+  const out = [], multi = [], breaks = [];
+  for (const b of btns) {
+    const br = b.getBoundingClientRect();
+    for (const n of texts(b)) { const rg = document.createRange(); rg.selectNodeContents(n);
+      for (const r of rg.getClientRects()) if (r.width > 0.5 && (r.left < br.left - 1 || r.right > br.right + 1 || r.top < br.top - 1 || r.bottom > br.bottom + 1)) { out.push(name(b)); break; } }
+    if (lines(b) > 1) multi.push(name(b));
+  }
+  for (const el of [...btns, ...all(".cv-grid th, .cv-lgrp, .sh-list-head, .cv-ih, .cv-c, .cv-cpsrc h5, .cv-cphead b, .lc-cvi b, .cv-tag, .cv-lab, .sh-item b")]) {
+    const bb = badBreaks(el); if (bb.length) breaks.push(`${name(el)}: ${bb.join(" ")}`);
+  }
+  const w = document.querySelector("#masterSettings .cv-gridwrap"), t = w && w.querySelector(".cv-grid");
+  let gap = 0; const two = [];
+  if (w && vis(w)) {
+    // 空き＝判定表を置く欄の中の幅（版 3.124.0 から枠は表の幅に合う）と表の幅の差
+    const par = w.parentElement, ps = getComputedStyle(par);
+    gap = Math.round(par.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight) - 2 - t.getBoundingClientRect().width);
+    for (const el of [...w.querySelectorAll("thead th, .cv-c")].filter(vis)) if (lines(el) > 1) two.push(name(el));
+    for (const ta of [...w.querySelectorAll("[data-cv-out]")].filter(vis)) {
+      const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18; if (ta.scrollHeight > lh * 1.6 + 8) two.push(ta.value.slice(0, 20));
+    }
+  }
+  const list = document.querySelector("#masterSettings .sh-list");
+  return { out, multi, breaks, gap, two, list: list && vis(list) ? Math.round(list.getBoundingClientRect().width) : 999 };
 }
 const pickTable = (p, name) => p.evaluate((n) => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === n)?.click(), name);
 
@@ -163,6 +213,32 @@ try {
     await p.click("#lcClose").catch(() => {}); await sleep(300);
     await convMany(p, false);
     await p.context().close();
+
+    // ⑦ 変換表のタブ全体の汎用の確かめ（版 3.124.0 の採点し直しで出た崩れを止める）: 6 つの状態で、ボタン・札・見出し・小見出し・判定表のセルの
+    //    字が枠からはみ出さない・語の途中で段が替わらない・ボタンの字は 1 行・判定表に 40px 以上の空きがあればどのセルも 2 段にならない・左の一覧は 240px で小見出しが 1 行
+    const q = await app.newPage("light", VIEW);
+    const qerr = []; q.on("pageerror", (e) => qerr.push(e.message)); q.on("dialog", (d) => d.accept());
+    await q.click("#masterBtn"); await q.waitForSelector("#masterOverlay:not(.hidden)"); await sleep(600);
+    await q.$eval('#masterTabs [data-tab="conv"]', (b) => b.click()); await q.waitForSelector("[data-cv-pick]"); await sleep(500);
+    const audit = async (state) => {
+      const a = await q.evaluate(auditPage);
+      check(`${tag}⑦ ${state}: 字が枠からはみ出さない・語の途中で折れない・ボタンは 1 行`, !a.out.length && !a.breaks.length && !a.multi.length, a);
+      check(`${tag}⑦ ${state}: 判定表に 40px 以上の空きがあれば 2 段のセルが無い・左の一覧は 240px 以上`, (a.gap < 40 || !a.two.length) && a.list >= 239, { gap: a.gap, two: a.two, list: a.list });
+    };
+    await pickTable(q, "課名"); await sleep(600); await audit("convx-ka");
+    await convMany(q, true); await sleep(700); await audit("convx");
+    await q.click(`[data-cv-cell="0|${CONV_MANY.inputs[3].name}"]`); await sleep(500); await audit("convx-cell");
+    await q.click("[data-cv-close]"); await sleep(300);
+    await q.click('[data-cv-cols="3"]'); await q.waitForSelector(".cv-cpi"); await sleep(500); await audit("convx-cols");
+    await q.click(".cv-colpop [data-cp-close]"); await sleep(200);
+    await pickTable(q, "管理分類"); await sleep(700); await audit("convx-kanri");
+    await q.click("#masterCloseBtn"); await sleep(500);
+    await q.click("#tabList").catch(() => {}); await sleep(300);
+    await q.click("#llColBtn"); await sleep(700); await q.click("[data-cv-more]"); await sleep(500); await audit("convx-plan");
+    check(`${tag}⑦ 頁の誤りが無い`, !qerr.length, qerr);
+    await q.click("#lcClose").catch(() => {}); await sleep(300);
+    await convMany(q, false);
+    await q.context().close();
   }
 } finally {
   await app.close();
