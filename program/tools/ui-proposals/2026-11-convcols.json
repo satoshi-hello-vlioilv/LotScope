@@ -1,6 +1,7 @@
 {
  "title": "変換表の見切れ（利用者の依頼 2026-11-17 の 4「入力データの当てる列が複数の場合表示しきれていません」）— 案出し 1 回目（版 3.123.0 の上で）",
  "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。",
  "request": "４）変換表の見切れ修正依頼。画像のように入力データの当てる列が複数の場合表示しきれていません。修正をお願いします。（画像は手元に無い）",
  "goal": "当てる列がいくつでも（1・2・3・5 列）、列や入力の名前が長くても（全角 10〜17 字）、何がどの入力に当たるか（と当てる順）が切れずに読め、選ぶ・外す・並べる操作に届くこと。案出し係も依頼をこう読んだ（画像が無いので、利用者の画像は同梱の「課名」〈入力 1 つに当てる列 4 つ〉の入力の札だと推した。今の画面でいちばん目立って切れる所で、convx-ka の画像で「BOX実… BOX設… 設.. 設」に潰れて見える）",
  "scene": "ui-harness.mjs の状態 convx-ka 〜 convx-off（この比べのために master-conv-cols の後ろへ足した）。convx-ka＝同梱の「課名」（入力「設備」に当てる列 4 つ: BOX実績_設備名〈データに無い !〉・BOX設計_設備名・設備名・設備）・convx＝撮るだけの変換表 CONV_MANY「作業の区切り（当てる列が多い見本）」（入力 4 つ: 作業開始の年月日時分秒〈1 列: BOX実績_作業開始_年月日時分秒〉・子カードの区分〈2 列〉・設備の名前（設計と実績）〈3 列〉・切断巾（コンマ5本分割）〈5 列。コンマ5本分割_切断巾1・2・3・10 と手で足した「切断巾_予備の列（手で足した名前）」〉。行 3 つ）・convx-cell＝1 行目・4 つ目の入力のセルを開いた所・convx-cols＝4 つ目の入力（5 列）の「当てる列を選ぶ面」・convx-plan＝一覧（品質）の表示列の窓の変換表の帯を「選ぶ ▾」で開いた所。convx-off が CONV_MANY を消す。CONV_MANY は API（POST /api/masters/conversions）で足し、変換表のタブを開き直して選ぶ（ui-harness.mjs の convMany）",
@@ -35,7 +36,29 @@
      "summary": "入力の札（.cv-colsbtn）の幅の上限と切り捨てをやめ、当てる列を全部の名前で並べる。入らなければ札の中で次の段へ折り返す（入力の名前・比べ方・× は札の左右に 1 段のまま）。置き場と流れは今と同じ",
      "changes": "master.css の .cv-colsbtn（max-width・overflow・flex-wrap）と .cv-alias b（max-width）。common_fix",
      "shots": "convx-ka・convx（5 列の入力が札の中で 2 段）",
-     "risks": "入力が多いと入力の行が横にも縦にも伸び、入力ごとの札の幅がそろわない。当てる順（上から順）は並びだけで、番号は無い"
+     "risks": "入力が多いと入力の行が横にも縦にも伸び、入力ごとの札の幅がそろわない。当てる順（上から順）は並びだけで、番号は無い",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 8,
+      "place": 9,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-*.png 判定表の見出しの右端: 5 つ目の入力「切断巾（コンマ5本分割）」が「切断巾（コンマ5」で表の右の縁に切れる（横に送れば読めるが、見えている所では切れている。どの案も今と同じ）"
+      }
+     ],
+     "seen": "score1-1728/convx-light-A: 当てる列が 1・2・3・5 のどの入力も全部の名前で読め（コンマ5本分割_切断巾1・2・3・10・切断巾_予備の列（手で足した名前））、印（仕・!・品ス）は字に重ならず ▾ も見える。5 列の入力だけ札の中で 2 段になり、入力の行の幅がそろわない（1 つ目の入力は「入力」の字の右、2 つ目からはその下の左端から始まり、左の縁がずれる）。当てる順は並びだけで番号が無い。入力・表の名前の欄も全部読める。式は 1 行に全部入る。score1-1280/convx-light-A: 5 列の札が 3 段に折り返すが切れない。判定表は 1280 で 3 行目まで見える。convx-cols（score1-1280/convx-cols-light-A）: 選んだ列が全部の名前で読め、面は窓に収まり「データに無い名前を足す」まで見える（common_fix が効いている）。convx-plan は理由が名前の下に全部折り返して読める。今からの差が最小で、慣れた札の形のまま。",
+     "fix_when_building": "入力の行の左の縁をそろえる（1 つ目も「入力」の下の段から始めるか、全部の行を「入力」の右から始める）。当てる順の番号（1・2・3…）を付ける。1280 の判定表の見出しの右の入力名を、見出しの中で折り返すなどで切らない。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
     },
     "B 入力を 1 行 1 つの縦の表に": {
      "id": "B",
@@ -43,7 +66,29 @@
      "summary": "入力の欄を 1 行 1 入力の縦の表にし、頭に見出し（入力の名前・比べ方・当てる列〈番号の順に、一覧に有る列へ当てます〉）。名前の欄は 15em にそろえ、当てる列の札は行の残りの幅いっぱいで、列ごとに 1・2・3… の番号（当てる順）。入らなければ札の中で折り返す",
      "changes": "master-conv.js の入力の欄（.cv-ins）を縦に・見出しの行を足す。master.css。common_fix",
      "shots": "convx-ka・convx",
-     "risks": "入力の数だけ縦に伸び、判定表が下がる（入力 4 つで約 +110px。1280 では判定表の頭が画面の下の方へ）"
+     "risks": "入力の数だけ縦に伸び、判定表が下がる（入力 4 つで約 +110px。1280 では判定表の頭が画面の下の方へ）",
+     "score": {
+      "order": 9,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 9,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-*.png 判定表の見出しの右端: 5 つ目の入力「切断巾（コンマ5本分割）」が「切断巾（コンマ5」で表の右の縁に切れる（横に送れば読めるが、見えている所では切れている。どの案も今と同じ）"
+      }
+     ],
+     "seen": "score1-1728/convx-light-B: 入力の欄が頭の見出し（入力の名前・比べ方・当てる列〈番号の順に、一覧に有る列へ当てます〉）つきの縦の表になり、名前の欄（15em）・比べ方・当てる列の札・× の縦の線がそろう。当てる列は 1・2・3… の番号つきで全部の名前が読め、5 列の入力だけ札の中で 2 段。印も重ならない。どれがどの入力に当たり、どの順かがいちばん速く読める。score1-1280/convx-light-B: 3 列・5 列の入力が 2〜3 段に折り返して切れない。判定表は見出しと 2 行目までしか見えず下がる（案出し係の言うとおり。モーダルの中を縦に送れば届く）。score1-1728/convx-cols-light-B: 面は 4 つ目の札の下に開き、選んだ列は全部の名前、データ元の欄は重ならず、足す欄まで見える。convx-plan（score1-1280/convx-plan-light-B）も理由が全部読める。弱い所: 1 列だけの入力でも札が行の残りの幅いっぱいに伸び、右に大きな空き（▾ が遠い）。",
+     "fix_when_building": "1 列だけの入力で札が横いっぱいに伸びて ▾ が遠い所を詰める（札の幅は中身＋余白にし、▾ は名前の後ろに）。1280 で判定表が下がるので、入力の欄の行の上下の余白を詰める。1280 の判定表の見出しの右の入力名を切らない。見出しの字（11.5px・#5c6b7a）のコントラストを 4.5 以上に保つ。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
     },
     "C 1 つ目の列＋「ほか n 列」": {
      "id": "C",
@@ -51,7 +96,37 @@
      "summary": "札は 1 つ目の列（いちばん先に当たる列）を全部の名前で出し、2 つ目から先は「ほか n 列」の札にまとめる。全部の名前と順は札の説明（マウスを載せる）と、押して開く選ぶ面で見る",
      "changes": "master-conv.js の colsBtn。master.css。common_fix",
      "shots": "convx-ka・convx",
-     "risks": "2 つ目から先の名前は札に出ない（見るのに 1 手か、マウスを載せる）。利用者の言う「表示しきれていない」を、出さないことで解く"
+     "risks": "2 つ目から先の名前は札に出ない（見るのに 1 手か、マウスを載せる）。利用者の言う「表示しきれていない」を、出さないことで解く",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-*.png 判定表の見出しの右端: 5 つ目の入力「切断巾（コンマ5本分割）」が「切断巾（コンマ5」で表の右の縁に切れる（横に送れば読めるが、見えている所では切れている。どの案も今と同じ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "score1-1728/convx-light-C.png・score1-1280/convx-light-C.png の入力の札: 2 つ目から先の列の名前が「ほか 1 列」「ほか 2 列」「ほか 4 列」の札に隠れ、どの列が当たっているかが画面に出ない（札の説明か選ぶ面を開かないと読めない）"
+      },
+      {
+       "kind": "more_steps",
+       "where": "score1-1728/convx-light-C.png: 2 つ目から先の列を確かめるのに、札にマウスを載せるか押して選ぶ面を開く 1 手が増える（今は切れていても字の頭は札に出ていた）"
+      }
+     ],
+     "seen": "score1-1728/convx-light-C: 札は 1 つ目の列を全部の名前で出し、残りは濃い色の「ほか n 列」の札。入力の行が短くなり 1〜3 段に収まり、判定表がいちばん上にある（1280 でも 3 行目まで見える）。切れ・重なりは無い。しかし依頼の「当てる列が複数のときに表示しきれていない」を、出さないことで解いており、2 つ目から先の名前は札に無い（案出し係の言うとおり）。「ほか 4 列」の濃い紺の札が強く、主の情報（名前）より目立つ。convx-cols は common_fix で A と同じに読める。",
+     "fix_when_building": "「ほか n 列」をやめるか、少なくとも入力の欄の下などに全部の名前を 1 行で出す。濃い札の色を弱める。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
     },
     "D 当てる列を判定表の見出しへ": {
      "id": "D",
@@ -59,7 +134,41 @@
      "summary": "当てる列の札を入力の欄から外し、判定表のその入力の列の見出しの下に縦に番号つきで並べる（押すと同じ選ぶ面）。入力の欄は名前・比べ方・× だけになり 1〜2 段に収まる。「その列の条件」と「その列に当たる元の列」が同じ縦の列にそろう",
      "changes": "master-conv.js の gridHtml（見出しに colsBtn）と入力の欄。master.css（見出しの高さ・縦の並び）。common_fix",
      "shots": "convx（見出しが高くなる）・convx-cell・convx-cols（面が見出しの札の下に開く）",
-     "risks": "見出しが当てる列の数だけ高くなる（5 列で約 +150px）。名前が長いと列が広がり、表の横送りが増える。表を横に送ると、左に貼り付けた「出す値」の列が 1 つ目の入力の見出しに重なって隠す（convx-cols の画像）"
+     "risks": "見出しが当てる列の数だけ高くなる（5 列で約 +150px）。名前が長いと列が広がり、表の横送りが増える。表を横に送ると、左に貼り付けた「出す値」の列が 1 つ目の入力の見出しに重なって隠す（convx-cols の画像）",
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1728/convx-light-D.png 判定表の見出しの右端: 5 つ目の入力の見出し「切断巾（コンマ5本分」と当てる列「コンマ5本分割_切」×4・「切断巾_予備の列」が表の右の縁で切れる（1728 でも）"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-D.png 判定表の見出し: 3 つ目の入力の当てる列が「BOX実績」「BOX設計」で切れ、印（!・仕・品ス）が見えず、4 つ目の入力は見出しごと表の外"
+      },
+      {
+       "kind": "overlap",
+       "where": "score1-1728/convx-cols-light-D.png 判定表の見出し: 4 つ目の札を押して表が横に送られると、左に貼り付けた「出す値」の列が 1 つ目の入力の見出しと札に被り「›」「年月日時分秒」だけが見える"
+      },
+      {
+       "kind": "scroll",
+       "where": "score1-1728/convx-light-D.png・score1-1280/convx-light-D.png: 当てる列を見るために判定表を横に送る必要がある（今は入力の欄で見えていた物）"
+      }
+     ],
+     "seen": "score1-1728/convx-light-D: 入力の欄は名前・比べ方・× だけで 2 段に収まり、当てる列は判定表の見出しの下に番号つきで縦に並ぶ。「その列の条件」と「当たる元の列」が同じ縦の列にそろう狙いは見える。しかし見出しが約 150px 高くなって判定表の行が下がり、見出しの中の札は列の幅が足りず 1728 でも 5 つ目の入力の名前が右の縁で切れる。1280（score1-1280/convx-light-D）では 3 つ目の札が切れ 4 つ目は見えない。convx-cols（1728）では案出し係の言うとおり、横に送ると左の「出す値」の列が 1 つ目の入力の見出しを隠す。convx-cell（score1-1728/convx-cell-light-D）は直す欄が開いても読めるが、表の右が切れたまま。入力の名前と当てる列が別の所に分かれ、今と置き場が変わる（慣れた手が変わる）。",
+     "fix_when_building": "作るなら、見出しの札を表の外に出さない（列の最小幅を札の名前に合わせるか、札を折り返す）・横に送ったときの「出す値」の貼り付けを見出しの札に被せない。置き場が変わる分、入力の欄にも当てる列の数だけは出す。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
     },
     "E 入力ごとのカード": {
      "id": "E",
@@ -67,9 +176,92 @@
      "summary": "入力ごとのカードを並べる（幅 300px〜で折り返す）。カードの頭に入力の名前・比べ方・×、その下に「当てる列（番号の順に当てます）」と、列を 1 行 1 つで番号つきに縦に並べる（印は右端にそろう）",
      "changes": "master-conv.js の入力の欄。master.css。common_fix",
      "shots": "convx-ka・convx",
-     "risks": "カードの高さが当てる列の数で違い、行の中に空きができる（convx で 1 段目の 3 枚の下）。入力 4 つで判定表が約 +300px 下がる（1280 で判定表が画面の外へ）"
+     "risks": "カードの高さが当てる列の数で違い、行の中に空きができる（convx で 1 段目の 3 枚の下）。入力 4 つで判定表が約 +300px 下がる（1280 で判定表が画面の外へ）",
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-*.png 判定表の見出しの右端: 5 つ目の入力「切断巾（コンマ5本分割）」が「切断巾（コンマ5」で表の右の縁に切れる（横に送れば読めるが、見えている所では切れている。どの案も今と同じ）"
+      },
+      {
+       "kind": "scroll",
+       "where": "score1-1728/convx-light-E.png: 入力のカードで判定表が約 300px 下がり、1728 でも「試す」の欄が窓の下に切れて送らないと見えない。score1-1280/convx-light-E.png では判定表の見出しだけが見え、行は 1 つも見えない"
+      }
+     ],
+     "seen": "score1-1728/convx-light-E: 入力ごとのカードに「当てる列（番号の順に当てます）」の小見出しと、1 行 1 列の番号つきの並び。名前は全部読め、印は右端にそろって見やすい（いちばん読みやすい）。しかしカードの高さが当てる列の数で違い、1 段目の 3 枚の下に空きができ、4 つ目のカードだけ 2 段目にあり釣り合いが悪い。「＋ 入力」がカードの右に浮く。1280（score1-1280/convx-light-E・convx-ka-light-E）では 2 枚ずつ並び、判定表が画面の下の外へ（案出し係の言うとおり）。課名（入力 1 つ・4 列）は 1 枚のカードで読みやすい。",
+     "fix_when_building": "カードの高さをそろえるか、縦に積む（B に近づける）。判定表が下がりすぎないよう、当てる列の行の高さを詰める。",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
     }
-   }
+   },
+   "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。",
+   "images_scored": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280",
+   "baseline": {
+    "今（版 3.123.0）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 7,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-ka-light-now.png 入力の札: 課名の当てる列 4 つが「BOX実…」「BOX設…」「設..」「設」に潰れて切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "score1-1280/convx-ka-light-now.png 入力の札: 3 つ目・4 つ目の列の印（設・品ス）が字「設」に被る"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1728/convx-light-now.png 入力の札: 5 列の入力が「コ…」×4・「切…」で、どれが切断巾 1・2・3・10 か区別できない。2・3 列の入力も「親子管理_子カー…」「BOX実績_…」で切れる"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1728/convx-light-now.png 入力の名前の欄: 「作業開始の年」「子カードの区」「設備の名前（」「切断巾（コン」、表の名前の欄「作業の区切り（当てる列が多い見」で切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "sheet: score1-1728/sheet-convx-cols-light.png の今: 選ぶ面で選んだ列が 3 段になり、下のデータ元の欄の 1 段目と 2 段目の見出し・列が重なる"
+      },
+      {
+       "kind": "lost",
+       "where": "score1-1280/sheet-convx-cols-light.png の今: 選ぶ面が窓の下の縁を越え、「データに無い名前を足す」の欄に届かない"
+      },
+      {
+       "kind": "cut",
+       "where": "findings_now と同じ形を score1-1728/convx-plan-light-now.png で: 表示列の窓の変換表の帯の理由「列がありま…」が … で切れる"
+      },
+      {
+       "kind": "cut",
+       "where": "score1-1280/convx-light-*.png 判定表の見出しの右端: 5 つ目の入力「切断巾（コンマ5本分割）」が「切断巾（コンマ5」で表の右の縁に切れる（横に送れば読めるが、見えている所では切れている。どの案も今と同じ）"
+      }
+     ],
+     "seen": "今: 当てる列が 2 つ以上だと 2 つ目から先が潰れ、5 列では見分けが付かない。入力の名前・表の名前も切れる。選ぶ面は重なり、1280 で足す欄に届かない。依頼の「表示しきれていない」がそのまま見える。",
+     "fix_when_building": "（今）",
+     "evaluator": "案を作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80）。自分で撮り直した: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program で ui-variants.mjs を how_to_shoot のとおり（--from convx-ka --states convx-ka,convx,convx-cell,convx-cols,convx-plan）、既定 1728・--view 1536x864・--view 1280x720 を 1 つずつ流し、どれも終了コード 0。画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convcols/score1-1728・score1-1536・score1-1280（状態-light-案.png と sheet-*）。案出し係の画像（r1-*・before-*）は使っていない。1 枚ずつ開いて見たのは convx（全案・1728 と 1280）・convx-cols（B・D 1728、A 1280）・convx-cell（D 1728）・convx-plan（A 1728・B 1280）・convx-ka（今・E 1280）。ほかは sheet-* で見た。"
+    }
+   },
+   "evaluation": "採点の係のまとめ: 1 位 B 81.6・2 位 A 73.8・3 位 E 72.0・4 位 C 64.2・5 位 D 51.8（今 18.5）。B が合格点 80 以上なので B に決めてよい。B は当てる列が 1・2・3・5 のどれでも、長い名前でも全部の名前と順（番号）が読め、名前・比べ方・当てる列の縦の線がそろい、どの入力に何が当たるかがいちばん速く読める。B の弱み: 1280 で判定表が下がる（見出しと 2 行目まで）・1 列だけの入力で札が横いっぱいに伸び ▾ が遠い・1280 で判定表の見出しの右の入力名が切れる（どの案も今と同じ。作るときに直す）。A は差が最小で切れも無いが、行の左の縁がそろわず順の番号が無い。E は読みやすいが判定表が大きく下がる。C は 2 つ目から先の名前を隠し、D は 1728 でも見出しの札が切れ、送ると「出す値」の列が被る。common_fix（選ぶ面の重なりを消す・1280 で足す欄まで届く・帯の理由を全部・名前の欄を中身の幅）はどの案でも効いていた。"
   }
  ]
 }
