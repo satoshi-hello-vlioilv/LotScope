@@ -671,5 +671,28 @@
   ],
   "checks": "ui-eval-drill.mjs（3 つの大きさ）OK・ui-eval-dashmenu・ui-eval-dashboard・ui-eval-dashslice OK・cargo test --test dash_parity（明細の段: 焼いた場面のセル 300 以上で、明細から数え直した数＝セルの数＝パネルの答え。小計・総計・その他・合わせた表・合わせるの側・設備ごとの系列・理由）OK。check-all --verify: ci-shape 以外の段は終了コード 0（ci-shape は check-all を ruff 0.15.20 の venv を PATH の先に置いて流したため、nopy の利用者 daemon が入れない置き場の python を独立の答えに使って落ちた。PATH を戻して ci-shape.py だけを流し直して runner 38・nopy 38・nodns 6 本すべて通った）。check-all --ui-only: すべて通った",
   "left": "合わせた表の「前日の実績」の直のセルを押すと、作業実績の設備ごとのファイルの行（1 設備）なので「一覧で開く」で作業実績のその設備の一覧へ。設備をまたぐ数（前日の実績本数 21）は一覧の 1 つの画面に入らないので「一覧で開く」を押せず理由を出す（Excel・コピーで全部の行）"
+ },
+ "built": {
+  "name": "作った後（版 3.126.0）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-1728・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-1536・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-1280（*-light-built.png。状態 drill-entry・drill・drill-chart・drill-kpi・drill-more・drill-off）。作る前は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-*（*-light-now.png）",
+  "evaluator": "作っていない採点の係（別のエージェント・採点のみ・2026-11-26。決まり 2026-10-17・合格点 80。案の採点〈rounds〉の係とも作った者とも別）。css も ops も空の定義（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-def/built.mjs。key built）で ui-variants.mjs を --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off で、既定 1728・--view 1536x864・--view 1280x720 を 1 回ずつ自分で流した（3 回とも終了コード 0。cargo で組み直さず、組んである ui_serve〈TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve〉と作業フォルダの program〈TPA_UI_PROGRAM〉）。作った者の画像（built-*）は使っていない。node program/tools/ui-eval-drill.mjs も同じ環境変数で自分で流し、終了コード 0（3 つの大きさ × 28 項目＋頁のエラー無し＋最後の「OK すべて」で OK 86 行・FAIL 0）。字の大きさとコントラストは metrics.json（最小 10px と 1.89 は前からあるメニューの ▾ と押せない項目の ▦、3.39 は ★。明細の面の字は dashboard.css の .dd-* で 11.5px 以上）",
+  "images_scored": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-1728・score-built-1536・score-built-1280 の 6 状態（18 枚）を 1 枚ずつ開いた。1280 の表の下の端・数字のパネルの地・右の端・タブの帯は PIL で切り出して拡大（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score-built-crop/a〜d.png）。比べに score3-* の *-light-now.png と *-light-P.png",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 9,
+    "intuitive": 9,
+    "form": 8,
+    "place": 9,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "作るときの指摘（rounds[2].advice）の確かめ: (1) 頭の帯は「明細｜仕掛（データの名前の札）｜タブ｜一時の表示（組みは変わりません）｜すべて閉じる」（3 つの大きさの drill・drill-chart・drill-kpi）。(2) 全部を閉じる方は字の「すべて閉じる」のボタンで帯の右端、タブの × はタブの中の小さな ×。形も置き場も違い取り違えにくい（Esc はいまのタブを閉じる、は評価関数 ③ で OK）。(3) タブが多いとき（drill-more。5 つの設備を順に押した）は古いタブを「前の n ▾」に畳む: 1728・1536 は「前の 3 ▾」＋ANF 132＋L-2 125、1280 は「前の 4 ▾」＋L-2 125 と短い「一時の表示」。帯の字は切れず重ならない（1280 の切り出し d.png）。(4) 表の高さは行の倍数で、最後の行は計の行の上で字が切れない（1280 は 10 行・1536 は 14 行・1728 は 24 行。1280 の切り出し a.png で 10 行目は字が全部見え、下の端に薄いぼかしで続きがあることを示す）。(5) 表の右の端に薄い影（1280 の drill-chart の切り出し c.png、オーダー番号の右）。計の行の右に「列 16（値の無い 20 列は畳んでいます）」。送り棒は出ないので右に列があることは影と切れた見出しで知るだけ。(6) 1280 の数字のパネルの地は 1,200 の字の上の端より上から始まり、数の全体が淡い橙の地の中（drill-kpi の切り出し b.png）。1536・1728 も同じ。(7) 道具の行の左に「数（表のセル・棒・数字）を押すと、その数の元の行（明細）を一時的に見られます」の 1 行（drill-entry・drill・drill-chart・drill-kpi。drill-more の 5 回押した後は出ない＝慣れたら消える）。CSS で [data-dr] に cursor:pointer とホバーの橙の縁・点線（画像には出ない。dashboard.css 1183〜1187 行で確かめた）。(8) 範囲の札の行の右に「内訳 ▾」（畳んだ形。開いた形は撮る状態に無いので、棒が値に比例するか・色が違うかは画像で確かめていない）。(9) 明細の面は灰の細い縁と影だけで、橙の縁は押したパネル（合わせた表・横棒・数字のパネル）と押したセル・棒だけ（drill・drill-chart・drill-kpi）。\n依頼の目的: 数を見ながら明細 → drill（合わせた表の L-1 231）は左の 2 枚を覆い、押した合わせた表と L-1 のセル（橙の枠）は見えたまま。drill-chart は横棒「保留 216」が見えたまま右に明細、drill-kpi は上の段の数字のパネルが見えたまま下に全幅の明細。入口 → 右クリックのメニューのいちばん上「この数の明細を見る（保留 216）」（drill-entry の 3 つの大きさ）と道具の行の説明の 1 行。押す 1 手・ダブルクリックも評価関数で OK。範囲と件数の一致 → 題の行「L-1 231 行 ✓パネルと同じ 231 ロット」（緑の札）、範囲の札「期間 なし｜設備 L-1」、組みに使った列（残仕掛設備ｺｰｽ・仕掛区分）を先頭に置き橙の地、計の行「計 231 行・ロット数 231」。評価関数 ① で明細＝パネル＝独立の答え（231・186・1200・216・21・1）。一時と閉じ方 → 帯に「一時の表示（組みは変わりません）」、タブの ×・すべて閉じる・Esc。評価関数 ④ で組みは変わらず・画面を移ると消え・覚えない。drill-off は品質の一覧に戻り明細は残らない。押した後の動き（画像に出ない）は評価関数: 一覧で開く（仕掛の一覧 216 件＝明細・帯「明細（一時の絞り）」・外すと 1,200）・コピー（見出し＋216 行）・設備をまたぐ作業実績は「一覧で開く」を押せず理由・出せない形（ガント・差）は面に理由。いずれも OK。\n点の付け方: 順序 9（帯→題と確かめの札→範囲→表→計→押す手が上から一列）・チャンク 9（帯・題・範囲・表・計・ボタンが線と地で分かれる）・階層 8（題の 231 が太く最初に目に入るが、押した元の橙と明細の頭が競う所は残る）・視覚化 8（橙で押した所、緑で一致、橙の地で組みの列）・ステップ 9（押す 1 手・閉じる 1 手）・考えさせない 9（データの名前・範囲・一致を言い切る。内訳と右の列は畳んであり探す所が少し残る）・直感 9（タブ・×・すべて閉じる・指の形）・形と色 8（ボタン・札の形はダッシュボードと同じ。範囲の札の「設備」の橙の地とパネルの橙の縁が同じ色で意味が 2 つ）・言葉と置き場 9（どの入口でも面の形と置き場の決まりが同じ）・整列と余白 8（1536 の drill・drill-more・drill-kpi はボタンの下に約 40px の空き。1728 の drill-more の表は 8 列目「検査番号」が面の右の端で切れて見え、列の区切りで止まらない）・色と字 8（色数は控えめ。帯の「一時の表示」は薄い灰 12px で読めるが弱い）。\n減点は見つけなかった: 切れ（表の右の列の切れは横に送る表の端で、影で送れることを示す）・はみ出し・重なり・語の途中の折れ・1 段の段の 2 段・11px 未満の新しい字は無い。"
+  }
  }
 }
