@@ -115,7 +115,8 @@ function gridHtml(x) {
   const d = dis();
   // 出す値は番号の次（いちばん大事な列を、表が横に長くても切らない。2026-10-conv の 2 回目）
   const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
-  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}></td>`;
+  // 出す値は 1 行の字の欄（textarea。版 3.124.0）: 表が窓より広いときは欄の幅を詰め、長い値は欄の中で折り返す（fitGrid。前の input は切れた）
+  const outTd = (r, i) => `<td class="cv-out"><textarea class="ps-input" rows="1" data-cv-out="${i}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}>${esc(r.out)}</textarea></td>`;
   const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>${outTd(r, i)}`
     + x.inputs.map((inp) => {
       const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
@@ -130,7 +131,25 @@ function gridHtml(x) {
 }
 /** セルの札（並べた条件は「または」。条件が無ければ不問の –） */
 function chipsHtml(ts) {
-  return ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>';
+  return ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c" title="${esc(testText(t))}">${testUnits(t)}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>';
+}
+/** 札の字を、語の途中で折らない塊（値ごと・比べ方の言葉。値が 1 つ・範囲は札ごと 1 つの塊）に分ける（版 3.124.0。狭い列で「T で始ま／らない」「＝／HOT」と折れていた）。
+    塊の中は折らず、塊の間（値の「・」の後・比べ方の言葉の前）でだけ折る。字は testText と同じ */
+function testUnits(t) {
+  const u = (x) => `<span class="cv-cw">${esc(x)}</span>`, vs = (t.v || []).map((x) => (x === "" ? "（空）" : x));
+  const vals = (pre = "") => vs.map((v, i) => u(`${i ? "" : pre}${v}${i < vs.length - 1 ? "・" : ""}`)).join("<wbr>");
+  const after = (word) => (vs.length > 1 ? `${vals()}<wbr>${u(` ${word}`)}` : u(`${vs[0] ?? ""} ${word}`));   // 値が 1 つなら 1 つの塊
+  switch (t.op) {
+    case "eq": return vals("＝ ");
+    case "ne": return vals("≠ ");
+    case "starts": return after("で始まる");
+    case "nstarts": return after("で始まらない");
+    case "ends": return after("で終わる");
+    case "nends": return after("で終わらない");
+    case "contains": return after("を含む");
+    case "ncontains": return after("を含まない");
+  }
+  return u(testText(t));
 }
 function cellEditor(x, i, k) {
   const ts = (x.rows[i].when || {})[k] || [], inp = x.inputs.find((a) => a.name === k) || {};
@@ -228,7 +247,24 @@ function importHtml(d) {
 function fitGrid() {
   const w = $("#masterSettings .cv-gridwrap"); if (!w) return;
   const mark = () => w.classList.toggle("is-more", w.scrollLeft + w.clientWidth < w.scrollWidth - 2);
-  w.addEventListener("scroll", mark, { passive: true }); mark();
+  w.addEventListener("scroll", mark, { passive: true });
+  // 出す値の欄の幅は、いちばん長い値が 1 行に入る幅（72〜300px）。表が見えている幅より広ければ詰める（96px まで。長い値は欄の中で折り返す）。
+  // 条件の列と ↑↓× を横に送らずに見せる
+  const outs = [...w.querySelectorAll("[data-cv-out]")];
+  if (outs.length) {
+    measureCtx ||= document.createElement("canvas").getContext("2d");
+    const cs = getComputedStyle(outs[0]);
+    measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    const natural = Math.round(Math.min(300, Math.max(72, ...outs.map((el) => measureCtx.measureText(el.value || el.placeholder).width + pad + 4))));
+    const fits = (px) => { w.style.setProperty("--cv-outw", `${px}px`); return w.scrollWidth - w.clientWidth <= 1; };
+    if (!fits(natural)) {   // 入るいちばん広い幅を二分で探す（表の列の幅の割り振りは表が決めるので、測って確かめる）
+      let lo = 96, hi = natural;
+      while (hi - lo > 4) { const mid = Math.floor((lo + hi) / 2); if (fits(mid)) lo = mid; else hi = mid; }
+      fits(lo);
+    }
+  }
+  mark();
   const ed = w.querySelector(".cv-celled"); if (ed) ed.style.width = `${Math.max(320, w.clientWidth - 44)}px`;
 }
 
@@ -443,7 +479,7 @@ function bind() {
     const t = e.target, ds = t.dataset;
     if (ds.cvIname != null) { renameInput(+ds.cvIname, t.value.trim()); redraw(); return; }
     if (ds.cvItype != null) { x.inputs[+ds.cvItype].type = t.value; redraw(); return; }
-    if (ds.cvOut != null) { x.rows[+ds.cvOut].out = t.value; t.title = t.value; return; }
+    if (ds.cvOut != null) { const v = t.value.replace(/[\r\n]+/g, ""); if (v !== t.value) t.value = v; x.rows[+ds.cvOut].out = v; t.title = v; return; }
     const ts = cell && ((x.rows[cell.r].when ||= {})[cell.k] ||= []);
     if (ts) {
       if (ds.cvTop != null) { const j = +ds.cvTop, was = ts[j]; ts[j] = t.value === "range" ? { op: "range", min: "", max: "" } : ["empty", "filled"].includes(t.value) ? { op: t.value } : { op: t.value, v: was.v || [""] }; redraw(); return; }
@@ -456,6 +492,7 @@ function bind() {
     if (["cvOther", "cvCol"].includes(t.id)) { sync(); live(); return; }
     if (["cvMode", "cvPlace", "cvOtherKind"].includes(t.id)) redraw();
   });
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-cv-out]") && !TPA.composing(e)) e.preventDefault(); });   // 出す値は 1 行
   box.addEventListener("input", (e) => {
     const t = e.target;
     if (t.dataset.cvTry == null) return;
@@ -471,7 +508,7 @@ function bind() {
     sync();
     if (ds.cvCell) { const [r, ...k] = ds.cvCell.split("|"); const same = cell && cell.r === +r && cell.k === k.join("|"); cleanCell(); cell = same ? null : { r: +r, k: k.join("|") };
       if (cell && !((x.rows[cell.r].when || {})[cell.k] || []).length) ((x.rows[cell.r].when ||= {})[cell.k] = [{ op: "eq", v: [""] }]);
-      keepView(paint); return; }
+      keepView(paint); if (cell) $("#masterSettings .cv-celled")?.scrollIntoView({ block: "nearest" }); return; }
     if (ds.cvClose != null) { cleanCell(); cell = null; keepView(paint); return; }
     if (ds.cvTany != null) { delete x.rows[cell.r].when[cell.k]; cell = null; keepView(paint); return; }
     if (ds.cvTadd != null) { x.rows[cell.r].when[cell.k].push({ op: "eq", v: [""] }); keepView(paint); return; }

@@ -624,20 +624,22 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-in [data-cv-idel]{margin-left:auto;flex:none}
 .cv-gridwrap{overflow:auto;border:1px solid var(--line);border-radius:9px;max-height:min(56vh,620px);padding-bottom:28px}   /* 下の余白: いちばん下まで送っても、最後の行が縁に貼り付かない（版 3.44.0） */
 .cv-grid{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
-.cv-grid th{position:sticky;top:0;z-index:1;background:var(--surface-4);color:#4b5f72;font-weight:800;text-align:left;vertical-align:bottom;padding:6px 6px;border-bottom:1px solid var(--line);min-width:4.5em}   /* 見出しは折り返す（版 3.124.0。前は 1 行のままで、狭い窓では右の入力の名前が表の縁で切れた） */
+.cv-grid th{position:sticky;top:0;z-index:1;background:var(--surface-4);color:#4b5f72;font-weight:800;text-align:left;vertical-align:bottom;padding:6px 5px;border-bottom:1px solid var(--line);word-break:keep-all;overflow-wrap:normal}   /* 名前の語の途中では折らない（区切りの字・空白・括弧でだけ） */   /* 見出しは折り返す（版 3.124.0。前は 1 行のままで、狭い窓では右の入力の名前が表の縁で切れた） */
 .cv-grid th small{color:var(--muted);font-weight:700}
-.cv-grid th.cv-no,.cv-grid th.cv-ra{min-width:0}
-.cv-grid td{padding:3px 6px;border-bottom:1px solid #eef1f4;vertical-align:middle}
+.cv-grid td{padding:3px 2px;border-bottom:1px solid #eef1f4;vertical-align:middle}
 .cv-grid tr.is-cell > td{background:#f7fafd}
 .cv-no{width:26px;text-align:right;color:var(--faint)}
-.cv-cbtn{display:block;width:100%;min-height:26px;padding:2px 4px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;text-align:left;cursor:pointer}
+/* 札のボタンは中身の幅（width:100% だと表の列の幅を決めるときに中身の幅が数えられず、条件の列だけが狭くなった。版 3.124.0） */
+.cv-cbtn{display:block;width:auto;min-width:100%;min-height:26px;padding:2px 2px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;text-align:left;cursor:pointer}
 .cv-cbtn:hover:not(:disabled){border-color:#9fb8d6;background:#fff}
 .cv-cond.is-on .cv-cbtn{border-color:var(--h-input);background:#fff;box-shadow:0 0 0 2px rgba(42,82,128,.15)}
-.cv-c{display:table;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569}
+.cv-c{display:table;margin:1px 0;padding:1px 5px;border-radius:6px;background:#eef3f9;color:#244569}
+.cv-cw{white-space:nowrap}   /* 値・比べ方の言葉の塊は折らない（塊の間でだけ折る） */
 .cv-or{display:block;color:#5c6b7a;font-size:11px;line-height:1.3}
 .cv-any{color:#6b7785}
-.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{field-sizing:content;width:auto;min-width:120px;max-width:300px;height:28px;font-weight:800;color:#163a5f}
-.cv-ra{white-space:nowrap;width:1%}.cv-ra .icon-btn{display:inline-grid;width:22px;height:22px;font-size:12px;vertical-align:middle}
+.cv-grid th:nth-child(2),.cv-out{width:1%}   /* 出す値の列は中身の幅（空きは条件の列へ） */
+.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{field-sizing:content;width:var(--cv-outw,120px);min-width:0;max-width:none;min-height:28px;height:auto;resize:none;overflow:hidden;padding-top:4px;padding-bottom:3px;line-height:1.4;vertical-align:middle;font-weight:800;color:#163a5f}
+.cv-ra{white-space:nowrap;width:1%}.cv-ra .icon-btn{display:inline-grid;width:21px;height:21px;font-size:12px;vertical-align:middle}
 .cv-edrow > td{background:#f7fafd}
 .cv-celled{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--h-input);border-radius:9px;background:#fff}
 .cv-celledhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cv-celledhead small{color:var(--muted)}
@@ -867,3 +869,9 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-sum .sr-skip{margin-left:0}
 /* 「直すこと」の札と釦は 1 段（版 3.113.0 の作った後の直し: 読めない行の 1 行で「読めない行」「理由と消し方」が 2 段に折れた） */
 .wl-todo .m-chip,.wl-todo .pz-btn{white-space:nowrap;flex:none}
+/* 行の ↑↓× は表の右に貼り付ける（入力が多く表を横に送っても届く。版 3.124.0） */
+.cv-grid th.cv-ra,.cv-grid td.cv-ra{position:sticky;right:0;z-index:1;background:var(--surface)}
+.cv-grid th.cv-ra{background:var(--surface-4);z-index:2}
+.cv-grid tr.is-cell > td.cv-ra{background:#f7fafd}
+/* 狭い窓では左の表の一覧を詰め、判定表に幅を回す（版 3.124.0） */
+@media (max-width:1400px){.sh-editor.cv-editor{grid-template-columns:190px minmax(0,1fr)}}

@@ -610,7 +610,7 @@ export const STATES = [
   ["master-conv-cols", async (p) => { await p.click("[data-cv-close]").catch(() => {}); await sleep(200); await p.click('[data-cv-cols="1"]'); await p.waitForSelector(".cv-cpi"); await sleep(400); }, "[data-next], [data-cp-close]"],
   // 2026-11-17 の 4（利用者の報告: 入力の当てる列が複数のとき見切れる）: 当てる列が 1・2・3・5 列・名前が長い形を、撮るだけの変換表（CONV_MANY）で見る。
   // convx-ka … 同梱の「課名」（1 つの入力に当てる列 4 つ）・convx … CONV_MANY（入力 4 つ。当てる列 1・2・3・5・全角 10〜17 字）・
-  // convx-cell … 4 つ目の入力のセルを開いた所・convx-cols … 5 列の入力の「当てる列を選ぶ面」・convx-plan … 一覧の表示列の窓の変換表の帯を「選ぶ ▾」で開いた所。
+  // convx-cell … 4 つ目の入力のセルを開いた所・convx-cols … 5 列の入力の「当てる列を選ぶ面」・convx-kanri … 入力 6 つの管理分類の判定表・convx-plan … 一覧の表示列の窓の変換表の帯を「選ぶ ▾」で開いた所。
   // convx-off が CONV_MANY を消す（--from convx-ka で撮る）
   ["convx-ka", async (p) => {
     await closeAll(p); await p.click("#masterBtn"); await sleep(900); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
@@ -622,6 +622,12 @@ export const STATES = [
     await p.click("[data-cv-close]").catch(() => {}); await sleep(300);
     await p.click('[data-cv-cols="3"]'); await p.waitForSelector(".cv-cpi"); await sleep(500);
   }, "[data-next], [data-cp-close]"],
+  // 入力 6 つの同梱の「管理分類」（判定表の列の幅の割り振り: 条件の札・見出しが語の途中で折れない・1280 でも ↑↓× まで横に送らずに入る。版 3.124.0 の作った後の採点）
+  ["convx-kanri", async (p) => {
+    await p.click(".cv-colpop [data-cp-close]").catch(() => {}); await sleep(200);
+    await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "管理分類")?.click()); await sleep(700);
+    await p.evaluate(() => { document.querySelector("#masterSettings .cv-gridwrap")?.scrollIntoView({ block: "start" }); }); await sleep(300);
+  }, "[data-next], [data-cv-save]"],
   ["convx-plan", async (p) => {
     await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(700);
     await p.click("[data-cv-more]"); await sleep(500);

@@ -6,7 +6,8 @@
 // ① 入力の札: 当てる列の名前の字が全部要素の幅に入る（scrollWidth ≦ clientWidth）・データの印が字に重ならない・札が行からはみ出さない・
 //    並びが保存した順と同じ・当てる順の番号（::before の counter）・当てる列が 1 つの札は中身の幅（▾ が名前のすぐ後ろ）
 // ② 入力の名前・表の名前の欄の字が全部入る。頭の段の見出し（入力の名前・比べ方・当てる列）が行の欄と縦にそろい、字のコントラストが 4.5 以上
-// ③ 判定表の見出しが切れない（字のある見出しの字が見出しの幅に入り、見出しが表の見えている幅の中。入力 6 つの管理分類は行の ↑↓× の列だけ横送りの先でよい）。1280 でも判定表の行が全部（3 行）マスタの面を送らずに見える
+// ③ 判定表の見出しが切れない（字のある見出しの字が見出しの幅に入り、見出しが表の見えている幅の中）。見出しと条件の札が語の途中で折れない（見出しは空白・括弧・・ でだけ、
+//    札は値・比べ方の言葉の塊の間でだけ）。入力 6 つの管理分類でも表を横に送らずに行の ↑↓× まで見える（版 3.124.0 の作った後の採点）。1280 でも判定表の行が全部（3 行）マスタの面を送らずに見える
 // ④ 当てる列を選ぶ面（5 列の入力）: マスタ管理の窓の中に収まり面ごとは送らない・データ元の欄どうしが重ならない・選んだ列の名前が全部入り順が同じ・
 //    「データに無い名前を足す」の欄と「足す」に届く（その点の一番上の要素が欄そのもの）・押した札が見えている
 // ⑤ ↑ で順を替えて保存 → 保存した表の順と札の順が同じ（開き直しても）
@@ -49,10 +50,27 @@ function inputsMeasure() {
 function gridMeasure() {
   const w = document.querySelector("#masterSettings .cv-gridwrap"), wr = w.getBoundingClientRect();
   const panel = document.querySelector("#masterOverlay .master-panel").getBoundingClientRect();
+  // 見出しが語の途中で折れていない: 字ごとの位置で段が替わる所の前の字が 空白・）・・ か、替わった字が（ のときだけ
+  const badBreaks = (el) => {
+    const out = [];
+    for (const node of [...el.childNodes].filter((n) => n.nodeType === 3)) {
+      let prevTop = null;
+      for (let i = 0; i < node.length; i++) {
+        const rg = document.createRange(); rg.setStart(node, i); rg.setEnd(node, i + 1);
+        const rc = rg.getClientRects()[0]; if (!rc || !rc.width) continue;
+        if (prevTop != null && rc.top > prevTop + 4 && !/[\s）)・]/.test(node.data[i - 1]) && !/[（(]/.test(node.data[i])) out.push(node.data.slice(Math.max(0, i - 3), i) + "／" + node.data.slice(i, i + 3));
+        prevTop = rc.top;
+      }
+    }
+    return out;
+  };
   const ths = [...w.querySelectorAll("thead th")].filter((th) => th.textContent.trim()).map((th) => { const r = th.getBoundingClientRect();
-    return { t: th.textContent.trim(), fits: th.scrollWidth <= th.clientWidth + 1, inside: r.left >= wr.left - 1 && r.right <= wr.right + 1 }; });
+    return { t: th.textContent.trim(), fits: th.scrollWidth <= th.clientWidth + 1, inside: r.left >= wr.left - 1 && r.right <= wr.right + 1, breaks: badBreaks(th) }; });
+  // 条件の札の塊（値・比べ方の言葉）が 1 段に収まる（塊の途中で折れない）
+  const units = [...w.querySelectorAll(".cv-c .cv-cw")].filter((u) => u.getClientRects().length > 1).map((u) => u.textContent);
+  const ra = [...w.querySelectorAll("td.cv-ra .icon-btn")].filter((b) => { const r = b.getBoundingClientRect(); return r.right > wr.right + 1 || r.left < wr.left - 1; }).length;
   const rows = [...w.querySelectorAll("tbody tr[data-r]")];
-  return { ths, rows: rows.length, seen: rows.filter((r) => r.getBoundingClientRect().bottom <= Math.min(panel.bottom, wr.bottom) + 1).length,
+  return { ths, units, ra, hscroll: w.scrollWidth - w.clientWidth, rows: rows.length, seen: rows.filter((r) => r.getBoundingClientRect().bottom <= Math.min(panel.bottom, wr.bottom) + 1).length,
     scroll: document.querySelector("#masterSettings").scrollTop };
 }
 const pickTable = (p, name) => p.evaluate((n) => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === n)?.click(), name);
@@ -84,6 +102,7 @@ try {
     // ③
     const g = await p.evaluate(gridMeasure);
     check(`${tag}③ 判定表の見出しが切れない（CONV_MANY）`, g.ths.every((t) => t.fits && t.inside), g.ths);
+    check(`${tag}③ 見出し・条件の札が語の途中で折れない・横に送らずに ↑↓× まで入る（CONV_MANY）`, g.ths.every((t) => !t.breaks.length) && !g.units.length && g.ra === 0 && g.hscroll <= 1, { ths: g.ths.filter((t) => t.breaks.length), units: g.units, ra: g.ra, h: g.hscroll });
     check(`${tag}③ 判定表の行が全部、マスタの面を送らずに見える`, g.scroll === 0 && g.seen === g.rows && g.rows === CONV_MANY.rows.length, g);
 
     // ④ 選ぶ面（5 列の入力）
@@ -123,6 +142,8 @@ try {
       const ka = k.rows.flatMap((r) => r.aliases);
       check(`${tag}① ${name}: 当てる列の名前が全部入り、印が重ならない`, ka.length >= 4 && ka.every((a) => a.fits && a.inBtn && a.marks) && k.rows.every((r) => r.btnInRow && r.nameFits), k.rows);
       check(`${tag}③ ${name}: 判定表の見出しが切れない`, kg.ths.every((t) => t.fits && t.inside), kg.ths);
+      check(`${tag}③ ${name}: 見出し・条件の札が語の途中で折れない・横に送らずに ↑↓× まで入る`, kg.ths.every((t) => !t.breaks.length) && !kg.units.length && kg.ra === 0 && kg.hscroll <= 1,
+        { ths: kg.ths.filter((t) => t.breaks.length), units: kg.units.slice(0, 5), ra: kg.ra, h: kg.hscroll });
     }
 
     // ⑥ 表示列の窓の変換表の帯
