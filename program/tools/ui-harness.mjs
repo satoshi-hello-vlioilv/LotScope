@@ -608,6 +608,31 @@ export const STATES = [
   }, "[data-next], [data-cv-close]"],
   // 版 3.44.0: 入力（ｵｰﾀﾞｰ材質）の当てる列を選ぶ面（データ元ごとの実際の列と値の見本）
   ["master-conv-cols", async (p) => { await p.click("[data-cv-close]").catch(() => {}); await sleep(200); await p.click('[data-cv-cols="1"]'); await p.waitForSelector(".cv-cpi"); await sleep(400); }, "[data-next], [data-cp-close]"],
+  // 2026-11-17 の 4（利用者の報告: 入力の当てる列が複数のとき見切れる）: 当てる列が 1・2・3・5 列・名前が長い形を、撮るだけの変換表（CONV_MANY）で見る。
+  // convx-ka … 同梱の「課名」（1 つの入力に当てる列 4 つ）・convx … CONV_MANY（入力 4 つ。当てる列 1・2・3・5・全角 10〜17 字）・
+  // convx-cell … 4 つ目の入力のセルを開いた所・convx-cols … 5 列の入力の「当てる列を選ぶ面」・convx-kanri … 入力 6 つの管理分類の判定表・convx-plan … 一覧の表示列の窓の変換表の帯を「選ぶ ▾」で開いた所。
+  // convx-off が CONV_MANY を消す（--from convx-ka で撮る）
+  ["convx-ka", async (p) => {
+    await closeAll(p); await p.click("#masterBtn"); await sleep(900); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
+    await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "課名")?.click()); await sleep(600);
+  }, "[data-next], [data-cv-save]"],
+  ["convx", async (p) => { await convMany(p, true); await sleep(600); }, "[data-next], [data-cv-save]"],
+  ["convx-cell", async (p) => { await p.click(`[data-cv-cell="0|${CONV_MANY.inputs[3].name}"]`); await sleep(500); }, "[data-next], [data-cv-close]"],
+  ["convx-cols", async (p) => {
+    await p.click("[data-cv-close]").catch(() => {}); await sleep(300);
+    await p.click('[data-cv-cols="3"]'); await p.waitForSelector(".cv-cpi"); await sleep(500);
+  }, "[data-next], [data-cp-close]"],
+  // 入力 6 つの同梱の「管理分類」（判定表の列の幅の割り振り: 条件の札・見出しが語の途中で折れない・1280 でも ↑↓× まで横に送らずに入る。版 3.124.0 の作った後の採点）
+  ["convx-kanri", async (p) => {
+    await p.click(".cv-colpop [data-cp-close]").catch(() => {}); await sleep(200);
+    await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "管理分類")?.click()); await sleep(700);
+    await p.evaluate(() => { document.querySelector("#masterSettings .cv-gridwrap")?.scrollIntoView({ block: "start" }); }); await sleep(300);
+  }, "[data-next], [data-cv-save]"],
+  ["convx-plan", async (p) => {
+    await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(700);
+    await p.click("[data-cv-more]"); await sleep(500);
+  }, "[data-next], #lcSave"],
+  ["convx-off", async (p) => { await closeAll(p); await convMany(p, false); }, "[data-next], #llBody .ll-lot"],
   ["master-place", async (p) => { await p.keyboard.press("Escape"); await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
@@ -1271,6 +1296,36 @@ export async function manySources(p, on) {
       "結合": [{ with: mst.key, how: "left", on: [["合金", "材質"], ["調質", "質別"]], cols: [] }] }));
     document.dispatchEvent(new CustomEvent("tpa:sources-changed"));
   }, { on, list: MANY_SOURCES });
+}
+
+/** 撮るだけの変換表（2026-11-17 の 4）: 入力 4 つで、当てる列が 1・2・3・5 列。列・入力の名前は全角で 10〜17 字（試験のデータに有る列と、無い列〈!〉の両方） */
+export const CONV_MANY = {
+  name: "作業の区切り（当てる列が多い見本）",
+  inputs: [
+    { name: "作業開始の年月日時分秒", type: "text", columns: ["BOX実績_作業開始_年月日時分秒"] },
+    { name: "子カードの区分", type: "text", columns: ["親子管理_子カード10", "ｺﾝﾏ5本ｶｰﾄﾞ区分"] },
+    { name: "設備の名前（設計と実績）", type: "text", columns: ["BOX実績_設備名", "BOX設計_設備名", "設備"] },
+    { name: "切断巾（コンマ5本分割）", type: "num", columns: ["コンマ5本分割_切断巾1", "コンマ5本分割_切断巾2", "コンマ5本分割_切断巾3", "コンマ5本分割_切断巾10", "切断巾_予備の列（手で足した名前）"] },
+  ],
+  rows: [
+    { when: { "作業開始の年月日時分秒": [{ op: "filled" }], "設備の名前（設計と実績）": [{ op: "starts", v: ["CR", "L-"] }], "切断巾（コンマ5本分割）": [{ op: "range", min: "800", max: "1250" }] }, out: "冷延・標準巾" },
+    { when: { "子カードの区分": [{ op: "eq", v: ["3", "9"] }], "切断巾（コンマ5本分割）": [{ op: "range", min: "1250" }] }, out: "子カード・広巾" },
+    { when: { "設備の名前（設計と実績）": [{ op: "eq", v: ["HOT"] }] }, out: "熱延" },
+  ],
+  other: "", apply: { mode: "add", column: "作業の区切り", place: "end" },
+};
+/** CONV_MANY を足す（on）・消す。足したら変換表のタブを開き直してその表を選ぶ */
+export async function convMany(p, on) {
+  await p.evaluate(async ({ on, x }) => {
+    const items = (await (await fetch("/api/masters/conversions")).json()).items || [];
+    for (const it of items.filter((y) => y.name === x.name)) await fetch(`/api/masters/conversions/${it.id}?rev=${it.rev}`, { method: "DELETE" });
+    if (on) await fetch("/api/masters/conversions", TPA.json("POST", x));
+    const d = await (await fetch("/api/masters/conversions", { cache: "no-store" })).json();
+    window.Conversions?.take(d); document.dispatchEvent(new CustomEvent("tpa:masters-changed"));
+  }, { on, x: CONV_MANY });
+  if (!on) return;
+  await tab(p, "equipment"); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
+  await p.evaluate((n) => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === n)?.click(), CONV_MANY.name);
 }
 
 /** 結合の欄で、製造条件マスタを 合金＝材質・調質＝質別 の 2 つの鍵で合わせる（状態 master-sources-join と評価関数 ui-eval-join.mjs） */

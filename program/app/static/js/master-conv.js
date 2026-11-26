@@ -114,8 +114,9 @@ function ioHtml(d) {
 function gridHtml(x) {
   const d = dis();
   // 出す値は番号の次（いちばん大事な列を、表が横に長くても切らない。2026-10-conv の 2 回目）
-  const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
-  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}></td>`;
+  const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small class="cv-thnum">数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
+  // 出す値は 1 行の字の欄（textarea。版 3.124.0）: 表が窓より広いときは欄の幅を詰め、長い値は欄の中で折り返す（fitGrid。前の input は切れた）
+  const outTd = (r, i) => `<td class="cv-out"><textarea class="ps-input" rows="1" data-cv-out="${i}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}>${esc(r.out)}</textarea></td>`;
   const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>${outTd(r, i)}`
     + x.inputs.map((inp) => {
       const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
@@ -124,13 +125,38 @@ function gridHtml(x) {
     }).join("")
     + `<td class="cv-ra"><button type="button" class="icon-btn" data-cv-up="${i}" title="上へ" aria-label="${i + 1} 行目を上へ"${d}>↑</button>`
     + `<button type="button" class="icon-btn" data-cv-down="${i}" title="下へ" aria-label="${i + 1} 行目を下へ"${d}>↓</button>`
-    + `<button type="button" class="icon-btn" data-cv-rdel="${i}" title="この行を消す" aria-label="${i + 1} 行目を消す"${d}>×</button></td></tr>`
+    + `<button type="button" class="icon-btn" data-cv-rdel="${i}" title="この行を消す" aria-label="${i + 1} 行目を消す"${d}>×</button>`
+    + `<button type="button" class="icon-btn cv-rmenu" data-cv-rmenu="${i}" title="この行を動かす・消す（上へ・下へ・消す）" aria-label="${i + 1} 行目の操作" aria-haspopup="menu"${d}>⋯</button></td></tr>`
     + (cell && cell.r === i ? `<tr class="cv-edrow"><td></td><td colspan="${x.inputs.length + 2}">${cellEditor(x, i, cell.k)}</td></tr>` : "")).join("");
-  return `<div class="cv-gridwrap"><table class="cv-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+  const cols = `<colgroup>${"<col>".repeat(x.inputs.length + 3)}</colgroup>`;
+  return `<div class="cv-gridwrap"><table class="cv-grid">${cols}<thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
 }
 /** セルの札（並べた条件は「または」。条件が無ければ不問の –） */
 function chipsHtml(ts) {
-  return ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>';
+  return ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c" title="${esc(testText(t))}">${testUnits(t)}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>';
+}
+/** 札の字を、語の途中で折らない塊（値ごと・比べ方の言葉・範囲の両端）に分ける（版 3.124.0。狭い列で「T で始ま／らない」「＝／HOT」と折れていた）。
+    塊の中は折らず、塊の間（値の「・」の後・比べ方の言葉の前）でだけ折る。字は testText と同じ */
+function testUnits(t) {
+  const u = (x) => `<span class="cv-cw">${esc(x)}</span>`, vs = (t.v || []).map((x) => (x === "" ? "（空）" : x));
+  const vals = (pre = "") => vs.map((v, i) => u(`${i ? "" : pre}${v}${i < vs.length - 1 ? "・" : ""}`)).join("<wbr>");
+  const after = (word) => `${vals()}<wbr>${u(` ${word}`)}`;
+  switch (t.op) {
+    case "eq": return vals("＝ ");
+    case "ne": return vals("≠ ");
+    case "starts": return after("で始まる");
+    case "nstarts": return after("で始まらない");
+    case "ends": return after("で終わる");
+    case "nends": return after("で終わらない");
+    case "contains": return after("を含む");
+    case "ncontains": return after("を含まない");
+    case "range": {   // 「30 ＜ 〜 75」は 〜 の前でだけ折る
+      const lo = t.min != null && t.min !== "", hi = t.max != null && t.max !== "";
+      if (lo && hi) return `${u(`${t.min}${t.minInc === false ? " ＜" : ""}`)}<wbr>${u(` 〜 ${t.maxInc === false ? "＜ " : ""}${t.max}`)}`;
+      return u(testText(t));
+    }
+  }
+  return u(testText(t));
 }
 function cellEditor(x, i, k) {
   const ts = (x.rows[i].when || {})[k] || [], inp = x.inputs.find((a) => a.name === k) || {};
@@ -141,7 +167,7 @@ function cellEditor(x, i, k) {
         + `<span>〜</span><input class="ps-input cv-num" data-cv-tmax="${j}" value="${esc(t.max ?? "")}" placeholder="上" aria-label="上の端"><label class="cv-inc"><input type="checkbox" data-cv-tmaxinc="${j}"${t.maxInc === false ? "" : " checked"}>以下</label>`
       : t.op === "empty" || t.op === "filled" ? ""
         : `<input class="ps-input" data-cv-tv="${j}" value="${esc((t.v || []).join("・"))}" placeholder="値（いくつかは ・ か , で区切る）" aria-label="値">`)
-    + opSel(t, j) + `<button type="button" class="icon-btn" data-cv-tdel="${j}" title="この条件を外す" aria-label="この条件を外す">×</button></div>`).join("");
+    + `<span class="cv-topx">${opSel(t, j)}<button type="button" class="icon-btn" data-cv-tdel="${j}" title="この条件を外す" aria-label="この条件を外す">×</button></span></div>`).join("");   // 比べ方と × は離さない
   return `<div class="cv-celled" data-cv-celled><div class="cv-celledhead"><b>${i + 1} 行目 ・ ${esc(k)}</b>${inp.type === "num" ? "<small>（数で比べます）</small>" : "<small>（字で比べます。前後の空白は見ません）</small>"}<span class="sp"></span>`
     + '<button type="button" class="pv-btn" data-cv-tadd>＋ または</button><button type="button" class="pv-btn" data-cv-tany>不問にする</button><button type="button" class="pv-btn" data-cv-close>閉じる</button></div>'
     + (body || '<small class="cv-hint">不問（この入力は見ません）。「＋ または」で条件を足します</small>') + "</div>";
@@ -156,6 +182,28 @@ function tryRes(x) {
 }
 function tryHtml(x) {
   return `<div class="cv-try"><span class="cv-lab">試す</span>${x.inputs.map((inp, i) => `<label>${esc(inp.name)}<input class="ps-input" data-cv-try="${i}" value="${esc(tryVals[i] ?? "")}" aria-label="試す値: ${esc(inp.name)}"></label>`).join("")}<span class="cv-tryres">${tryRes(x)}</span></div>`;
+}
+/** 入力の欄（版 3.124.0。1 行 1 入力の縦の表。決め方: ui-proposals/2026-11-convcols の B）: 頭の段に見出しと「＋ 入力」、行ごとに 名前・比べ方・当てる列の札・×。
+    名前の欄の幅はいちばん長い名前に合わせ（--cv-nw）、見出しと縦の線をそろえる */
+function insHtml(x, di) {
+  return `<div class="cv-ins" style="--cv-nw:${nameWidth(x.inputs.map((i) => i.name))}px"><div class="cv-inshead">`
+    + '<span class="cv-ih cv-ih-n">入力の名前</span><span class="cv-ih cv-ih-t">比べ方</span><span class="cv-ih cv-ih-c">当てる列（番号の順に、一覧に有る列へ当てます）</span><span class="sp"></span>'
+    + (x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : "") + "</div>"
+    + x.inputs.map((inp, i) => '<div class="cv-in">'
+      + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前" title="${esc(inp.name)}"${di}>`
+      + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
+      + colsBtn(inp, i, di)
+      + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</div>").join("")
+    + "</div>";
+}
+/** 名前の欄の幅（px）: いちばん長い名前が入る幅（120〜300px） */
+let measureCtx = null;
+function nameWidth(names) {
+  measureCtx ||= document.createElement("canvas").getContext("2d");
+  measureCtx.font = `800 12.5px ${getComputedStyle(document.body).fontFamily}`;
+  measureCtx.letterSpacing = "0px";
+  const w = Math.max(0, ...names.map((n) => measureCtx.measureText(String(n)).width));
+  return Math.round(Math.min(300, Math.max(120, w + 20)));
 }
 const otherText = (x) => { const ok = otherKind(x); return ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other); };
 function paint() {
@@ -183,12 +231,7 @@ function paint() {
           <label>どれにも当たらないとき<select class="ps-input" id="cvOtherKind"${di}>${[["keep", "元の値のまま"], ["blank", "空欄"], ["text", "字を出す"], ["formula", "式"]].map(([k, n]) => `<option value="${k}"${ok === k ? " selected" : ""}>${n}</option>`).join("")}</select>
             ${ok === "text" || ok === "formula" ? `<input class="ps-input" id="cvOther" value="${esc(ok === "formula" ? String(x.other).slice(1) : x.other)}" aria-label="どれにも当たらないときの値"${di}>` : ""}</label>
         </div>
-        <div class="cv-ins"><span class="cv-lab">入力</span>${x.inputs.map((inp, i) => `<span class="cv-in">`
-          + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前"${di}>`
-          + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
-          + colsBtn(inp, i, di)
-          + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</span>").join("")}
-          ${x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : ""}</div>
+        ${insHtml(x, di)}
         ${gridHtml(x)}
         <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(otherText(x))}</b></span>
           <span class="sp"></span>${expr ? `<code class="cv-expr" title="一覧の式ではこう書きます（表示列の「この列の作り方」でも）">${esc(expr)}</code>` : ""}</div>
@@ -212,9 +255,83 @@ function importHtml(d) {
 function fitGrid() {
   const w = $("#masterSettings .cv-gridwrap"); if (!w) return;
   const mark = () => w.classList.toggle("is-more", w.scrollLeft + w.clientWidth < w.scrollWidth - 2);
-  w.addEventListener("scroll", mark, { passive: true }); mark();
-  const ed = w.querySelector(".cv-celled"); if (ed) ed.style.width = `${Math.max(320, w.clientWidth - 44)}px`;
+  if (!w.dataset.fit) { w.dataset.fit = "1"; w.addEventListener("scroll", mark, { passive: true }); }
+  layoutGrid(w);
+  mark();
+  const t = w.querySelector(".cv-grid"), ed = w.querySelector(".cv-celled");
+  if (ed) ed.style.width = `${Math.max(320, Math.min(w.clientWidth, t ? t.offsetWidth : w.clientWidth) - 44)}px`;
 }
+/* 判定表の列の幅は画面で決める（版 3.124.0。表の自動の割り振りに任せると、空きがあるのに条件の札や見出しが折れ、狭い窓では右がはみ出した）。
+   列ごとに 2 つの幅を測る: 折らない塊（値・比べ方の言葉・見出しの語・出す値の語）のいちばん広い幅＝最小、1 行に入る幅＝望む幅。
+   見えている幅に、まず全部の列の最小を取り、残りを望む幅に足りない列へ足りない分の割合で配る（余りは最後の列へ流さない＝表は右に空きを残す）。
+   最小の計でも入らなければ、行の ↑↓× を「⋯」の 1 つにまとめて（is-tight）測り直す。それでも入らなければ最小のまま横に送る（↑↓× は右に貼り付け） */
+function layoutGrid(w) {
+  const t = w.querySelector(".cv-grid"), cols = t && [...t.querySelectorAll("col")];
+  const heads = t && [...t.querySelectorAll("thead th")];
+  if (!cols || !heads || cols.length !== heads.length) return;
+  const outs = [...t.querySelectorAll("[data-cv-out]")];
+  const outW = outWidths(outs);                    // 出す値の欄の [最小, 望む]（枠と余白を含む）
+  const measure = (mode) => {
+    t.classList.add("cv-measure", mode);
+    t.style.setProperty("--cv-outw", `${mode === "cv-m-min" ? outW[0] : outW[1]}px`);
+    const ws = heads.map((h) => Math.ceil(h.getBoundingClientRect().width));
+    t.classList.remove("cv-measure", mode);
+    return ws;
+  };
+  t.style.tableLayout = ""; t.style.width = ""; cols.forEach((c) => { c.style.width = ""; });
+  w.style.width = "100%";              // 見えている幅（枠は表に合わせるので、測る間だけ広げる）
+  const avail = w.clientWidth - 2;   // 測りの丸めの分を残す
+  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+  let lo, body, hi;
+  // ↑↓× は、最小の幅でも入らないとき、または狭い表（900px 未満）で行の中身が 1 行に入らないときだけ「⋯」の 1 つにまとめる
+  // （広い表では手を増やさず、長い値のセルを値の切れ目で折る）
+  for (const tight of [false, true]) {
+    t.classList.toggle("is-tight", tight);
+    lo = measure("cv-m-min");
+    body = measure("cv-m-body").map((v, i) => Math.max(v, lo[i]));   // 中身（行）が 1 行に入る幅。見出しは語の切れ目で折れてよい
+    hi = measure("cv-m-max").map((v, i) => Math.max(v, body[i]));
+    if (sum(lo) <= avail && (sum(body) <= avail || avail >= 900)) break;
+  }
+  // 幅を上げる: 足りない分の小さい列から順に目当ての幅まで満たす（1 行に入る列を多くする）。満たせない列には残りを足りない分の割合で
+  const raise = (ws, goal, spare) => {
+    const order = ws.map((v, i) => i).filter((i) => goal[i] > ws[i]).sort((a, b) => (goal[a] - ws[a]) - (goal[b] - ws[b]));
+    const rest = [];
+    for (const i of order) { const d = goal[i] - ws[i]; if (d <= spare && !rest.length) { ws[i] = goal[i]; spare -= d; } else rest.push(i); }
+    const need = rest.reduce((a, i) => a + goal[i] - ws[i], 0);
+    for (const i of rest) { const add = Math.floor(((goal[i] - ws[i]) * spare) / need); ws[i] += add; }
+    return Math.max(0, avail - sum(ws));
+  };
+  const ws = lo.slice();
+  let spare = avail - sum(ws);
+  // 出す値（いちばん大事な列）は先に、見えている幅の 1/3 まで 1 行に。次にほかの列の中身を 1 行に、残りで出す値の長い値も
+  if (spare > 0) spare = raise(ws, ws.map((v, i) => (i === 1 ? Math.max(v, Math.min(body[1], Math.floor(avail / 3))) : v)), spare);
+  if (spare > 0) spare = raise(ws, body.map((v, i) => (i === 1 ? ws[1] : v)), spare);
+  if (spare > 0) spare = raise(ws, body, spare);
+  if (spare > 0) raise(ws, hi, spare);                // 余れば見出しも 1 行に（余りは最後の列へ流さない）
+  cols.forEach((c, i) => { c.style.width = `${ws[i]}px`; });
+  t.style.tableLayout = "fixed";
+  t.style.width = `${ws.reduce((a, b) => a + b, 0)}px`;
+  w.style.width = "";
+  // 出す値の欄は列の幅いっぱい（列の余白 4px と線 1px を除く）
+  t.style.setProperty("--cv-outw", `${Math.max(outW[0], ws[1]) - 5}px`);
+}
+/** 出す値の欄の幅 [最小, 望む]: 最小は値の中の折らない語（空白・括弧の前・/ ･ ・ _ の後で切れる）のいちばん広い幅、望む幅は 1 行に入る幅（560px まで） */
+function outWidths(outs) {
+  if (!outs.length) return [72, 120];
+  measureCtx ||= document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(outs[0]);
+  measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  measureCtx.letterSpacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+  const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth) + 6;
+  const tw = (x) => measureCtx.measureText(x).width;
+  const vals = outs.map((el) => el.value || el.placeholder);
+  const word = Math.max(0, ...vals.flatMap((v) => v.split(/\s+|(?=[（(［\[])|(?<=[/･・_,，、])/).map(tw)));
+  const full = Math.max(0, ...vals.map(tw));
+  const lo = Math.ceil(Math.min(300, Math.max(56, word + pad))) + 5;
+  return [lo, Math.max(lo, Math.ceil(Math.min(560, Math.max(72, full + pad))) + 5)];
+}
+let gridResize = 0;
+addEventListener("resize", () => { clearTimeout(gridResize); gridResize = setTimeout(() => { if (mstate.tab === "conv") fitGrid(); }, 120); });
 
 /* ---------------- 当てる列を、取り込んでいるデータの列から選ぶ（版 3.44.0。利用者の要望 2026-10-17 の 3） ----------------
    入力の「当てる列」は、データ元ごとの実際の列（/api/data/columns。値の見本つき）から選ぶ。データで名前が違う同じ意味の列
@@ -261,11 +378,20 @@ function colPopHtml(i, q = "") {
     + `<div class="cv-cpsrcs">${dataCols ? srcs || '<p class="cv-hint">データ元がありません</p>' : '<p class="cv-hint">データの列を読んでいます…</p>'}</div>`
     + '<div class="cv-cpfoot"><input class="ps-input" data-cp-own placeholder="データに無い名前を足す（計算列など）" aria-label="手で足す列の名前"><button type="button" class="pv-btn" data-cp-add>足す</button></div>';
 }
-/** 面を札の下に、マスタ管理の窓の中へ収めて置く（窓の右端・下端から出さない。1 回目の採点: 窓の右へ 130px 出ていた） */
+/** 面を札の下に、マスタ管理の窓の中へ収めて置く（窓の右端・下端から出さない。1 回目の採点: 窓の右へ 130px 出ていた）。
+    札の下に面が入らないときは、マスタの面を送って札を上へ寄せてから置く（版 3.124.0。前は 1280×720 で面が窓の下を越え、「データに無い名前を足す」に届かなかった） */
 function place(el, anchor) {
-  const box = (document.querySelector("#masterOverlay .master-panel") || document.body).getBoundingClientRect(), r = anchor.getBoundingClientRect();
-  const w = Math.min(820, box.width - 24), top = Math.round(r.bottom + 6);
+  const panel = document.querySelector("#masterOverlay .master-panel") || document.body, box = panel.getBoundingClientRect();
+  const w = Math.min(820, box.width - 24);
   el.style.width = `${w}px`;
+  el.style.maxHeight = "none";
+  const need = Math.min(560, el.scrollHeight), scroller = $("#masterSettings");
+  let r = anchor.getBoundingClientRect();
+  if (scroller && box.bottom - 12 - (r.bottom + 6) < need) {
+    const by = Math.max(0, Math.round(r.top - (box.top + 70)));
+    if (by) { scroller.scrollTop += by; r = anchor.getBoundingClientRect(); }
+  }
+  const top = Math.round(r.bottom + 6);
   el.style.left = `${Math.round(Math.max(box.left + 12, Math.min(r.left, box.right - w - 12)))}px`;
   el.style.top = `${top}px`;
   el.style.maxHeight = `${Math.max(260, box.bottom - top - 12)}px`;
@@ -349,6 +475,7 @@ function live() {
   }
   const res = box.querySelector(".cv-tryres"); if (res) res.innerHTML = tryRes(x);
   const other = box.querySelector(".cv-other b"); if (other) other.textContent = otherText(x);
+  if (cell) fitGrid();   // 札の字が変われば列の幅を決め直す
 }
 
 /* ---------------- 操作 ---------------- */
@@ -418,7 +545,7 @@ function bind() {
     const t = e.target, ds = t.dataset;
     if (ds.cvIname != null) { renameInput(+ds.cvIname, t.value.trim()); redraw(); return; }
     if (ds.cvItype != null) { x.inputs[+ds.cvItype].type = t.value; redraw(); return; }
-    if (ds.cvOut != null) { x.rows[+ds.cvOut].out = t.value; t.title = t.value; return; }
+    if (ds.cvOut != null) { const v = t.value.replace(/[\r\n]+/g, ""); if (v !== t.value) t.value = v; x.rows[+ds.cvOut].out = v; t.title = v; fitGrid(); return; }
     const ts = cell && ((x.rows[cell.r].when ||= {})[cell.k] ||= []);
     if (ts) {
       if (ds.cvTop != null) { const j = +ds.cvTop, was = ts[j]; ts[j] = t.value === "range" ? { op: "range", min: "", max: "" } : ["empty", "filled"].includes(t.value) ? { op: t.value } : { op: t.value, v: was.v || [""] }; redraw(); return; }
@@ -431,6 +558,7 @@ function bind() {
     if (["cvOther", "cvCol"].includes(t.id)) { sync(); live(); return; }
     if (["cvMode", "cvPlace", "cvOtherKind"].includes(t.id)) redraw();
   });
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-cv-out]") && !TPA.composing(e)) e.preventDefault(); });   // 出す値は 1 行
   box.addEventListener("input", (e) => {
     const t = e.target;
     if (t.dataset.cvTry == null) return;
@@ -446,13 +574,23 @@ function bind() {
     sync();
     if (ds.cvCell) { const [r, ...k] = ds.cvCell.split("|"); const same = cell && cell.r === +r && cell.k === k.join("|"); cleanCell(); cell = same ? null : { r: +r, k: k.join("|") };
       if (cell && !((x.rows[cell.r].when || {})[cell.k] || []).length) ((x.rows[cell.r].when ||= {})[cell.k] = [{ op: "eq", v: [""] }]);
-      keepView(paint); return; }
+      keepView(paint); if (cell) $("#masterSettings .cv-celled")?.scrollIntoView({ block: "nearest" }); return; }
     if (ds.cvClose != null) { cleanCell(); cell = null; keepView(paint); return; }
     if (ds.cvTany != null) { delete x.rows[cell.r].when[cell.k]; cell = null; keepView(paint); return; }
     if (ds.cvTadd != null) { x.rows[cell.r].when[cell.k].push({ op: "eq", v: [""] }); keepView(paint); return; }
     if (ds.cvTdel != null) { x.rows[cell.r].when[cell.k].splice(+ds.cvTdel, 1); if (!x.rows[cell.r].when[cell.k].length) delete x.rows[cell.r].when[cell.k]; keepView(paint); return; }
     if (ds.cvRadd != null) { cleanCell(); x.rows.push({ when: {}, out: "" }); cell = null; keepView(paint); return; }
     if (ds.cvRdel != null) { x.rows.splice(+ds.cvRdel, 1); cell = null; keepView(paint); return; }
+    if (ds.cvRmenu != null) {   // 狭い表では ↑↓× を「⋯」の 1 つに（同じボタンを押す）
+      const i = +ds.cvRmenu, r = b.getBoundingClientRect(), go = (k) => () => document.querySelector(`#masterSettings [data-cv-${k}="${i}"]`)?.click();
+      TPA.menu({ x: r.left, y: r.bottom + 2, head: `${i + 1} 行目`, items: [
+        { label: "上へ", icon: "↑", disabled: i === 0, why: i === 0 ? "いちばん上です" : "", run: go("up") },
+        { label: "下へ", icon: "↓", disabled: i >= x.rows.length - 1, why: i >= x.rows.length - 1 ? "いちばん下です" : "", run: go("down") },
+        { sep: true },
+        { label: "この行を消す", icon: "×", danger: true, run: go("rdel") },
+      ] });
+      return;
+    }
     if (ds.cvUp != null || ds.cvDown != null) {
       const i = +(ds.cvUp ?? ds.cvDown), j = ds.cvUp != null ? i - 1 : i + 1;
       if (j < 0 || j >= x.rows.length) return;
