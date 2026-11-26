@@ -452,5 +452,27 @@
   }
  ],
  "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ。終了コードはどれも 0（記録に失敗・はみ出しの数の知らせ無し）。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score1-1728・score1-1536・score1-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-bundled は 1 枚ずつ開き、取り込む前の確かめは PIL で切り出して見た",
- "how_to_shoot_r2": "2 回目は状態 cvb-th（表の頭の「この表の履歴 ▾」[data-cvb-th] を押した所）を足した: --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off を 既定・--view 1536x864・--view 1280x720 で 1 つずつ。2 回目の案は --only F,G,H,I,J（今 now と 1 回目の案は同じ定義のまま）"
+ "how_to_shoot_r2": "2 回目は状態 cvb-th（表の頭の「この表の履歴 ▾」[data-cvb-th] を押した所）を足した: --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off を 既定・--view 1536x864・--view 1280x720 で 1 つずつ。2 回目の案は --only F,G,H,I,J（今 now と 1 回目の案は同じ定義のまま）",
+ "self_check_built": {
+  "version": "3.125.0",
+  "chosen": "F 履歴と戻すの窓（2 回目 82.4 点）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/built-1728・built-1536・built-1280（作った後は *-light-built.png、作る前は *-light-now.png。状態 cvb・cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-import・cvb-std・cvb-bundled・cvb-plan）",
+  "how_to_shoot": "ui-variants.mjs に key built（css・ops なし）だけの定義で、--from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off を 3 つの大きさで。履歴の見本は ui-harness の convHistorySeed（本物の道で月末のバックアップ・管理分類と課名の保存）",
+  "advice_done": [
+   "(1) 窓の上の段で「戻せる時点」（自動で残した書く前の形・手で取ったバックアップ・同梱のプリセット）と「標準」（各表の「標準に戻す」の戻る先で 1 つだけ。バックアップを取っても変わらない）を言い切った。J の良い所として、同梱のプリセットと標準（自分で決めた表）を時点の札として左の頭に固定し、どちらも右で違いを見てから戻せる",
+   "(2) 1280 で保存した印（✓ この表だけ保存 時刻）が出た形でも表の頭が 1 段（built-1280/cvb-saved-light-built・ui-eval-convbackup の ⑧）",
+   "(3) 1280 で同梱のプリセットの札が左の頭に固定され、送らずに見える（built-1280/cvb-diff-light-built）",
+   "(4) 窓の高さは中身に合わせ（max-height 90vh）、変わる行のある最初の表ははじめから行まで開く。1728 の右下の空きが詰まった（built-1728/cvb-diff-light-built）",
+   "(5) 書き出す・取り込むは従のボタンとして一覧の頭の下に 1 段で戻した（手は前と同じ）"
+  ],
+  "seen": "1 枚ずつ開いて見た: 1280 の cvb・cvb-saved・cvb-diff・cvb-th・cvb-bundled・cvb-import・cvb-plan、1536 の cvb-hist・cvb-saved、1728 の cvb-diff（ほかは作る途中の try-1728 で同じ状態を見た）。切れ・はみ出し・重なり・語の途中の折れは見つからない。表示列の窓の帯は当てられない 8 表が 1 行（2 段）のまとめになり、1280 で列の一覧が 8 行見える",
+  "fixed": [
+   "本物にしたら、表の頭の「履歴 ▾」の時点の並びに全体の時点も出たが、その表を含む判定が名前で数えていて、ほかの表だけの時点（課名を保存する前）も出た → 時点の scope（全体かその表を含む）で絞った",
+   "一覧の札（直した · 日時）を grid で名前の右に置いたら、長い名前（作業の区切り（当てる列が多い見本））が語の途中で折れた（ui-eval-convmany の ⑦）→ 札は入らなければ次の行へ（flex-wrap）",
+   "表示列の窓の帯の確かめ（ui-eval-convmany の ⑥）を、1 行に畳んだまとめも見る形に直した。ui-eval-convio は「取り込んだ表」→「自分で決めた表」、同梱に戻すは履歴と戻すの窓の確かめから",
+   "一覧の頭の下の「最後のバックアップ: 11/26 10:19（全体）」が「（全 / 体）」と折れた（built-1280/cvb-light-built）→ 時刻と範囲をそれぞれ折らない塊に",
+   "自己診断（selftest.js）と窓の試験（lot::tests::the_window_answers_conversions）が、標準に戻すが「編集可」だけになったことで落ちた → 403 も正しい答えにし、履歴・戻す・取り消すの試験を足した"
+  ],
+  "checks": "ui-eval-convbackup.mjs（⑨ まで全部 OK・終了コード 0）・ui-eval-convio・convcols・convmany・convedit・unsaved（どれも終了コード 0）・cargo test --test conv_backup_cases（2 本 OK）"
+ }
 }

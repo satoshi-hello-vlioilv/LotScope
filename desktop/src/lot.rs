@@ -3002,8 +3002,14 @@ mod tests {
         let (st, v) = lot.handle_body_with("POST", &path, "", br#"{"all": true}"#, &down).unwrap();
         assert_eq!((st, v["items"].as_array().unwrap().len(), v["customDefaults"].clone()), (200, 0, json!(false)), "{v}");
         let before = v["before"].as_str().unwrap().to_string();
-        let (st, v) = lot.handle_body_with("POST", &format!("/api/masters/conversions/history/{before}/restore"), "", br#"{"all": true}"#, &down).unwrap();
-        assert_eq!((st, v["items"].as_array().unwrap().len(), v["customDefaults"].clone()), (200, 2, json!(true)), "戻したことを取り消せる: {v}");
+        let (st, v) = lot
+            .handle_body_with("POST", &format!("/api/masters/conversions/history/{before}/restore"), "", br#"{"all": true}"#, &down)
+            .unwrap();
+        assert_eq!(
+            (st, v["items"].as_array().unwrap().len(), v["customDefaults"].clone()),
+            (200, 2, json!(true)),
+            "戻したことを取り消せる: {v}"
+        );
         std::fs::write(share.join("access_permissions.json"), perm("部分的編集可").to_string()).unwrap();
         lot.invalidate();
         let (st, v) = lot.handle_body_with("GET", "/api/masters/conversions/export", "which=defaults", b"", &down).unwrap();

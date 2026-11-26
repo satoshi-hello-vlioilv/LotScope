@@ -130,7 +130,7 @@ function ioHtml(d) {
   const w = can(), b = canBackup();
   const last = b ? (hist.points || []).find((p) => !p.auto) : null;
   return `<div class="cv-io"><div class="cv-iostate">標準: <b>${d.customDefaults ? "自分で決めた表" : "同梱のプリセット"}</b>`
-    + (b ? `<br>最後のバックアップ: <b>${last ? `${esc(shortAt(last.at))}（${last.scope === "all" ? "全体" : `${(last.scope || []).length} 表`}）` : "まだありません"}</b>` : "") + "</div>"
+    + (b ? `<br>最後のバックアップ: <b>${last ? `<span class="cvh-nb">${esc(shortAt(last.at))}</span><span class="cvh-nb">（${last.scope === "all" ? "全体" : `${(last.scope || []).length} 表`}）</span>` : "まだありません"}</b>` : "") + "</div>"
     + (b ? '<button type="button" class="pv-btn cv-histbtn" data-cvb-hist title="変換表を書く前の形・手で取ったバックアップ・同梱のプリセットを選び、戻すと何が変わるかを見てから戻します">⟲ 履歴と戻す…</button>' : "")
     + `<div class="cv-iorow"><button type="button" class="pv-btn" data-cv-export title="今の変換表をすべて、1 つのファイル（JSON）に書き出します">↓ 書き出す</button>`
     + (w ? '<button type="button" class="pv-btn" data-cv-import title="書き出したファイルを読み、同じ名前の表は置き換え、無い名前は足します（読む前に表ごとの違いを見せます）">↑ 取り込む…</button>' : "") + "</div></div>";
