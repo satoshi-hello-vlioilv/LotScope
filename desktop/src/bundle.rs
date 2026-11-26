@@ -1313,7 +1313,9 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
         let d = one().map_err(|e| e.at("data_sources", row))?;
         out.push(d.as_object().cloned().unwrap());
     }
-    let rest = out.split_off(2.min(out.len()));
+    // 並び: 実績（work）だけ決まった置き場。品質も「並び」の列で並べ、グループに入れられる（版 3.122.0。前は品質・実績の 2 つを頭に固定）
+    let work = out.iter().position(|d| d["key"] == "work").map(|i| out.remove(i));
+    let rest = std::mem::take(&mut out);
     let mut keyed: Vec<Keyed> = vec![];
     for d in rest {
         let builtin = d["builtin"] == true;
@@ -1322,6 +1324,9 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
             order_of(&order)
         } else if d.get("last") == Some(&json!(true)) {
             PyInt::Small(10_000_000)
+        } else if d["key"] == "lot" {
+            // 並べていない品質は前と同じくいちばん頭（ほかの組み込みの行の id に負けない。版 3.122.0）
+            PyInt::Small(-1)
         } else {
             PyInt::Small(0)
         };
@@ -1331,6 +1336,11 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
     }
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
     out.extend(keyed.into_iter().map(|(_, d)| d));
+    // 実績は品質の後ろ（品質が頭のとき。前と同じ並び）、品質を動かしたら頭（グループなしのいちばん上）
+    if let Some(w) = work {
+        let at = usize::from(out.first().is_some_and(|d| d["key"] == "lot"));
+        out.insert(at, w);
+    }
     // 結合した表: 場所・表は元の物
     let snapshot = out.clone();
     for d in out.iter_mut() {
@@ -1424,6 +1434,16 @@ fn groups_and_uses(out: &mut [Map<String, Value>]) {
             .map(|(_, x)| x["key"].clone())
             .collect();
         d.insert("usedBy".into(), Value::Array(used));
+    }
+    // 結合した表は元のグループに並ぶ（版 3.122.0。元を動かすと一緒に動く。元が見つからない〈broken〉表は自分のグループのまま）
+    let groups: Vec<(Value, Value)> = out.iter().map(|d| (d["key"].clone(), d["group"].clone())).collect();
+    for d in out.iter_mut() {
+        if d["kind"] != "view" {
+            continue;
+        }
+        if let Some((_, g)) = groups.iter().rev().find(|(k, _)| d.get("base") == Some(k)) {
+            d.insert("group".into(), g.clone());
+        }
     }
 }
 
@@ -2467,6 +2487,37 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 版 3.122.0: 品質（lot）・スケジュール（sch）もグループに入り、品質も「並び」で並ぶ（実績だけ決まった置き場）。結合した表は元のグループに並ぶ
+    #[test]
+    fn quality_data_moves_like_other_sources() {
+        let keys = |v: &[Map<String, Value>]| v.iter().map(|d| d["key"].as_str().unwrap_or("").to_string()).collect::<Vec<_>>();
+        let group = |v: &[Map<String, Value>], k: &str| {
+            v.iter().find(|d| d["key"] == k).map(|d| d["group"].as_str().unwrap_or("").to_string()).unwrap()
+        };
+        // 並べていない品質は前と同じくいちばん頭（組み込みの行の id に負けない）、実績はその後ろ
+        let rows = vec![
+            json!({"キー": "wip", "id": 1, "並び": ""}),
+            json!({"キー": "lot", "id": 5, "並び": "", "グループ": ""}),
+            json!({"キー": "s1", "id": 7, "表示名": "品質＋条件", "元": "lot", "並び": "40", "結合": "[]"}),
+        ];
+        let v = sources_full(&json!({}), &rows).unwrap();
+        assert_eq!(keys(&v)[..3], ["lot", "work", "wip"]);
+        // 品質を「工程」の 2 つ目へ（並び 30）・スケジュールも「工程」へ: 実績はグループなしの頭、結合した表は元（品質）のグループに並ぶ
+        let rows = vec![
+            json!({"キー": "wip", "id": 1, "並び": "10"}),
+            json!({"キー": "s2", "id": 2, "表示名": "スラブ", "場所": "x.sqlite3", "役割": "マスタ", "グループ": "工程", "並び": "20"}),
+            json!({"キー": "lot", "id": 5, "並び": "30", "グループ": "工程"}),
+            json!({"キー": "sch", "id": 6, "並び": "35", "グループ": "工程"}),
+            json!({"キー": "s1", "id": 7, "表示名": "品質＋条件", "元": "lot", "並び": "40", "グループ": "台帳", "結合": "[]"}),
+        ];
+        let v = sources_full(&json!({}), &rows).unwrap();
+        assert_eq!(keys(&v), ["work", "wip", "s2", "lot", "sch", "s1"]);
+        assert_eq!([group(&v, "lot"), group(&v, "sch"), group(&v, "s1"), group(&v, "work")], ["工程", "工程", "工程", ""]);
+        // 実績の行にグループが書いてあっても入れない
+        let v = sources_full(&json!({}), &[json!({"キー": "work", "id": 3, "グループ": "工程"})]).unwrap();
+        assert_eq!(group(&v, "work"), "");
+    }
 
     #[test]
     fn python_engines_are_retired() {

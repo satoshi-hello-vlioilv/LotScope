@@ -366,7 +366,9 @@
    }
   },
   "groupable": [
-   "wip"
+   "wip",
+   "lot",
+   "sch"
   ],
   "readDefaults": {
    "page_size": 500,

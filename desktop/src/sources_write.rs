@@ -646,7 +646,8 @@ pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) 
             let mut ks = vec![];
             for k in &keys {
                 let k = py_raw(k).ok()?;
-                if k != "lot" && k != "work" {
+                // 実績だけは並びの外（決まった置き場）。品質も並べる（版 3.122.0）
+                if k != "work" {
                     ks.push(k);
                 }
             }
@@ -822,7 +823,12 @@ mod tests {
         assert!(c(json!({"表示名": "x", "場所": "y", "役割": "変"}), "s1")
             .unwrap_err()
             .starts_with("役割は 品質・実績・仕掛・マスタ・その他"));
-        assert_eq!(c(json!({"グループ": "g", "元": "wip"}), "lot").unwrap()["グループ"], "", "決まった元はグループに入れない");
+        assert_eq!(c(json!({"グループ": "g", "元": "wip"}), "work").unwrap()["グループ"], "", "実績はグループに入れない");
+        // 版 3.122.0: 品質・スケジュールもグループに入れる（前は品質は空にし、スケジュールは画面で移せるのに保存で空になった）。元は空のまま
+        for k in ["lot", "sch", "wip"] {
+            let r = c(json!({"グループ": "g", "元": "wip"}), k).unwrap();
+            assert_eq!((r["グループ"].as_str(), r["元"].as_str()), ("g", ""), "{k}");
+        }
         assert_eq!(
             c(json!({"表示名": "x", "元": "wip"}), "s1").unwrap_err(),
             "結合した表は、合わせる相手を 1 つ以上決めてください（鍵: この列 = 相手の列）。"
