@@ -311,7 +311,32 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "dashboard.js（押す・ダブルクリック・メニューの項目）・dashboard-panels.js と lotlist-pivot-charts.js（数の要素に data-dr-r・data-dr-c・data-dr-m）・新しい dashboard-drill.js（面の置き場をパネルの縁から決める）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry・drill（左に重なる）・drill-chart（右に重なり合わせた表を覆う）・drill-kpi（右。上の段から）・drill-more（前の明細の札）",
-     "risks": "面の下のパネルは見えない（押したパネルは見える）。数字のパネル（上の段）を押したときは、面が隣の数字のパネルを半分覆う（縁にそろう置き場が無い）"
+     "risks": "面の下のパネルは見えない（押したパネルは見える）。数字のパネル（上の段）を押したときは、面が隣の数字のパネルを半分覆う（縁にそろう置き場が無い）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-G.png の上の段: 面が「前日の実績本数」のパネルの右半分に重なり、題が「前日の実績本」、添え書きが「実績・全」で切れる（縁にそろわない置き場）"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-G.png の左上「仕掛ロット数」の 1,200: 内側に引いた橙の枠の線が「1」の左と「ロット」の下に被る（字が枠で欠けて見える。1536 の score2-1536/drill-kpi-light-G.png でも「ロット」の下が枠に触れる）"
+      }
+     ],
+     "seen": "入口（score2-1728・1280 の drill-entry-light-G）: 黒い札は 216 の右に出て矢印が数を指し、216 も 654 も見える（1 回目の重なりは直った）。3 段の札で 押す・ダブルクリック・右クリック が読める。drill（1280）: 面は左の 2 枚をそろえて覆い、グリッドは縮まず、右の合わせた表の L-1 の行と 231 の橙の枠が見えたまま。題「明細・設備ごとの…・L-1・仕掛ロット数」、231 行、緑の確かめの札（パネルの数 231 と同じ）、範囲の札（データ・期間・スライサー・設備＝L-1・まとまり）、表、計の行、一覧で開く・Excel・コピー、一時の言葉が上から順に並び、まとまりが一目で分かれる。drill-chart: 右に重なり横棒の 保留 216 の枠が見え、「前の明細: L-1 231」の札。drill-more: 生産 654 に枠が移り前の明細の札が 3 つ。弱い所: 面の下になったパネル（直近 14 日・横棒／合わせた表）は丸ごと見えない。1280 では面の表が 6 行しか見えない。drill-kpi（1280）は面が隣の数字のパネルを半分覆い題が切れる。1536 の drill-kpi では面の左の縁に下の合わせた表の列の字のかけら（「前」「実」）が覗く。表の右の列は面の縁で切れる（横に送る表）",
+     "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた"
     },
     "H 高さを引ける下の引き出し": {
      "id": "H",
@@ -321,7 +346,36 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）。タブごとに組みを画面が持ち、替えると尋ね直す",
      "changes": "dashboard.js・dashboard-panels.js と lotlist-pivot-charts.js（数の要素の鍵）・新しい dashboard-drill.js（引き出し・取っ手・タブ）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry・drill（L-1 の行の下から）・drill-chart（保留の棒の下から。タブ 2）・drill-kpi（タブ 3）・drill-more（生産の棒の下から。タブ 4）",
-     "risks": "引き出しの下になったパネル（押した数より下）は見えない。押した数が画面の下の方だと、引き出しは低くなる（下限は画面の 38%）"
+     "risks": "引き出しの下になったパネル（押した数より下）は見えない。押した数が画面の下の方だと、引き出しは低くなる（下限は画面の 38%）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-light-H.png の引き出しの上の縁: 合わせた表の CR1 の行（名前・棒・186）と横棒の 再処理 の棒が縁で上半分だけに切れる（drill-chart-light-H.png でも L-1 の行の下と横棒が同じく切れる）"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-H.png と drill-more-light-H.png の引き出しの上の縁: 合わせた表の「前日 0 本 SL1・CAL」の札と添え書きの行が縁で半分に切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-H.png の左上「仕掛ロット数」の 1,200: 内側に引いた橙の枠の線が「1」の左と「ロット」の下に被る（字が枠で欠けて見える。1536 の score2-1536/drill-kpi-light-H.png でも「ロット」の下が枠に触れる）"
+      }
+     ],
+     "seen": "入口は G と同じ札で数を隠さない。drill（1280）: 引き出しは L-1 の行のすぐ下から始まり、L-1・231 の橙の枠は見える。頭に「明細 1 L-1 231 ×」のタブと一時の言葉と ×、2 行目に題・231 行・確かめの札と右に 一覧で開く・Excel・コピー、範囲の札、15 列の広い表、計の行。全幅なので列が多く見え、Excel のシートのタブに近い慣れた形。drill-chart→kpi→more でタブが 明細 1〜4 と増え、置き場が毎回同じ（下）で言葉もそろう。弱い所: 押した数より下のパネルは全部隠れ、1280 の drill-kpi・drill-more ではダッシュボードは上の段と次の段の題しか見えない（数と比べられるのは押した数だけ）。上の縁がパネルの行を半分に切る所が 2 状態で目に付く。取っ手（灰の短い線）は小さく、引けることが分かりにくい",
+     "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた"
     },
     "I 幕の無い動かせる窓": {
      "id": "I",
@@ -331,7 +385,40 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "dashboard.js（panelMenu の項目と置き場・押す・ダブルクリック）・dashboard-panels.js と lotlist-pivot-charts.js・新しい dashboard-drill.js（窓を引く・大きさ）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry（メニュー）・drill・drill-chart・drill-kpi・drill-more（窓）",
-     "risks": "窓の下のパネルは見えない（動かせば見える）。1280 では窓が画面の半分を占める。メニューは数の右へ寄せるので、メニューの下の棒（生産）を覆う"
+     "risks": "窓の下のパネルは見えない（動かせば見える）。1280 では窓が画面の半分を占める。メニューは数の右へ寄せるので、メニューの下の棒（生産）を覆う",
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-entry-light-I.png: 数の右に寄せた右クリックのメニューが 生産 の棒の右と数 654、下の「直近 14 日の実績本数」のパネルの題と棒に被る（1728 の score2-1728/drill-entry-light-I.png も同じ置き場）"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-light-I.png の上: 窓が「仕掛ロット数」と「前日の実績本数」のパネルの左半分に重なり、題が「本数」、添え書きが「全設備 前日 10/2」で途中から始まる"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-chart-light-I.png・drill-kpi-light-I.png・drill-more-light-I.png: 窓が合わせた表の題を「設備ごとの仕」、「前日の実績本数」の添え書きを「前日 10/」で切り、表の左の設備名の列だけが窓の左に残る"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-I.png の左上「仕掛ロット数」の 1,200: 内側に引いた橙の枠の線が「1」の左と「ロット」の下に被る（字が枠で欠けて見える。1536 の score2-1536/drill-kpi-light-I.png でも「ロット」の下が枠に触れる）"
+      }
+     ],
+     "seen": "入口のメニューは最上段に「この数の明細を見る／保留 216 ロット／押す・ダブルクリック」と黄色の地で目立ち、216 は見える。窓の中は G と同じまとまり（パンくず・題・確かめ・前の明細・範囲・表・計・押す手・一時の言葉）と、頭の帯「⠿ 明細 幕なし（後ろのダッシュボードも押せます）」。drill では L-1・231 の枠が見え、drill-chart では保留 216 の枠が見える。弱い所: 窓が浮いていて、どのパネルの縁にもそろわず、隣のパネルの題・添え書きを途中で切る。窓の置き場は押した数で左・右に替わる。1280 では窓の表が 5〜6 行で、横の列も 6 列で切れる。右下の大きさを変える角の印は小さい。メニューが隣の数と下のパネルに被る",
+     "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた"
     },
     "J 押したパネルを残してほかの所に明細": {
      "id": "J",
@@ -341,7 +428,36 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "dashboard.js・dashboard-panels.js と lotlist-pivot-charts.js・新しい dashboard-drill.js（空きの四角を決める）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry・drill・drill-chart・drill-kpi（下の全幅）・drill-more",
-     "risks": "ほかのパネルが薄くなるので、明細を見ながら見比べられるのは押したパネルだけ。明細の置き場が押した所で替わる（左・右・下）"
+     "risks": "ほかのパネルが薄くなるので、明細を見ながら見比べられるのは押したパネルだけ。明細の置き場が押した所で替わる（左・右・下）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-light-J.png の上の段: 明細が「前日の実績本数」のパネルの左半分に重なり、題が「本数」、添え書きが「全設備 前日 10/2」で切れる（薄くなった所でも字が途中から）"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-chart-light-J.png・drill-more-light-J.png の上の段: 明細が「前日の実績本数」のパネルの右に重なり、題が「前日の実績」、添え書きが「実績・全」で切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-J.png の左上「仕掛ロット数」の 1,200: 内側に引いた橙の枠の線が「1」の左と「ロット」の下に被る（字が枠で欠けて見える。1536 の score2-1536/drill-kpi-light-J.png でも「ロット」の下が枠に触れる）"
+      }
+     ],
+     "seen": "入口は G と同じ札。押したパネルは橙の縁と影で残り、ほかは薄くなるので、最初に見る物が「押したパネル＋明細」の 2 つにはっきり絞られる（階層化はいちばん良い）。drill（1280）: 合わせた表は丸ごと見え、L-1 の 231 の枠も見え、明細は左に 9 行。drill-kpi: 押した数字のパネルを残し、下の全幅に明細（列が多く見える）。中のまとまりは G と同じ。弱い所: ほかのパネルが薄く（字のコントラストが落ちる）、明細を見ながらほかの数と見比べられない。明細の置き場が 左・右・下 と押した所で替わり、一時の言葉も下の段と押す手の横で置き場が替わる。1280 では明細が上の段の数字のパネルに半分重なり題が切れる",
+     "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた"
     },
     "L 覗き → 引き出し": {
      "id": "L",
@@ -351,9 +467,48 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）。覗きは limit 5",
      "changes": "dashboard.js・dashboard-panels.js と lotlist-pivot-charts.js・新しい dashboard-drill.js（覗きと引き出し）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry・drill・drill-chart・drill-kpi（覗き）・drill-more（数字のパネルの覗きで「すべて見る」を押した引き出し）",
-     "risks": "覗きは押した行より下のパネル（ほかの行・棒）を覆う。すべてを見るまで 2 手（ダブルクリックなら 1 手）"
+     "risks": "覗きは押した行より下のパネル（ほかの行・棒）を覆う。すべてを見るまで 2 手（ダブルクリックなら 1 手）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-light-L.png の覗きの表: 頭 5 行のうち 3 行半しか見えず、4 行目「L-1 HOT」が下で半分に切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-chart-light-L.png: 覗きが横棒の名前（再処理・検査待ち・出荷待ち）と棒・数、下のパネルの題、右の合わせた表の設備名（CR1〜SL3）に被る。どの設備の行か読めない"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-L.png: 覗きが合わせた表の左に被り、題が「備ごとの仕掛と前日の実績」、設備名が「-1」「R1」「S3」「NF」に切れる"
+      },
+      {
+       "kind": "cut",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-more-light-L.png の引き出しの上の縁: 合わせた表の「前日 0 本 SL1・CAL」の札の行が半分に切れる"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1280/drill-kpi-light-L.png の左上「仕掛ロット数」の 1,200: 内側に引いた橙の枠の線が「1」の左と「ロット」の下に被る（字が枠で欠けて見える。1536 の score2-1536/drill-kpi-light-L.png でも「ロット」の下が枠に触れる）"
+      }
+     ],
+     "seen": "入口は G と同じ札。drill（1280）: 覗きは L-1 の行のすぐ下に橙の上の縁と矢印で出て、L-1・231 の枠と 1直 2直 の数は見える。中は題・231 行・確かめの札（短い形）・範囲の札・頭の行・「すべて見る（231 行）›」（主）・一覧で開く・コピー・一時の言葉で、数を見ながら手早く確かめられる。drill-kpi では「… あと 1,195 行（送ると読みます）」と残りを言う。drill-more（すべて見る）は H と同じ全幅の引き出し。弱い所: 覗きが押した行より下の名前・数（右の表の設備名・横棒の名前）を覆い、1280 では頭 5 行が収まらず 4 行目で切れる。覗きと引き出しで形と置き場が 2 通りになり、確かめの札も短い形（パネルの数と同じ が無い）と長い形でそろわない。1280 の引き出しは H と同じく上の縁で行を切る",
+     "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた"
     }
-   }
+   },
+   "evaluator": "採点係（2 回目。別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score2-1728・score2-1536・score2-1280 だけを見て付けた。撮り方: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-drilldown.mjs --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off --only now,G,H,I,J,L を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（どれも終了コード 0）。sheet-* で全体を見たうえで、1280 は全案の drill・drill-chart・drill-kpi・drill-more と G・I の drill-entry を 1 枚ずつ、1728 は G・I の drill-entry、1536 は G の drill-kpi を 1 枚ずつ開き、入口の札と数字のパネルの枠は PIL で切り出して拡大して見た。押した後の動きは画像に出ないので、画像で見える範囲で付けた",
+   "advice": "どの案も合格点 80 に届かない（1 位 G 70.1・2 位 H 66.2・3 位 J 63.0・I 55.6・L 51.2）。1 回目の指摘のうち、入口の札が数を隠す（全案で直った）・押した数の橙の枠と行の名前が見えている（全案で 3 つの大きさとも見える）・グリッドを潰さない（G・H・J・L は縮めない）は直った。残った減点と次の回で直す所: (1) 数字のパネルの橙の枠が 1280 で 1,200 の字と「ロット」に被る（全案）。枠は字の外に 4px 以上の余白を取り、パネルの中に収まらないなら枠でなく地の色と下線にする。(2) 面・窓・明細が隣のパネルの途中に縁を置き、題・添え書きを途中で切る（G の drill-kpi、I・J の drill・drill-chart、H・L の引き出しの上の縁）。置き場は必ずパネルの縁（グリッドの区切り）にそろえ、半分だけ覆う形を作らない。数字のパネルを押したときは、上の段の下から（J の下の全幅のように）にする、など。H・L の引き出しの上の縁は、行の区切りにそろえるか、縁の上に薄い影を付けて「切れた行」に見えないようにする。(3) 1280 で明細の表が 5〜6 行しか見えない（G・I・L）。題・確かめ・範囲の札を 1〜2 行に詰める（題と行の数と確かめを 1 行、範囲の札を 1 行）か、面を上の段の高さまで伸ばす。(4) 「数を見ながら明細」とほかの数との見比べの両立: J の押したパネルを残して目立たせる形は階層化が最も良いが、ほかを薄くしすぎる。G の置き場（縁にそろえて重ねる）に J の押したパネルの強調（橙の縁と影）を足し、ほかは薄くしない、が次の候補。(5) 言葉と置き場をそろえる: 一時の言葉の置き場（J・L で押す手の横と下が混ざる）、確かめの札の長い形と短い形（L）を 1 つにする。(6) I の浮く窓とメニューを数の右へ寄せる置き場は隣の数と下のパネルに被るので、次の回の主にしない"
   }
  ],
  "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-drilldown.mjs --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off を 既定（1728×1152）・--view 1536x864・--view 1280x720 で 1 回ずつ（どれも終了コード 0）。出力 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score1-1728・score1-1536・score1-1280。sheet-* で全体を見たうえで、1728 は全案の drill-entry・drill・drill-chart・drill-kpi・drill-more を 1 枚ずつ、1536 は A の drill、1280 は A の drill-chart・B の drill と drill-more・C の drill・D の drill-kpi・E の drill-more・F の drill と drill-entry を 1 枚ずつ開いて見た。押した後の動きは画像に出ないので、画像で見える範囲で付けた"
