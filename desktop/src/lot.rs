@@ -2979,11 +2979,33 @@ mod tests {
             (200, json!(1), json!(true), json!(["形"]))
         );
         assert!(tables(&lot).get("形").is_some(), "取り込んだ表も効く");
+        // 版 3.125.0: 書くたびに書く前の形が時点として残る（足す・取り込む）。読むのは誰でも・canBackup は「編集可」だけ
+        let (st, v) = lot.handle_body_with("GET", "/api/masters/conversions/history", "", b"", &down).unwrap();
+        let whys: Vec<&str> = v["points"].as_array().unwrap().iter().map(|p| p["why"].as_str().unwrap_or("")).collect();
+        assert_eq!((st, whys, v["canBackup"].clone()), (200, vec!["取り込む前（1 表）", "「課」を足す前"], json!(false)), "{v}");
+        // 標準・履歴を書く道は「編集可」だけ（部分的編集可は 403。表を足す・取り込むは前のまま書ける）
+        let (st, v) = lot.handle_body_with("POST", "/api/masters/conversions/1/preset", "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
+        let (st, _) = lot.handle_body_with("POST", "/api/masters/conversions/history", "", b"{}", &down).unwrap();
+        assert_eq!(st, 403);
+        std::fs::write(share.join("access_permissions.json"), perm("編集可").to_string()).unwrap();
+        lot.invalidate();
         let (st, v) = lot.handle_body_with("POST", "/api/masters/conversions/1/preset", "", b"", &down).unwrap();
         assert_eq!(
             (st, v["error"].as_str().unwrap_or("")),
             (400, "「課」は同梱のプリセットにありません（標準に戻せるのはプリセットの表だけです）。")
         );
+        // 全体を「「課」を足す前」の時点に戻すと、後で足した表（課・形）が消え、標準も戻る。戻す前の形も時点に残る
+        let (_, h) = lot.handle_body_with("GET", "/api/masters/conversions/history", "", b"", &down).unwrap();
+        let first = h["points"].as_array().unwrap().last().unwrap()["id"].as_str().unwrap().to_string();
+        let path = format!("/api/masters/conversions/history/{first}/restore");
+        let (st, v) = lot.handle_body_with("POST", &path, "", br#"{"all": true}"#, &down).unwrap();
+        assert_eq!((st, v["items"].as_array().unwrap().len(), v["customDefaults"].clone()), (200, 0, json!(false)), "{v}");
+        let before = v["before"].as_str().unwrap().to_string();
+        let (st, v) = lot.handle_body_with("POST", &format!("/api/masters/conversions/history/{before}/restore"), "", br#"{"all": true}"#, &down).unwrap();
+        assert_eq!((st, v["items"].as_array().unwrap().len(), v["customDefaults"].clone()), (200, 2, json!(true)), "戻したことを取り消せる: {v}");
+        std::fs::write(share.join("access_permissions.json"), perm("部分的編集可").to_string()).unwrap();
+        lot.invalidate();
         let (st, v) = lot.handle_body_with("GET", "/api/masters/conversions/export", "which=defaults", b"", &down).unwrap();
         assert_eq!((st, v["items"][0]["name"].clone()), (200, json!("形")));
         // 答えない（製品では 503）形
