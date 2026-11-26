@@ -283,7 +283,28 @@
      "from": "1 回目 E（手順の分かりやすさ）を、A の左右の並べ方にして「次へ」を無くした。一覧の札は D、⋯ は C",
      "storage": "1 回目 E と同じ（追記だけの記録 conversions.journal.jsonl と手で取った conversions.backup/）に、この表を含む時点を引く道 GET /api/masters/conversions/points?name=",
      "shots": "cvb-hist（全部の表の窓）・cvb-diff（行まで開いた所）・cvb-th（この表の履歴）・cvb-bundled（窓の右の確かめ）・cvb-std（一覧の頭の下の状態）",
-     "risks": "窓が表を直す画面を覆う（直しながら比べられない）。入口が 2 つ（一覧の頭の下・表の頭）"
+     "risks": "窓が表を直す画面を覆う（直しながら比べられない）。入口が 2 つ（一覧の頭の下・表の頭）",
+     "score": {
+      "order": 9,
+      "chunk": 9,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 9,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-saved-light-F.png の左の一覧の頭の下: 書き出す・取り込むが「書き出す・取り込む ▾」の面の中になり、今（cvb-light-now の一覧の下のボタン）より 1 手増える"
+      }
+     ],
+     "seen": "保存の直後は緑の帯「「管理分類」だけを保存しました（この 1 表・35 行。ほかの 8 表は変えていません）。保存する前の形は履歴に残しました」と、表の頭の「✓ この表だけ保存 09:01」で範囲が 2 か所に出る（心配 2）。1280 でも表の頭（名前・プリセット・保存した印・履歴 ▾・⋯・この表を保存）は 1 段（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png の 1 段目。5 案で F だけ）。一覧の頭の下は「標準: 自分で決めた表／最後のバックアップ: 11/25（水）17:30（全体）」と主のボタン「⟲ 履歴と戻す…」・従の「書き出す・取り込む ▾」で、下線のリンクの「同梱に戻す」は消えた（1 回目の指摘 1 が直った）。左の札に「直した · 11/26 10:42／同梱のまま」が 1 行で出る。窓は上の段に標準と 2 つのボタン、左に「＋ 全体をバックアップ」「＋ 表を選んで…」と時点の札（時刻・自動／手で・全体／n 表・何の前か・だれ・今と違う表の数）、右に押した時点の差がすぐ出て「次へ」が無い（指摘 2 が直った）。右の頭に「選んだ 2 表を戻す」（主）・「全体（9 表）をこの時点に戻す」と「戻す前の今も自動で残すので、戻した後でも取り消せます」、表ごとに 今・戻すと の行の数と「変わる」の札・「2 行が消える・出す値が 1 つ変わる」、行を見るで 3 行目 8·10mm → 8-10mm・34／35 行目が消える（取り消し線）まで見える（心配 4）。表の頭の「履歴 ▾」は同じ窓を「「管理分類」を含む時点だけ」で開き、主のボタンが「「管理分類」をこの時点に戻す」、左の札も表の違いだけ（指摘 3 が直った。1 表を戻すのが 履歴 ▾ → 時点 → 戻す）。同梱は同じ窓の右で「標準を同梱のプリセットにしますか？」「表の中身は変わりません。」を太字で先に言い、9 表を 今の表・戻る先（今の標準）・戻る先（同梱）の行の数と「同じ／変わる」で並べる（心配 1）。保存の知らせは貼り付かず被らない（指摘 4 が直った）。弱い所: 「標準」と「戻せる時点」の 2 つの考え方が窓の上下に残り、「今の表を標準にする…」と「＋ 全体をバックアップ」の違いを考えさせる。窓が表を直す画面を覆う。1728 では窓の右の下半分が大きく空く。1280 では左の時点の並びの最後（同梱のプリセット）が欄の中を送った先（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-diff-light-F.png の左下。欄の中の送りなので減点しない）",
+     "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）"
     },
     "G 履歴のタブ（A の改め）": {
      "id": "G",
@@ -292,7 +313,32 @@
      "from": "1 回目 A。指摘 3 の 2 手の入口と、指摘 1 の同梱の確かめをタブの中に",
      "storage": "1 回目 A と同じ（conversions.history/ に時点 1 つ＝ファイル 1 つ。自動 50 個か 90 日のうち多い方・手で取った物は消すまで）",
      "shots": "cvb-hist・cvb-diff・cvb-th（この表に絞ったタブ）・cvb-bundled",
-     "risks": "タブを替えると表を直す画面が隠れる。頁の中なので、長い差の表は頁ごと送る（戻すボタンは右の欄の頭）"
+     "risks": "タブを替えると表を直す画面が隠れる。頁の中なので、長い差の表は頁ごと送る（戻すボタンは右の欄の頭）",
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-std-light-G.png の左の一覧の頭の下: 書き出す・取り込むが ▾ の面の中で 1 手増える"
+      },
+      {
+       "kind": "wrap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-saved-light-G.png の表の頭（\"+S+\"/hdr1280.png の 2 段目）: 「✓ この表だけ保存 09:06」が出ると「この表を保存」が 2 段目に折れる（F は 1 段）"
+      }
+     ],
+     "seen": "中身は F と同じ（上の段に標準、左に時点、右に差・戻すボタン）を、頁の上の「表を直す｜履歴とバックアップ 5」のタブで出す。窓で覆わないので頁の作りとして落ち着いており、cvb-diff では行まで開いた差が 1728 で頁に収まる。表の頭の「履歴 ▾」は「「管理分類」を含む時点だけ」に絞ったタブ。同梱の確かめは右の欄で 9 表を並べ「表の中身は変わりません」を先に言う（心配 1・4）。弱い所: 同じ履歴のタブへの入口が 3 つ（タブ・一覧の頭の下の「⟲ 履歴とバックアップ」・表の頭の「履歴 ▾」）で、どれを押すか迷わせる。タブを替えると表を直す画面が隠れる。1280 の cvb-bundled（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-bundled-light-G.png の下端）は変わる表の 2 つ目「課名」の行が頁の下の縁で切れ、頁を送らないと見えない（1 回目の A の指摘が少し残る）。1280 で表の頭のボタンが 2 段に折れる",
+     "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）"
     },
     "H 表の中で見比べる（新）": {
      "id": "H",
@@ -301,7 +347,36 @@
      "from": "新しい案。戻すと何が変わるかを、いつも見ている判定表の行の上で見せる",
      "storage": "1 回目 D の表ごとの版の履歴（conversions.history.json。表ごと 30 版。見比べはその版を窓が判定表と同じ並びで返す GET /api/masters/conversions/<id>/history/<rev>）と、全体の時点 conversions.history/（F・G と同じ）",
      "shots": "cvb-hist（この表の履歴の面）・cvb-diff（表で見比べる）・cvb-th（全体の窓）・cvb-bundled（面の下の確かめ）",
-     "risks": "見比べの印は判定表の行に付くので、消える行が表の下の方だと送らないと見えない（帯に行の番号を書いて補う）。入口がこの表・全体で 2 つの形（面と窓）"
+     "risks": "見比べの印は判定表の行に付くので、消える行が表の下の方だと送らないと見えない（帯に行の番号を書いて補う）。入口がこの表・全体で 2 つの形（面と窓）",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-std-light-H.png の左の一覧の頭の下: 書き出す・取り込むが ▾ の面の中で 1 手増える"
+      },
+      {
+       "kind": "wrap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-saved-light-H.png の表の頭: 「この表を保存」が 2 段目に折れる（\"+S+\"/hdr1280.png の 3 段目）"
+      },
+      {
+       "kind": "overlap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-hist-light-H.png の表の頭の下: 2 段目に折れた「この表を保存」（オレンジの端だけ見える）の上に「「管理分類」の履歴」の面が被り、保存のボタンが隠れる（作った者は「3 つの大きさで 1 段」と書いたが、保存した印が出ると折れる）"
+      }
+     ],
+     "seen": "表の頭の「履歴 ▾」で表の頭の下に面が開き、時点ごとに「35 → 33 行・変わる・2 行が消える・出す値が 1 つ変わる」と［表で見比べる］。見比べると判定表の上に「見比べ中」の帯と［この形に戻す］［見比べをやめる］、3 行目に色と「戻すと「8-10mm」」が付き、いつも見ている表の上で変わり方が分かる（視覚化は 5 案でいちばん良い）。弱い所: 消える 34・35 行目は判定表の下の方で、帯の字「消えるのは 34・35 行目。表の下の方」で補うだけで画像では見えない（1728・1280 の cvb-diff）。見比べ中は頁が送られて表の名前・保存のボタンが上へ出る。1280 では帯の字が 3 段に折れる。全体を戻すのは別の形（一覧の頭の下の「⟲ 全体の履歴と戻す…」の窓。cvb-th は F と同じ窓）で、この表と全体で形が 2 つ（言葉と置き場の統一が弱い）。同梱の確かめは面の中の赤い枠の文だけで、表ごとの行の数の並びが無く、下の段に「同梱のプリセットを標準にする…」が確かめと並んで残る（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-bundled-light-H.png）。1280 で保存のボタンが折れて面の下に隠れる。H の 1280 の cvb-diff の 5 行目の用途ｺｰﾄﾞの開いた欄（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-diff-light-H.png）は、1728 でも 6 行目（cvb-diff）・1 行目（cvb-bundled）の同じ列に同じ形で出ており、撮る道具の押した後のマウスの位置で出る欄と認めた（減点しない）",
+     "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）"
     },
     "I 管理の「バックアップ」の頁（新）": {
      "id": "I",
@@ -310,7 +385,32 @@
      "from": "新しい案。権限で分かれる管理の操作を、管理の段（アクセス権限・マスタの置き場と同じ所）にまとめる",
      "storage": "マスタの置き場の下に backups/<マスタの名前>/（時点 1 つ＝ファイル 1 つ。書き出すファイルと同じ形＋by・why・scope・auto）。どのマスタも同じ係（master_store の書く道が書く前に残す）で、変換表から始める。自動 50 個・手で取った物は消すまで",
      "shots": "cvb-hist（管理の頁）・cvb-diff・cvb-th（この表に絞った頁）・cvb-bundled",
-     "risks": "変換表の頁から離れた所なので、表を直しながら比べられない。左の段が 1 つ増える"
+     "risks": "変換表の頁から離れた所なので、表を直しながら比べられない。左の段が 1 つ増える",
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-std-light-I.png の左の一覧の頭の下: 書き出す・取り込むが ▾ の面の中で 1 手増える"
+      },
+      {
+       "kind": "wrap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-saved-light-I.png の表の頭: 「この表を保存」が 2 段目に折れる（\"+S+\"/hdr1280.png の 4 段目）"
+      }
+     ],
+     "seen": "マスタ管理の左の「管理」の段に「バックアップ 🔒」を足し、頁は「‹ 変換表へ戻る｜バックアップと戻す」・説明「変換表を書くたびに、書く前の形を自動で残します（自動は 50 回分・手で取った物は消すまで）」・対象の札「変換表 9 表」・上の段に標準・左に時点・右に差（中身は F と同じ）。権限で分かれる操作をアクセス権限・マスタの置き場と同じ段にまとめた形は分かりやすく、窓で覆わず頁いっぱいに出るので 1280 でも右の差がゆったり収まる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-hist-light-I.png）。左の段の選んだ印は「バックアップ」だけで、2 つ選んだようには見えない（作った者の直しを確かめた）。弱い所: 変換表の頁から離れた所なので、表を直しながら比べられず、一覧の頭の下の「⟲ バックアップと戻す ›」・表の頭の「履歴 ▾」は頁を移る（「‹ 変換表へ戻る」で 1 手戻る）。対象の札が 1 つだけで、押せる物か札かが分からない。1280 で表の頭の保存のボタンが折れる",
+     "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）"
     },
     "J 標準をやめて戻すを 1 つに（新）": {
      "id": "J",
@@ -319,9 +419,36 @@
      "from": "新しい案。利用者の心配（同梱に戻される）の元の、標準と同梱の 2 段の言葉そのものを無くす",
      "storage": "F と同じ記録。conversion_defaults（標準）は使わなくなる: 手で決めていた標準は、移すときに手で取ったバックアップ「前の標準（版 3.124.0 まで）」として 1 つ残す。同梱のプリセットは app/master_defaults/conversions.json から時点として読む",
      "shots": "cvb-hist・cvb-diff・cvb-th・cvb-bundled（同梱のプリセットの札を選んだ所）",
-     "risks": "今まで「標準に戻す」で戻れた自分で決めた標準が、時点の 1 つ（前の標準）になる。慣れた言葉が無くなる"
+     "risks": "今まで「標準に戻す」で戻れた自分で決めた標準が、時点の 1 つ（前の標準）になる。慣れた言葉が無くなる",
+     "score": {
+      "order": 9,
+      "chunk": 9,
+      "hierarchy": 9,
+      "visual": 9,
+      "steps": 8,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-std-light-J.png の左の一覧の頭の下: 書き出す・取り込むが ▾ の面の中で 1 手増える"
+      },
+      {
+       "kind": "wrap",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-saved-light-J.png の表の頭: 「この表を保存」が 2 段目に折れる（\"+S+\"/hdr1280.png の 5 段目）"
+      }
+     ],
+     "seen": "「標準」「今の表を標準に」「同梱に戻す」の言葉そのものが無くなり、窓の頭に「戻せる物はここに 1 つにまとめました: 自動で残した時点・手で取ったバックアップ・同梱のプリセット（アプリに入っている元の形）。どれに戻すときも、右で違いを見てから戻します。」。同梱のプリセットは時点の札の 1 つで、選ぶと右に「この時点に戻すと: 2 表が変わります（同じ 7 表は変わりません）」・管理分類 35 → 30 行「5 行が消える・出す値が 1 つ変わる」・課名 13 → 10 行と、ほかの時点と全く同じ形で差が出る（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728/cvb-bundled-light-J.png）。押し違えで同梱に戻る道が、差を見てから押す 1 つの道だけになり、利用者の心配 1 の元の 2 段の言葉（標準・同梱）を消している。一覧の頭の下は「最後のバックアップ: 11/25（水）17:30（全体）／同梱のプリセットと違う表: 3」と「⟲ 履歴と戻す…」で、状態が 1 目で分かる。この表の履歴（cvb-th）は F と同じ形。弱い所: 慣れた「標準に戻す」が無くなり、自分で決めた標準はバックアップの 1 つ（前の標準）として探す形になる（画像では見えない移し方）。窓の頭の説明が 1 行に長い。窓が表を直す画面を覆う。1280 で表の頭の保存のボタンが 2 段目に折れる（F は折れない）。1280 では時点の並びの最後の同梱のプリセットが欄の中を送った先（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1280/cvb-th-light-J.png の左下。欄の中の送りなので減点しない）",
+     "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）"
     }
-   }
+   },
+   "evaluator": "採点係（別のエージェント。案を作っていない。1 回目の採点係とも別）。作った者の画像（r2-*）は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off --only now,F,G,H,I,J を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ（順に）。終了コードはどれも 0、記録の cut・hidden はどれも 0。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score2-1728・score2-1536・score2-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-std・cvb-bundled を 1728 と 1280 で 1 枚ずつ開き、表の頭の段は PIL で 5 案を切り出して並べて見た（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/hdr1280.png・hdr1536.png）",
+   "advice": "1 位は F（82.4）で合格点 80 に届いた。2 位 J（81.2）・3 位 I（76.6）・G（75.8）・H（61.6）。作るときに直す所（作った後の採点で見る）: (1) F の窓に残る「標準」と「戻せる時点」の 2 つの考え方を減らす: J の形（同梱のプリセットを時点の札の 1 つにし、差を見てから戻す）に寄せるか、残すなら上の段の言葉を「表ごとの『標準に戻す』の戻る先」と 1 行で言い切り、「今の表を標準にする…」と「＋ 全体をバックアップ」の違いを分かるようにする。(2) 1280 で表の頭が 1 段に収まることを、保存した印（✓ この表だけ保存 時刻）が出た形で確かめる（G・H・I・J は 2 段に折れた。F の形を本物でも保つ）。(3) 窓の左の時点の並びは 1280 で最後の札（同梱のプリセット）が送った先になる。札を詰めるか、同梱の札を並びの頭の固定の段に置く。(4) 1728 で窓の右の下半分が大きく空く。窓の高さを中身に合わせるか、右に差の行をはじめから開いて置く。(5) 書き出す・取り込むが ▾ の面に移って 1 手増える。従のボタンとして一覧の頭の下に 1 段で並べられるなら戻す"
   }
  ],
  "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-convbackup.mjs --from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-import,cvb-std,cvb-bundled,cvb-plan,cvb-off を 既定（1728）・--view 1536x864・--view 1280x720 で 1 回ずつ。終了コードはどれも 0（記録に失敗・はみ出しの数の知らせ無し）。出力は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/convbackup/score1-1728・score1-1536・score1-1280。sheet-* で全体を見て、cvb-saved・cvb-hist・cvb-diff・cvb-bundled は 1 枚ずつ開き、取り込む前の確かめは PIL で切り出して見た",
