@@ -80,7 +80,7 @@ const RC_RULE = { rows: [
   { conditions: [], text: "その他", color: "muted" }], self: "raw" };
 export const READCOL = { r: { "管理区分": RC_RULE }, l: { "lotlist:仕掛": { ...CALC_LAYOUT["lotlist:仕掛"],
   order: ["ロット番号", "発生日", "設備", "不良名", "合金", "板厚", "管理区分", "重量", "重量t", "調質", "板幅", "客先"],
-  formulas: { "重量t": "[重量]/1000", "管理区分": "" }, rules: { "管理区分": "管理区分" } } } };
+  formulas: { "重量t": "[重量]/1000", "管理区分": "" }, rules: { "管理区分": "管理区分" }, ruleCols: { "管理区分": "管理区分" } } } };   // ruleCols: ルールで作る列（版 3.123.0。式は画面がルールからそろえる）
 
 // 件数の行が混んだ所（crowded。headers の続き）: スライサーで設備を 2 つ選び、色付けを 1 つ（不良名が汚れ）
 const CROWDED = {
@@ -1144,7 +1144,8 @@ export const STATES = [
   ["readcol-cols", async (p) => {
     await p.click("#llColBtn"); await sleep(600);
     await p.click('#lcList li[data-col="管理区分"]').catch(() => {}); await sleep(400);
-    await p.click('.lc-step[data-step="rule"] > h4').catch(() => {}); await sleep(500);
+    // ③ 読み替えの段（版 3.122.0 までの形）か、ルールで作る列なら作り方の段（版 3.123.0 から ③ は無い）を開く
+    await p.evaluate(() => { const st = document.querySelector('.lc-step[data-step="rule"]') ? "rule" : "fx"; const s = document.querySelector(`.lc-step[data-step="${st}"]`); if (s && !s.classList.contains("is-open")) s.querySelector("h4").click(); }); await sleep(500);
   }, "[data-next], #lcSave"],
   ["readcol-rule", async (p) => { await p.click("#lcRuleEdit").catch(() => {}); await sleep(700); }, "[data-next], #llRulePanel [data-act=save]"],
   ["readcol-new", async (p) => {
@@ -1152,6 +1153,8 @@ export const STATES = [
     await p.evaluate(() => document.querySelector('#llRulePanel:not([hidden]) [data-act="close"]')?.click()); await sleep(400);
     p.once("dialog", (d) => d.accept("区分").catch(() => {}));
     await p.evaluate(() => document.querySelector("#lcAddCol")?.click()); await sleep(1000);
+    // 版 3.123.0: 作り方の窓は「保存したルール」のタブで開く。ルールのカード（管理区分）を押して選んだ所（3 行と件数・試した結果）
+    await p.evaluate(() => document.querySelector('#llFxPanel:not([hidden]) .lr-rcard[data-rule="管理区分"]')?.click()); await sleep(600);
   }, "[data-next], #llFxPanel [data-act=save]"],
   ["readcol-off", async (p) => {
     await closeAll(p);

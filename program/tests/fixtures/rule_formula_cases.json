@@ -1,0 +1,673 @@
+{
+ "note": "ルールで作る列（版 3.123.0）の事例の表。人が仕様から書いた: rule（ルールの行）・rows（試す行）・want（行ごとの答えの字。空欄は \"\"）・notesHave（ルール → 式の知らせに入る言葉）。expr は画面のルール → 式（lotlist-rules.js の formulaOf。この列＝空欄）の凍った答えで、node program/tools/rule-formula-check.mjs --write-expr が書く（want は書かない）。画面の側は rule-formula-check.mjs、窓の側は cargo test --test rule_formula_cases が突き合わせる。比べ方は表示ルールと同じ（両辺がゆるい数〈指数なし〉なら数、ほかは字）: 1e-05 ≧ 1・abc ＞ 2 は字の比べで当たる",
+ "rows": [
+  {
+   "ロット番号": "L0001C1",
+   "合金": "A5052",
+   "板厚": 2.73,
+   "重量": 1415,
+   "備考": "再検査 済",
+   "客先": "客先A",
+   "調質": "H24"
+  },
+  {
+   "ロット番号": "L0002C2",
+   "合金": "A3004",
+   "板厚": "1",
+   "重量": 3989.4,
+   "備考": "",
+   "客先": null,
+   "調質": "H14"
+  },
+  {
+   "ロット番号": "L0003C3",
+   "合金": "A1100",
+   "板厚": "abc",
+   "重量": 5000.8,
+   "備考": "要確認",
+   "客先": "客先B",
+   "調質": "O"
+  },
+  {
+   "ロット番号": "L0004C4",
+   "合金": "A5052",
+   "板厚": 0.3,
+   "重量": 2092.7,
+   "備考": "a]b",
+   "客先": "O'Neil",
+   "調質": "O"
+  },
+  {
+   "ロット番号": "L0005C5",
+   "合金": "",
+   "板厚": "",
+   "重量": "",
+   "備考": null,
+   "客先": "",
+   "調質": ""
+  },
+  {
+   "ロット番号": "L0006C6",
+   "合金": "A5052",
+   "板厚": "1e-05",
+   "重量": 689.1,
+   "備考": "100%",
+   "客先": "ｷｬｸｻｷC",
+   "調質": "H24"
+  },
+  {
+   "ロット番号": "L0007C7",
+   "合金": "a5052",
+   "板厚": 1,
+   "重量": 3000,
+   "備考": "再検査",
+   "客先": "客先A",
+   "調質": "H14"
+  },
+  {
+   "ロット番号": "L0008C8",
+   "合金": "A3104",
+   "板厚": 1.5,
+   "重量": 2999.9,
+   "備考": "",
+   "客先": "客先B",
+   "調質": "H19"
+  }
+ ],
+ "cases": [
+  {
+   "name": "管理区分（かつ・で始まる・どれにも当てはまらないとき）",
+   "column": "管理区分",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "eq",
+       "right": {
+        "kind": "value",
+        "value": "A5052"
+       }
+      },
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "板厚"
+       },
+       "op": "ge",
+       "right": {
+        "kind": "value",
+        "value": "1"
+       }
+      }
+     ],
+     "text": "5052厚板",
+     "color": "ok"
+    },
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "startsWith",
+       "right": {
+        "kind": "value",
+        "value": "A3"
+       }
+      }
+     ],
+     "text": "3000系",
+     "color": "warn"
+    },
+    {
+     "conditions": [],
+     "text": "その他",
+     "color": "muted"
+    }
+   ],
+   "want": [
+    "5052厚板",
+    "3000系",
+    "その他",
+    "その他",
+    "その他",
+    "5052厚板",
+    "その他",
+    "3000系"
+   ],
+   "expr": "if(cmp([合金], 'A5052') = 0 and cmp([板厚], '1') >= 0, '5052厚板', if(startswith([合金], 'A3'), '3000系', 'その他'))",
+   "notes": [
+    "色（●良い・悪い…）は式にできません。色が要るなら、式の列にも同じルールを付けてください"
+   ]
+  },
+  {
+   "name": "空のルール（行が無い。列は空欄）",
+   "column": "空",
+   "rule": [],
+   "want": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "expr": "''",
+   "notes": []
+  },
+  {
+   "name": "どれにも当てはまらないときが無い（当たらない行は空欄）",
+   "column": "厚さ",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "板厚"
+       },
+       "op": "gt",
+       "right": {
+        "kind": "value",
+        "value": "2"
+       }
+      }
+     ],
+     "text": "厚"
+    }
+   ],
+   "want": [
+    "厚",
+    "",
+    "厚",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "expr": "if(cmp([板厚], '2') > 0, '厚', '')",
+   "notes": []
+  },
+  {
+   "name": "読めない正規表現（その条件は当たらない）",
+   "column": "記号",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "備考"
+       },
+       "op": "regex",
+       "right": {
+        "kind": "value",
+        "value": "["
+       }
+      }
+     ],
+     "text": "X"
+    },
+    {
+     "conditions": [],
+     "text": "残り"
+    }
+   ],
+   "want": [
+    "残り",
+    "残り",
+    "残り",
+    "残り",
+    "残り",
+    "残り",
+    "残り",
+    "残り"
+   ],
+   "notesHave": [
+    "正規表現「[」は読めない"
+   ],
+   "expr": "if(0, 'X', '残り')",
+   "notes": [
+    "正規表現「[」は読めないので、この条件は「当たらない」にしました"
+   ]
+  },
+  {
+   "name": "知らない比べ方（その条件は当たらない）",
+   "column": "知らない",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "xyz",
+       "right": {
+        "kind": "value",
+        "value": "A5052"
+       }
+      }
+     ],
+     "text": "X"
+    },
+    {
+     "conditions": [],
+     "text": "D"
+    }
+   ],
+   "want": [
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D"
+   ],
+   "notesHave": [
+    "知らない比べ方（xyz）"
+   ],
+   "expr": "if(0, 'X', 'D')",
+   "notes": [
+    "知らない比べ方（xyz）は式にできません"
+   ]
+  },
+  {
+   "name": "出す値が式（=concat）",
+   "column": "材調質",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "notEmpty"
+      }
+     ],
+     "text": "=concat([合金], '-', [調質])"
+    },
+    {
+     "conditions": [],
+     "text": "なし"
+    }
+   ],
+   "want": [
+    "A5052-H24",
+    "A3004-H14",
+    "A1100-O",
+    "A5052-O",
+    "なし",
+    "A5052-H24",
+    "a5052-H14",
+    "A3104-H19"
+   ],
+   "expr": "if(trim([合金]) <> '', (concat([合金], '-', [調質])), 'なし')",
+   "notes": []
+  },
+  {
+   "name": "読めない出す値の式（その行の値は空欄）",
+   "column": "読めない値",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "notEmpty"
+      }
+     ],
+     "text": "=concat([合金],"
+    },
+    {
+     "conditions": [],
+     "text": "なし"
+    }
+   ],
+   "want": [
+    "",
+    "",
+    "",
+    "",
+    "なし",
+    "",
+    "",
+    ""
+   ],
+   "notesHave": [
+    "読めないので、その行の値は空欄"
+   ],
+   "expr": "if(trim([合金]) <> '', '', 'なし')",
+   "notes": [
+    "出す値の式「=concat([合金],」は読めないので、その行の値は空欄にしました"
+   ]
+  },
+  {
+   "name": "読めない式の条件（空欄として比べ、当たらない）",
+   "column": "読めない条件",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "calc",
+        "expr": "[重量] >"
+       },
+       "op": "formula"
+      }
+     ],
+     "text": "重"
+    },
+    {
+     "conditions": [],
+     "text": "軽"
+    }
+   ],
+   "want": [
+    "軽",
+    "軽",
+    "軽",
+    "軽",
+    "軽",
+    "軽",
+    "軽",
+    "軽"
+   ],
+   "notesHave": [
+    "読めないので、空欄として比べます"
+   ],
+   "expr": "if('', '重', '軽')",
+   "notes": [
+    "式「[重量] >」は読めないので、空欄として比べます（版 3.123.0。前は式全体が読めなくなった）"
+   ]
+  },
+  {
+   "name": "かつ と かっこの中の または",
+   "column": "対象",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "合金"
+       },
+       "op": "eq",
+       "right": {
+        "kind": "value",
+        "value": "A5052"
+       }
+      },
+      {
+       "join": "and",
+       "items": [
+        {
+         "join": "and",
+         "left": {
+          "kind": "column",
+          "column": "客先"
+         },
+         "op": "eq",
+         "right": {
+          "kind": "value",
+          "value": "客先A"
+         }
+        },
+        {
+         "join": "or",
+         "left": {
+          "kind": "column",
+          "column": "板厚"
+         },
+         "op": "lt",
+         "right": {
+          "kind": "value",
+          "value": "1"
+         }
+        }
+       ]
+      }
+     ],
+     "text": "対象"
+    },
+    {
+     "conditions": [],
+     "text": "外"
+    }
+   ],
+   "want": [
+    "対象",
+    "外",
+    "外",
+    "対象",
+    "外",
+    "外",
+    "外",
+    "外"
+   ],
+   "expr": "if(cmp([合金], 'A5052') = 0 and ((cmp([客先], '客先A') = 0) or (cmp([板厚], '1') < 0)), '対象', '外')",
+   "notes": []
+  },
+  {
+   "name": "範囲内・空欄（数の比べ）",
+   "column": "重さ",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "重量"
+       },
+       "op": "empty"
+      }
+     ],
+     "text": "不明"
+    },
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "重量"
+       },
+       "op": "between",
+       "right": {
+        "kind": "value",
+        "value": "2000"
+       },
+       "right2": {
+        "kind": "value",
+        "value": "3000"
+       }
+      }
+     ],
+     "text": "中"
+    },
+    {
+     "conditions": [],
+     "text": "他"
+    }
+   ],
+   "want": [
+    "他",
+    "他",
+    "他",
+    "中",
+    "不明",
+    "他",
+    "中",
+    "中"
+   ],
+   "expr": "if(trim([重量]) = '', '不明', if((cmp([重量], '2000') >= 0 and cmp([重量], '3000') <= 0), '中', '他'))",
+   "notes": []
+  },
+  {
+   "name": "含む・で終わる・違う（上から順）",
+   "column": "備考区分",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "備考"
+       },
+       "op": "contains",
+       "right": {
+        "kind": "value",
+        "value": "再検査"
+       }
+      }
+     ],
+     "text": "再"
+    },
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "備考"
+       },
+       "op": "endsWith",
+       "right": {
+        "kind": "value",
+        "value": "%"
+       }
+      }
+     ],
+     "text": "率"
+    },
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "客先"
+       },
+       "op": "ne",
+       "right": {
+        "kind": "value",
+        "value": "客先A"
+       }
+      }
+     ],
+     "text": "別"
+    },
+    {
+     "conditions": [],
+     "text": "同"
+    }
+   ],
+   "want": [
+    "再",
+    "別",
+    "別",
+    "別",
+    "別",
+    "率",
+    "再",
+    "別"
+   ],
+   "expr": "if(contains([備考], '再検査'), '再', if(endswith([備考], '%'), '率', if(cmp([客先], '客先A') <> 0, '別', '同')))",
+   "notes": []
+  },
+  {
+   "name": "' を含む値と出す字",
+   "column": "名",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "column",
+        "column": "客先"
+       },
+       "op": "eq",
+       "right": {
+        "kind": "value",
+        "value": "O'Neil"
+       }
+      }
+     ],
+     "text": "it's"
+    }
+   ],
+   "want": [
+    "",
+    "",
+    "",
+    "it's",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "expr": "if(cmp([客先], \"O'Neil\") = 0, \"it's\", '')",
+   "notes": []
+  },
+  {
+   "name": "この列（作った列には元の値が無いので空欄として比べる）",
+   "column": "自分",
+   "rule": [
+    {
+     "conditions": [
+      {
+       "join": "and",
+       "left": {
+        "kind": "self"
+       },
+       "op": "empty"
+      }
+     ],
+     "text": "空"
+    },
+    {
+     "conditions": [],
+     "text": "非"
+    }
+   ],
+   "want": [
+    "空",
+    "空",
+    "空",
+    "空",
+    "空",
+    "空",
+    "空",
+    "空"
+   ],
+   "expr": "if(trim('') = '', '空', '非')",
+   "notes": []
+  }
+ ]
+}

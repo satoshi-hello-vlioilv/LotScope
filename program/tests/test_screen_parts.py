@@ -10,7 +10,9 @@
   取り違えない・上位＋その他＝総計（pivot-model-check.mjs。版 3.92.0）
 - 計算列の式（static/js/list-formula.js）: 事例表 formula_cases.json の js 欄（窓の formula.rs も cargo test --test formula_cases で同じ表と比べる）と
   formula_regex_cases.json の js・jsWhy 欄が、いまの画面の式の答えと同じ（formula-parity.mjs・formula-regex-js.mjs。版 3.119.0 の作った後の直し 1:
-  前は app を import する試験が同じ所を見ていた）。片割れの代用字は表の {"utf16": [単位]} の形にそろえて比べる"""
+  前は app を import する試験が同じ所を見ていた）。片割れの代用字は表の {"utf16": [単位]} の形にそろえて比べる
+- ルールで作る列（static/js/lotlist-rules.js の formulaOf。版 3.123.0）: 事例の表 rule_formula_cases.json の式が画面の作る式と同じで、
+  その式の答えと一覧のセルの道（ルールの判定）の答えが、人が書いた答えと同じ（rule-formula-check.mjs。窓は cargo test --test rule_formula_cases）"""
 import json
 import os
 import shutil
@@ -85,6 +87,9 @@ class ScreenParts(unittest.TestCase):
 
     def test_pivot_table_model_and_top_rows(self):
         self.run_tool("pivot-model-check.mjs")
+
+    def test_rule_columns_give_the_same_values(self):
+        self.run_tool("rule-formula-check.mjs")
 
     def test_formula_cases_are_the_answers_of_the_screen(self):
         cases, got = formula_answers()
