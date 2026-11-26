@@ -1248,6 +1248,35 @@ export const STATES = [
     await p.evaluate(async () => { TPA.local.set("tpa.lotlist.layout.v1", {}); TPA.local.set("tpa.lotlist.rules.v1", {}); TPA.local.set("tpa.lotlist.pivot.v1", {}); await TPA.saveUiState(); });
     await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1500);
   }, "[data-next], #llSearch"],
+  // 利用者の改良依頼 2026-11-17 の 7（ダッシュボードの表・グラフの数から、一時的に明細〈元の行〉を見る。Excel のピボットのドリルダウン）。--from drill-entry で撮る:
+  // drill-entry … 明細への入口（案の window.__drillEntry があれば呼ぶ。今は「仕掛区分ごと」の棒「保留」を右クリックしたメニュー〈明細の項目は無い〉）・
+  // drill … 合わせた表のセル（設備ごとの表の L-1 の仕掛ロット数 231）から明細を開いた所・drill-chart … 横棒「保留」（216）から・drill-kpi … 数字のパネル「仕掛ロット数」（1,200）から・
+  // drill-more … 明細を開いたまま、案の次の段（並べ替え・全部を見る・一覧で開く などの先。案の window.__drillMore）を押した所。
+  // 案は window.__drillGo(kind)（kind は table・chart・kpi）で、案の入口を押した後の形にする。今は何も起きない（ダブルクリックしても数のまま）。drill-off が片付ける
+  ["drill-entry", async (p) => {
+    await STATES.find(([n]) => n === "dash")[1](p);
+    await p.evaluate(() => document.querySelector("#dashGrid")?.scrollIntoView({ block: "start" })); await sleep(300);
+    if (await p.evaluate(() => typeof window.__drillEntry === "function")) { await p.evaluate(() => window.__drillEntry()); await sleep(700); return; }
+    const bar = await p.$('#dashGrid .db-p[data-id="wipClass"] svg rect:nth-of-type(2)');
+    const b = bar && await bar.boundingBox(); if (b) { await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); }
+    await sleep(500);
+  }, "[data-next], .tpa-menu button"],
+  ...["drill", "drill-chart", "drill-kpi"].map((name) => [name, async (p) => {
+    await p.keyboard.press("Escape"); await sleep(150);
+    const kind = { drill: "table", "drill-chart": "chart", "drill-kpi": "kpi" }[name];
+    if (await p.evaluate(() => typeof window.__drillGo === "function")) { await p.evaluate((k) => window.__drillGo(k), kind); await sleep(900); return; }
+    // 今: 数をダブルクリックしても何も起きない（明細へ行く道が無い）
+    const sel = { table: '#dashGrid .db-p[data-id="board"] tbody tr:first-child td.db-lots b', chart: '#dashGrid .db-p[data-id="wipClass"] svg rect:nth-of-type(2)', kpi: '#dashGrid .db-p[data-id="wipTotal"] .dp-num' }[kind];
+    const el = await p.$(sel); if (el) await el.dblclick().catch(() => {});
+    await sleep(500);
+  }, "[data-next], [data-db-editmode]"]),
+  ["drill-more", async (p) => {
+    if (await p.evaluate(() => typeof window.__drillMore === "function")) { await p.evaluate(() => window.__drillMore()); await sleep(900); }
+  }, "[data-next], [data-db-editmode]"],
+  ["drill-off", async (p) => {
+    await p.evaluate(() => window.__drillClose?.()); await closeAll(p);
+    await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1200);
+  }, "[data-next], #llSearch"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ
