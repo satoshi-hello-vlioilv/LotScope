@@ -1788,7 +1788,7 @@
     if (!window.XlsxWriter) return;
     const a = t.ans, cond = [["項目", "値"], ["パネル", t.title], ["数", cellName(t)], ...(a.conds || []).map((c) => [c.what, c.value]), ["行の数", a.total], ["出力", new Date().toLocaleString("ja-JP")]];
     const bytes = await window.XlsxWriter.build([{ name: "明細", rows: [head, ...body], header: true }, { name: "明細の条件", rows: cond, header: true }]);
-    const p = (n) => String(n).padStart(2, "0"), d = new Date(), app = (document.querySelector("header h1") || {}).textContent || "LotScope";
+    const p = (n) => String(n).padStart(2, "0"), d = new Date(), app = document.querySelector('meta[name="tpa-app"]')?.content || "アプリ";   // アプリ名は app/brand.json（画面の <meta name="tpa-app">）
     const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
     TPA.download(new Blob([bytes], { type: window.XlsxWriter.MIME }), `${safe(app.trim())}_明細_${safe(t.title)}_${safe(cellName(t))}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`);
     D.host.say(`明細 ${body.length.toLocaleString()} 行を Excel に出力しました`);
