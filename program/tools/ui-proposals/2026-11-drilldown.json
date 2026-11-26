@@ -524,7 +524,23 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "dashboard.js（押す・ダブルクリック・メニューの項目）・dashboard-panels.js と lotlist-pivot-charts.js（数の要素に data-dr-r・data-dr-c・data-dr-m）・新しい dashboard-drill.js（DR.cover: パネルの四角から面の四角を決める）・dashboard.css・窓は 1 回目と同じ",
      "shots": "drill-entry・drill（左の 2 枚を覆う）・drill-chart（合わせた表を覆う）・drill-kpi（上の段の下の全幅）・drill-more（前の明細の札 3 つ）",
-     "risks": "面の下のパネルは見えない（押したパネルと、覆わないパネルは見える）。面の置き場は押した所で替わる（左・右・下）"
+     "risks": "面の下のパネルは見えない（押したパネルと、覆わないパネルは見える）。面の置き場は押した所で替わる（左・右・下）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "2 回目の指摘 4 つは直った: (1) 1280 の数字のパネルは線の枠でなく薄い橙の地（s3-kpi-1280.png）。線が無いので 1,200 にも「ロット」にも被らない。ただし 1280 では地の上の端が 1,200 の字の中ほどにあり、数の上半分が地から出て見える（減点にはしないが整列で引く）。1536・1728 では数が地に収まる。(2) 面の縁はどの状態・大きさでもパネルの縁にそろう（score3-1280/drill-light-M.png は左の 2 枚を丸ごと、drill-chart-light-M.png は右の合わせた表を丸ごと、drill-kpi-light-M.png は上の段の下の全幅）。半分覆う形は無い。前日の実績本数の題も切れない。(3) 1280 の表は 11 行（2 回目 G は 6 行）。drill-kpi は全幅で 11 行。1728 は 27 行。(4) 確かめの札は「✓ パネルと同じ 231 ロット」の 1 つの形、一時の言葉は頭の帯の 1 か所「一時の表示（組みは変わりません）」で、どの状態も同じ。依頼の目的: 押したパネルは橙の縁と影で残り、L-1 の 231 に橙の枠が付いたまま横に明細が出るので、数を見ながら明細を読める（drill・drill-chart）。題「L-1・仕掛ロット数 231 行」→ 範囲の札（期間・スライサー・設備＝L-1・列＝仕掛ロット数）→ 表 → 計（231 行・ロット数 231）→ 押す手（一覧で開く ›・Excel に出力・コピー）と上から順に流れ、件数がパネルの数と合うことが緑の札で一目で分かる。× は頭の帯の右。入口（drill-entry）は 216 の右の黒い札「保留 216 ロット／押す・ダブルクリックで明細／右クリックのメニューにも」で数を隠さない（ただしホバーで出る札で、押せる数であることは前もっては見えない）。drill-more は「前の明細 L-1 231・保留 216・仕掛ロット数 1,200」の札が頭の帯に並び、1280 でも切れない。弱い所: 面の下になったパネル（drill で横棒と直近 14 日、drill-chart で合わせた表）は丸ごと見えない。置き場が押した所で左・右・下と替わる。前の明細の札には閉じる手が無い。 表の扱い（全案共通。減点にしなかった理由）: 明細の表は 15 列で、どの大きさでも面の幅を超えるので、右の列（1280 の 用途名・BOX設計… など）が表の枠で切れて見える。これは表の中の送り場（列は送れば届き、計の行に「列 15（ほかに一覧で隠している 21 列）」と出る）の端であり、字が部品の外へはみ出す「見切れ」でも、送らなくても入る物を送らせる「要らないスクロール」でもないので、減点にしない（1・2 回目の採点とも同じ扱い）。最後の行が計の行の上で半分見えるのも、縦の送り場の端で、続きがあることを示す形なので減点にしない。ただし 1280 で行の字が上下半分で切れる（N・P・Q・R）のは見た目が雑なので、整列・余白の点で引いた（M は 11 行目が丸ごと入り、切れが目立たない）。横の送り場は送り棒が見えず、右に列があることが表の端の切れでしか分からないので、考えさせないの点でも少し引いた。",
+     "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た"
     },
     "N M の面に内訳の 1 行": {
      "id": "N",
@@ -534,7 +550,23 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）。内訳は答えに {column, values: [{value, rows}]}（窓が明細の行で数える。上位 3 つと残りの数）を足す。札で絞るのは明細の問い合わせに filters を 1 つ足すだけ",
      "changes": "M と同じ＋dashboard-drill.js（内訳の行）",
      "shots": "M と同じ。どの画像も内訳の 1 行がある",
-     "risks": "1 行増えるので、1280 の表は M より 1 行少ない（10 行）。どの列の内訳を既定にするか（組みに使っていない、値の種類が少ない列）を決める決まりが要る"
+     "risks": "1 行増えるので、1280 の表は M より 1 行少ない（10 行）。どの列の内訳を既定にするか（組みに使っていない、値の種類が少ない列）を決める決まりが要る",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "M と同じ置き場・中身で、範囲の札の下に「内訳 製造材質 ▾｜A3004 83・A5052 77・A1100 71」（1280 の drill-light-N.png）。表を読まずに何が多いかが分かり、依頼の「原因探し」に最も近い手がかりで、考えさせないは M より高い。ただし内訳の小さな棒は 3 つとも同じ長さに見え（score3-1536/drill-chart-light-N.png の A1100 79・A5052 72・A3004 65 も同じ長さ）、数の差を形で見せていないので視覚化は上げなかった。棒の色がパネルの棒と同じ紺で、パネルの棒と見分けにくい。1 行増えたぶん 1280 の表は 9 行と半分（10 行目の字が上下半分で切れる。drill-light-N.png）で、M より詰まって見える。2 回目の指摘 4 つの直りは M と同じ（数字のパネルの地・縁にそろう面・言葉と札）。",
+     "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た"
     },
     "P M の面の頭を明細のタブに": {
      "id": "P",
@@ -544,7 +576,23 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）。タブごとに組みを画面が持ち、替えると尋ね直す",
      "changes": "M と同じ＋dashboard-drill.js（タブ）",
      "shots": "M と同じ。drill-more でタブが 4 つ",
-     "risks": "タブが増えると頭の帯が詰まる（多いときは古いタブを畳む決まりが要る）。タブを替えると、押したパネルの強調も替わる"
+     "risks": "タブが増えると頭の帯が詰まる（多いときは古いタブを畳む決まりが要る）。タブを替えると、押したパネルの強調も替わる",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 8,
+      "place": 9,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "M と同じ置き場・中身で、頭の帯が明細のタブ。score3-1280/drill-more-light-P.png で「L-1 231 ×｜保留 216 ×｜仕掛ロット数 1,200 ×｜生産 654 ×」の 4 つが 1280 でも切れずに 1 段に並び、いまのタブ（生産 654）は上の縁が橙。Excel のピボットのドリルダウンが新しいシートを作る型と同じで、利用者の言う「Excel のイメージ」に最も近い（直感的 9）。開いた明細が 1 か所に同じ形で並び、1 つずつ × で閉じられる（言葉と置き場 9。M の前の明細の札は閉じられない）。2 回目の指摘 4 つの直りは M と同じ（1280 の数字のパネルの地は s3-kpi-1280.png の 3 段目で線が被らない・面の縁はパネルの縁にそろう・確かめの札と一時の言葉は 1 つの形）。1280 の表は 10 行と半分（11 行目の字が上下半分で切れる。drill-light-P.png）。弱い所: 頭の帯から M にあった「仕掛」（データの名前）が消えた。タブの × と全部を閉じる × が同じ帯に並び、どちらで何が閉じるかを少し考えさせる。タブが 5 つ以上になったときの形は画像に無い。面の下のパネルは M と同じく見えない。",
+     "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た"
     },
     "Q 上の段の下をいつも同じ置き場で覆い、押した数を写す": {
      "id": "Q",
@@ -554,7 +602,23 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "M と同じ＋dashboard-drill.js（置き場を固定・押した数の札）",
      "shots": "M と同じ置き場の決め方ではなく、どの状態も上の段の下の全幅",
-     "risks": "押したパネルそのもの（棒の並び・ほかの行との比べ）は覆われ、写した札は 1 行だけ。上の段（数字のパネル）しか見比べられない"
+     "risks": "押したパネルそのもの（棒の並び・ほかの行との比べ）は覆われ、写した札は 1 行だけ。上の段（数字のパネル）しか見比べられない",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 8,
+      "place": 9,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "どの数を押しても上の段の下の全幅（score3-1280/drill-light-Q.png・drill-chart-light-Q.png・drill-kpi-light-Q.png）。置き場はいつも同じで（言葉と置き場 9）、表は 13 列ほどが送らずに見える。押した数は面の頭の「押した数 L-1 ▬ 231 設備ごとの仕掛と前日の実績」の札に写る。しかし押したパネルそのもの（drill では合わせた表、drill-chart では横棒）が覆われ、数を見ながら明細を見る・ほかの行と見比べる、という依頼の目的に最も弱い（階層化・視覚化・考えさせない・直感的を下げた。押した物が消え、写しの 1 行に替わる）。写した札の小さな棒は横棒の形と違う。1280 の表は 9 行と半分（10 行目の字が上下半分で切れる）。2 回目の指摘のうち数字のパネルの地・言葉と札は直った。",
+     "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た"
     },
     "R 明細が一時のパネルになる": {
      "id": "R",
@@ -564,9 +628,27 @@
      "server": "common_build (1) の POST /api/dashboard/drill（1 回目と同じ）",
      "changes": "M と同じ＋dashboard-drill.js（パネルと同じ頭の帯）・dashboard.css（db-ph・db-pbtn をそのまま使う）",
      "shots": "M と同じ",
-     "risks": "ダッシュボードのパネルと似ているので、一時の物（閉じれば消える）だと分かりにくいかもしれない（橙の縁・「明細」の札・一時の言葉で補う）"
+     "risks": "ダッシュボードのパネルと似ているので、一時の物（閉じれば消える）だと分かりにくいかもしれない（橙の縁・「明細」の札・一時の言葉で補う）",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "M と同じ置き場で、面がパネルと同じ形（橙の縁、題の帯に「● L-1・仕掛ロット数 231 行」と 一覧で開く ›・Excel・コピー・×）。押す手を上に上げたぶん 1280 の表は 12 行と半分（13 行目の字が上下半分で切れる。score3-1280/drill-light-R.png）で、全案でいちばん多い。drill-more の前の明細の札 3 つは範囲の札の行の右に 1280 でも切れずに入る。弱い所: 押したパネルと明細の面の両方が同じ橙の縁で、横に並ぶと（drill・drill-chart・drill-more）どちらが押した物でどちらが明細かを縁の色では区別できず、最初に見る物が 2 つになる（階層化 7・形と色 7）。橙が 縁 2 つ・題の点・「明細」の札・一覧で開くのボタン・押した数の枠と多く、色の強弱が弱い（色と文字の調子 7）。パネルと同じ形なので一時の物と分かるのは「明細」の小さな札と灰色の一時の言葉だけ。2 回目の指摘 4 つは直った（数字のパネルの地・縁にそろう面・1280 の行の数・確かめの札の 1 つの形）。",
+     "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た"
     }
-   }
+   },
+   "evaluator": "採点係（3 回目。別のエージェント。案を作っていない。1・2 回目の採点係とも別）。作った者の画像は使わず、自分で撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score3-1728・score3-1536・score3-1280（ui-variants.mjs --from drill-entry --only now,M,N,P,Q,R。3 つとも終了コード 0）だけを見て付けた。1280 の数字のパネルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/s3-kpi-1280.png に、1536・1728 は s3-kpi-1536.png・s3-kpi-1728.png に切り出して拡大して見た",
+   "advice": "3 回目の 1 位は P（83.0）で合格点 80 に届いた（2 位 N 81.1・3 位 M 81.0・Q 78.4・R 78.3）。どの案も減点は無い。2 回目の指摘 4 つ（1280 の数字のパネルの印・面の縁がパネルの縁にそろう・1280 の表の行・言葉と札）は M・N・P・R で直っている。P を作るときに直す所: (1) 頭の帯にデータの名前（仕掛）を戻す（M にはあり P で消えた。タブの頭か題の行に）。(2) タブの × と全部を閉じる × の区別: 全部を閉じる方は「すべて閉じる」の字か、タブの列から離して置き、title を付ける。Esc はいまのタブを閉じる、などの決まりを 1 つにする。(3) タブが多いとき（5 つ以上）の形を決めて撮る（古いタブを畳む・「…」に入れる）。1280 で 4 つが入る幅は確かめた。(4) 1280 の表の最後の行の字が上下半分で切れる（drill-light-P の 11 行目）。行の高さの倍数で表の高さを決める（行の途中で切らない）か、計の行の上に薄い影を付けて送れることを見せる。(5) 表の横の送りは送り棒が見えず、右に列があることが表の端の切れでしか分からない。右の端に薄い影（送れる印）を付け、計の行の「列 15」を押すと列の一覧を出す、など。(6) 1280 の数字のパネルの薄い橙の地は、上の端が 1,200 の字の中ほどにあり数の上半分が地から出る（s3-kpi-1280.png）。地を数の段の字の上の端まで広げる。(7) 入口はホバーの札だけで、押せる数であることが前もって見えない。数の上でカーソルを指にし、組む所の説明か初回の知らせで 1 度だけ教える。(8) N の内訳（製造材質の多い値）は原因探しに効くので、作るときにタブの面の範囲の札の右の「内訳 ▾」として畳んで入れてもよい（その場合、小さな棒は値に比例させ、パネルの棒と違う色にする）。(9) 面の下になったパネルは見えないので、押したパネルの橙の縁と影は残す（M・P の形）。R のように面にも同じ橙の縁を付けない。"
   }
  ],
  "evaluator": "採点係（別のエージェント。案を作っていない）。作った者の画像は使わず、自分で撮った: TPA_UI_EXE=/home/user/LotScope/desktop/target/debug/examples/ui_serve TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs <出力> program/tools/ui-proposals/2026-11-drilldown.mjs --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off を 既定（1728×1152）・--view 1536x864・--view 1280x720 で 1 回ずつ（どれも終了コード 0）。出力 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/drill/score1-1728・score1-1536・score1-1280。sheet-* で全体を見たうえで、1728 は全案の drill-entry・drill・drill-chart・drill-kpi・drill-more を 1 枚ずつ、1536 は A の drill、1280 は A の drill-chart・B の drill と drill-more・C の drill・D の drill-kpi・E の drill-more・F の drill と drill-entry を 1 枚ずつ開いて見た。押した後の動きは画像に出ないので、画像で見える範囲で付けた"
