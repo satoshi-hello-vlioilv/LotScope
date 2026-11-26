@@ -1,5 +1,5 @@
 // 改良「ダッシュボードの数から明細へ」（利用者の改良依頼 2026-11-17 の 7「ダッシュボードの表やグラフの数値から、簡易的(一時的)に明細まで見られるような機能が欲しいです。
-// イメージはEXCELのピボットテーブルの集計されたデータのドリルダウン機能です。」）の案（回 1。決まり 2026-10-17・合格点 80・最大 3 回）。
+// イメージはEXCELのピボットテーブルの集計されたデータのドリルダウン機能です。」）の案（回 1 は A〜F、回 2 は G〜L。決まり 2026-10-17・合格点 80・最大 3 回）。
 //
 // 撮る場面（ui-harness.mjs の状態 drill-entry 〜 drill-off。この比べのために readcol-off の後ろへ足した）:
 //   drill-entry … 明細への入口が見える所（案の window.__drillEntry。今は横棒「保留」を右クリックしたメニュー。明細の項目は無い）
@@ -389,8 +389,244 @@ const CSS_F = `
 .drd-ft{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
 `;
 
+/* ================================================================== 2 回目（rounds[1]）。1 回目の採点の指摘（advice）を受けて:
+   どの案も 入口は 押す 1 手・ダブルクリック・右クリックのメニューの項目「この数の明細を見る」のどれでも開く（lib2 の DR.entry）。
+   入口の札は押す数を覆わない（棒・数字は数の字の右、表のセルは行の上。入らなければ上）。押した数の橙の枠と、その行の名前（L-1・保留）は
+   明細を開いても覆わない（置き場は押したパネルを避けて決める）。言い方は「明細 · パネルの題 · 数の名前」にそろえる（総計も「総計」）。
+   持ち越し: 範囲の札・確かめの札・一時の言葉・前の明細の札・C の窓の中のまとまり（パンくず → 題と行の数と確かめ → 範囲 → 表と計 → 押す手） */
+function lib2() {
+  const DR = window.DR;
+  if (DR.r2) return; DR.r2 = true;
+  /** 押す数と、その字（棒の右の数・セルの数・数字）を合わせた四角 */
+  DR.union = (kind) => {
+    const el = DR.target(kind); if (!el) return null;
+    const rs = [el.getBoundingClientRect()];
+    if (el.tagName === "rect") { const t = el.nextElementSibling; if (t && t.tagName === "text") rs.push(t.getBoundingClientRect()); }
+    return { left: Math.min(...rs.map((r) => r.left)), top: Math.min(...rs.map((r) => r.top)), right: Math.max(...rs.map((r) => r.right)), bottom: Math.max(...rs.map((r) => r.bottom)) };
+  };
+  /** 押した数の行（表は tr、棒はその棒と字、数字はパネルの数の段）。明細の置き場はこの四角を覆わない */
+  DR.rowBox = (kind) => {
+    const el = DR.target(kind); if (!el) return null;
+    if (el.tagName === "TD") return el.closest("tr").getBoundingClientRect();
+    const u = DR.union(kind), lab = el.tagName === "rect" ? [...el.parentNode.querySelectorAll("text.pv-ax")].find((t) => Math.abs(t.getBoundingClientRect().top + t.getBoundingClientRect().height / 2 - (u.top + u.bottom) / 2) < 14) : null;
+    const l = lab ? lab.getBoundingClientRect().left : u.left;
+    return { left: Math.min(l, u.left), top: u.top, right: u.right, bottom: u.bottom };
+  };
+  DR.panelBox = (kind) => DR.target(kind)?.closest(".db-p")?.getBoundingClientRect();
+  DR.name = (kind) => { const c = DR.cases[kind]; return `${c.cell === "総計" ? c.panel : c.short} ${DR.num(c.value)}${c.pid === "wipTotal" || c.pid === "wipClass" || c.pid === "board" ? " ロット" : ""}`; };
+  /** 入口の札: 押す数を覆わない所（棒・数字は字の右、入らなければ上。表のセルは上） */
+  DR.entry = (kind, extra = "") => {
+    const el = DR.hover(kind); if (!el) return;
+    document.querySelector(".dr-tip")?.remove();
+    document.body.insertAdjacentHTML("beforeend", `<div class="dr-tip dr-tip2" style="left:-999px;top:-999px">${DR.esc(DR.name(kind))}<small>押す・ダブルクリックで明細</small><small>右クリックのメニューにも${extra}</small></div>`);
+    const tip = document.querySelector(".dr-tip"), w = tip.offsetWidth, h = tip.offsetHeight, u = DR.union(kind), pb = DR.panelBox(kind);
+    let left = u.right + 12, top = (u.top + u.bottom) / 2 - h / 2, side = "is-r";
+    if (el.tagName === "TD" || left + w > pb.right - 6) { left = Math.max(pb.left + 8, Math.min(u.left, pb.right - w - 8)); top = u.top - h - 10; side = "is-up"; }
+    tip.style.left = `${Math.round(left)}px`; tip.style.top = `${Math.round(top)}px`; tip.classList.add(side);
+  };
+  DR.clear = () => { document.querySelectorAll(".dr-tip").forEach((e) => e.remove()); document.querySelectorAll(".dr-hov").forEach((e) => e.classList.remove("dr-hov")); document.querySelectorAll(".dr-hovp").forEach((e) => e.classList.remove("dr-hovp")); };
+  DR.title = (d) => `明細 · ${DR.esc(d.panel)} · ${DR.esc(d.cell)}`;
+  DR.css2 = `
+.dr-tip2{white-space:nowrap}
+.dp-num.dr-src{outline-offset:-2px !important;background:rgba(224,138,0,.12);border-radius:6px}
+.dr-tip2.is-r::before{content:"";position:absolute;left:-6px;top:50%;margin-top:-6px;border:6px solid transparent;border-left:none;border-right-color:#1f2d3a}
+.dr-tip2.is-up::after{content:"";position:absolute;left:18px;bottom:-6px;border:6px solid transparent;border-bottom:none;border-top-color:#1f2d3a}
+.dr-prevs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px;font-weight:700;color:#5d6b78}
+.dr-prevs .dr-c{cursor:pointer;font:inherit;font-size:12px}
+.dr-crumb{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5d6b78;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dr-crumb b{color:#1f2d3a}
+.dr-ttl{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}.dr-ttl h2{margin:0;font-size:18px;white-space:nowrap}
+.dr-ft{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+`;
+  /** 前の明細の札（押すとその明細に戻る） */
+  DR.prevs = (list, cur) => { const xs = list.filter((k) => k !== cur); return xs.length ? `<div class="dr-prevs">前の明細: ${xs.map((k) => `<button type="button" class="dr-c">${DR.esc(DR.cases[k].short)} ${DR.num(DR.cases[k].value)}</button>`).join("")}</div>` : ""; };
+  /** C の窓の中のまとまり（パンくず → 題と行の数と確かめ → 範囲 → 表と計 → 押す手と一時の言葉） */
+  DR.body = (d, { list = [], compact = false, close = true } = {}) => `
+    <div class="dr-h"><nav class="dr-crumb"><span>ダッシュボード</span>›<span>${DR.esc(d.panel)}</span>›<b>${DR.esc(d.cell)}</b></nav><span class="dr-sp"></span>${close ? '<button type="button" class="dr-x" data-dr-close aria-label="閉じる" title="閉じる（Esc）">×</button>' : ""}</div>
+    <div class="dr-ttl"><h2>${DR.title(d)}</h2><span class="dr-big">${DR.num(d.rows.length)}<small>行</small></span>${DR.check(d)}</div>
+    ${DR.prevs(list, d.kind)}${DR.conds(d)}${DR.table(d, { compact })}
+    <div class="dr-ft">${DR.acts({ close: false })}${DR.temp}</div>`;
+  /** 押した数の行と、そのパネルを覆わない四角（候補: 左・右・上・下。広い方） */
+  DR.freeRect = (kind, g, minW = 420, minH = 260) => {
+    const p = DR.panelBox(kind), gap = 10, c = [
+      { left: g.left, top: g.top, right: p.left - gap, bottom: g.bottom },
+      { left: p.right + gap, top: g.top, right: g.right, bottom: g.bottom },
+      { left: g.left, top: g.top, right: g.right, bottom: p.top - gap },
+      { left: g.left, top: p.bottom + gap, right: g.right, bottom: g.bottom }];
+    const ok = c.filter((r) => r.right - r.left >= minW && r.bottom - r.top >= minH);
+    return ok.sort((a, b) => (b.right - b.left) * (b.bottom - b.top) - (a.right - a.left) * (a.bottom - a.top))[0] || null;
+  };
+  DR.go = (k, keepList = true) => { DR.clear(); if (DR.open && keepList && !DR.tabs.includes(DR.open.kind)) DR.tabs.push(DR.open.kind); if (!DR.tabs.includes(k)) DR.tabs.push(k); DR.open = { kind: k }; DR.dirty = true; };
+  DR.start2 = (css) => { if (!DR.start(DR.css2 + css)) return false; window.__drillEntry = () => DR.entry("chart"); window.__drillMore = () => DR.go("chart2"); window.__drillClose = () => { DR.open = null; DR.tabs = []; DR.dirty = true; }; window.__drillGo = (k) => DR.go(k); return true; };
+}
+
+/* ------------------------------------------------------------------ G: 重ねる面（押した数の反対側に寄せる。グリッドは縮めない） */
+function scriptG() {
+  const DR = window.DR; if (!DR.start2(window.__drCSS)) return;
+  DR.keep(() => {
+    DR.mark();
+    const k = DR.open ? `${DR.open.kind}|${DR.tabs.join()}|${!!DR.rows}|${window.innerWidth}` : "";
+    if (document.body.dataset.drk === k && !DR.dirty) return; DR.dirty = false; document.body.dataset.drk = k;
+    document.querySelector(".drg")?.remove();
+    if (!DR.open || !DR.rows) return;
+    const d = DR.get(DR.open.kind), g = document.querySelector("#dashGrid").getBoundingClientRect(), p = DR.panelBox(d.kind), vw = window.innerWidth;
+    const right = (p.left + p.right) / 2 < vw / 2;   // 押したパネルが左なら右に、右なら左に寄せる
+    // 面は押したパネルの上の縁からグリッドの下まで。幅はパネルの縁にそろえ、パネルを半分だけ覆う形をなるべく作らない（押したパネルは覆わない）
+    const top = p.top, want = Math.min(780, Math.max(460, vw * 0.44));
+    const ps = [...document.querySelectorAll("#dashGrid .db-p")].map((e) => e.getBoundingClientRect());
+    const edges = right ? ps.map((r) => r.left).filter((x) => x >= p.right + 4) : ps.map((r) => r.right).filter((x) => x <= p.left - 4);
+    const cands = [...new Set(edges)].map((x) => right ? { left: x, right: g.right } : { left: g.left, right: x })
+      .filter((c) => c.right - c.left >= 420)
+      .map((c) => ({ ...c, part: ps.filter((r) => r.bottom > top + 2 && r.right > c.left + 2 && r.left < c.right - 2 && !(r.left >= c.left - 2 && r.right <= c.right + 2)).length }));
+    cands.sort((a, b) => a.part - b.part || Math.abs(a.right - a.left - want) - Math.abs(b.right - b.left - want));
+    const c = cands[0] || (right ? { left: g.right - want, right: g.right } : { left: g.left, right: g.left + want });
+    document.body.insertAdjacentHTML("beforeend", `<aside class="drg ${right ? "is-r" : "is-l"}" style="left:${c.left}px;top:${top}px;width:${c.right - c.left}px;height:${g.bottom - top}px" aria-label="明細">${DR.body(d, { list: DR.tabs })}</aside>`);
+  });
+}
+const CSS_G = `
+.drg{position:fixed;z-index:30;display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:#fff;border:1px solid #c9d3de;border-radius:10px;box-shadow:0 12px 36px rgba(15,30,50,.24);box-sizing:border-box}
+.drg.is-r{border-left:3px solid #e08a00}.drg.is-l{border-right:3px solid #e08a00}
+`;
+
+/* ------------------------------------------------------------------ H: 高さを引ける下の引き出し（既定は押した数の行のすぐ下から。明細のタブ） */
+function scriptH() {
+  const DR = window.DR; if (!DR.start2(window.__drCSS)) return;
+  DR.keep(() => {
+    DR.mark();
+    const k = DR.open ? `${DR.open.kind}|${DR.tabs.join()}|${!!DR.rows}|${window.innerHeight}` : "";
+    if (document.body.dataset.drk === k && !DR.dirty) return; DR.dirty = false; document.body.dataset.drk = k;
+    document.querySelector(".drh")?.remove();
+    if (!DR.open || !DR.rows) return;
+    const d = DR.get(DR.open.kind), vh = window.innerHeight, row = DR.rowBox(d.kind);
+    const top = Math.round(Math.min(vh * 0.62, Math.max(vh * 0.36, row.bottom + 14)));   // 押した数の行が隠れない高さ（引いて変えられる）
+    const tabs = DR.tabs.map((t, i) => { const x = DR.cases[t]; return `<button type="button" class="drb-tab${t === d.kind ? " is-on" : ""}" title="${DR.esc(x.panel)} の ${DR.esc(x.cell)}"><span class="drb-n">明細 ${i + 1}</span>${DR.esc(x.short)} <b>${DR.num(x.value)}</b><span class="drb-x" aria-label="この明細を閉じる">×</span></button>`; }).join("");
+    document.body.insertAdjacentHTML("beforeend", `<section class="drh" style="top:${top}px" aria-label="明細">
+      <div class="drh-grip" title="引いて高さを変えます（ダブルクリックで元の高さ）"><i></i></div>
+      <div class="drb-bar"><span class="drb-lab">明細</span><div class="drb-tabs" role="tablist">${tabs}</div><span class="dr-sp"></span>${DR.temp}<button type="button" class="dr-x" data-dr-close aria-label="明細をすべて閉じる" title="明細をすべて閉じる（Esc）">×</button></div>
+      <div class="drh-body"><div class="dr-ttl"><h2>${DR.title(d)}</h2><span class="dr-big">${DR.num(d.rows.length)}<small>行</small></span>${DR.check(d)}<span class="dr-sp"></span>${DR.acts({ close: false })}</div>${DR.conds(d)}${DR.table(d, { compact: true })}</div></section>`);
+  });
+}
+const CSS_H = `
+.drh{position:fixed;left:12px;right:12px;bottom:0;z-index:30;display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #c9d3de;border-bottom:none;border-radius:10px 10px 0 0;box-shadow:0 -10px 28px rgba(15,30,50,.22);overflow:hidden}
+.drh-grip{height:10px;display:grid;place-items:center;cursor:ns-resize;background:#eef2f6}.drh-grip i{width:46px;height:4px;border-radius:2px;background:#9aa7b2}
+.drh .drb-bar{display:flex;align-items:center;gap:8px;padding:2px 8px 0 12px;background:#eef2f6;border-bottom:1px solid #d6dee6;min-width:0}
+.drb-lab{font-size:13px;font-weight:800;color:#3e4f60}
+.drb-tabs{display:flex;gap:2px;min-width:0;overflow:hidden}
+.drb-tab{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 12px;border:1px solid #d6dee6;border-bottom:none;border-radius:8px 8px 0 0;background:#f7f9fb;font:inherit;font-size:13px;font-weight:700;color:#3e4f60;white-space:nowrap;cursor:pointer}
+.drb-tab.is-on{background:#fff;color:#1f2d3a;box-shadow:inset 0 3px 0 #e08a00;margin-bottom:-1px;height:31px}
+.drb-n{font-size:11.5px;color:#6b7a88;font-weight:800}
+.drb-x{margin-left:2px;width:18px;height:18px;border-radius:4px;display:inline-grid;place-items:center;color:#6b7a88}
+.drh .drb-bar .dr-x{width:26px;height:26px;margin-bottom:3px}
+.drh-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:7px;padding:8px 12px 10px}
+.drh-body .dr-ttl h2{font-size:16px}
+`;
+
+/* ------------------------------------------------------------------ I: 幕の無い動かせる窓（押した数の反対側。窓の中は 1 回目の C のまとまり） */
+function scriptI() {
+  const DR = window.DR; if (!DR.start2(window.__drCSS)) return;
+  // 入口は右クリックのメニュー（今のメニューを押した数の字の右へ寄せ、数を覆わない）
+  window.__drillEntry = () => {
+    const el = DR.target("chart"); if (!el) return;
+    const u = DR.union("chart"); DR.hover("chart");
+    el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: u.right + 14, clientY: u.top, button: 2 }));
+    setTimeout(() => {
+      const m = document.querySelector(".tpa-menu"); if (!m) return;
+      m.querySelector("button")?.insertAdjacentHTML("beforebegin", `<button type="button" class="dri-mi"><span aria-hidden="true">☰</span><span>この数の明細を見る<small>${DR.esc(DR.name("chart"))}</small></span><kbd>押す・ダブルクリック</kbd></button>`);
+      const h = m.offsetHeight, top = Math.max(8, Math.min(u.top - 36, window.innerHeight - h - 8));
+      Object.assign(m.style, { left: `${Math.round(u.right + 14)}px`, top: `${Math.round(top)}px` });
+    }, 150);
+  };
+  DR.keep(() => {
+    DR.mark();
+    const k = DR.open ? `${DR.open.kind}|${DR.tabs.join()}|${!!DR.rows}|${window.innerWidth}x${window.innerHeight}` : "";
+    if (document.body.dataset.drk === k && !DR.dirty) return; DR.dirty = false; document.body.dataset.drk = k;
+    document.querySelector(".dri")?.remove(); document.querySelector(".tpa-menu")?.remove();
+    if (!DR.open || !DR.rows) return;
+    const d = DR.get(DR.open.kind), g = document.querySelector("#dashGrid").getBoundingClientRect(), p = DR.panelBox(d.kind), row = DR.rowBox(d.kind), vw = window.innerWidth;
+    const right = (p.left + p.right) / 2 < vw / 2;
+    const room = right ? g.right - Math.max(row.right, p.left + 40) - 14 : Math.min(row.left, p.right) - g.left - 14;
+    const W = Math.round(Math.max(460, Math.min(860, vw * 0.5, room))), H = Math.round(Math.min(640, g.height * 0.9));
+    const left = right ? g.right - W : g.left, top = Math.round(Math.max(g.top, Math.min(g.bottom - H, (row.top + row.bottom) / 2 - H / 2)));
+    document.body.insertAdjacentHTML("beforeend", `<section class="dri" style="left:${left}px;top:${top}px;width:${W}px;height:${H}px" aria-label="明細">
+      <div class="dri-bar" title="引いて動かします"><span class="dri-grip" aria-hidden="true">⠿</span><span>明細</span><span class="dr-sp"></span><span class="dri-note">幕なし（後ろのダッシュボードも押せます）</span></div>
+      <div class="dri-in">${DR.body(d, { list: DR.tabs })}</div><span class="dri-rz" aria-hidden="true"></span></section>`);
+  });
+}
+const CSS_I = `
+.dri{position:fixed;z-index:40;display:flex;flex-direction:column;background:#fff;border:1px solid #b9c5d1;border-radius:12px;box-shadow:0 18px 44px rgba(15,30,50,.28);overflow:hidden}
+.dri-bar{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;background:#eef2f6;border-bottom:1px solid #d6dee6;font-size:12.5px;font-weight:800;color:#3e4f60;cursor:move}
+.dri-grip{font-size:15px;color:#7a8794}.dri-note{font-size:12px;font-weight:600;color:#5d6b78}
+.dri-in{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px 14px 12px}
+.dri-rz{position:absolute;right:3px;bottom:3px;width:12px;height:12px;border-right:2.5px solid #9aa7b2;border-bottom:2.5px solid #9aa7b2;cursor:nwse-resize}
+.tpa-menu .dri-mi{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;border-radius:6px;background:#fff4dd;font:inherit;font-size:13.5px;font-weight:800;color:#5a3a00;text-align:left;cursor:pointer;margin-bottom:4px}
+.tpa-menu .dri-mi small{display:block;font-size:11.5px;font-weight:700;color:#7a5a1e}
+.tpa-menu .dri-mi kbd{font:inherit;font-size:11.5px;color:#6b4300}
+`;
+
+/* ------------------------------------------------------------------ J: 押したパネルを残し、ほかのパネルの所に明細（ほかは薄く） */
+function scriptJ() {
+  const DR = window.DR; if (!DR.start2(window.__drCSS)) return;
+  DR.keep(() => {
+    DR.mark();
+    const grid = document.querySelector("#dashGrid"); if (!grid) return;
+    const k = DR.open ? `${DR.open.kind}|${DR.tabs.join()}|${!!DR.rows}|${window.innerWidth}x${window.innerHeight}` : "";
+    if (document.body.dataset.drk === k && !DR.dirty) return; DR.dirty = false; document.body.dataset.drk = k;
+    document.querySelector(".drj")?.remove(); grid.querySelectorAll(".db-p").forEach((e) => e.classList.remove("drj-dim", "drj-keep"));
+    if (!DR.open || !DR.rows) return;
+    const d = DR.get(DR.open.kind), g = grid.getBoundingClientRect(), r = DR.freeRect(d.kind, g);
+    if (!r) return;
+    grid.querySelectorAll(".db-p").forEach((e) => e.classList.add(e.dataset.id === d.pid ? "drj-keep" : "drj-dim"));
+    document.body.insertAdjacentHTML("beforeend", `<section class="drj" style="left:${r.left}px;top:${r.top}px;width:${r.right - r.left}px;height:${r.bottom - r.top}px" aria-label="明細">${DR.body(d, { list: DR.tabs })}</section>`);
+  });
+}
+const CSS_J = `
+#dashGrid .db-p.drj-dim{opacity:.28;filter:saturate(.4)}
+#dashGrid .db-p.drj-keep{box-shadow:0 0 0 2px #e08a00,0 8px 24px rgba(15,30,50,.16)}
+.drj{position:fixed;z-index:30;display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:#fff;border:1px solid #c9d3de;border-radius:10px;box-shadow:0 10px 30px rgba(15,30,50,.2);box-sizing:border-box}
+`;
+
+/* ------------------------------------------------------------------ L: 覗き（押した行の下・一時の言葉つき）→「すべて見る」で H の引き出し */
+function scriptL() {
+  const DR = window.DR; if (!DR.start2(window.__drCSS)) return;
+  window.__drillGo = (k) => { DR.go(k); DR.open.full = false; };
+  window.__drillMore = () => { DR.open = { kind: (DR.open && DR.open.kind) || "kpi", full: true }; DR.dirty = true; };
+  DR.keep(() => {
+    DR.mark();
+    const k = DR.open ? `${DR.open.kind}|${DR.open.full}|${DR.tabs.join()}|${!!DR.rows}|${window.innerWidth}` : "";
+    if (document.body.dataset.drk === k && !DR.dirty) return; DR.dirty = false; document.body.dataset.drk = k;
+    document.querySelectorAll(".drl,.drh").forEach((e) => e.remove());
+    if (!DR.open || !DR.rows) return;
+    const d = DR.get(DR.open.kind), vh = window.innerHeight, vw = window.innerWidth, row = DR.rowBox(d.kind), p = DR.panelBox(d.kind);
+    if (DR.open.full) {   // すべて見る: H と同じ引き出し（押した数の行のすぐ下から）
+      const top = Math.round(Math.min(vh * 0.62, Math.max(vh * 0.36, row.bottom + 14)));
+      document.body.insertAdjacentHTML("beforeend", `<section class="drh" style="top:${top}px" aria-label="明細"><div class="drh-grip" title="引いて高さを変えます"><i></i></div>
+        <div class="drh-body">${DR.body(d, { list: DR.tabs, compact: true })}</div></section>`);
+      return;
+    }
+    // 覗き: 押した行（名前と数）の下。行の左にそろえ、パネルの外へははみ出させても画面の中に収める
+    const W = 540, NEED = 300, below = vh - row.bottom - 22 >= NEED;
+    const left = Math.round(Math.max(12, Math.min(row.left, vw - W - 12)));
+    const top = below ? Math.round(row.bottom + 10) : Math.round(Math.max(60, row.top - 10 - NEED)), H = below ? Math.min(420, vh - top - 12) : Math.min(420, row.top - 10 - top);
+    document.body.insertAdjacentHTML("beforeend", `<section class="drl ${below ? "is-below" : "is-above"}" style="left:${left}px;top:${top}px;width:${W}px;max-height:${H}px" aria-label="明細の覗き">
+      <span class="drl-arrow" style="left:${Math.round(Math.min(W - 30, Math.max(14, (row.left + row.right) / 2 - left - 6)))}px"></span>
+      <div class="dr-h"><h2>${DR.title(d)}</h2><span class="dr-sp"></span><button type="button" class="dr-x" data-dr-close aria-label="閉じる" title="閉じる（Esc）">×</button></div>
+      <div class="dr-line"><span class="dr-big">${DR.num(d.rows.length)}<small>行</small></span>${DR.check(d, true)}</div>
+      ${DR.conds(d)}${DR.table(d, { max: 5, compact: true, ncol: 5 })}
+      <div class="dr-acts"><button type="button" class="btn-primary">すべて見る（${DR.num(d.rows.length)} 行）›</button><button type="button" class="pv-btn">一覧で開く ›</button><button type="button" class="pv-btn">コピー</button></div>
+      <div class="dr-temp">一時の表示です。閉じると消え、ダッシュボードの組みは変わりません</div></section>`);
+  });
+}
+const CSS_L = CSS_H + `
+.drl{position:fixed;z-index:40;display:flex;flex-direction:column;gap:7px;padding:12px 12px 10px;background:#fff;border:1px solid #c9d3de;border-top:3px solid #e08a00;border-radius:10px;box-shadow:0 12px 32px rgba(15,30,50,.25);box-sizing:border-box}
+.drl .dr-h h2{font-size:15px}
+.drl-arrow{position:absolute;top:-10px;width:0;height:0;border:7px solid transparent;border-top:none;border-bottom-color:#e08a00}
+.drl.is-above{border-top:1px solid #c9d3de;border-bottom:3px solid #e08a00}.drl.is-above .drl-arrow{top:auto;bottom:-10px;border-bottom:none;border-top:7px solid #e08a00}
+.drl .dr-tbox{min-height:120px}
+.drh .drh-body{gap:8px}
+`;
+
 const LIB = `(${lib})()`;
 const R = (fn, css) => [["script", LIB], ["script", `window.__drCSS = ${JSON.stringify(css)};`], ["script", `(${fn})()`]];
+const R2 = (fn, css) => [["script", LIB], ["script", `(${lib2})()`], ["script", `window.__drCSS = ${JSON.stringify(css)};`], ["script", `(${fn})()`]];
 export const PROPOSALS = [
   { key: "now", name: "今（版 3.125.0）", css: "", ops: [] },
   { key: "A", name: "押すと右の面（グリッドが左へ縮み、数と明細を並べて見る）", css: "", ops: R(scriptA, CSS_A) },
@@ -399,4 +635,10 @@ export const PROPOSALS = [
   { key: "D", name: "押したパネルが裏返って明細（狭いパネルは一時的に広がる）", css: "", ops: R(scriptD, CSS_D) },
   { key: "E", name: "一覧の画面へ一時の絞りで（元のデータの一覧のタブに「明細」の札。一覧と同じ表示列・検索・Excel。閉じると元の一覧）", css: "", ops: R(scriptE, CSS_E) },
   { key: "F", name: "押すと数の横に覗き（頭 5 行と確かめ）→「すべて見る」で大きく", css: "", ops: R(scriptF, CSS_F) },
+  // 2 回目（rounds[1]）。どの案も 入口は 押す・ダブルクリック・右クリックのメニューの項目、入口の札は数を覆わない、押した数の行とパネルは覆わない
+  { key: "G", name: "重ねる面（押した数の反対側に寄せ、グリッドは縮めない。窓の中は C のまとまり）", css: "", ops: R2(scriptG, CSS_G) },
+  { key: "H", name: "高さを引ける下の引き出し（既定は押した数の行のすぐ下から。明細のタブ）", css: "", ops: R2(scriptH, CSS_H) },
+  { key: "I", name: "幕の無い動かせる窓（押した数の反対側。入口は数の右に寄せた右クリックのメニューにも）", css: "", ops: R2(scriptI, CSS_I) },
+  { key: "J", name: "押したパネルを残し、ほかのパネルの所に明細（ほかは薄く）", css: "", ops: R2(scriptJ, CSS_J) },
+  { key: "L", name: "覗き（押した行の下・一時の言葉つき）→「すべて見る」で引き出し", css: "", ops: R2(scriptL, CSS_L) },
 ];
