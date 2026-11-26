@@ -246,6 +246,8 @@ pub struct Ctx<'a> {
     pub now: NaiveDateTime,
     pub conv: &'a Arc<Tables>,
     pub cache: &'a Mutex<Cache>,
+    /// 明細（版 3.126.0。POST /api/dashboard/drill）: このセルの元の行も数える（控えは使わない）
+    pub drill: Option<pivot::Drill>,
 }
 
 /// 段取りの失敗（Python の _fail）→ {error, kind, status}
@@ -559,7 +561,8 @@ impl Ctx<'_> {
         let sig = file_sigs(&got.parts);
         let failed_names: Vec<Value> = got.failed.iter().map(|f| f["name"].clone()).collect();
         let key = json!([p, egroups, sets, sig, days, self.now.date().to_string(), failed_names]).to_string();
-        let hit = if skip_cache(&got.parts) { None } else { self.cache.lock().unwrap().get(&key) };
+        // 明細（版 3.126.0）は元の行も返すので、控えから答えず・控えに入れない
+        let hit = if skip_cache(&got.parts) || self.drill.is_some() { None } else { self.cache.lock().unwrap().get(&key) };
         let hit = match hit {
             Some(h) => h,
             None => {
@@ -568,7 +571,9 @@ impl Ctx<'_> {
                 if h.get("error").is_some() {
                     return Some(h);
                 }
-                self.cache.lock().unwrap().put(key, h.clone());
+                if self.drill.is_none() {
+                    self.cache.lock().unwrap().put(key, h.clone());
+                }
                 h
             }
         };
@@ -622,6 +627,7 @@ impl Ctx<'_> {
             egroups: Some(egroups).filter(|e| !e.is_null()),
             sets: Some(sets).filter(|e| !e.is_null()),
             bases: b.get("bases").filter(|x| !x.is_null()),
+            drill: self.drill.as_ref(),
         };
         match pivot::query_many(parts, &ask) {
             Ok(v) => v,
@@ -1328,6 +1334,241 @@ pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
         return Some((st, e));
     }
     Some((200, a))
+}
+
+/// 明細（版 3.126.0。POST /api/dashboard/drill。利用者の改良依頼 2026-11-17 の 7）: 本文 {panel, drill: {r, c, m, g, side, keep, sort, desc,
+/// offset, limit}}。panel は数を尋ねたときと同じ組み（画面の asked: ダッシュボードのスライサー・パネルを絞る・パネルのスライサー込み）。
+/// 数えるときと同じ道（合わせた表はまとまり g の組み・別のデータと合わせるは側 side の組み・設備で分けるは同じ段を足した組み）で
+/// セルの鍵の頭が同じ行を選び、選んだ行だけで同じ数え方をし直した数（check.again）をセルの数（check.raw）と並べて返す。
+/// 明細を出せない形（稼働のガント・ABC・設備ごとに並べた形・2 つのデータから計算した差と達成率）は unsupported に理由を 1 行で返す
+pub fn drill(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
+    let p = match clean_panel(&panel_of(body)?) {
+        Ok(p) => p,
+        Err(Some(e)) => return Some((400, json!({"error": e}))),
+        Err(None) => return None,
+    };
+    let raw: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+    let d = &raw["drill"];
+    let keys = |v: &Value| arr(Some(v)).iter().map(json_str).collect::<Vec<String>>();
+    let num = |k: &str, dflt: usize| d.get(k).and_then(Value::as_u64).map(|x| x as usize).unwrap_or(dflt);
+    let sort = Some(s_or(d.get("sort"))).filter(|x| !x.is_empty()).map(|c| (c, d.get("desc").is_some_and(json_truthy)));
+    let keep = d.get("keep").filter(|k| k.is_array()).map(|k| arr(Some(k)).iter().map(keys).collect::<std::collections::HashSet<_>>());
+    let mut dr =
+        pivot::Drill { r: keys(&d["r"]), c: keys(&d["c"]), keep, m: num("m", 0), sort, offset: num("offset", 0), limit: num("limit", 500) };
+    let no = |why: &str| Some((200, json!({"unsupported": why})));
+    let vis = s_or(p.get("visual"));
+    if OPS_VISUALS.contains(&vis.as_str()) {
+        return no(
+            "稼働のガント・ABC 分析の数は、作業をまとめ直した数なので、ここからは明細を出せません。同じデータの一覧で確かめてください",
+        );
+    }
+    let sub = Ctx { lists: cx.lists, conf: cx.conf, q: cx.q, now: cx.now, conv: cx.conv, cache: cx.cache, drill: None };
+    let mut notes: Vec<String> = vec![];
+    let (q, a) = if vis == "board" {
+        let n = arr(p.get("groups")).len();
+        let g = num("g", 0);
+        if g >= n {
+            return Some((400, json!({"error": "合わせた表のまとまりがありません。"})));
+        }
+        let q = board_query(&p, g);
+        let a = Ctx { drill: Some(dr.clone()), ..sub }.answer(&q)?;
+        (q, a)
+    } else if let Some(link) = p.get("link") {
+        let sides = arr(link.get("sides"));
+        let i = num("side", usize::MAX);
+        if i >= sides.len() {
+            return no("差・達成率は 2 つのデータから計算した数なので、明細を出せません。目標と実績のそれぞれの数から明細を開いてください");
+        }
+        let q = side_query(link, i, &p);
+        // 合わせた答えの鍵（そろえた鍵）を、この側の鍵へ戻す。そろえると同じ鍵になる値（全角・$ の有無）が 2 つあれば、
+        // 合わせた答えは後の値で上書きするので（link_answer）、明細も後の値の行にする（パネルの数と同じ）
+        let a0 = sub.answer(&q)?;
+        if let (Some(want), Some(Value::Array(ks))) = (dr.r.first().cloned(), a0["orders"].get(0)) {
+            if let Some(k) = ks.iter().map(json_str).rfind(|k| !k.is_empty() && link_key(k) == want) {
+                dr.r = vec![k];
+            }
+        }
+        dr.m = 0;
+        let a = Ctx { drill: Some(dr.clone()), ..sub }.answer(&q)?;
+        let title = s_or(sides[i].get("title"));
+        notes.push(format!(
+            "別のデータと合わせた表の「{}」の側の明細です",
+            if title.is_empty() { s_or(a.get("sourceName")) } else { title }
+        ));
+        (q, a)
+    } else {
+        let a = Ctx { drill: Some(dr.clone()), ..sub }.split_answer(&p)?;
+        if a.get("facets").is_some() {
+            return no("設備ごとに並べた形のグラフは、ここからは明細を出せません。設備を 1 つにするか、重ねる形にしてください");
+        }
+        (p.clone(), a)
+    };
+    if a.get("cells").is_none() || a.get("drill").is_none() {
+        let st = a.get("status").and_then(Value::as_u64).unwrap_or(503) as u16;
+        return Some((
+            st,
+            json!({"error": a.get("error").cloned().unwrap_or(json!("明細を読めませんでした。")), "kind": a.get("kind").cloned().unwrap_or(json!("error"))}),
+        ));
+    }
+    let x = &a["drill"];
+    let j = dr.m.min(arr(a.get("measures")).len().saturating_sub(1));
+    let m = a["measures"].get(j).cloned().unwrap_or(Value::Null);
+    let pick = |v: &Value| v.get(j).cloned().unwrap_or(Value::Null);
+    let (raw_v, again_v, cell_v) = (pick(&x["raw"]), pick(&x["again"]), pick(&x["cell"]));
+    let close = |a: &Value, b: &Value| match (a.as_f64(), b.as_f64()) {
+        (Some(p), Some(q)) => (p - q).abs() <= 1e-9 * p.abs().max(q.abs()).max(1.0),
+        _ => a == b,
+    };
+    // セルが無い（当たる行が無い）ときは、明細も 0 行なら同じ
+    let empty = raw_v.is_null() && x["total"].as_u64() == Some(0);
+    let same = if dr.keep.is_some() || m["agg"] == "base" { Value::Null } else { json!(empty || close(&raw_v, &again_v)) };
+    // 値の計算・見せ方・割る数（案の common_build の (6)）: 表の数と明細から数えた数の違いを言う
+    if m["agg"] == "base" || m.get("per").is_some_and(json_truthy) {
+        notes.push("割る数（稼働直・換算稼働日など）は勤務体系から数えるので、明細の行にはありません".into());
+    }
+    if m.get("expr").is_some_and(json_truthy) && !close(&raw_v, &cell_v) {
+        notes.push(format!(
+            "表の数は値の計算（{}）を当てた数です（明細から数えた数 {} → {}）",
+            s_or(m.get("expr")),
+            num_text(&raw_v),
+            num_text(&cell_v)
+        ));
+    }
+    if m.get("show").is_some_and(json_truthy) {
+        notes.push(format!("表の数は見せ方（{}）を当てた数です。明細は元の行です（元の数 {}）", aggregate_name(&m, ""), num_text(&raw_v)));
+    }
+    // 範囲の札の材料: データ・期間・条件・検索・設備と、この数の行と列（段の名前と見せる名前）
+    let mut conds: Vec<Value> = vec![json!({"what": "データ", "value": s_or(a.get("sourceName")), "from": "panel"})];
+    if let Some(pr) = a.get("period").filter(|v| v.is_object()) {
+        let span = arr(pr.get("ranges"))
+            .first()
+            .map(|r| if r["from"] == r["to"] { s_or(r.get("from")) } else { format!("{}〜{}", s_or(r.get("from")), s_or(r.get("to"))) })
+            .unwrap_or_default();
+        let n = pr.get("n").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default();
+        let name = s_or(pr.get("name")).replace(" n ", &format!(" {n} "));
+        conds.push(json!({"what": "期間", "value": format!("{name} {span}").trim(), "from": "panel"}));
+    } else {
+        conds.push(json!({"what": "期間", "value": "なし", "from": "panel"}));
+    }
+    let eq = names(q.get("equips"), MAX_EQUIPS);
+    if !eq.is_empty() {
+        conds.push(json!({"what": "設備", "value": eq.join("・"), "from": "panel"}));
+    }
+    for f in arr(q.get("filters")) {
+        let col = s_or(f.get("column"));
+        if col.is_empty() && f["op"] != "tuple_in" {
+            continue;
+        }
+        conds.push(json!({"what": if col.is_empty() { "条件".to_string() } else { col }, "value": filter_text(f), "from": "filter"}));
+    }
+    let search = s_or(q.get("search"));
+    if !search.is_empty() {
+        conds.push(json!({"what": "検索", "value": search, "from": "panel"}));
+    }
+    let dims = &a["dims"];
+    let labels = &a["labels"];
+    let nr = arr(dims.get("rows")).len();
+    let label = |i: usize, k: &str| labels.get(i).and_then(|l| l.get(k)).map(json_str).unwrap_or_else(|| k.to_string());
+    for (i, k) in dr.r.iter().enumerate() {
+        conds.push(json!({"what": s_or(dims["rows"][i].get("name")), "value": label(i, k), "from": "cell"}));
+    }
+    for (i, k) in dr.c.iter().enumerate() {
+        conds.push(json!({"what": s_or(dims["cols"][i].get("name")), "value": label(nr + i, k), "from": "cell"}));
+    }
+    if dr.keep.is_some() {
+        conds.push(json!({"what": "行", "value": "その他（上位に入らなかった行）", "from": "cell"}));
+    }
+    // 組みに使った列（明細の列で先に並べる）
+    let mut used: Vec<String> = vec![];
+    let mut use_col = |c: &str| {
+        if !c.is_empty() && !c.starts_with('@') && !used.iter().any(|x| x == c) {
+            used.push(c.to_string());
+        }
+    };
+    let ecol = s_or(x.get("equipColumn"));
+    if !eq.is_empty() {
+        use_col(&ecol);
+    }
+    for dd in arr(dims.get("rows")).iter().chain(arr(dims.get("cols"))) {
+        let col = s_or(dd.get("column"));
+        if col == pivot::EQUIP_DIM || col == pivot::EGROUP_DIM {
+            use_col(&ecol);
+        }
+        use_col(&col);
+    }
+    for mm in arr(a.get("measures")) {
+        use_col(&s_or(mm.get("column")));
+    }
+    for f in arr(q.get("filters")) {
+        use_col(&s_or(f.get("column")));
+    }
+    if let Some(pr) = a.get("period").filter(|v| v.is_object()) {
+        use_col(&s_or(pr.get("column")));
+    }
+    let start = s_or(a.get("start"));
+    use_col(&start);
+    Some((
+        200,
+        json!({
+            "columns": x["columns"], "rows": x["rows"], "multi": x["multi"], "offset": x["offset"], "total": x["total"], "lots": x["lots"],
+            "parts": x["parts"], "lotsBy": a["lotsBy"], "sourceName": a["sourceName"], "source": s_or(q.get("source")),
+            "measure": m, "check": {"cell": cell_v, "raw": raw_v, "again": again_v, "same": same, "rows": x["total"], "lots": x["lots"]},
+            "used": used, "conds": conds, "notes": notes, "now": a["now"],
+        }),
+    ))
+}
+
+/// 数の字（明細の知らせ。整数はそのまま・小数は 4 桁まで）
+fn num_text(v: &Value) -> String {
+    match v {
+        Value::Number(n) => {
+            n.as_i64().map(pivot::commas).unwrap_or_else(|| format!("{}", aggregate::py_round(n.as_f64().unwrap_or(0.0), 4)))
+        }
+        Value::Null => "–".into(),
+        x => json_str(x),
+    }
+}
+
+/// 条件の字（範囲の札）
+fn filter_text(f: &Value) -> String {
+    let op = s_or(f.get("op"));
+    let v = s_or(f.get("value"));
+    let word = match op.as_str() {
+        "eq" => "＝",
+        "neq" => "≠",
+        "contains" => "を含む",
+        "not_contains" => "を含まない",
+        "starts" => "で始まる",
+        "not_starts" => "で始まらない",
+        "ends" => "で終わる",
+        "not_ends" => "で終わらない",
+        "gt" => "＞",
+        "gte" => "≧",
+        "lt" => "＜",
+        "lte" => "≦",
+        "empty" => "が空",
+        "not_empty" => "が空でない",
+        "in" => "のどれか",
+        "date_range" => "の間",
+        _ => "",
+    };
+    if op == "in" || op == "tuple_in" {
+        let vs: Vec<String> =
+            serde_json::from_str::<Value>(&v).ok().map(|x| arr(Some(&x)).iter().map(json_str).collect()).unwrap_or_default();
+        let shown: Vec<&str> = vs.iter().take(3).map(String::as_str).collect();
+        return format!("{}{}", shown.join("・"), if vs.len() > 3 { format!(" ほか {}", vs.len() - 3) } else { String::new() });
+    }
+    if word.is_empty() {
+        return v;
+    }
+    if op == "empty" || op == "not_empty" {
+        return word.trim_start_matches('が').to_string();
+    }
+    if word.starts_with(['を', 'で', 'の']) {
+        format!("{v}{word}")
+    } else {
+        format!("{word} {v}")
+    }
 }
 
 /// 数えるファイルの印（控えの鍵: 場所・書いた時刻・大きさ。Python の _file_sig）

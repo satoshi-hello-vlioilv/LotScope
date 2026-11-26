@@ -501,3 +501,9 @@ body.tpa-sorting .screen-tab{cursor:grabbing}
 .mst-screen.hidden{display:none}
 .mst-empty{max-width:640px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px 28px;box-shadow:var(--shadow)}
 .mst-empty h2{margin:0 0 10px;font-size:18px}.mst-empty p{margin:0 0 10px;line-height:1.7;color:var(--ink)}
+
+/* 明細の一時の絞り（版 3.126.0。ダッシュボードの数から「一覧で開く ›」）: どの数の元の行か・戻る・外す */
+.ll-drillband{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;flex:none;margin:8px 10px 0;padding:7px 12px;border-radius:9px;border:1px solid #e6c98f;background:#fff8e8;font-size:13px;color:#3d2c08}
+.ll-drlab{padding:0 9px;border-radius:999px;background:#7a4b00;color:#fff;font-size:12px;font-weight:800;line-height:22px;white-space:nowrap}
+.ll-drsay{flex:1 1 360px;min-width:0;line-height:1.5}
+.ll-drillband .pv-btn,.ll-drillband .btn-ghost{height:28px;white-space:nowrap}

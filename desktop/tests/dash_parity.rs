@@ -101,6 +101,153 @@ fn one(
     Some(want)
 }
 
+/// 送った本文（{"panel": …} の字）に明細の鍵を足した本文（パネルの字は送った順のまま）
+fn with_drill(c: &Value, drill: &Value) -> Vec<u8> {
+    let raw = String::from_utf8(sent(c)).unwrap();
+    let end = raw.rfind('}').unwrap();
+    format!("{},\"drill\":{}}}", &raw[..end], drill).into_bytes()
+}
+
+/// 明細（版 3.126.0）の突き合わせ: 焼いた場面の組ごとに、答えのセル（いちばん下の段・小計・総計）を最大 16 ずつ尋ねる
+fn drill_cells(lot: &Lot, cases: &[(String, Value, Value)], ask: &dyn Fn() -> Result<Value, String>, bad: &mut Vec<String>) {
+    let (mut asked, mut same, mut subs, mut boards, mut sides, mut series, mut no) = (0, 0, 0, 0, 0, 0, 0);
+    let mut others = 0;
+    let mut check = |key: &str, c: &Value, drill: Value, want: &Value, bad: &mut Vec<String>| {
+        let Some((st, v)) = lot.handle_body_with("POST", "/api/dashboard/drill", "", &with_drill(c, &drill), ask) else {
+            bad.push(format!("{key}: 明細を窓が答えません"));
+            return None;
+        };
+        if v.get("unsupported").is_some() {
+            return Some(v);
+        }
+        if st != 200 {
+            bad.push(format!("{key}: 明細が {st}（{}）", v["error"]));
+            return None;
+        }
+        asked += 1;
+        let ck = &v["check"];
+        if ck["same"] == false {
+            bad.push(format!("{key} {drill}: 明細から数え直した数 {} ≠ セルの数 {}", ck["again"], ck["raw"]));
+        }
+        if !want.is_null() && ck["cell"] != *want && !(ck["cell"].as_f64().zip(want.as_f64()).is_some_and(|(a, b)| (a - b).abs() < 1e-9)) {
+            bad.push(format!("{key} {drill}: 明細のセルの数 {} ≠ パネルの答え {want}", ck["cell"]));
+        }
+        same += (ck["same"] == true) as usize;
+        if v["total"].as_u64().unwrap_or(0) as usize != v["rows"].as_array().map(|r| r.len()).unwrap_or(0)
+            && v["total"].as_u64().unwrap_or(0) <= 500
+        {
+            bad.push(format!(
+                "{key} {drill}: 行の数 {} と返した行 {} が違う",
+                v["total"],
+                v["rows"].as_array().map(|r| r.len()).unwrap_or(0)
+            ));
+        }
+        Some(v)
+    };
+    let pick = |cells: &[Value]| -> Vec<Value> {
+        // いちばん下の段・小計・総計が混ざるよう、段の長さごとに散らして最大 16
+        let mut by: std::collections::BTreeMap<usize, Vec<&Value>> = Default::default();
+        for x in cells {
+            let n = x["r"].as_array().map(|a| a.len()).unwrap_or(0) * 10 + x["c"].as_array().map(|a| a.len()).unwrap_or(0);
+            by.entry(n).or_default().push(x);
+        }
+        let mut out = vec![];
+        for xs in by.values() {
+            let step = (xs.len() / 4).max(1);
+            out.extend(xs.iter().step_by(step).take(4).map(|x| (*x).clone()));
+        }
+        out.truncate(16);
+        out
+    };
+    for (name, c, want) in cases {
+        if want["status"] != 200 {
+            continue;
+        }
+        let key = format!("明細 {name}");
+        let b = &want["body"];
+        let vis = c["panel"]["visual"].as_str().unwrap_or("");
+        if vis == "gantt" || vis == "abc" {
+            if let Some(v) = check(&key, c, json!({"r": [], "c": []}), &Value::Null, bad) {
+                no += v.get("unsupported").is_some() as usize;
+            }
+            continue;
+        }
+        if let Some(gs) = b.get("groups").and_then(Value::as_array) {
+            for (g, a) in gs.iter().enumerate() {
+                for x in pick(a["cells"].as_array().map(Vec::as_slice).unwrap_or(&[])) {
+                    boards += 1;
+                    check(&key, c, json!({"g": g, "r": x["r"], "c": x["c"], "m": 0}), &x["v"][0], bad);
+                }
+            }
+            continue;
+        }
+        let Some(cells) = b.get("cells").and_then(Value::as_array) else { continue };
+        if b.get("facets").is_some() {
+            if let Some(v) = check(&key, c, json!({"r": [], "c": []}), &Value::Null, bad) {
+                no += v.get("unsupported").is_some() as usize;
+            }
+            continue;
+        }
+        let link = c["panel"].get("link").is_some();
+        let nm = b["measures"].as_array().map(|m| m.len()).unwrap_or(1);
+        // 上位 N の「その他」（画面の withOther）: 行の葉の先頭 2 つを上位として、残りの行。件数・合計は残りの葉の数の和と同じ
+        let nr = b["dims"]["rows"].as_array().map(|a| a.len()).unwrap_or(0);
+        let agg = b["measures"][0]["agg"].as_str().unwrap_or("");
+        let leaves: Vec<&Value> = cells
+            .iter()
+            .filter(|x| x["r"].as_array().is_some_and(|a| a.len() == nr) && x["c"].as_array().is_some_and(|a| a.is_empty()))
+            .collect();
+        if !link
+            && nr == 1
+            && leaves.len() >= 3
+            && (agg == "count" || agg == "sum")
+            && b.get("esplit").is_none()
+            && b["measures"][0].get("show").is_none()
+            && b["measures"][0].get("expr").is_none()
+        {
+            let keep: Vec<Value> = leaves[..2].iter().map(|x| x["r"].clone()).collect();
+            let rest: f64 = leaves[2..].iter().filter_map(|x| x["v"][0].as_f64()).sum();
+            if let Some(v) = check(&key, c, json!({"r": [], "c": [], "m": 0, "keep": keep}), &Value::Null, bad) {
+                let got = v["check"]["again"].as_f64().unwrap_or(f64::NAN);
+                if (got - rest).abs() > 1e-6 * rest.abs().max(1.0) {
+                    bad.push(format!("{key}: その他の明細 {got} ≠ 残りの行の数の和 {rest}"));
+                }
+                others += 1;
+            }
+        }
+        for x in pick(cells) {
+            subs += (x["r"].as_array().map(|a| a.len()).unwrap_or(0) < b["dims"]["rows"].as_array().map(|a| a.len()).unwrap_or(0)) as usize;
+            series += b.get("esplit").is_some() as usize;
+            for j in 0..nm.min(3) {
+                if link {
+                    // 別のデータと合わせた答え: 側ごと（差・達成率の列は側の外 → 理由）。セルの数は側の数（累計にした側は除く）
+                    let side = &c["panel"]["link"]["sides"][j];
+                    // 読めない側（答えの link.sides に error）・積み上げにした側・値の無い所は尋ねない（読めない側は窓が理由の 404 を返す）
+                    let failed = b["link"]["sides"][j].get("error").is_some();
+                    if !side.is_null() && (failed || x["v"][j].is_null()) {
+                        continue;
+                    }
+                    let want = if side.is_null() || side["build"] == "cum" || !x["c"].as_array().is_some_and(|a| a.is_empty()) {
+                        Value::Null
+                    } else {
+                        x["v"][j].clone()
+                    };
+                    if let Some(v) = check(&key, c, json!({"r": x["r"], "c": [], "m": j, "side": j}), &want, bad) {
+                        sides += 1;
+                        no += v.get("unsupported").is_some() as usize;
+                    }
+                } else {
+                    check(&key, c, json!({"r": x["r"], "c": x["c"], "m": j}), &x["v"][j], bad);
+                }
+            }
+        }
+    }
+    assert!(
+        asked >= 300 && same >= 250 && subs >= 30 && boards >= 20 && sides >= 8 && series >= 10 && no >= 3 && others >= 5,
+        "明細の組が足りません: 尋ねた {asked}・同じ {same}・小計と総計 {subs}・合わせた表 {boards}・合わせる側 {sides}・設備ごとの系列 {series}・理由 {no}・その他 {others}"
+    );
+}
+
 #[test]
 fn dashboard_answers_like_python() {
     let work = common::work("dash");
@@ -117,10 +264,12 @@ fn dashboard_answers_like_python() {
     let ask = || Ok(settings.clone());
     let mut bad = vec![];
     let (mut total, mut cells, mut fails, mut facets, mut boards, mut links, mut hot) = (0, 0, 0, 0, 0, 0, 0);
+    let mut answered: Vec<(String, Value, Value)> = vec![];
     for (i, c) in o["cases"].as_array().unwrap().iter().enumerate() {
         total += 1;
         let key = format!("#{i} {}", c["name"].as_str().unwrap());
         let Some(want) = one(&mut bk, &lot, c, &key, &ask, &mut bad) else { continue };
+        answered.push((key.clone(), c.clone(), want.clone()));
         let mut hs = vec![];
         hot_stale(&want, &mut hs);
         hot += (!hs.is_empty()) as usize;
@@ -131,6 +280,9 @@ fn dashboard_answers_like_python() {
         boards += w.get("groups").is_some() as usize;
         links += w.get("link").is_some() as usize;
     }
+    // 明細（版 3.126.0。POST /api/dashboard/drill）: どの組のどのセル（小計・総計・設備で分けた系列・合わせた表のまとまり・別のデータの側）も、
+    // 選んだ行で数え直した数（check.again）がセルの数（check.raw）と同じで、セルの数（check.cell）がパネルの答えのセルと同じ
+    drill_cells(&lot, &answered, &ask, &mut bad);
     // 設定を替えて問い直す段: 「いま」を変える（前の「いま」で同じ組を先に問い、答えの控えに入れてから）・出さないタブ
     let mut phases = 0;
     for ph in o["phases"].as_array().unwrap() {

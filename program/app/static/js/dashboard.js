@@ -206,6 +206,7 @@
     }
     S.id = it.id; S.layout = TPA.clone(it.body); S.saved = JSON.stringify(S.layout); S.history = []; S.sel = "";
     if (!keepEdit) S.edit = false;
+    window.DashDrill?.closeAll();          // 明細（版 3.126.0）は開いていたダッシュボードの数の物
     remember({ id: it.id });
     paint(); refresh();
   }
@@ -266,6 +267,9 @@
     const g = $("#dashGrid");
     if (!S.layout) { g.innerHTML = `<p class="db-wait">${esc(S.msg || "読んでいます…")}</p>`; return; }
     box.classList.toggle("is-edit", S.edit);
+    if (S.edit) window.DashDrill?.closeAll();          // 編集に入ったら明細を閉じる（明細は見ているときだけ）
+    // 初めての 1 回だけ、数を押すと明細を見られることを知らせる（版 3.126.0）
+    else if (window.DashDrill && !DashDrill.hintSeen() && S.layout.panels.length) { DashDrill.markHint(); setTimeout(() => say("数（表のセル・棒・数字）を押すと、その数の元の行（明細）を一時的に見られます"), 600); }
     g.style.setProperty("--rows", S.layout.rows);
     g.style.gridTemplateRows = rowTemplate(g);
     const ids = new Set(S.layout.panels.map((p) => p.id));
@@ -566,6 +570,7 @@
   function paintPanel(id, force = false) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
+    queueMicrotask(() => window.DashDrill?.sync());     // 明細の印と置き場（版 3.126.0。描き直しで印が作り直される）
     const a1 = S.answers.get(id), bd = el.querySelector(".db-pb");
     const sig = canon([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.editing === id, S.confirm, quickOf(id), sliceOf(p), picksOn(p), p.visual === "slicer" ? pickOf(id) : 0, S.sources.length]);
     if (!force && el._sig === sig) return;
@@ -1269,13 +1274,16 @@
     return cx >= 0 && cy >= 0 && cx < COLS && cy < S.layout.rows ? { x: cx, y: cy } : null;
   }
   const shot = (f, el, part) => requestAnimationFrame(() => requestAnimationFrame(() => window.Hardcopy && Hardcopy[f](el, part)));   // メニューが消えてから写す
-  function panelMenu(id, x, y) {
+  function panelMenu(id, x, y, dr = null) {
     const p = panelOf(id), el = panelEl(id); if (!p || !el) return;
+    // 押した数の名前（表は行の見出し・グラフは印の題〈「保留: 216」〉・数字はその字）
+    const drName = dr ? ((dr.closest("tr") && dr.closest("tr").querySelector("th") ? dr.closest("tr").querySelector("th").textContent.trim() + " " : "") + (dr.textContent || "").trim().replace(/:\s*/, " ")).replace(/\s+/g, " ").slice(0, 28) : "";
     const qn = Q.chips(quickOf(id)).length, tsv = tableTsv(el), c = clip(), name = titleOf(p), room = !!freeSpot(p.w, p.h);
     S.sel = id; document.querySelectorAll("#dashGrid .db-p").forEach((x2) => x2.classList.toggle("is-sel", S.edit && x2 === el));
     el.classList.add("is-menu");            // どのパネルのメニューかを枠で見せる（閉じたら外す）
     TPA.menu({ x, y, head: name, onClose: () => el.classList.remove("is-menu"), items: [
       { group: "見る" },
+      dr && !S.edit ? { icon: "☰", label: drName ? `この数の明細を見る（${drName}）` : "この数の明細を見る", why: "この数の元の行を、一時的に見ます（押す・ダブルクリックでも）", run: () => drillFrom(dr) } : null,
       { icon: "↻", label: "このパネルを引き直す", run: () => queryPanel(p) },
       { icon: "⧩", label: qn ? `絞り込みを直す（${qn}）…` : "このパネルを絞る…", run: () => openFilter(id, el.querySelector("[data-db-filter]") || el.querySelector(".db-ph")) },
       qn ? { icon: "×", label: "絞り込みを外す", run: () => { setQuick(id, null); refresh(false); paintPanel(id); } } : null,
@@ -1317,15 +1325,29 @@
     if (!S.active || !S.layout || S.editing || drag) return;
     const t = e.target; if (!t.closest || t.closest("input,select,textarea")) return;
     const pEl = t.closest(".db-p");
-    if (pEl) { e.preventDefault(); panelMenu(pEl.dataset.id, e.clientX, e.clientY); return; }
+    if (pEl) { e.preventDefault(); panelMenu(pEl.dataset.id, e.clientX, e.clientY, t.closest("[data-dr]")); return; }
     if (t.closest("#dashGrid")) { e.preventDefault(); gridMenu(e.clientX, e.clientY); }
   }
 
   /* ---------------- 押す ---------------- */
+  /** 明細（版 3.126.0）: 数の印（[data-dr]）から、数を尋ねたときと同じ組み（asked）とセルの鍵で開く */
+  function drillFrom(el) {
+    const pEl = el.closest(".db-p"), p = pEl && panelOf(pEl.dataset.id); if (!p || !window.DashDrill) return;
+    let k; try { k = JSON.parse(el.dataset.dr); } catch (_) { return; }
+    const q = asked(p), drill = { r: k.r || [], c: k.c || [], m: k.m || 0 };
+    if (k.keep) drill.keep = k.keep;
+    if (p.visual === "board") drill.g = k.g || 0;
+    if (q.link) drill.side = drill.m;            // 別のデータと合わせた答え: 値の番号が側（差・達成率は側の外）
+    const shownText = (el.querySelector("b") || el).textContent.replace(/[^\d.,-]/g, "").replace(/,/g, "");
+    const src = S.sources.find((x) => x.key === (p.visual === "board" ? ((p.groups || [])[drill.g] || {}).source : p.source));
+    window.DashDrill.open({ panelId: p.id, title: titleOf(p), panel: q, drill, dr: el.dataset.dr, shown: shownText === "" ? null : Number(shownText), shownText: (el.textContent || "").trim().slice(0, 12), srcName: src ? src.name : "" });
+  }
   function onClick(e) {
     const t = e.target; if (!t.closest) return;
     const b = t.closest("button"); const pEl = t.closest(".db-p");
     if (S.edit && pEl && !b && !S.editing) { S.sel = pEl.dataset.id; document.querySelectorAll("#dashGrid .db-p").forEach((x) => x.classList.toggle("is-sel", x === pEl)); }
+    // 数を押す（版 3.126.0）: 明細を開く（編集中・組んでいる間は開かない）
+    if (!b && pEl && !S.edit && !S.editing) { const dr = t.closest("[data-dr]"); if (dr && pEl.contains(dr)) { drillFrom(dr); return; } }
     if (!b) return;
     if (b.dataset.dbTab) { if (S.edit && dirty()) { say("編集中の変えた所を保存するか、やめてから開いてください"); return; } open(b.dataset.dbTab); return; }
     if (b.hasAttribute("data-db-pick")) { if (S.pop === "pick") closePop(); else { S.confirm = ""; openPop("pick", b, pickHtml(), "db-pickpop"); } return; }
@@ -1407,6 +1429,9 @@
     box.addEventListener("change", onChange);
     $("#dashGrid").addEventListener("pointerdown", onDown);
     $("#dashGrid").addEventListener("contextmenu", onMenu);
+    // ダブルクリックでも明細（版 3.126.0。Excel のピボットと同じ手。1 回目の押すで開いているので、同じ数なら開いたまま）
+    $("#dashGrid").addEventListener("dblclick", (e) => { if (S.edit || S.editing) return; const dr = e.target.closest && e.target.closest("[data-dr]"); if (dr) drillFrom(dr); });
+    window.DashDrill?.mount({ active: () => S.active && !S.edit, sources: () => S.sources, say });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", () => { clearTimeout(bind.rt); bind.rt = setTimeout(() => { if (S.active) paintBar(); }, 150); });
     // マスタ（設備グループなど）が変わったら、選び（まとめ方）を読み直し、出ていれば数え直す（版 3.39.0）
@@ -1493,7 +1518,7 @@
       clearInterval(S.timer);
       S.timer = setInterval(() => { if (!S.editing && !drag) refresh(true); }, POLL_MS);
     },
-    deactivate() { S.active = false; clearInterval(S.timer); S.timer = null; closePop(); },
+    deactivate() { S.active = false; clearInterval(S.timer); S.timer = null; closePop(); window.DashDrill?.closeAll(); },
     /** 評価関数・試験から: いまの組みと答え */
     /** 案を撮る道具（ui-variants.mjs）から: 組みを置き換えて描く（保存はしない） */
     /** 案を撮る道具から: スライサーの字（compact で詰めた形）。置き場を替える案が、道具の行の外に描くため */
@@ -1502,5 +1527,318 @@
     _open(id) { open(id); },                   // 評価関数（ui-eval-json.mjs）から: そのダッシュボードを開く（版 3.120.0）
     _layout: () => TPA.clone(S.layout),        // 評価関数の見る口（版 3.103.0。tools/ui-eval-capacity.mjs）
     _state: () => ({ id: S.id, edit: S.edit, layout: TPA.clone(S.layout), answers: Object.fromEntries([...S.answers].map(([k, v]) => [k, v.d || { error: v.err }])) }),
+    _asked: (id) => { const p = panelOf(id); return p ? asked(p) : null; },   // 評価関数（ui-eval-drill.mjs）: 数を尋ねた組み（版 3.126.0）
+    _dirty: () => dirty(),
   };
 })();
+
+/* =========================================================================
+   明細（版 3.126.0。利用者の改良依頼 2026-11-17 の 7「ダッシュボードの表やグラフの数値から、簡易的(一時的)に明細まで見られる」。
+   決め方: ui-proposals/2026-11-drilldown の 3 回目の P〈明細のタブ〉83.0 点と、その採点の指摘 1〜9）。
+   - 入口: 数の印（[data-dr]: 表のセル・小計・総計・その他・棒・点・扇形・数字・合わせた表のセルと計）を押す・ダブルクリック・右クリックの
+     「この数の明細を見る」（dashboard.js）。数の上は指の形、初めての 1 回だけ「数を押すと明細」を知らせる
+   - 置き場: 押したパネルを覆わず、ほかのパネルを丸ごと覆ういちばん広い四角（パネルの途中に縁を置かない）。押したパネルは橙の縁と影
+   - 頭の帯: 「明細」・データの名前・明細のタブ（5 つ目からは古いタブを「前の n ▾」に畳む）・一時の言葉・「すべて閉じる」。
+     Esc はいまのタブを閉じる（最後のタブなら明細を閉じる）
+   - 中: 題・行の数・確かめの札（明細から数え直した数がパネルの数と同じか）→ 知らせ（値の計算・見せ方・割る数）→ 範囲の札と「内訳 ▾」→
+     表（組みに使った列を先に・見出しで並べ替え・行の高さの倍数の高さ・右と下に送れる印）と計の行 → 一覧で開く ›・Excel に出力・コピー
+   - 一時的: 画面の中だけ（覚えない・保存しない・組みを変えない）。閉じれば消える
+   数と行は窓（POST /api/dashboard/drill。desktop/src/dashboard.rs の drill・pivot.rs の Drill）が、数を出したときと同じ鍵の決まりで選ぶ
+   ========================================================================= */
+(function () {
+  const { esc } = TPA;
+  const PAGE = 1000, ROW_H = 27, MAX_TABS = 4, HINT_KEY = "tpa.drill.hint.v1";   // 出すタブは 4 つまで（5 つ目からは古い方を「前の n ▾」）
+  const D = { tabs: [], cur: -1, host: null, seq: 0, inner: null };
+  const C = () => window.LotListPivotCharts;
+  const num = (v) => (v == null ? "–" : typeof v === "number" ? C().numText(v, null) : String(v));
+  const grid = () => document.querySelector("#dashGrid");
+  const tab = () => D.tabs[D.cur] || null;
+
+  /** 押したパネルを覆わず、ほかのパネルを丸ごと覆ういちばん広い四角（右・左・下・上の四角を、掛かるパネルの外の縁まで広げる） */
+  function cover(pe) {
+    const g = grid().getBoundingClientRect(), p = pe.getBoundingClientRect();
+    const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
+    const uni = (rs) => ({ left: Math.min(...rs.map((r) => r.left)), top: Math.min(...rs.map((r) => r.top)), right: Math.max(...rs.map((r) => r.right)), bottom: Math.max(...rs.map((r) => r.bottom)) });
+    const ps = [...grid().querySelectorAll(".db-p")].filter((e) => e !== pe).map((e) => e.getBoundingClientRect());
+    const cs = [{ left: p.right + 1, top: p.top, right: g.right, bottom: g.bottom }, { left: g.left, top: p.top, right: p.left - 1, bottom: g.bottom },
+      { left: g.left, top: p.bottom + 1, right: g.right, bottom: g.bottom }, { left: g.left, top: g.top, right: g.right, bottom: p.top - 1 }];
+    let best = null;
+    for (const c of cs) {
+      if (c.right - c.left < 40 || c.bottom - c.top < 40) continue;
+      let box = c;
+      for (let i = 0; i < 12; i++) {
+        const hs = ps.filter((r) => hit(r, box)); if (!hs.length) { box = null; break; }
+        const u = uni(hs); if (u.left === box.left && u.top === box.top && u.right === box.right && u.bottom === box.bottom) break; box = u;
+      }
+      if (!box || hit(box, p) || box.right - box.left < 420 || box.bottom - box.top < 240) continue;
+      const area = (box.right - box.left) * (box.bottom - box.top);
+      if (!best || area > best.area) best = { ...box, area };
+    }
+    // 入る所が無い（パネルが 1 枚・押したパネルが画面いっぱい）: グリッドの右半分に重ねる
+    return best || { left: g.left + g.width / 2, top: g.top, right: g.right, bottom: g.bottom };
+  }
+
+  const keyOf = (t) => `${t.panelId}\u0001${t.dr}`;
+  /** 開く（spec: {panelId, title, panel〈asked〉, drill, dr〈印の字〉, shown〈押した数の字〉}） */
+  function open(spec) {
+    const k = keyOf(spec), at = D.tabs.findIndex((t) => keyOf(t) === k);
+    if (at >= 0) { D.cur = at; paint(); return; }
+    const t = { ...spec, id: ++D.seq, ans: null, err: "", rows: [], loading: true, sort: "", desc: false, pick: null };
+    D.tabs.push(t); D.cur = D.tabs.length - 1;
+    paint(); load(t, 0);
+    try { TPA.local.set(HINT_KEY, 1); } catch (_) { /* 覚えられなくても明細は開く */ }
+  }
+  async function load(t, offset) {
+    t.loading = true; if (!offset) { t.rows = []; } if (tab() === t) paintBody();
+    const my = (t.ask = (t.ask || 0) + 1);
+    try {
+      const r = await fetch("/api/dashboard/drill", TPA.json("POST", { panel: t.panel, drill: { ...t.drill, sort: t.sort, desc: t.desc, offset, limit: PAGE } }));
+      const d = await r.json().catch(() => ({}));
+      if (my !== t.ask) return;
+      if (!r.ok) throw new Error(d.error || `明細を読めませんでした（${r.status}）`);
+      if (d.unsupported) { t.ans = { unsupported: d.unsupported }; t.err = ""; }
+      else { t.ans = d; t.rows = offset ? t.rows.concat(d.rows || []) : d.rows || []; t.err = ""; }
+    } catch (e) { if (my === t.ask) t.err = e.message; }
+    t.loading = false;
+    if (D.tabs.includes(t)) paint();
+  }
+  function closeTab(i) {
+    if (i < 0 || i >= D.tabs.length) return;
+    D.tabs.splice(i, 1);
+    D.cur = D.tabs.length ? Math.min(D.cur >= i ? D.cur - 1 : D.cur, D.tabs.length - 1) : -1;
+    if (D.cur < 0 && D.tabs.length) D.cur = D.tabs.length - 1;
+    paint();
+  }
+  function closeAll() { D.tabs = []; D.cur = -1; D.inner = null; paint(); }
+
+  /** 押した数の印（橙の枠）と押したパネル（橙の縁と影）。描き直しで印が作り直されても付け直す */
+  function mark() {
+    document.querySelectorAll("#dashGrid .dd-src").forEach((e) => e.classList.remove("dd-src"));
+    document.querySelectorAll("#dashGrid .db-p.dd-keep").forEach((e) => e.classList.remove("dd-keep"));
+    const t = tab(); if (!t) return null;
+    const pe = grid().querySelector(`.db-p[data-id="${CSS.escape(t.panelId)}"]`); if (!pe) return null;
+    pe.classList.add("dd-keep");
+    const el = [...pe.querySelectorAll("[data-dr]")].find((x) => x.dataset.dr === t.dr);
+    if (el) el.classList.add("dd-src");
+    return pe;
+  }
+
+  /** 描き直さずに、印と置き場だけを合わせる（パネルが描き直されたとき・大きさが変わったとき。表の送り位置を残す） */
+  function place() {
+    const box = document.querySelector("#dashDrill"), t = tab();
+    if (!box || !t) return;
+    const pe = mark();
+    if (!pe || !D.host || !D.host.active()) { box.remove(); return; }
+    const r = cover(pe);
+    Object.assign(box.style, { left: `${Math.round(r.left)}px`, top: `${Math.round(r.top)}px`, width: `${Math.round(r.right - r.left)}px`, height: `${Math.round(r.bottom - r.top)}px` });
+  }
+
+  /* ---------------- 描く ---------------- */
+  function cellName(t) {
+    const a = t.ans || {};
+    const cs = (a.conds || []).filter((c) => c.from === "cell").map((c) => c.value);
+    return cs.length ? cs.join(" · ") : t.drill.keep ? "その他（上位に入らなかった行）" : `${t.title}（総計）`;
+  }
+  /** タブの名前（短く。総計はパネルの題） */
+  function tabName(t) {
+    const cs = ((t.ans || {}).conds || []).filter((c) => c.from === "cell").map((c) => c.value);
+    return cs.length ? cs.join(" · ") : t.drill.keep ? "その他" : t.title;
+  }
+  const unitOf = (a) => { const m = a.measure || {}; return m.agg === "lots" ? (a.source === "work" ? "本" : "ロット") : m.agg === "count" ? "件" : ""; };
+  function checkHtml(t) {
+    const a = t.ans || {}, ck = a.check || {}, m = a.measure || {};
+    const what = m.agg === "lots" || m.agg === "count" ? "" : `${m.name || ""} `;
+    if (ck.same === true) return `<span class="dd-ok" title="明細の行から数え直した数（${esc(num(ck.again))}）が、パネルの数（${esc(num(ck.raw))}）と同じです">✓ パネルと同じ ${esc(what)}${esc(num(ck.again))} ${esc(unitOf(a))}</span>`;
+    if (ck.same === false) return `<span class="dd-ok is-bad" title="明細の行から数え直した数と、パネルの数が違います">! パネルと違う（明細 ${esc(num(ck.again))}・パネル ${esc(num(ck.raw))}）</span>`;
+    if (t.drill.keep && t.shown != null && ck.again != null) {
+      const same = Math.abs(Number(t.shown) - Number(ck.again)) < 1e-9;
+      return `<span class="dd-ok${same ? "" : " is-bad"}">${same ? "✓ パネルと同じ" : "! パネルと違う"} ${esc(what)}${esc(num(ck.again))} ${esc(unitOf(a))}</span>`;
+    }
+    return "";
+  }
+  function columnsOf(t) {
+    const a = t.ans || {}, cols = a.columns || [], used = (a.used || []).filter((c) => cols.includes(c));
+    const order = used.concat(cols.filter((c) => !used.includes(c))).map((c) => ({ name: c, at: cols.indexOf(c), used: used.includes(c) }));
+    // 読んだ行のどれにも値の無い列は出さない（数を言う）
+    const filled = order.filter((c) => c.used || t.rows.some((r) => r[c.at] != null && r[c.at] !== ""));
+    const out = a.multi ? [{ name: "設備", at: cols.length, used: true, part: true }].concat(filled) : filled;
+    return { cols: out, empty: order.length - filled.length };
+  }
+  function rowsOf(t) {
+    if (!t.pick) return t.rows;
+    const { at, v } = t.pick;
+    return t.rows.filter((r) => String(r[at] ?? "") === v);
+  }
+  const cellText = (v) => (v == null ? "" : typeof v === "number" ? (Number.isInteger(v) ? String(v) : String(Math.round(v * 1e6) / 1e6)) : String(v));
+
+  function tabsHtml(max = MAX_TABS) {
+    // 出すタブ: 新しい方から max 個（いまのタブはいつも出す）。ほかは「前の n ▾」に畳む
+    let show = D.tabs.slice(-max);
+    if (D.cur >= 0 && !show.includes(D.tabs[D.cur])) show = [D.tabs[D.cur], ...show.slice(1)];
+    const hidden = D.tabs.length - show.length;
+    const one = (t) => { const i = D.tabs.indexOf(t), a = t.ans || {}, v = a.check ? num(a.check.cell ?? a.check.again) : t.shownText || "";
+      return `<span class="dd-tab${i === D.cur ? " is-on" : ""}" role="tab" aria-selected="${i === D.cur}"><button type="button" class="dd-tabb" data-dd-tab="${i}" title="${esc(t.title)} の ${esc(cellName(t))}">${esc(t.ans ? tabName(t) : "…")}${v ? ` <b>${esc(v)}</b>` : ""}</button>`
+        + `<button type="button" class="dd-tabx" data-dd-x="${i}" aria-label="この明細を閉じる" title="この明細を閉じる（Esc）">×</button></span>`; };
+    return (hidden ? `<button type="button" class="dd-more" data-dd-more title="前に開いた明細（押すと選べます）">前の ${hidden} ▾</button>` : "") + show.map(one).join("");
+  }
+  function paint() {
+    let box = document.querySelector("#dashDrill");
+    const t = tab(), pe = mark();
+    if (!t || !pe || !D.host || !D.host.active()) { if (box) box.remove(); return; }
+    if (!box) { box = document.createElement("section"); box.id = "dashDrill"; box.className = "dd"; box.setAttribute("aria-label", "明細"); document.body.append(box); box.addEventListener("click", onClick); box.addEventListener("change", onChange); }
+    const r = cover(pe);
+    Object.assign(box.style, { left: `${Math.round(r.left)}px`, top: `${Math.round(r.top)}px`, width: `${Math.round(r.right - r.left)}px`, height: `${Math.round(r.bottom - r.top)}px` });
+    const src = (t.ans && t.ans.sourceName) || t.srcName || "";
+    box.innerHTML = `<div class="dd-strip"><b class="dd-lab">明細</b>${src ? `<span class="dd-srcname" title="データ">${esc(src)}</span>` : ""}<div class="dd-tabs" role="tablist">${tabsHtml()}</div><span class="dd-sp"></span>`
+      + `<span class="dd-temp" title="閉じると消え、ダッシュボードの組みは変わりません（保存もしません）">一時の表示（組みは変わりません）</span>`
+      + `<button type="button" class="dd-all" data-dd-all title="明細をすべて閉じる">すべて閉じる</button></div><div class="dd-in"></div>`;
+    // 頭の帯に入らなければ、タブを減らす → 一時の言葉を短く（字を切らない・重ねない）
+    const strip = box.querySelector(".dd-strip"), tabsEl = box.querySelector(".dd-tabs"), temp = box.querySelector(".dd-temp");
+    const over = () => strip.scrollWidth > strip.clientWidth + 1;
+    // 入らなければ: タブを 2 つまで減らす → 一時の言葉を短く → タブを 1 つ → 一時の言葉は吹き出しだけ（字を切らない・重ねない）
+    for (let m = MAX_TABS - 1; m >= 2 && over(); m--) tabsEl.innerHTML = tabsHtml(m);
+    if (over()) temp.textContent = "一時の表示";
+    if (over()) tabsEl.innerHTML = tabsHtml(1);
+    if (over()) temp.hidden = true;
+    paintBody();
+  }
+  function paintBody() {
+    const box = document.querySelector("#dashDrill"), t = tab(); if (!box || !t) return;
+    const inn = box.querySelector(".dd-in"), a = t.ans;
+    if (!a) { inn.innerHTML = t.err ? `<p class="dd-msg is-err">${esc(t.err)}</p>` : '<p class="dd-msg">元の行を読んでいます…</p>'; return; }
+    if (a.unsupported) { inn.innerHTML = `<div class="dd-ttl"><h2>${esc(t.shownName || t.title)}</h2></div><p class="dd-msg is-no">${esc(a.unsupported)}</p>`; return; }
+    const { cols, empty } = columnsOf(t), rows = rowsOf(t);
+    const conds = (a.conds || []).filter((c) => c.what !== "データ").map((c) => `<span class="dd-c${c.from === "cell" ? " is-cell" : ""}" title="${c.from === "cell" ? "この数の行・列" : c.from === "filter" ? "パネルの条件" : "パネル・スライサーの決まり"}"><i>${esc(c.what)}</i>${esc(c.value)}</span>`).join("");
+    const notes = (a.notes || []).map((n) => `<p class="dd-note">${esc(n)}</p>`).join("");
+    const one = a.parts && a.parts.length === 1 && Array.isArray(a.parts[0].rowids);
+    const why = !one ? (a.parts && a.parts.length > 1 ? "設備をまたぐ明細は、一覧の 1 つの画面に入りません（Excel に出力で全部の行を出せます）" : "この表は行の番号が無いので、一覧で同じ行を開けません") : "";
+    inn.innerHTML = `<div class="dd-ttl"><h2 title="${esc(t.title)} の数から">${esc(cellName(t))}</h2><span class="dd-big">${(a.total || 0).toLocaleString()}<small>行</small></span>${checkHtml(t)}</div>${notes}`
+      + `<div class="dd-chips">${conds}<span class="dd-sp"></span><button type="button" class="dd-inb" data-dd-inner aria-expanded="${!!D.inner}" title="明細の多い値を列ごとに見ます">内訳 ▾</button></div>`
+      + (t.pick ? `<div class="dd-picked">内訳で絞っています: <b>${esc(t.pick.col)}＝${esc(t.pick.v || "（空）")}</b>（${rows.length.toLocaleString()} 行）<button type="button" class="dd-pickx" data-dd-unpick>× 外す</button></div>` : "")
+      + `<div class="dd-tbox"><div class="dd-tw" tabindex="0"><table class="dd-t"><thead><tr><th class="dd-n">#</th>${cols.map((c) => `<th class="${c.used ? "is-used" : ""}${t.sort === c.name ? " is-sort" : ""}"${c.part ? "" : ` data-dd-sort="${esc(c.name)}"`} title="${c.part ? "設備（作業実績のファイル）" : c.used ? "この数の組みに使った列（押すと並べ替え）" : "押すと並べ替え"}">${c.used ? '<span class="dd-dot" aria-hidden="true"></span>' : ""}${esc(c.name)}${t.sort === c.name ? (t.desc ? " ▼" : " ▲") : ""}</th>`).join("")}</tr></thead><tbody></tbody></table></div>`
+      + `<div class="dd-sum"><b>計</b> ${(t.pick ? rows.length : a.total || 0).toLocaleString()} 行${a.lotsBy ? `・${a.source === "work" ? "作業" : "ロット"}数 ${(a.lots || 0).toLocaleString()}` : ""}<span>列 ${cols.length}${empty ? `（値の無い ${empty} 列は畳んでいます）` : ""}</span></div></div>`
+      + `<div class="dd-ft"><button type="button" class="btn-primary" data-dd-list${one ? "" : " disabled"} title="${esc(why || "同じ行を、一覧の画面で一時の絞りとして開きます（一覧の覚えは変えません）")}">一覧で開く ›</button>`
+      + '<button type="button" class="pv-btn" data-dd-xlsx title="明細の全部の行を Excel のファイルに出力します">↓ Excel に出力</button><button type="button" class="pv-btn" data-dd-copy title="明細の全部の行を、タブ区切りでコピーします（Excel に貼れます）">コピー</button>'
+      + (t.loading ? '<span class="dd-wait">読んでいます…</span>' : "") + "</div>";
+    if (D.inner) innerPop(inn);
+    fitTable(inn, cols, rows, t);
+  }
+  /** 表の高さを行の高さの倍数にし（行の途中で切らない）、見える分だけ描く。右・下に送れる印 */
+  function fitTable(inn, cols, rows, t) {
+    const tw = inn.querySelector(".dd-tw"), tb = inn.querySelector("tbody"), box = inn.querySelector(".dd-tbox");
+    const head = inn.querySelector("thead").getBoundingClientRect().height || ROW_H;
+    // 表を 0 にした高さで、ほかの段が使う高さを測る（残りを行の高さの倍数に。行の途中で切らない）
+    tw.style.height = "0px";
+    const cs = getComputedStyle(inn), kids = [...inn.children];
+    const used = kids.reduce((a, k) => a + k.offsetHeight, 0) + (parseFloat(cs.rowGap) || 0) * Math.max(0, kids.length - 1) + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const rest = inn.clientHeight - used - 2;
+    const n = Math.max(3, Math.min(rows.length || 3, Math.floor((rest - head) / ROW_H)));
+    tw.style.height = `${Math.round(head + n * ROW_H)}px`;
+    const draw = () => {
+      const top = Math.max(0, Math.floor(tw.scrollTop / ROW_H) - 10), end = Math.min(rows.length, top + n + 30);
+      const pad = (h) => (h > 0 ? `<tr class="dd-pad" style="height:${h}px"><td colspan="${cols.length + 1}"></td></tr>` : "");
+      tb.innerHTML = pad(top * ROW_H) + rows.slice(top, end).map((r, k) => `<tr><td class="dd-n">${top + k + 1}</td>${cols.map((c) => `<td class="${c.used ? "is-used" : ""}">${esc(cellText(r[c.at]))}</td>`).join("")}</tr>`).join("") + pad((rows.length - end) * ROW_H);
+      box.classList.toggle("is-more-r", tw.scrollLeft + tw.clientWidth < tw.scrollWidth - 2);
+      box.classList.toggle("is-more-b", tw.scrollTop + tw.clientHeight < tw.scrollHeight - 2);
+      // 読んだ行の終わりに近づいたら、続きを読む
+      if (!t.pick && !t.loading && t.ans && t.rows.length < (t.ans.total || 0) && end >= t.rows.length - 5) { t.loading = true; load(t, t.rows.length); }
+    };
+    tw.onscroll = draw;
+    draw();
+  }
+  /** 内訳: 列を選ぶと、明細の多い値（読んだ行で数える）。値を押すと、その値の行だけ（一時） */
+  function innerPop(inn) {
+    const t = tab(), { cols } = columnsOf(t), pickable = cols.filter((c) => !c.part);
+    if (!pickable.length) return;
+    if (!D.inner || !pickable.some((c) => c.name === D.inner)) {
+      const few = pickable.find((c) => !c.used && new Set(t.rows.map((r) => r[c.at])).size <= 30);
+      D.inner = (few || pickable[0]).name;
+    }
+    const c = pickable.find((x) => x.name === D.inner), counts = new Map();
+    t.rows.forEach((r) => { const v = r[c.at] == null ? "" : String(r[c.at]); counts.set(v, (counts.get(v) || 0) + 1); });
+    const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 8), max = top.length ? top[0][1] : 1;
+    const part = t.rows.length < ((t.ans || {}).total || 0) ? `（読んだ ${t.rows.length.toLocaleString()} 行で数えました）` : "";
+    const pop = document.createElement("div");
+    pop.className = "dd-inner";
+    pop.innerHTML = `<div class="dd-ih"><b>内訳</b><select data-dd-icol aria-label="内訳を見る列">${pickable.map((x) => `<option${x.name === D.inner ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select><small>${esc(part)}</small><span class="dd-sp"></span><button type="button" class="dd-ix" data-dd-inner aria-label="内訳を閉じる">×</button></div>`
+      + `<div class="dd-il">${top.map(([v, n]) => `<button type="button" class="dd-iv" data-dd-pick="${esc(v)}" title="${esc(v || "（空）")} の ${n} 行だけを見る"><span class="dd-iname">${esc(v || "（空）")}</span><span class="dd-ibar"><i style="width:${(n / max * 100).toFixed(1)}%"></i></span><b>${n.toLocaleString()}</b></button>`).join("")}${counts.size > 8 ? `<small class="dd-irest">ほか ${counts.size - 8} 種類</small>` : ""}</div>`;
+    inn.querySelector(".dd-chips").after(pop);
+  }
+
+  /* ---------------- 押す ---------------- */
+  async function allRows(t) {
+    const a = t.ans || {}, total = Math.min(a.total || 0, 50000);
+    let rows = t.rows.slice();
+    while (rows.length < total) {
+      const r = await fetch("/api/dashboard/drill", TPA.json("POST", { panel: t.panel, drill: { ...t.drill, sort: t.sort, desc: t.desc, offset: rows.length, limit: 5000 } }));
+      const d = await r.json(); if (!r.ok || !(d.rows || []).length) break;
+      rows = rows.concat(d.rows);
+    }
+    return rows;
+  }
+  async function exportRows(kind) {
+    const t = tab(); if (!t || !t.ans || t.ans.unsupported) return;
+    const { cols } = columnsOf(t), rows = t.pick ? rowsOf(t) : await allRows(t);
+    const head = cols.map((c) => c.name), body = rows.map((r) => cols.map((c) => r[c.at] ?? ""));
+    if (kind === "copy") {
+      const tsv = [head, ...body].map((r) => r.map((v) => String(v).replace(/[\t\r\n]+/g, " ")).join("\t")).join("\n");
+      try { await navigator.clipboard.writeText(tsv); D.host.say(`明細 ${body.length.toLocaleString()} 行をコピーしました（Excel に貼り付けられます）`); } catch (_) { D.host.say("この PC ではクリップボードに入れられませんでした"); }
+      return;
+    }
+    if (!window.XlsxWriter) return;
+    const a = t.ans, cond = [["項目", "値"], ["パネル", t.title], ["数", cellName(t)], ...(a.conds || []).map((c) => [c.what, c.value]), ["行の数", a.total], ["出力", new Date().toLocaleString("ja-JP")]];
+    const bytes = await window.XlsxWriter.build([{ name: "明細", rows: [head, ...body], header: true }, { name: "明細の条件", rows: cond, header: true }]);
+    const p = (n) => String(n).padStart(2, "0"), d = new Date(), app = document.querySelector('meta[name="tpa-app"]')?.content || "アプリ";   // アプリ名は app/brand.json（画面の <meta name="tpa-app">）
+    const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
+    TPA.download(new Blob([bytes], { type: window.XlsxWriter.MIME }), `${safe(app.trim())}_明細_${safe(t.title)}_${safe(cellName(t))}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`);
+    D.host.say(`明細 ${body.length.toLocaleString()} 行を Excel に出力しました`);
+  }
+  function openList() {
+    const t = tab(), a = t && t.ans; if (!a || !a.parts || a.parts.length !== 1) return;
+    const part = a.parts[0], src = a.source || "lot";
+    let equip = "";
+    if (src === "work") { const s = (D.host.sources() || []).find((x) => x.key === "work"), e = ((s && s.equips) || []).find((x) => x.name === part.name); equip = e ? e.key : ""; }
+    const ok = window.LotList && window.LotList.openDrill({ source: src, equip, table: part.table, rowids: part.rowids, panel: t.title, cell: cellName(t), value: num((a.check || {}).cell ?? a.total) });
+    if (!ok) D.host.say("この明細は一覧で開けません");
+  }
+  function onClick(e) {
+    const b = e.target.closest("button"); if (!b) return;
+    const t = tab();
+    if (b.dataset.ddTab != null) { D.cur = +b.dataset.ddTab; D.inner = null; paint(); return; }
+    if (b.dataset.ddX != null) { closeTab(+b.dataset.ddX); return; }
+    if (b.hasAttribute("data-dd-all")) { closeAll(); return; }
+    if (b.hasAttribute("data-dd-more")) {
+      const r = b.getBoundingClientRect(), hidden = D.tabs.slice(0, D.tabs.length - MAX_TABS);
+      TPA.menu({ x: r.left, y: r.bottom + 4, head: "前に開いた明細", items: hidden.map((x) => ({ label: `${tabName(x)} ${x.ans && x.ans.check ? num(x.ans.check.cell ?? x.ans.check.again) : ""}`, why: x.title, run: () => { D.cur = D.tabs.indexOf(x); paint(); } })) });
+      return;
+    }
+    if (!t) return;
+    if (b.dataset.ddSort != null) { const c = b.dataset.ddSort; t.desc = t.sort === c ? !t.desc : false; t.sort = c; load(t, 0); return; }
+    if (b.hasAttribute("data-dd-inner")) { D.inner = D.inner ? null : ""; paintBody(); return; }
+    if (b.dataset.ddPick != null) { t.pick = { col: D.inner, at: columnsOf(t).cols.find((c) => c.name === D.inner).at, v: b.dataset.ddPick }; D.inner = null; paintBody(); return; }
+    if (b.hasAttribute("data-dd-unpick")) { t.pick = null; paintBody(); return; }
+    if (b.hasAttribute("data-dd-list")) { openList(); return; }
+    if (b.hasAttribute("data-dd-xlsx")) { exportRows("xlsx"); return; }
+    if (b.hasAttribute("data-dd-copy")) { exportRows("copy"); }
+  }
+  function onChange(e) { if (e.target.matches("[data-dd-icol]")) { D.inner = e.target.value; paintBody(); } }
+  // 見出しの th は button でないので、並べ替えは th を押しても（押す所を広く）
+  document.addEventListener("click", (e) => { const th = e.target.closest && e.target.closest("#dashDrill th[data-dd-sort]"); if (!th) return; const t = tab(); if (!t) return; const c = th.dataset.ddSort; t.desc = t.sort === c ? !t.desc : false; t.sort = c; load(t, 0); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !tab() || !document.querySelector("#dashDrill")) return;
+    if (document.querySelector(".tpa-menu, .us-card")) return;      // メニュー・確かめの窓が先
+    e.preventDefault(); closeTab(D.cur);
+  });
+  window.addEventListener("resize", () => { clearTimeout(D.rt); D.rt = setTimeout(() => { if (tab()) paint(); }, 120); });   // 大きさが変われば表の行の数も変わる
+
+  window.DashDrill = {
+    mount(host) { D.host = host; },
+    open, close: () => closeTab(D.cur), closeAll, sync: place,
+    isOpen: () => !!tab(),
+    hintSeen: () => { try { return !!TPA.local.get(HINT_KEY, 0); } catch (_) { return true; } },
+    markHint: () => { try { TPA.local.set(HINT_KEY, 1); } catch (_) { /* 覚えられなくてよい */ } },
+    /** 評価関数（ui-eval-drill.mjs）の見る口: タブ・いまの答え */
+    _state: () => ({ tabs: D.tabs.map((t) => ({ title: t.title, cell: t.ans ? cellName(t) : "", total: t.ans && t.ans.total, lots: t.ans && t.ans.lots, check: t.ans && t.ans.check, unsupported: t.ans && t.ans.unsupported, loaded: t.rows.length, err: t.err, loading: t.loading })), cur: D.cur }),
+  };
+})();
+
