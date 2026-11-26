@@ -665,14 +665,20 @@
       ? `当てられる変換表 <b>${ready.length}</b>${what ? `（${what}）` : ""}${done.length ? `・当てた ${done.length}` : ""}`
       : done.length ? `変換表を <b>${done.length}</b> つ当てています` : "この表に当てられる変換表はありません"}</span><span class="lc-sp"></span>`
       + (ready.length ? `<button type="button" class="lc-cvgo" data-cv-apply${pick.length ? "" : " disabled"} title="選んだ変換表を、この表の列に当てます（保存で確定。閉じると元に戻ります）">${pick.length === ready.length ? "まとめて当てる" : `選んだ ${pick.length} つを当てる`}</button>` : "")
+      + '<a class="lc-cvmaster" href="#" data-cv-master title="マスタ管理の変換表を開きます">変換表を直す ›</a>'
       + `<button type="button" class="lc-cvmore" data-cv-more aria-expanded="${convOpen}" title="変換表ごとに、当てるか・何をするかを見て選びます">${convOpen ? "選ぶ ▴" : "選ぶ ▾"}</button></div>`
-      + (convOpen ? `<div class="lc-cvpick">${plans.map((p) => {
+      // 当てられない表（元の列が無い）は 1 表 2 行で並べず、1 行のまとめに畳む（版 3.125.0。前は帯が高くなり、1536・1280 で下のリンクが隠れた）
+      + (convOpen ? `<div class="lc-cvpick">${plans.filter((p) => p.ok || p.done).map((p) => {
         const x = C.get(p.name), st = p.done ? "done" : p.ok ? "ok" : "none";
         const how = p.mode === "replace" ? `読み替え: ${p.targets.map((tg) => tg.column).join("・")}` : `列を足す: ${p.targets.map((tg) => tg.column).join("・")}`;
         const why = st === "none" ? `列がありません（${p.missing.join("・")}）` : st === "done" ? `当てた（${how.replace(/^[^:]+: /, "")}）` : how;
         return `<label class="lc-cvi is-${st}" title="${esc(C.summary(x))}"><input type="checkbox" data-cv-pick="${esc(p.name)}"${st === "ok" && !convOff.has(p.name) ? " checked" : ""}${st === "ok" ? "" : " disabled"}${st === "done" ? " checked" : ""}>`
           + `<b>${esc(p.name)}</b><small>${esc(why)}</small></label>`;
-      }).join("")}<a class="lc-cvmaster" href="#" data-cv-master>変換表を直す（マスタ管理）</a></div>` : "");
+      }).join("")}${(() => {
+        const none = plans.filter((p) => !p.ok && !p.done);
+        return none.length ? `<details class="lc-cvnone"><summary>当てられない ${none.length} 表（この表に元の列がありません）: ${none.map((p) => `<span class="lc-nb">${esc(p.name)}</span>`).join("・")}</summary>`
+          + `<ul>${none.map((p) => `<li><b>${esc(p.name)}</b> … 列がありません（${esc(p.missing.join("・"))}）</li>`).join("")}</ul></details>` : "";
+      })()}</div>` : "");
   }
   function bindConv() {
     const box = $("#lcConv");

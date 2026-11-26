@@ -1243,6 +1243,7 @@ impl Store {
                 self.pull(name, true, true)?; // 当てる前に共有から取り直す
                 let pulled = stat_sig(&share);
                 let mut doc = self.read(&self.mirror(name))?;
+                before_write(name, &doc.rows)?;
                 let (result, changed) = mutate(&mut doc.rows, &stamp)?;
                 if !changed {
                     return Ok(result);
@@ -1270,6 +1271,7 @@ impl Store {
             let first = self.initial(name); // 錠を取ってから決めて読む
             let pulled = stat_sig(&path);
             let mut doc = if first.exists() { self.read(&first)? } else { Doc::empty() };
+            before_write(name, &doc.rows)?;
             let (result, changed) = mutate(&mut doc.rows, stamp)?;
             if !changed {
                 return Ok(result);
@@ -1302,6 +1304,41 @@ impl Store {
                 f()
             })
         })
+    }
+}
+
+/// 書く直前の係（版 3.125.0。変換表の履歴 src/conv_history.rs）: 錠の中で取り直した後・当てる前に、そのマスタの今の行を渡す。
+/// Err なら書かない。置いた糸の、名前の合う最初の書き込みで 1 回だけ呼ぶ（2 回目の書き込み〈取り込んで標準にも〉では呼ばない）
+pub type BeforeWrite = Box<dyn FnMut(&[Value]) -> R<()>>;
+thread_local! {
+    static BEFORE: RefCell<Option<(String, BeforeWrite)>> = const { RefCell::new(None) };
+}
+
+/// `f` の間だけ、名前のマスタの書く直前の係を置く（抜けると外す）
+pub fn with_before_write<T>(name: &str, hook: BeforeWrite, f: impl FnOnce() -> T) -> T {
+    struct Clear;
+    impl Drop for Clear {
+        fn drop(&mut self) {
+            BEFORE.with(|b| *b.borrow_mut() = None);
+        }
+    }
+    BEFORE.with(|b| *b.borrow_mut() = Some((name.to_string(), hook)));
+    let _c = Clear;
+    f()
+}
+
+fn before_write(name: &str, rows: &[Value]) -> R<()> {
+    let hook = BEFORE.with(|b| {
+        let mut b = b.borrow_mut();
+        if b.as_ref().is_some_and(|(n, _)| n == name) {
+            b.take()
+        } else {
+            None
+        }
+    });
+    match hook {
+        Some((_, mut h)) => h(rows),
+        None => Ok(()),
     }
 }
 

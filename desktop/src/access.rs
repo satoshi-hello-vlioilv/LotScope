@@ -926,6 +926,24 @@ pub fn can_write(me: &Value, name: &str) -> bool {
     !me.get("revoked").is_some_and(truthy) && master_edit_can(me["flags"]["masterEdit"].as_str().unwrap_or(""), "write", master_scope(name))
 }
 
+/// 管理の機能（変換表の履歴・バックアップ・戻す・標準と同梱の操作。版 3.125.0）を使えるか: 管理のマスタと同じ「編集可」（開発者・メンテナンス者）。
+/// 断るなら (403, 種類, 言葉)
+pub fn admin_refusal(me: &Value, what: &str) -> Option<(u16, &'static str, String)> {
+    if !me.get("revoked").is_some_and(truthy) && master_edit_can(me["flags"]["masterEdit"].as_str().unwrap_or(""), "write", "admin") {
+        return None;
+    }
+    let f = &me["flags"];
+    Some((
+        403,
+        "forbidden",
+        format!(
+            "この PC の権限（{}・マスタ編集「{}」）では{what}を扱えません（マスタ編集が「編集可」の人だけ: 開発者・メンテナンス者）。",
+            f["role"].as_str().unwrap_or(""),
+            f["masterEdit"].as_str().unwrap_or("")
+        ),
+    ))
+}
+
 /// 書き込みの門番（routes/access._access_guard）。断るなら (状態, 種類, 言葉)
 pub fn guard(method: &str, path: &str, me: &Value) -> Option<(u16, &'static str, String)> {
     // 確かめの道（書かない）は POST のときだけ除く（DELETE /api/sources/check は「check」というデータ元を消す道になる）

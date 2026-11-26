@@ -18,6 +18,9 @@ const { $, escapeHtml: esc, emit, MASTER_DEFS, mstate, masterRequest, withLockWa
 mstate.data.conv = null;
 let draft = null, cell = null, tryVals = [], notice = null;     // 直している表・開いているセル {r, k}・試す値・知らせ [cls, html]
 let incoming = null;                                              // 取り込む前に見せている表の並び（取り込む・やめるまで）
+let hist = null;                                                  // 履歴の並び（GET /history。版 3.125.0）。読めなければ {canBackup: false}
+let hw = null;                                                    // 開いている「履歴と戻す」の窓の状態
+let savedAt = null;                                               // 最後に保存した表と時刻 {id, at}（表の頭の「✓ この表だけ保存 時刻」）
 
 const IO_KIND = "tpa-conversions";                             // 書き出すファイルの種類（TPA.saveJson・pickJson）
 const OP_ORDER = ["eq", "ne", "starts", "nstarts", "ends", "nends", "contains", "ncontains", "range", "empty", "filled"];
@@ -77,6 +80,16 @@ async function load() {
   window.Conversions?.take(r.data);          // この PC の一覧の式（conv）に、読んだ表を渡す
   return r.data;
 }
+/** 履歴の並び（全部の表）を読む。開発者・メンテナンス者でなければ canBackup が偽（履歴の部品を出さない） */
+async function loadHist() {
+  try {
+    const r = await fetch("/api/masters/conversions/history", { cache: "no-store" });
+    const d = await r.json().catch(() => ({}));
+    hist = r.ok ? d : { canBackup: false, state: [] };
+  } catch { hist = { canBackup: false, state: [] }; }
+  return hist;
+}
+const canBackup = () => !!(hist && hist.canBackup) && !shareDown();
 async function render({ keep = false } = {}) {
   const box = $("#masterSettings");
   if (!keep) loadCols(true).then(() => { if (mstate.tab === "conv") paintColBtns(); });   // 列の印（どのデータにあるか）は読めたら出す
@@ -89,6 +102,7 @@ async function render({ keep = false } = {}) {
     if (!keep) { draft = now ? clone(now) : blank(); cell = null; tryVals = []; }
   }
   paint();
+  if (!keep) loadHist().then(() => { if (mstate.tab === "conv" && $("#masterSettings .cv-editor")) keepView(paint); });
 }
 
 /* ---------------- 描く ---------------- */
@@ -98,18 +112,28 @@ function listHtml(d) {
     const xs = d.items.filter((x) => ((x.apply || {}).mode === "replace" ? "replace" : "add") === m);
     if (!xs.length) return "";
     return `<div class="cv-lgrp">${title}</div>` + xs.map((x) => `<button type="button" class="sh-item${draft && x.id === draft.id ? " is-on" : ""}" data-cv-pick="${x.id}">`
-      + `<b>${esc(x.name)}</b><small>${esc(window.Conversions ? window.Conversions.summary(x) : "")}</small></button>`).join("");
-  }).join("") + (can() ? '<button type="button" class="sh-new" data-cv-new>＋ 変換表を足す</button>' : "") + ioHtml(d);
+      + `<b>${esc(x.name)}</b>${stateChip(x.name)}<small>${esc(window.Conversions ? window.Conversions.summary(x) : "")}</small></button>`).join("");
+  }).join("") + (can() ? '<button type="button" class="sh-new" data-cv-new>＋ 変換表を足す</button>' : "");
 }
-/* 書き出す・取り込む・標準（版 3.43.0）。標準は「標準に戻す」で戻る中身。取り込んだ表を標準にでき、同梱のプリセットへも戻せる */
+/** 時刻の字（2026-11-26T10:42:00 → 11/26 10:42） */
+const shortAt = (at) => { const m = String(at || "").match(/^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); return m ? `${+m[1]}/${+m[2]} ${m[3]}:${m[4]}` : ""; };
+/** 一覧の札（版 3.125.0。決め方: 2026-11-convbackup の D から持ち越し）: 同梱のプリセットと違えば「直した · 最後の保存」、同じなら「同梱のまま」 */
+function stateChip(name) {
+  const s = ((hist && hist.state) || []).find((x) => x.name === name);
+  if (!s) return "";
+  return s.edited ? `<span class="cv-stchip is-mine" title="同梱のプリセットと違います（最後の保存 ${esc(s.at || "")}）">${s.bundled ? "直した" : "足した表"}${shortAt(s.at) ? ` · ${shortAt(s.at)}` : ""}</span>`
+    : '<span class="cv-stchip" title="同梱のプリセットと同じ中身です">同梱のまま</span>';
+}
+/* 一覧の頭の下（版 3.125.0。前は一覧の下で、1728 でも送った先・「同梱に戻す」の小さなリンクが「今の表を標準に」の隣にあった）:
+   状態（標準・最後のバックアップ）と「⟲ 履歴と戻す…」（開発者・メンテナンス者だけ）、従のボタン 書き出す・取り込む。標準・同梱の操作は履歴と戻すの窓の中 */
 function ioHtml(d) {
-  const w = can();
-  return `<div class="cv-io"><div class="cv-iorow"><button type="button" class="pv-btn" data-cv-export title="今の変換表をすべて、1 つのファイル（JSON）に書き出します">↓ 書き出す</button>`
-    + (w ? '<button type="button" class="pv-btn" data-cv-import title="書き出したファイルを読み、同じ名前の表は置き換え、無い名前は足します（読む前に中身を見せます）">↑ 取り込む…</button>' : "") + "</div>"
-    + `<div class="cv-std"><span>標準: <b>${d.customDefaults ? "取り込んだ表" : "同梱のプリセット"}</b></span>`
-    + (w ? '<button type="button" class="cv-link" data-cv-stdnow title="今の表をすべて標準にします（「標準に戻す」でこの中身へ戻ります）">今の表を標準に</button>'
-      + (d.customDefaults ? '<button type="button" class="cv-link" data-cv-stdbundled title="標準を、アプリに同梱のプリセットへ戻します">同梱に戻す</button>' : "") : "")
-    + "</div></div>";
+  const w = can(), b = canBackup();
+  const last = b ? (hist.points || []).find((p) => !p.auto) : null;
+  return `<div class="cv-io"><div class="cv-iostate">標準: <b>${d.customDefaults ? "自分で決めた表" : "同梱のプリセット"}</b>`
+    + (b ? `<br>最後のバックアップ: <b>${last ? `${esc(shortAt(last.at))}（${last.scope === "all" ? "全体" : `${(last.scope || []).length} 表`}）` : "まだありません"}</b>` : "") + "</div>"
+    + (b ? '<button type="button" class="pv-btn cv-histbtn" data-cvb-hist title="変換表を書く前の形・手で取ったバックアップ・同梱のプリセットを選び、戻すと何が変わるかを見てから戻します">⟲ 履歴と戻す…</button>' : "")
+    + `<div class="cv-iorow"><button type="button" class="pv-btn" data-cv-export title="今の変換表をすべて、1 つのファイル（JSON）に書き出します">↓ 書き出す</button>`
+    + (w ? '<button type="button" class="pv-btn" data-cv-import title="書き出したファイルを読み、同じ名前の表は置き換え、無い名前は足します（読む前に表ごとの違いを見せます）">↑ 取り込む…</button>' : "") + "</div></div>";
 }
 function gridHtml(x) {
   const d = dis();
@@ -217,13 +241,14 @@ function paint() {
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="cvNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     ${incoming ? importHtml(d) : ""}
     <div class="sh-editor cv-editor">
-      <aside class="sh-list" aria-label="登録済みの変換表"><div class="sh-list-head">登録済みの変換表</div>${listHtml(d)}</aside>
+      <aside class="sh-list" aria-label="登録済みの変換表"><div class="sh-list-head">登録済みの変換表</div>${ioHtml(d)}${listHtml(d)}</aside>
       <div class="sh-detail cv-detail">
         <div class="cv-top"><input class="ps-input cv-name" id="cvName" value="${esc(x.name)}" placeholder="変換表の名前（例: 地取区分）" aria-label="変換表の名前"${di}>
           ${preset ? '<span class="cv-tag">プリセット</span>' : x.id ? "" : '<span class="cv-tag">新しい表</span>'}<span class="sp"></span>
-          ${can() && preset ? '<button type="button" class="pv-btn" data-cv-reset title="同梱のプリセットの中身に戻します">標準に戻す</button>' : ""}
-          ${can() && x.id ? '<button type="button" class="pz-btn danger" data-cv-delete>この表を消す</button>' : ""}
-          ${can() ? `<button type="button" class="btn-primary" data-cv-save>${x.id ? "保存" : "足す"}</button>` : ""}</div>
+          ${savedAt && x.id && savedAt.id === x.id ? `<span class="cv-saved" title="保存したのはこの 1 表だけです（ほかの表は変えていません）">✓ この表だけ保存 ${esc(savedAt.at)}</span>` : ""}
+          ${canBackup() && x.id ? '<button type="button" class="pv-btn" data-cvb-th title="この表を含む戻せる時点と、戻すとこの表がどう変わるか（開発者・メンテナンス者だけ）">履歴 ▾</button>' : ""}
+          ${x.id ? '<button type="button" class="pv-btn cv-tmenu" data-cv-tmenu title="この表だけ書き出す・標準に戻す・この表を消す" aria-haspopup="menu" aria-label="この表のほかの操作">⋯</button>' : ""}
+          ${can() ? `<button type="button" class="btn-primary" data-cv-save>${x.id ? "この表を保存" : "足す"}</button>` : ""}</div>
         <div class="cv-meta">
           <label>当て方<select class="ps-input" id="cvMode"${di}><option value="replace"${a.mode === "replace" ? " selected" : ""}>列の値を作り替える</option><option value="add"${a.mode !== "replace" ? " selected" : ""}>列を足す</option></select></label>
           ${a.mode === "replace" ? "" : `<label>足す列の名前<input class="ps-input" id="cvCol" value="${esc(a.column || "")}" placeholder="${esc(x.name || "例: 管理分類")}（{列} は元の列の名前）"${di}></label>
@@ -240,13 +265,19 @@ function paint() {
   bind();
   fitGrid();
 }
-/** 取り込む前の確かめ: どの表を置き換え・足すか。標準にもするかは押すボタンで選ぶ */
+/** 取り込む前の確かめ（版 3.125.0 から表ごとの行の数と消える・変わる行）: どの表を置き換え・足すか。標準にもするかは押すボタンで選ぶ */
 function importHtml(d) {
   const have = new Set(d.items.map((x) => x.name)), rep = incoming.filter((x) => have.has(x.name)), add = incoming.filter((x) => !have.has(x.name));
-  const names = (xs) => xs.map((x) => `「${esc(x.name)}」`).join("");
+  const nrows = (x) => (Array.isArray(x.rows) ? x.rows.length : 0);
+  const line = (x) => {
+    const now = d.items.find((y) => y.name === x.name);
+    if (!now) return `<li><span class="cv-imptag add">足す</span><b>「${esc(x.name)}」</b>${nrows(x)} 行</li>`;
+    const c = rowCounts(now.rows || [], x.rows || []);
+    return `<li><span class="cv-imptag rep">置き換え</span><b>「${esc(x.name)}」</b>${now.rows.length} 行 → ${nrows(x)} 行（${c.del || c.add || c.chg ? whatText(c) : "行は同じ"}）</li>`;
+  };
   return `<div class="cv-imp" role="group" aria-label="取り込む前の確かめ"><b>${incoming.length} 表を取り込みます</b>`
-    + (rep.length ? `<div><span class="cv-imptag rep">置き換え ${rep.length}</span>${names(rep)}</div>` : "")
-    + (add.length ? `<div><span class="cv-imptag add">足す ${add.length}</span>${names(add)}</div>` : "")
+    + `<ul class="cv-implist">${[...rep, ...add].map(line).join("")}</ul>`
+    + `<small class="cv-impnote">ほかの ${d.items.length - rep.length} 表は変えません。取り込む前の今の ${d.items.length} 表は、自動で履歴に残します（「履歴と戻す」で戻せます）。</small>`
     + '<div class="cv-impbtns"><button type="button" class="btn-primary" data-cv-impgo>取り込む</button>'
     + '<button type="button" class="pv-btn" data-cv-impstd title="取り込んだ表を、「標準に戻す」で戻る中身にもします">取り込んで標準にもする</button>'
     + '<button type="button" class="pv-btn" data-cv-impno>やめる</button></div></div>';
@@ -514,7 +545,7 @@ async function io(ds) {
     let items;
     try { items = await TPA.pickJson(IO_KIND, "変換表"); } catch (e) { say("ng", "✕ " + esc(e.message)); return; }
     if (!items) return;
-    incoming = items; notice = null; paint(); return;
+    incoming = items; notice = null; paint(); $("#masterSettings .cv-imp")?.scrollIntoView({ block: "nearest" }); return;
   }
   if (ds.cvImpno != null) { incoming = null; paint(); return; }
   if (ds.cvImpgo != null || ds.cvImpstd != null) {
@@ -523,21 +554,18 @@ async function io(ds) {
     if (!res.ok) { say("ng", "✕ " + esc(res.data.error || "取り込めませんでした。")); return; }
     incoming = null;
     const at = draft && draft.name;
-    if (!(await after(res, `✓ 取り込みました（置き換え ${res.data.replaced}・足す ${res.data.added}）${ds.cvImpstd != null ? "。標準にもしました" : ""}`))) return;
+    if (!(await after(res, `✓ 取り込みました（置き換え ${res.data.replaced}・足す ${res.data.added}）${ds.cvImpstd != null ? "。標準にもしました" : ""}。取り込む前の形は履歴に残しました`))) return;
     draft = clone(res.data.items.find((y) => y.name === at) || res.data.items[0]); cell = null; tryVals = []; paint(); return;
-  }
-  if (ds.cvStdnow != null || ds.cvStdbundled != null) {
-    const now = ds.cvStdnow != null;
-    if (!confirm(now ? "今の変換表をすべて標準にします（「標準に戻す」でこの中身へ戻ります）。よろしいですか？" : "標準を、アプリに同梱のプリセットへ戻します。よろしいですか？")) return;
-    const res = await masterRequest("/api/masters/conversions/defaults", TPA.json("POST", { from: now ? "current" : "bundled" }));
-    if (await after(res, now ? "✓ 今の表を標準にしました" : "✓ 標準を同梱のプリセットに戻しました")) paint();
   }
 }
 function bind() {
   $("#masterSettings .cv-page").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
     const ds = b.dataset;
-    if (["cvExport", "cvImport", "cvImpno", "cvImpgo", "cvImpstd", "cvStdnow", "cvStdbundled"].some((k) => ds[k] != null)) { e.stopPropagation(); io(ds); }
+    if (["cvExport", "cvImport", "cvImpno", "cvImpgo", "cvImpstd"].some((k) => ds[k] != null)) { e.stopPropagation(); io(ds); }
+    if (ds.cvbHist != null) { e.stopPropagation(); openHist(null); }
+    if (ds.cvbTh != null) { e.stopPropagation(); if (draft && draft.id) openHist(draft.name); }
+    if (ds.cvTmenu != null) { e.stopPropagation(); tableMenu(b); }
   }, true);
   const box = $("#masterSettings .cv-editor"), x = draft;
   const redraw = () => soon(() => { if (draft !== x || !$("#masterSettings .cv-editor")) return; sync(); keepView(paint); });
@@ -600,8 +628,7 @@ function bind() {
     if (ds.cvIdel != null) { const old = x.inputs.splice(+ds.cvIdel, 1)[0]; x.rows.forEach((r) => { if (r.when) delete r.when[old.name]; }); cell = null; keepView(paint); return; }
     if (ds.cvCols != null) { openCols(+ds.cvCols, b); return; }
     if (ds.cvSave != null) { await save(); return; }
-    if (ds.cvReset != null) { await reset(); return; }
-    if (ds.cvDelete != null) { await remove(); }
+    // 標準に戻す・この表を消すは表の頭の「⋯」から（版 3.125.0。保存の隣に壊すボタンを置かない）
   });
 }
 /* 開いていたセルの、値を入れなかった条件は外す（条件が残らなければ不問）。空欄を比べるときは「空欄」を選ぶ */
@@ -625,22 +652,235 @@ async function save() {
   const x = draft, body = { name: x.name, inputs: x.inputs, rows: x.rows, other: x.other, apply: x.apply };
   const res = await withLockWait(() => masterRequest(x.id ? `/api/masters/conversions/${x.id}` : "/api/masters/conversions",
     TPA.json(x.id ? "PUT" : "POST", x.id ? { ...body, base_rev: x.rev } : body)), (r) => say("wait", lockWaitText(r, "保存", boldName)));
-  if (!(await after(res, `✓ 「${esc(x.name)}」を保存しました（${x.rows.length} 行）。この PC の一覧にすぐ効き、ほかの PC には数秒で届きます`))) return;
+  const others = Math.max(0, res.data.items.length - 1), shared = res.data.shared;
+  if (!(await after(res, `✓ <b>「${esc(x.name)}」だけ</b>を保存しました（この 1 表・${x.rows.length} 行。ほかの ${others} 表は変えていません）。`
+    + `${canBackup() ? "保存する前の形は履歴に残しました。" : ""}この PC の一覧にすぐ効き${shared ? "、ほかの PC には数秒で届きます" : "ます"}`))) return;
   const id = x.id || res.data.created;
+  const t = new Date(); savedAt = { id, at: `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}` };
+  loadHist().then(() => { if (mstate.tab === "conv" && $("#masterSettings .cv-editor")) keepView(paint); });
   draft = clone(res.data.items.find((y) => y.id === id) || x); paint();
 }
-async function reset() {
-  const x = draft;
-  if (!confirm(`変換表「${x.name}」を、同梱のプリセットの中身に戻します。直した所は消えます。よろしいですか？`)) return;
-  const res = await masterRequest(`/api/masters/conversions/${x.id}/preset`, TPA.json("POST", { base_rev: x.rev }));
-  if (!(await after(res, `✓ 「${esc(x.name)}」を標準（プリセット）に戻しました`))) return;
-  draft = clone(res.data.items.find((y) => y.id === x.id)); tryVals = []; paint();
+/** 表の頭の「⋯」: この表だけ書き出す・標準に戻す…（履歴と戻すの窓で標準と比べてから）・この表を消す */
+function tableMenu(b) {
+  const x = draft, r = b.getBoundingClientRect(), d = mstate.data.conv, preset = x.id && d.items.find((y) => y.id === x.id)?.preset;
+  const std = hist && hist.customDefaults ? "standard" : "bundled";
+  TPA.menu({ x: r.left, y: r.bottom + 2, head: `「${x.name}」`, items: [
+    { label: "この表だけ書き出す", icon: "↓", run: () => exportOne(x) },
+    { label: "標準に戻す…（違いを見てから）", icon: "⟲", disabled: !canBackup() || !preset,
+      why: !preset ? "同梱のプリセット・標準に無い表です" : !canBackup() ? "開発者・メンテナンス者だけです" : "", run: () => openHist(x.name, std) },
+    { sep: true },
+    { label: "この表を消す…", icon: "×", danger: true, disabled: !can(), why: can() ? "" : "書き換えられません", run: () => remove() },
+  ] });
+}
+function exportOne(x) {
+  const one = { name: x.name, inputs: x.inputs, rows: x.rows, other: x.other, apply: x.apply };
+  TPA.saveJson(IO_KIND, [one], fileName().replace(/\.json$/, `_${x.name}.json`));
+  say("ok", `✓ 「${esc(x.name)}」だけを書き出しました（1 表・${x.rows.length} 行）`);
 }
 async function remove() {
   const x = draft;
   if (!confirm(`変換表「${x.name}」を消します。この表を使う列（conv('${x.name}', …)）は空になります。よろしいですか？`)) return;
   const res = await masterRequest(`/api/masters/conversions/${x.id}?rev=${x.rev}`, { method: "DELETE" });
-  if (!(await after(res, `✓ 「${esc(x.name)}」を消しました`))) return;
+  if (!(await after(res, `✓ 「${esc(x.name)}」を消しました${canBackup() ? "（消す前の形は履歴に残しました）" : ""}`))) return;
+  loadHist();
+
   draft = res.data.items[0] ? clone(res.data.items[0]) : blank(); paint();
+}
+/* ---------------- 履歴と戻す（版 3.125.0。利用者の改良依頼 2026-11-17 の 5。決め方: ui-proposals/2026-11-convbackup の案 F） ----------------
+   窓 1 枚: 上の段に「戻せる時点」と「標準」の違いと標準の操作、左に戻せる時点（頭に同梱のプリセット・標準を固定。その下に手で取る・
+   新しい順の時点）、右に押した時点に戻すと表ごと・行ごとにどう変わるか（窓が比べた答え: GET /history/<id>）と戻すボタン。
+   表の頭の「履歴 ▾」は同じ窓をその表を含む時点だけ・その表の違いだけで開く。戻すと、戻す前の形も時点に残り、「元に戻す」で取り消せる。
+   開発者・メンテナンス者だけ（窓の道も 403）。 */
+const rowKey = (r) => JSON.stringify({ when: r.when || {}, out: r.out });
+/** 行を並びの位置で比べた数（窓の conv_history::diff_tables と同じ決まり。取り込む前の確かめで使う） */
+function rowCounts(now, then) {
+  const c = { del: 0, add: 0, chg: 0 };
+  for (let i = 0; i < Math.max(now.length, then.length); i++) {
+    if (now[i] && !then[i]) c.del++; else if (!now[i] && then[i]) c.add++; else if (rowKey(now[i]) !== rowKey(then[i])) c.chg++;
+  }
+  return c;
+}
+/** 違いの言葉（2 行が消える・1 行が戻る・出す値か条件が 1 行変わる・入力・当て方が変わる） */
+function whatText(d) {
+  if (d.st === "same") return "変わりません";
+  if (d.st === "back") return `表が戻ります（${d.then} 行）`;
+  if (d.st === "gone") return `この時点に無い表なので、消えます（${d.now} 行）`;
+  return [d.del ? `${d.del} 行が消える` : "", d.add ? `${d.add} 行が戻る` : "", d.chg ? `${d.chg} 行が変わる` : "", d.setup ? "入力・当て方が変わる" : ""]
+    .filter(Boolean).map((w) => `<span class="cvh-nb">${w}</span>`).join("・") || "変わりません";
+}
+const stChip = (st) => ({ chg: '<span class="cvh-st is-chg">変わる</span>', same: '<span class="cvh-st is-same">同じ</span>', back: '<span class="cvh-st is-back">戻る</span>', gone: '<span class="cvh-st is-gone">消える</span>' })[st] || "";
+const ptTitle = (p) => (p.id === "bundled" ? "同梱のプリセット" : p.id === "standard" ? "標準（自分で決めた表）" : shortAt(p.at));
+const ptWho = (p) => (p.by && (p.by.login || p.by.pc) ? `<span class="cvh-nb">${esc([p.by.login, p.by.pc && `（${p.by.pc}）`].filter(Boolean).join(""))}</span>` : "");
+const kindChip = (p) => (p.bundled ? (p.id === "standard" ? '<span class="cvh-k is-std">標準</span>' : '<span class="cvh-k is-pre">同梱</span>') : p.auto ? '<span class="cvh-k is-auto">自動</span>' : '<span class="cvh-k is-man">手で</span>');
+const scopeChip = (p) => `<span class="cvh-sc">${p.scope === "all" ? "全体" : `${(p.scope || []).length} 表`}</span>`;
+async function openHist(name, sel = null) {
+  hw = { name, sel, list: null, det: null, open: null, picks: null, mode: "diff", msg: null, busy: false };
+  drawHist();
+  await reloadHist(sel);
+}
+function closeHist() {
+  if (!hw) return;
+  hw = null;
+  document.querySelector(".cvh-dlg")?.remove();
+  document.removeEventListener("keydown", histKey, true);
+}
+function histKey(e) { if (e.key === "Escape" && hw) { e.stopPropagation(); e.preventDefault(); closeHist(); } }
+async function reloadHist(sel) {
+  if (!hw) return;
+  const q = hw.name ? `?name=${encodeURIComponent(hw.name)}` : "";
+  const r = await fetch(`/api/masters/conversions/history${q}`, { cache: "no-store" });
+  const d = await r.json().catch(() => ({}));
+  if (!hw) return;
+  if (!r.ok) { hw.msg = ["ng", `✕ ${esc(d.error || "履歴を読めませんでした")}`]; drawHist(); return; }
+  hw.list = d;
+  const all = [d.bundled, d.standardPoint, ...(d.points || [])].filter(Boolean);
+  // はじめは、今と違ういちばん新しい時点（無ければいちばん新しい時点・同梱）
+  hw.sel = sel && all.some((p) => p.id === sel) ? sel : ((d.points || []).find((p) => p.changed) || (d.points || [])[0] || d.bundled || {}).id;
+  await loadDet();
+}
+async function loadDet() {
+  if (!hw || !hw.sel) { drawHist(); return; }
+  const q = hw.name ? `?name=${encodeURIComponent(hw.name)}` : "";
+  const r = await fetch(`/api/masters/conversions/history/${encodeURIComponent(hw.sel)}${q}`, { cache: "no-store" });
+  const d = await r.json().catch(() => ({}));
+  if (!hw) return;
+  hw.det = r.ok ? d : null;
+  if (!r.ok) hw.msg = ["ng", `✕ ${esc(d.error || "違いを読めませんでした")}`];
+  const ch = hw.det ? hw.det.tables.filter((t) => t.st !== "same") : [];
+  hw.picks = new Set(ch.map((t) => t.name));
+  hw.open = (ch.find((t) => t.rows.length) || {}).name || null;     // 変わる行のある最初の表は、はじめから行まで開く
+  drawHist();
+}
+function ptCard(p) {
+  const diff = hw.name && p.diff ? (p.diff.st === "same" ? "今と同じ" : whatTextPlain(p.diff)) : (p.changed ? `今と違う表 ${p.changed}` : "今と同じ");
+  return `<button type="button" class="cvh-pt${p.id === hw.sel && hw.mode === "diff" ? " is-on" : ""}" data-cvh-pt="${esc(p.id)}" aria-pressed="${p.id === hw.sel}">`
+    + `<span class="cvh-pt1"><b>${esc(ptTitle(p))}</b>${kindChip(p)}${p.bundled ? "" : scopeChip(p)}</span>`
+    + `<span class="cvh-pt2">${p.bundled ? esc(p.id === "standard" ? "各表の「標準に戻す」の戻る先" : "アプリに入っている元の形") : `${esc(p.why)}${ptWho(p) ? " · " + ptWho(p) : ""}`}</span>`
+    + `<span class="cvh-pt3">${diff}</span></button>`;
+}
+const whatTextPlain = (d) => whatText(d).replace(/<[^>]+>/g, "");
+function rowsHtml(t) {
+  return `<table class="cvh-rt"><thead><tr><th>行</th><th>今の出す値</th><th></th><th>戻すと</th></tr></thead><tbody>${t.rows.map((r) =>
+    `<tr class="is-${r.kind}"><td>${r.i + 1}</td><td>${r.kind === "add" ? '<i class="cvh-none">（無い）</i>' : esc(outText(r.now ?? ""))}</td>`
+    + `<td>${r.kind === "del" ? stChip("gone") : r.kind === "add" ? stChip("back") : stChip("chg")}</td>`
+    + `<td>${r.kind === "del" ? '<i class="cvh-none">（行が無くなる）</i>' : esc(outText(r.then ?? ""))}</td></tr>`).join("")}</tbody></table>`;
+}
+function detHtml() {
+  const d = hw.det, p = d && d.point;
+  if (!d) return '<p class="cvh-hint">左の時点を押すと、戻すと何が変わるかをここに出します</p>';
+  const ch = d.tables.filter((t) => t.st !== "same"), same = d.tables.filter((t) => t.st === "same");
+  const virt = p.bundled, file = !virt, one = hw.name;
+  const picks = [...hw.picks];
+  const go = one ? `「${esc(one)}」をこの${virt ? "形" : "時点"}に戻す` : `選んだ ${picks.length} 表を戻す`;
+  const std = d.standard && !d.standard.same ? `<p class="cvh-say cvh-stdline">全体を戻すと、標準も <b>${esc(d.standard.now)}</b> → <b>${esc(d.standard.then)}</b> に戻ります。</p>` : "";
+  return `<div class="cvh-dhead"><div class="cvh-title"><b>${esc(ptTitle(p))}</b>${kindChip(p)}${virt ? "" : scopeChip(p)}<span class="cvh-note">${virt ? esc(p.why) : `${esc(p.why)}${ptWho(p) ? " · " + ptWho(p) : ""}`}</span></div>`
+    + `<p class="cvh-say">この${virt ? "形" : "時点"}に戻すと: <b>${one ? (ch.length ? whatText(ch[0]) : "変わりません") : `${ch.length} 表が変わります`}</b>${one ? "（ほかの表は変えません）" : `（同じ ${same.length} 表は変わりません）`}</p>${one ? "" : std}`
+    + `<div class="cvh-go"><button type="button" class="btn-primary" data-cvh-go${(one ? ch.length : picks.length) && !hw.busy ? "" : " disabled"}>${go}</button>`
+    + (!one && file && p.scope === "all" ? `<button type="button" class="pv-btn" data-cvh-goall${hw.busy ? " disabled" : ""}>全体（${p.tables} 表と標準）をこの時点に戻す</button>` : "")
+    + '<span class="cvh-note">戻す前の今も自動で残すので、戻した後でも取り消せます</span></div></div>'
+    + `<table class="cvh-dt"><thead><tr>${one ? "" : "<th></th>"}<th>表</th><th>今</th><th>戻すと</th><th>変わる所</th><th></th></tr></thead><tbody>${ch.map((t) =>
+      `<tr class="is-${t.st}">${one ? "" : `<td><input type="checkbox" data-cvh-pick="${esc(t.name)}" aria-label="「${esc(t.name)}」を戻す"${hw.picks.has(t.name) ? " checked" : ""}></td>`}`
+      + `<td><b>${esc(t.name)}</b></td><td>${t.now == null ? "—" : `${t.now} 行`}</td><td>${t.then == null ? "—" : `${t.then} 行`}</td><td>${stChip(t.st)} ${whatText(t)}</td>`
+      + `<td>${t.rows.length ? `<button type="button" class="cvh-lnk" data-cvb-diff="${esc(t.name)}" aria-expanded="${hw.open === t.name}">${hw.open === t.name ? "行を閉じる ▴" : "行を見る ▾"}</button>` : ""}</td></tr>`
+      + (hw.open === t.name ? `<tr class="cvh-rowsx"><td colspan="${one ? 5 : 6}">${rowsHtml(t)}</td></tr>` : "")).join("")}`
+    + (same.length ? `<tr class="is-same cvh-samerow"><td colspan="${one ? 5 : 6}">${stChip("same")} ${one ? "変わりません" : `変わらない ${same.length} 表: ${same.map((t) => `<span class="cvh-nb">${esc(t.name)}</span>`).join("・")}`}</td></tr>` : "")
+    + "</tbody></table>";
+}
+/** 標準を決める前の確かめ（右の欄）: 表ごとに 今の表・戻る先（今の標準）・決めた後の戻る先 の行の数 */
+function stdHtml() {
+  const d = mstate.data.conv, L = hw.list || {}, now = hw.mode === "std-now";
+  const items = d.items, rows = (n) => (items.find((x) => x.name === n) || { rows: [] }).rows.length;
+  const tbl = hw.stdRows || [];
+  const head = now ? "今の表を標準にしますか？" : "同梱のプリセットを標準にしますか？";
+  const say = now ? `今の ${items.length} 表を、各表の「標準に戻す」の戻る先にします。` : "各表の「標準に戻す」の戻る先を、アプリに入っている同梱のプリセットにします。";
+  return `<div class="cvh-dhead cvh-conf"><div class="cvh-title"><b>${head}</b></div><p class="cvh-say"><b>表の中身は変わりません。</b>${say}今の標準（${esc(L.standard || "")}）は時点に残すので、あとで戻せます。</p>`
+    + `<div class="cvh-go"><button type="button" class="pv-btn ${now ? "" : "is-danger"}" data-cvh-std="${now ? "current" : "bundled"}"${hw.busy ? " disabled" : ""}>${now ? "今の表を標準にする" : "同梱のプリセットを標準にする"}</button><button type="button" class="pv-btn" data-cvh-stdno>やめる</button></div></div>`
+    + `<table class="cvh-dt"><thead><tr><th>表</th><th>今の表</th><th>戻る先（今の標準）</th><th>決めた後の戻る先</th></tr></thead><tbody>${tbl.map((t) => {
+      const after = now ? rows(t.name) : t.bundled;
+      return `<tr class="${after === t.std ? "is-same" : ""}"><td><b>${esc(t.name)}</b></td><td>${rows(t.name)} 行</td><td>${t.std == null ? "—" : `${t.std} 行`}</td><td>${after == null ? "—" : `${after} 行`} ${after === t.std ? stChip("same") : stChip("chg")}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+async function loadStdRows() {
+  // 戻る先の行の数は、同梱・標準の時点の違い（窓の答え）から読む
+  const get = async (id) => { const r = await fetch(`/api/masters/conversions/history/${id}`, { cache: "no-store" }); return r.ok ? (await r.json()).tables : []; };
+  const b = await get("bundled"), s = hw.list && hw.list.standardPoint ? await get("standard") : null;
+  const names = new Set([...b.map((t) => t.name), ...(s || []).map((t) => t.name)]);
+  hw.stdRows = [...names].map((n) => ({ name: n, bundled: (b.find((t) => t.name === n) || {}).then ?? null, std: ((s || b).find((t) => t.name === n) || {}).then ?? null }));
+}
+function drawHist() {
+  if (!hw) return;
+  let el = document.querySelector(".cvh-dlg");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "cvh-dlg";
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+    document.body.append(el);
+    el.addEventListener("click", histClick);
+    el.addEventListener("change", (e) => { const c = e.target.closest("[data-cvh-pick]"); if (!c || !hw) return; if (c.checked) hw.picks.add(c.dataset.cvhPick); else hw.picks.delete(c.dataset.cvhPick); drawHist(); });
+    document.addEventListener("keydown", histKey, true);
+  }
+  const L = hw.list, keepTop = el.querySelector(".cvh-right")?.scrollTop || 0, keepLeft = el.querySelector(".cvh-list")?.scrollTop || 0;
+  el.setAttribute("aria-label", hw.name ? `「${hw.name}」の履歴と戻す` : "変換表の履歴と戻す");
+  const pins = L ? [L.bundled, L.standardPoint].filter(Boolean) : [];
+  el.innerHTML = `<div class="cvh-card"><div class="cvh-head"><b>${hw.name ? `「${esc(hw.name)}」の履歴と戻す` : "変換表の履歴と戻す"}</b><span class="cvh-note">開発者・メンテナンス者だけ</span><span class="sp"></span><button type="button" class="pv-btn" data-cvb-close>閉じる</button></div>`
+    + `<div class="cvh-std"><p><b>戻せる時点</b>は、変換表を書くたびに自動で残した書く前の形（新しい ${L ? L.keep.auto : 50} 回分）・手で取ったバックアップ・同梱のプリセットです。`
+    + `<b>標準</b>は各表の「標準に戻す」の戻る先で 1 つだけ（いま: <b>${esc((L && L.standard) || "")}</b>）。バックアップを取っても標準は変わりません。</p>`
+    + `<span class="cvh-stdbtns"><button type="button" class="pv-btn" data-cvh-stdnow>今の表を標準にする…</button><button type="button" class="pv-btn" data-cvb-bundled>同梱のプリセットを標準にする…</button></span></div>`
+    + (hw.msg ? `<div class="ps-result ${hw.msg[0]} cvh-msg" aria-live="polite">${hw.msg[1]}</div>` : "")
+    + (hw.name ? `<div class="cvh-filter">「${esc(hw.name)}」を含む時点だけを出しています <button type="button" class="cvh-lnk" data-cvh-all>全部の表の時点 ›</button></div>` : "")
+    + `<div class="cvh-two"><aside class="cvh-left"><div class="cvh-pins">${pins.map(ptCard).join("")}</div>`
+    + `<div class="cvh-mk"><button type="button" class="pv-btn" data-cvh-mk="all">＋ 全体をバックアップ</button>${hw.name ? `<button type="button" class="pv-btn" data-cvh-mk="one">＋ この表だけ</button>` : ""}</div>`
+    + `<div class="cvh-h">戻せる時点（新しい順）${L && L.unreadable ? `<small>（読めない時点 ${L.unreadable} は飛ばしました）</small>` : ""}</div>`
+    + `<div class="cvh-list">${L ? (L.points.length ? L.points.map(ptCard).join("") : '<p class="cvh-hint">まだありません。変換表を書くと、書く前の形がここに残ります</p>') : '<p class="cvh-hint">読んでいます…</p>'}</div></aside>`
+    + `<section class="cvh-right">${hw.mode === "diff" ? detHtml() : stdHtml()}</section></div></div>`;
+  const r = el.querySelector(".cvh-right"); if (r) r.scrollTop = keepTop;
+  const l = el.querySelector(".cvh-list"); if (l) l.scrollTop = keepLeft;
+}
+async function histClick(e) {
+  const b = e.target.closest("button"); if (!b || b.disabled || !hw) return;
+  const ds = b.dataset;
+  if (ds.cvbClose != null) { closeHist(); return; }
+  if (ds.cvhAll != null) { hw.name = null; hw.msg = null; await reloadHist(hw.sel); return; }
+  if (ds.cvhPt) { hw.sel = ds.cvhPt; hw.mode = "diff"; hw.msg = null; drawHist(); await loadDet(); return; }
+  if (ds.cvbDiff != null) { hw.open = hw.open === ds.cvbDiff ? null : ds.cvbDiff; drawHist(); return; }
+  if (ds.cvhStdnow != null || ds.cvbBundled != null) { hw.mode = ds.cvhStdnow != null ? "std-now" : "std-bundled"; hw.msg = null; await loadStdRows(); drawHist(); return; }
+  if (ds.cvhStdno != null) { hw.mode = "diff"; drawHist(); return; }
+  if (ds.cvhMk) {
+    const names = ds.cvhMk === "one" && hw.name ? [hw.name] : null;
+    hw.busy = true; drawHist();
+    const r = await fetch("/api/masters/conversions/history", TPA.json("POST", { names, why: names ? `「${hw.name}」を手で残した形` : "手で取った全体のバックアップ" }));
+    const d = await r.json().catch(() => ({}));
+    hw.busy = false;
+    hw.msg = r.ok ? ["ok", `✓ ${names ? `「${esc(hw.name)}」` : `全体（${(mstate.data.conv.items || []).length} 表）`}をバックアップしました（時点 ${esc(shortAt((d.history.points || []).find((p) => p.id === d.created)?.at))}）`] : ["ng", `✕ ${esc(d.error || "バックアップを残せませんでした")}`];
+    loadHist().then(() => keepView(paint));
+    await reloadHist(hw.sel); return;
+  }
+  if (ds.cvhStd) {
+    hw.busy = true; drawHist();
+    const res = await masterRequest("/api/masters/conversions/defaults", TPA.json("POST", { from: ds.cvhStd }));
+    hw.busy = false;
+    if (!(await after(res, ds.cvhStd === "current" ? "✓ 今の表を標準にしました（前の標準は時点に残しました）" : "✓ 標準を同梱のプリセットにしました（表の中身は変えていません。前の標準は時点に残しました）"))) { hw.msg = notice; drawHist(); return; }
+    hw.msg = notice; hw.mode = "diff"; paint(); loadHist();
+    await reloadHist(hw.sel); return;
+  }
+  if (ds.cvhGo != null || ds.cvhGoall != null || ds.cvhUndo != null) {
+    const all = ds.cvhGoall != null || (ds.cvhUndo != null && ds.cvhAllundo === "1");
+    const id = ds.cvhUndo != null ? ds.cvhUndo : hw.sel;
+    const names = ds.cvhUndo != null ? JSON.parse(ds.cvhNames || "[]") : hw.name ? [hw.name] : [...hw.picks];
+    const p = hw.det && hw.det.point, label = ds.cvhUndo != null ? "戻す前の形" : `${ptTitle(p)}${p.bundled ? "" : " の形"}`;
+    hw.busy = true; drawHist();
+    const body = all ? { all: true } : { names };
+    if (ds.cvhUndo == null && hw.det) body.revision = hw.det.revision;
+    const res = await masterRequest(`/api/masters/conversions/history/${encodeURIComponent(id)}/restore`, TPA.json("POST", body));
+    hw.busy = false;
+    if (!(await after(res, `✓ ${all ? "全体" : `${res.data && res.data.restored} 表`}を${esc(label)}に戻しました`))) { hw.msg = notice; drawHist(); return; }
+    const before = res.data.before;
+    hw.msg = ["ok", `✓ ${all ? "全体" : names.map((n) => `「${esc(n)}」`).join("")}を${esc(label)}に戻しました。戻す前の形も時点に残しました`
+      + (before && ds.cvhUndo == null ? ` <button type="button" class="pv-btn" data-cvh-undo="${esc(before)}" data-cvh-names="${esc(JSON.stringify(names))}" data-cvh-allundo="${all ? 1 : 0}">元に戻す</button>` : "")];
+    const at = draft && draft.name;
+    draft = clone(res.data.items.find((y) => y.name === at) || res.data.items[0] || blank()); cell = null; tryVals = []; savedAt = null;
+    paint(); loadHist().then(() => keepView(paint));
+    await reloadHist(hw.sel);
+  }
 }
 };

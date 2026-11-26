@@ -637,15 +637,24 @@ export const STATES = [
   // cvb … 管理分類を開いた所（左の一覧の下に 書き出す・取り込む・標準）・cvb-saved … 変えずに「保存」を押した直後の知らせ・
   // cvb-hist … 案の「履歴・バックアップ」を開いた所（案の部品 [data-cvb-hist] があれば押す。今は何も起きない）・
   // cvb-diff … 案の「戻す前に比べる」を開いた所（[data-cvb-diff]）・cvb-import … 書き出したファイルの地取区分を 2 行にし、表を 1 つ足して「取り込む…」で読んだ所（取り込む前の確かめ）・
-  // cvb-std … 「今の表を標準に」をした後（道で。標準が「取り込んだ表」・「同梱に戻す」が出る）・cvb-bundled … 「同梱に戻す」を押した所（今は確かめの窓〈ブラウザの confirm〉を閉じる。
+  // cvb-std … 「今の表を標準に」をした後（道で。版 3.124.0 は標準が「取り込んだ表」・「同梱に戻す」が出る。版 3.125.0 は「自分で決めた表」）・cvb-bundled … 「同梱に戻す」を押した所（今は確かめの窓〈ブラウザの confirm〉を閉じる。
   // 案は頁の中の確かめを出す。案の [data-cvb-pre-bundled] があれば先に押し、[data-cvb-bundled] があればそれを押す）・cvb-plan … 一覧の表示列の窓の変換表の帯（convx-plan と同じ。版 3.124.0 の残り: 1536 で下のリンクが半分隠れる）。cvb-off が標準を同梱へ戻す
   ["cvb", async (p) => {
-    await closeAll(p); await p.click("#masterBtn"); await sleep(900); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
+    await closeAll(p);
+    await convHistorySeed(p);   // 版 3.125.0 の画面（履歴の道がある）なら、戻せる時点を 3 つ作る（月末のバックアップ・管理分類と課名を直す前）
+    await p.click("#masterBtn"); await sleep(900); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
     await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "管理分類")?.click()); await sleep(700);
   }, "[data-next], [data-cv-save]"],
   ["cvb-saved", async (p) => { await p.click("[data-cv-save]"); await p.waitForSelector("#cvNotice.ok", { timeout: 8000 }); await sleep(500); }, "[data-next], [data-cv-save]"],
   ["cvb-hist", async (p) => { await p.click("[data-cvb-hist]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
-  ["cvb-diff", async (p) => { await p.click("[data-cvb-diff]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
+  ["cvb-diff", async (p) => {
+    if (await p.$(".cvh-dlg")) {   // 版 3.125.0: 窓の左の「月末のバックアップ」を押す（右に戻すと何が変わるか。変わる行のある最初の表は行まで開く）
+      await p.evaluate(() => [...document.querySelectorAll("[data-cvh-pt]")].find((b) => b.textContent.includes("月末"))?.click()); await sleep(900);
+      if (!(await p.$(".cvh-rowsx"))) await p.click("[data-cvb-diff]").catch(() => {});
+      await sleep(400); return;
+    }
+    await p.click("[data-cvb-diff]", { timeout: 1500 }).catch(() => {}); await sleep(700);
+  }, "[data-next], [data-cv-save]"],
   // 2 回目（2026-11-convbackup の rounds[1]）: 表の頭の「この表の履歴 ▾」（[data-cvb-th]）を押した所。今と 1 回目の案は何も起きない
   ["cvb-th", async (p) => {
     await p.click("[data-cvb-close]", { timeout: 800 }).catch(() => {}); await sleep(200);
@@ -671,6 +680,7 @@ export const STATES = [
   }, "[data-next], [data-cv-save]"],
   ["cvb-bundled", async (p) => {
     await p.evaluate(() => document.querySelector("[data-cvb-pre-bundled]")?.click()); await sleep(400);   // 案が「同梱に戻す」を面の中へ移したとき
+    if (!(await p.$("[data-cvb-bundled]")) && (await p.$("[data-cvb-hist]"))) { await p.click("[data-cvb-hist]"); await p.waitForSelector("[data-cvb-bundled]", { timeout: 5000 }); await sleep(700); }   // 版 3.125.0: 履歴と戻すの窓の上の段
     if (await p.$("[data-cvb-bundled]")) { await p.click("[data-cvb-bundled]"); await sleep(700); return; }
     p.once("dialog", (d) => d.dismiss().catch(() => {}));   // 今は確かめの窓（ブラウザの confirm）を閉じる（標準は変えない）
     await p.click("[data-cv-stdbundled]"); await sleep(700);
@@ -680,7 +690,9 @@ export const STATES = [
     await p.click("[data-cv-more]"); await sleep(500);
   }, "[data-next], #lcSave"],
   ["cvb-off", async (p) => {
+    await p.click(".cvh-dlg [data-cvb-close]").catch(() => {});
     await closeAll(p);
+    await convHistorySeed(p, false);   // 月末のバックアップの形（全体）に戻す
     await p.evaluate(async () => { await fetch("/api/masters/conversions/defaults", TPA.json("POST", { from: "bundled" })); document.dispatchEvent(new CustomEvent("tpa:masters-changed")); });
   }, "[data-next], #llBody .ll-lot"],
   ["master-place", async (p) => { await p.keyboard.press("Escape"); await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
@@ -1364,6 +1376,25 @@ export const CONV_MANY = {
   ],
   other: "", apply: { mode: "add", column: "作業の区切り", place: "end" },
 };
+/** 変換表の履歴の見本（版 3.125.0）: 全体を手でバックアップ（月末のバックアップ）→ 管理分類の後ろ 2 行を消し 3 行目の出す値を変えて保存 →
+    課名の後ろ 1 行を消して保存（どちらも書く前の形が自動で残る）。on が偽なら月末のバックアップの形に全体を戻す。履歴の道が無い画面では何もしない */
+export async function convHistorySeed(p, on = true) {
+  await p.evaluate(async (on) => {
+    const h = await fetch("/api/masters/conversions/history", { cache: "no-store" });
+    if (!h.ok) return;
+    const J = (m, b) => ({ method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+    const hist = await h.json(), month = (hist.points || []).find((x) => x.why === "月末のバックアップ");
+    if (!on) { if (month) await fetch(`/api/masters/conversions/history/${month.id}/restore`, J("POST", { all: true })); return; }
+    if (month) await fetch(`/api/masters/conversions/history/${month.id}/restore`, J("POST", { all: true }));
+    else await fetch("/api/masters/conversions/history", J("POST", { why: "月末のバックアップ" }));
+    const items = (await (await fetch("/api/masters/conversions", { cache: "no-store" })).json()).items || [];
+    const put = (x, rows) => fetch(`/api/masters/conversions/${x.id}`, J("PUT", { name: x.name, inputs: x.inputs, rows, other: x.other, apply: x.apply, base_rev: x.rev }));
+    const k = items.find((x) => x.name === "管理分類"), ka = items.find((x) => x.name === "課名");
+    if (k) await put(k, k.rows.slice(0, -2).map((r, i) => (i === 2 ? { ...r, out: String(r.out).replace("·", "-") } : r)));
+    if (ka) await put(ka, ka.rows.slice(0, -1));
+  }, on);
+}
+
 /** CONV_MANY を足す（on）・消す。足したら変換表のタブを開き直してその表を選ぶ */
 export async function convMany(p, on) {
   await p.evaluate(async ({ on, x }) => {
