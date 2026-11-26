@@ -69,6 +69,16 @@ function stateOf(s) {
 }
 const roleChip = (s) => (s.kind === "view" ? '<span class="sr-role is-view">結合した表</span>' : s.group || s.name.includes(s.role) ? "" : `<span class="sr-role">${escapeHtml(s.role)}</span>`);
 const canHide = (s) => s.key !== "lot" && s.key !== "work";
+/* 動かせる（並べる・グループへ移す。版 3.122.0）: 実績だけは決まった置き場（グループなしのいちばん上）。品質も動かせる（消す・タブを外すはできない）。
+   結合した表は元のグループに並ぶ（窓が元のグループで返す）ので、並べられるがグループは元に付いて動く */
+const movable = (s) => s.key !== "work";
+const regroupable = (s) => movable(s) && s.kind !== "view";
+/* 消せない・外せない元のメニューの最後の 1 行（版 3.122.0: 錠の札・薄い項目と同じことを 2 度言わない） */
+const fixedFoot = (s) => (s.key === "work" ? `${s.name}はアプリの決まったデータ元なので、消す・タブを外す・グループに入れるはできません（いつもグループなしのいちばん上）`
+  : !canHide(s) ? `${s.name}はアプリの決まったデータ元なので、消す・タブを外すはできません（グループに入れる・移す・並べるはほかの元と同じ）`
+    : `${s.name}はアプリの決まったデータ元なので、消せません（タブの出し入れ・グループはほかの元と同じ）`);
+const LOCK = '<svg class="sr-lock" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="2" y="5.2" width="8" height="5.6" rx="1.2" fill="currentColor"/><path d="M3.9 5.2V3.8a2.1 2.1 0 0 1 4.2 0v1.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+let lastMove = null;          // 直前にグループを移した元（表の上の帯で「元に戻す」。版 3.122.0）
 
 /* ---- 一覧（版 3.54.0。決め方: ui-proposals/2026-10-srclist*）: 1 行 1 件の表。グループごとの見出し行（畳める・名前を変える）・
    見出しのタブのスイッチ（1 手で出し入れ）・⠿ を引いて並べ替え／グループへ移す・結合した表は元の下に └ で・相手には「← … で使う」。
@@ -94,7 +104,28 @@ function grouped(items) {
     return { g, list: out };
   });
 }
-async function renderSources({ notice = null } = {}) {
+/* 移した直後の帯（版 3.122.0。決め方: ui-proposals/2026-11-qualitygroup の K・J）: 移した先・見出しのどのタブで開くか・結合した表も一緒・元に戻す。
+   表の送る箱（#masterSettings）の外、マスタ管理の窓の見出しの下の段に置き、表を下へ押す（表の行には被らない）。ほかのタブでは出さない（CSS） */
+function placeMovedBar(d) {
+  const box = $("#masterSettings"), panel = box && box.parentElement;
+  panel?.querySelector(":scope > #srMoved")?.remove();
+  const html = movedBar(d);
+  if (!panel || !html) return;
+  box.insertAdjacentHTML("beforebegin", html);
+  const bar = panel.querySelector(":scope > #srMoved");
+  bar.querySelector("[data-sr-mx]").onclick = () => { lastMove = null; bar.remove(); };
+  bar.querySelector("[data-sr-undo]").onclick = async () => { const m = lastMove; lastMove = null; bar.remove(); if (m) await moveTo(m.key, { ...m.from, undo: true }); };
+}
+function movedBar(d) {
+  const m = lastMove, s = m && d.items.find((x) => x.key === m.key);
+  if (!s) return "";
+  const where = !s.listed ? "見出しのタブには出していません" : m.to ? `見出しでは「${escapeHtml(m.to)} › ${escapeHtml(s.name)}」のタブで開きます` : "見出しに 1 つのタブで出ます";
+  return `<div class="sr-moved" id="srMoved" role="status"><b>✓ ${escapeHtml(s.name)}を${m.to ? `「${escapeHtml(m.to)}」` : "グループなし"}へ移しました</b>`
+    + `<span>${where}${m.views.length ? `・結合した表「${escapeHtml(m.views.join("・"))}」も一緒に移りました` : ""}</span>`
+    + `<button type="button" class="sr-mundo" data-sr-undo>元に戻す</button><button type="button" class="sr-mx" data-sr-mx aria-label="帯を閉じる" title="帯を閉じる">×</button></div>`;
+}
+async function renderSources({ notice = null, keepMove = false } = {}) {
+  if (!keepMove) lastMove = null;
   const box = $("#masterSettings");
   if (!mstate.data.sources) box.innerHTML = '<p class="ps-loading">データ元を読んでいます…</p>';
   const r = await masterRequest("/api/sources", { cache: "no-store" });
@@ -127,7 +158,7 @@ function paintSources(notice = null) {
     return by ? `<span class="sr-used" title="${escapeHtml(s.usedBy.map((k) => names[k] || k).join("・"))} が、このデータ元を使っています">← ${by === 1 ? escapeHtml(names[s.usedBy[0]] || "") : `${by} つの結合`}で使う</span>` : "";
   };
   const sw = (s) => {
-    if (!canHide(s)) return `<span class="sr-fixed" title="${escapeHtml(s.name)}のタブはアプリの決まったタブなので、いつも出ます（出す人はアクセス権限の「見出しのタブ」で決めます）">いつも出す</span>`;
+    if (!canHide(s)) return `<span class="sr-sw on is-locked" role="switch" aria-checked="true" aria-disabled="true" title="${escapeHtml(s.name)}のタブはアプリの決まったタブなので、外せません（出す人はアクセス権限の「見出しのタブ」で決めます）"><i></i><span>出す</span>${LOCK}</span>`;
     const lock = !can;
     return `<button type="button" class="sr-sw${s.listed ? " on" : ""}" role="switch" aria-checked="${s.listed}" data-sr-show="${escapeHtml(s.key)}"${lock ? " disabled" : ""}
       title="${!canHide(s) ? `${escapeHtml(s.name)}のタブはいつも出ます` : s.listed ? "見出しのタブに出しています（押すと出さない。結合・ダッシュボードには使えます）" : "見出しのタブに出していません（押すと出す）"}"><i></i><span>${s.listed ? "出す" : "出さない"}</span></button>`;
@@ -136,8 +167,8 @@ function paintSources(notice = null) {
     if (s.key === openKey) return formRow(s, s.key);
     const nested = s.kind === "view" && d.items.some((b) => b.key === s.base && (b.group || "") === (s.group || ""));
     const file = s.kind === "view" ? `元: ${escapeHtml(s.baseName || "（ありません）")}` : escapeHtml(fileOf(whereOf(s)) || "（決まっていません）");
-    return `<tr class="sr-row${s.listed ? "" : " is-off"}" data-key="${escapeHtml(s.key)}" data-group="${escapeHtml(s.group || "")}"${can && canHide(s) ? ' draggable="true"' : ""}>
-      <td class="sr-gp">${can && canHide(s) ? '<span class="sr-grip" title="つかんで並べ替え・グループへ移す（選んで Alt＋↑↓ でも）" tabindex="0" data-sr-grip>⠿</span>' : ""}</td>
+    return `<tr class="sr-row${s.listed ? "" : " is-off"}" data-key="${escapeHtml(s.key)}" data-group="${escapeHtml(s.group || "")}"${can && movable(s) ? ' draggable="true"' : ""}>
+      <td class="sr-gp">${can && movable(s) ? '<span class="sr-grip" title="つかんで並べ替え・グループへ移す（選んで Alt＋↑↓ でも）" tabindex="0" data-sr-grip>⠿</span>' : ""}</td>
       <td class="sr-nm" data-sr-open="${escapeHtml(s.key)}" title="${escapeHtml(`表 ${s.table || "自動"}・${s.equipColumn ? `設備の列 ${s.equipColumn}（${s.equipMode}）` : "設備は見分けない"}\n押すと直す欄になります`)}">${nested ? '<span class="sr-tree" aria-hidden="true">└</span>' : ""}<b>${escapeHtml(s.name)}</b>${roleChip(s)}${s.kind === "folder" ? wlSkipChip() : ""}</td>
       <td class="sr-file" title="${escapeHtml(s.kind === "view" ? `${s.baseName || ""} の写しに結合を当てた表` : whereOf(s))}"><span class="sr-fname">${file}</span></td>
       <td>${stateOf(s)}</td><td>${sw(s)}</td><td class="sr-jc">${joinCell(s)}</td>
@@ -236,12 +267,13 @@ function bindOthers(box, d) {
 }
 const notice = (cls, html) => { const n = $("#srNotice"); if (!n) return; n.className = `ps-result ${cls}`; n.innerHTML = html; };
 function bindList(box, d, can) {
-  const open = async (key, why) => { if (!(await TPA.unsaved.leave("master:sources", why))) return; if (key !== openKey) openSec = "conn"; openKey = key; openOther = null; paintSources(); };
+  const open = async (key, why) => { if (!(await TPA.unsaved.leave("master:sources", why))) return; if (key !== openKey) openSec = "conn"; openKey = key; openOther = null; lastMove = null; paintSources(); };
   box.querySelectorAll("[data-sr-open], [data-sr-edit]").forEach((c) => { c.onclick = (e) => { if (e.target.closest("a")) return; open(c.dataset.srOpen || c.dataset.srEdit, "ほかのデータ元を開く"); }; });
   box.querySelectorAll("[data-sr-fold]").forEach((b) => { b.onclick = () => toggleCollapsed(b.dataset.srFold); });
   const sr = $("#srSearch");
   if (sr) TPA.onText(sr, (el) => { search = el.value; const at = el.selectionStart; paintSources(); const n = $("#srSearch"); if (n) { n.focus(); try { n.setSelectionRange(at, at); } catch (_) { /* 選べない */ } } });
   const add = $("#srAdd"); if (add) add.onclick = () => open("+", "データ元を足す");
+  placeMovedBar(d);
   const view = $("#srView"); if (view) view.onclick = () => open("+view", "結合した表を作る");
   const grp = $("#srGroup"); if (grp) grp.onclick = () => askName("", (name) => { if (!newGroups.includes(name)) newGroups.push(name); paintSources(); notice("ok", `✓ グループ「${escapeHtml(name)}」を作りました。⠿ を引いてデータ元を入れてください（入れるまでは保存されません）。`); });
   box.querySelectorAll("[data-sr-rename]").forEach((b) => { b.onclick = () => askName(b.dataset.srRename, (name) => renameGroup(b.dataset.srRename, name), b); });
@@ -264,7 +296,7 @@ function bindList(box, d, can) {
   });
   box.querySelectorAll("tr.sr-row, tr.sr-gh, tr.sr-empty").forEach((tr) => {
     tr.addEventListener("dragover", (e) => {
-      if (!dragKey || tr.dataset.key === dragKey || (tr.classList.contains("sr-row") && !canHide(d.items.find((x) => x.key === tr.dataset.key) || {}))) return;
+      if (!dragKey || tr.dataset.key === dragKey || (tr.classList.contains("sr-row") && !movable(d.items.find((x) => x.key === tr.dataset.key) || {}))) return;
       e.preventDefault();
       box.querySelectorAll(".drop-before,.drop-after,.drop-in").forEach((x) => x.classList.remove("drop-before", "drop-after", "drop-in"));
       if (!tr.classList.contains("sr-row")) { tr.classList.add("drop-in"); return; }
@@ -282,31 +314,38 @@ function bindList(box, d, can) {
     h.addEventListener("keydown", (e) => {
       if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
       e.preventDefault();
-      const key = h.closest("tr").dataset.key, s = d.items.find((x) => x.key === key), mates = d.items.filter((x) => (x.group || "") === (s.group || "") && canHide(x));
+      const key = h.closest("tr").dataset.key, s = d.items.find((x) => x.key === key), mates = d.items.filter((x) => (x.group || "") === (s.group || "") && movable(x));
       const i = mates.findIndex((x) => x.key === key), j = i + (e.key === "ArrowUp" ? -1 : 1);
       if (j < 0 || j >= mates.length) return;
       moveTo(key, { group: s.group || "", near: mates[j].key, after: e.key === "ArrowDown" }, true);
     });
   });
 }
-/** 行のメニュー（右クリック・Shift＋F10） */
+/** 行のメニュー（右クリック・Shift＋F10）。版 3.122.0（決め方: ui-proposals/2026-11-qualitygroup の K）: グループの項目を「グループ（押すと移す）」の
+    1 まとまりにし、今のグループに ✓。品質も移せる。消せない・外せないは最後の 1 行で言う（押せない薄い項目と 2 度言わない） */
 function rowMenu(key, x, y) {
   const items = mstate.data.sources.items, s = items.find((v) => v.key === key);
   if (!s) return;
-  const mates = items.filter((v) => (v.group || "") === (s.group || "") && canHide(v)), i = mates.findIndex((v) => v.key === key);
-  const groups = [...new Set(items.map((v) => v.group).filter(Boolean).concat(newGroups))].filter((g) => g !== (s.group || ""));
+  const mates = items.filter((v) => (v.group || "") === (s.group || "") && movable(v)), i = mates.findIndex((v) => v.key === key);
+  const groups = [...new Set(items.map((v) => v.group).filter(Boolean).concat(newGroups))], cur = s.group || "";
+  const viewWhy = s.kind === "view" ? `結合した表は元（${s.baseName || "元"}）と同じグループに並びます。元を移すと一緒に移ります` : "";
+  const to = (g) => () => { if (g !== cur) moveTo(key, { group: g }); };
+  const grp = !movable(s) ? [] : [
+    { group: "グループ（押すと移す）" },
+    { label: "グループなし", icon: "", on: !cur, disabled: !!viewWhy, why: viewWhy, run: to("") },
+    ...groups.map((g) => ({ label: g, icon: "", on: g === cur, disabled: !!viewWhy, run: to(g) })),
+    { label: "新しいグループへ…", icon: "＋", disabled: !!viewWhy, run: () => askName("", (name) => moveTo(key, { group: name })) },
+  ];
   TPA.menu({ x, y, head: `データ元「${s.name}」`, items: [
-    { label: "変える…", icon: "✎", run: () => { if (key !== openKey) openSec = "conn"; openKey = key; openOther = null; paintSources(); } },
-    { label: s.listed ? "見出しのタブに出さない" : "見出しのタブに出す", icon: s.listed ? "○" : "●", disabled: !canHide(s), why: canHide(s) ? "" : "いつも出るタブです",
-      run: () => quick(s, { "画面": s.listed ? "無" : "有" }, `✓ ${escapeHtml(s.name)}を見出しのタブ${s.listed ? "から外しました" : "に出しました"}。`) },
-    { sep: true },
-    { label: "上へ", icon: "↑", key: "Alt+↑", disabled: !canHide(s) || i <= 0, why: i <= 0 ? "グループのいちばん上です" : "", run: () => moveTo(key, { group: s.group || "", near: mates[i - 1].key, after: false }) },
-    { label: "下へ", icon: "↓", key: "Alt+↓", disabled: !canHide(s) || i >= mates.length - 1, why: i >= mates.length - 1 ? "グループのいちばん下です" : "", run: () => moveTo(key, { group: s.group || "", near: mates[i + 1].key, after: true }) },
-    { sep: true },
-    ...groups.map((g) => ({ label: `「${g}」へ移す`, icon: "→", disabled: !canHide(s), run: () => moveTo(key, { group: g }) })),
-    ...(s.group ? [{ label: "グループから出す", icon: "←", run: () => moveTo(key, { group: "" }) }] : []),
-    { label: "新しいグループへ…", icon: "＋", disabled: !canHide(s), run: () => askName("", (name) => moveTo(key, { group: name })) },
+    { label: "変える…", icon: "✎", run: () => { if (key !== openKey) openSec = "conn"; openKey = key; openOther = null; lastMove = null; paintSources(); } },
+    ...(canHide(s) ? [{ label: s.listed ? "見出しのタブに出さない" : "見出しのタブに出す", icon: s.listed ? "○" : "●",
+      run: () => quick(s, { "画面": s.listed ? "無" : "有" }, `✓ ${escapeHtml(s.name)}を見出しのタブ${s.listed ? "から外しました" : "に出しました"}。`) }] : []),
+    ...(movable(s) ? [{ sep: true },
+      { label: "上へ", icon: "↑", key: "Alt+↑", disabled: i <= 0, why: i <= 0 ? "グループのいちばん上です" : "", run: () => moveTo(key, { group: cur, near: mates[i - 1].key, after: false }) },
+      { label: "下へ", icon: "↓", key: "Alt+↓", disabled: i >= mates.length - 1, why: i >= mates.length - 1 ? "グループのいちばん下です" : "", run: () => moveTo(key, { group: cur, near: mates[i + 1].key, after: true }) },
+      { sep: true }, ...grp] : []),
     ...(s.kind === "file" ? [{ sep: true }, { label: "この元で結合した表を作る…", icon: "⊕", run: () => { openKey = "+view"; viewBase = key; paintSources(); } }] : []),
+    ...(s.builtin ? [{ foot: fixedFoot(s) }] : []),
   ] });
 }
 /** グループの全部を出す・出さない（いつも出る元はそのまま） */
@@ -364,9 +403,15 @@ async function deleteGroup(g) {
   await renderSources({ notice: ["ok", `✓ グループ「${escapeHtml(g)}」を消しました${n ? `。${n} 件のデータ元はグループなしへ移りました` : ""}。`] });
 }
 /** 動かす: key を group へ（near の前・後ろ。無ければグループの最後）。グループが変われば先にグループを、それから並びを置く */
-async function moveTo(key, { group, near = null, after = false }, keepFocus = false) {
+async function moveTo(key, { group, near = null, after = false, undo = false }, keepFocus = false) {
   const items = mstate.data.sources.items, s = items.find((x) => x.key === key);
-  if (!s || !canHide(s)) return;
+  if (!s || !movable(s)) return;
+  // 結合した表は元のグループに並ぶ（グループは元に付いて動く。並びだけ変えられる）
+  if (s.kind === "view" && group !== (s.group || "")) { notice("ng", `結合した表は元（${escapeHtml(s.baseName || "元")}）と同じグループに並びます。元を移すと一緒に移ります。`); return; }
+  // 元に戻す（帯）のための、動かす前の置き場（同じグループの前の元の後ろ・無ければ次の元の前）
+  const was = s.group || "", sib = items.filter((x) => (x.group || "") === was && movable(x) && x.kind !== "view"), at0 = sib.findIndex((x) => x.key === key);
+  const from = { group: was, near: (sib[at0 - 1] || sib[at0 + 1] || {}).key || null, after: !!sib[at0 - 1] };
+  const views = items.filter((x) => x.kind === "view" && x.base === key).map((x) => x.name);
   if (s.key === "wip" || s.kind !== "folder") {
     // 役割「マスタ」の元をグループなしへ出すときは「-」（グループを消した印。「マスタ」へ自動で戻らない。版 3.58.0）
     const want = !group && s.role === "マスタ" ? "-" : group;
@@ -374,18 +419,21 @@ async function moveTo(key, { group, near = null, after = false }, keepFocus = fa
       if (!(await quick(s, { "グループ": want }))) return;
     }
   }
-  const order = items.filter((x) => canHide(x) && x.key !== key).map((x) => x.key);
+  const order = items.filter((x) => movable(x) && x.key !== key).map((x) => x.key);
   let at = near ? order.indexOf(near) + (after ? 1 : 0) : -1;
   if (at < 0) {   // グループの最後（そのグループの最後の元の後ろ・無ければいちばん後ろ）
-    const last = [...items].reverse().find((x) => x.key !== key && canHide(x) && (x.group || "") === group);
+    const last = [...items].reverse().find((x) => x.key !== key && movable(x) && (x.group || "") === group);
     at = last ? order.indexOf(last.key) + 1 : order.length;
   }
   order.splice(at, 0, key);
   const res = await withLockWait(() => masterRequest("/api/sources/order", TPA.json("POST", { keys: order })), (x) => notice("wait", lockWaitText(x, "保存", boldName)));
   if (!res.ok) { notice("ng", "✕ " + escapeHtml(res.data.error || "並べ替えられませんでした")); await renderSources(); return; }
   newGroups = newGroups.filter((g) => g !== group);
-  emit("tpa:sources-changed", { key });
-  await renderSources({ notice: ["ok", `✓ ${escapeHtml(s.name)}を${group ? `「${escapeHtml(group)}」` : "グループなし"}の${near ? "その位置" : "最後"}へ動かしました。見出しのタブの並びも同じになります。`] });
+  emit("tpa:sources-changed", { key, group: group !== was ? group : "" });
+  // グループを移したら表の上の帯（移した先・見出しのタブ・結合した表も一緒・元に戻す）。並べ替えだけ・元に戻したときは知らせの 1 行
+  lastMove = group !== was && !undo ? { key, to: group, from, views } : null;
+  await renderSources({ keepMove: true, notice: lastMove ? null : ["ok", undo ? `✓ ${escapeHtml(s.name)}を元の置き場（${group ? `「${escapeHtml(group)}」` : "グループなし"}）へ戻しました。`
+    : `✓ ${escapeHtml(s.name)}を${group ? `「${escapeHtml(group)}」` : "グループなし"}の${near ? "その位置" : "最後"}へ動かしました。見出しのタブの並びも同じになります。`] });
   if (keepFocus) $(`#masterSettings tr[data-key="${CSS.escape(key)}"] [data-sr-grip]`)?.focus();
 }
 
@@ -477,7 +525,7 @@ async function saveConnSettings(s, list, say) {
 let openSec = "conn";     // 開いている段（同じ元を描き直しても続く。ほかの元を開くと「接続」から）
 const tailOf = (p) => { const parts = String(p || "").split(/[\\/]/).filter(Boolean); return parts.length > 2 ? `…${sepOf(p)}${parts.slice(-2).join(sepOf(p))}` : String(p || ""); };
 const fixedTab = (s) => s && !canHide(s);
-const groupable = (s) => !s || (s.key !== "lot" && s.key !== "work");
+const groupable = (s, view = false) => !view && (!s || regroupable(s));
 const connOf = (s) => (s ? s.conn || [] : mstate.data.sources.newConn || []);
 /** 既定の数の設定が数でない（版 3.106.0）: 段の見出しに出す札。言葉は欄の名前（サーバーの services/num_setting.LABELS の 1 か所）に
     「が数でない」を足した物で、接続・設備の段の見出しと「直すこと」で同じ（TPA.numWarnTag）。細かい言葉（いま効いている値）は title に */
@@ -522,10 +570,9 @@ function formOf(s, can, isView = false) {
   const nameSec = `<label><span>表示名${s && s.builtin ? "（空なら元の名前）" : ""}</span><input class="ps-input" data-sr="name" value="${escapeHtml(v.name)}" placeholder="${view ? "例: 品質＋製造条件" : s && s.builtin ? escapeHtml(s.name) : "例: 製造条件マスタ"}" maxlength="24"${dis}></label>`
     + (view ? `<label><span>元（この表の行）</span><select data-sr="base"${dis}${s ? ' title="元を替えるときは、結合した表を作り直してください"' : ""}>${bases.map((b) => `<option value="${escapeHtml(b.key)}"${b.key === curBase ? " selected" : ""}${s && b.key !== curBase ? " disabled" : ""}>${escapeHtml(b.name)}${b.listed ? "" : "（出さない）"}</option>`).join("")}</select></label>`
       : s && s.builtin ? "" : `<label><span>役割</span><select data-sr="role"${dis}>${opt(d.roles, v.role)}</select></label>`)
-    + (fixedTab(s) ? `<p class="ps-hint">見出しのタブ「${escapeHtml(v.name)}」はアプリの決まったタブなので、いつも出ます（出す人はアクセス権限の「見出しのタブ」で決めます）。</p>`
+    + (fixedTab(s) ? `<p class="ps-hint">見出しのタブ「${escapeHtml(v.name)}」はアプリの決まったタブなので、外せません（出す人はアクセス権限の「見出しのタブ」で決めます）。${groupable(s) ? "グループに入れると、そのグループのタブの中に札で並びます。" : ""}</p>`
       : `<label><span>見出しのタブ</span><select data-sr="listed"${dis}><option value="1"${v.listed ? " selected" : ""}>出す</option><option value="0"${v.listed ? "" : " selected"}>出さない（結合・ダッシュボードだけに使う）</option></select></label>`)
-    + (groupable(s) ? `<label><span>グループ（空ならグループなし）</span><input class="ps-input" data-sr="group" value="${escapeHtml(v.groupSet === "-" ? "" : v.groupSet || "")}" list="srGroups" maxlength="24" placeholder="例: 台帳"${dis}>
-      <datalist id="srGroups">${groups.map((g) => `<option value="${escapeHtml(g)}">`).join("")}</datalist></label>` : "");
+    + (groupable(s, view) ? groupField(v, groups, dis) : "");
   const nameSum = `${escapeHtml(v.name || (view ? "（名前を入れる）" : "（名前を入れる）"))}<i>・</i>${fixedTab(s) ? "いつも出す" : v.listed ? "タブに出す" : "タブに出さない"}${v.group ? `<i>・</i>グループ ${escapeHtml(v.group)}` : ""}${view ? `<i>・</i>元 ${escapeHtml((bases.find((b) => b.key === curBase) || {}).name || "")}` : ""}`;
   // 段 2: 接続（結合した表は元の物を使うので持たない）
   const conn = view ? [] : connOf(s).filter((f) => f.id !== "lot");
@@ -557,11 +604,32 @@ function formOf(s, can, isView = false) {
       <button type="button" class="btn-primary" data-sr-save${dis}>${s ? "保存" : view ? "作る" : "足す"}</button>
       ${reset ? '<button type="button" class="ps-reset" data-sr-reset title="配った設定（既定）に戻します">既定に戻す</button>' : ""}
       ${s && !s.builtin && can ? `<button type="button" class="pz-btn danger" data-sr-del>${view ? "この結合した表を消す" : "このデータ元を消す"}</button>` : ""}
+      ${s && s.builtin && can ? `<button type="button" class="pz-btn danger sr-nodel" disabled title="${escapeHtml(s.name)}はアプリの決まったデータ元なので、消せません">このデータ元を消す</button><span class="sr-nodelwhy">決まったデータ元なので消せません</span>` : ""}
       <span class="sr-sp"></span><button type="button" class="btn-ghost" data-sr-close>閉じる</button>
     </div>
     <div class="ps-result hidden sr-w" data-sr-result aria-live="polite"></div></div>`;
 }
+/* 欄のグループ（版 3.122.0。決め方: ui-proposals/2026-11-qualitygroup の J）: 札で選ぶ（なし・今あるグループ・＋ 新しいグループ…）。
+   値は隠した欄（data-sr="group"。保存していない変更の見張りも同じ）。役割「マスタ」の元の「なし」は「-」（グループを消した印） */
+function groupField(v, groups, dis) {
+  const cur = v.group || "", raw = v.groupSet || "", none = v.role === "マスタ" ? "-" : "";
+  const chip = (g, label) => `<button type="button" role="radio" class="sr-gchip" data-sr-gpick="${escapeHtml(g)}" aria-checked="${g === cur}"${dis}>${escapeHtml(label)}</button>`;
+  return `<div class="sr-gfield"><span class="sr-glab" id="srGLab">グループ</span><div class="sr-gchips" role="radiogroup" aria-labelledby="srGLab" data-none="${none}">`
+    + chip("", "なし") + groups.map((g) => chip(g, g)).join("")
+    + `<button type="button" class="sr-gchip is-new" data-sr-gnew${dis}>＋ 新しいグループ…</button><input class="ps-input sr-gnew" data-sr-gname maxlength="24" placeholder="グループの名前（例: 台帳）" aria-label="新しいグループの名前" hidden></div>`
+    + `<input type="hidden" data-sr="group" value="${escapeHtml(raw)}"></div>`;
+}
+function bindGroupField(card) {
+  const box = card.querySelector(".sr-gchips"), hid = card.querySelector('[data-sr="group"][type="hidden"]');
+  if (!box || !hid) return;
+  const name = box.querySelector("[data-sr-gname]");
+  const pick = (b) => { box.querySelectorAll("[data-sr-gpick]").forEach((x) => x.setAttribute("aria-checked", String(x === b))); };
+  box.querySelectorAll("[data-sr-gpick]").forEach((b) => { b.onclick = () => { pick(b); name.hidden = true; hid.value = b.dataset.srGpick || box.dataset.none || ""; }; });
+  box.querySelector("[data-sr-gnew]").onclick = () => { pick(null); name.hidden = false; name.focus(); hid.value = name.value.trim(); };
+  name.addEventListener("input", () => { hid.value = name.value.trim().replace(/\s+/g, " "); });
+}
 function bindSourceForm(card, s, can, isView = false) {
+  bindGroupField(card);
   const q = (k) => card.querySelector(`[data-sr="${k}"]`), val = (k) => (q(k) ? q(k).value.trim() : "");
   const out = card.querySelector("[data-sr-result]");
   const say = (cls, html) => { if (!out) return; out.className = `ps-result ${cls} sr-w`; out.innerHTML = html; };
@@ -657,14 +725,14 @@ async function saveSource(s, f, say) {
   const body = { "表示名": f.name, "画面": f.listed ? "有" : "無", "結合": f.joins, "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, ...f.conn.row };
   if (!s || !s.builtin) Object.assign(body, { "役割": f.role, "元": f.base });
   if (s && s.expand) body["展開"] = s.expand;     // JSON の列を分けた表（版 3.120.0）: 決まりはそのまま持ち越す（直すのは { } JSON の窓で）
-  if (groupable(s)) body["グループ"] = f.group;
+  if (groupable(s, !s && !!f.base)) body["グループ"] = f.group;
   const res = await withLockWait(() => masterRequest(s ? `/api/sources/${encodeURIComponent(s.key)}` : "/api/sources", TPA.json(s ? "PUT" : "POST", { ...body, base_rev: s ? s.rev || 0 : 0 })),
     (x) => say("wait", lockWaitText(x, "保存", boldName)));
   if (res.status === 409 && res.data.kind === "conflict") { say("ng", "開いたあとに、ほかの PC がこのデータ元を変えました。読み直してから直してください。"); return; }
   if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした")); return; }
   const key = s ? s.key : res.data.row["キー"];
   emit("tpa:settings-changed", { key: `sources.${key}` });
-  emit("tpa:sources-changed", { key });
+  emit("tpa:sources-changed", { key, group: s && groupable(s) && f.group !== (s.groupSet || "") ? f.group.replace(/^-$/, "") : "" });
   // 実績のフォルダ・決まりを変えたら、開いたまま設備の段で探し直した設備を見せる（次の手を先に出す）
   const rescan = s && s.kind === "folder" && f.conn.settings.some((c) => c.field === "folder" || c.field === "pattern");
   openKey = rescan ? s.key : null;

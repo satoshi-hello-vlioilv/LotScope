@@ -2,10 +2,10 @@
 //   node program/tools/ui-eval-srclist.mjs
 // データ元が多い形（台帳 8・工程 2・マスタ 2・結合した表 1。ui-harness の manySources）で:
 // ① 1 行 1 件の表: グループの見出し（グループなし・マスタ・台帳・工程）・行の数＝データ元の数・ファイル名／状態／結合の数が切れない（1728・1536・1280）
-// ② スイッチ 1 手で見出しのタブの出し入れ（サーバーの listed が替わる）・品質データは「いつも出す」で替えられない理由が題にある
+// ② スイッチ 1 手で見出しのタブの出し入れ（サーバーの listed が替わる）・品質データは押せない錠つきのスイッチで、外せない理由が題にある（版 3.122.0）
 // ③ 見出しのグループのタブ（台帳）: 中の札が、出すデータ元だけ・並びのとおり。札を押すとその一覧
 // ④ ⠿ を引いて並べ替え（リピートを組成の前へ）→ サーバーの並び・見出しの札の並びも同じ
-// ⑤ 右クリックの「「台帳」へ移す」でグループが替わる・Alt＋↓ で 1 つ下へ
+// ⑤ 右クリックの「グループ（押すと移す）」の「台帳」でグループが替わる（版 3.122.0。前は「「台帳」へ移す」）・Alt＋↓ で 1 つ下へ
 // ⑥ グループの名前を変える（工程 → 工程表）・全部出さない／全部出す
 // ⑦ 結合した表: 見出しのタブで開くと、元の行の数（1,500）で、元より列が多い。結合の列は「＋ 製造条件マスタ」
 // ⑧ ＋ 結合した表で作る（元: 仕掛・製造材質＝材質・製造調質＝質別）→ 仕掛の下に └ で入る → 消す
@@ -56,8 +56,8 @@ try {
     // ②
     await p.click(`#masterSettings [data-sr-show="${key("材調")}"]`); await sleep(1200);
     check("② スイッチ 1 手で見出しのタブに出す（材調）", (await items(p)).find((x) => x.name === "材調").listed, "");
-    const lotFixed = await p.$eval('#masterSettings tr[data-key="lot"] .sr-fixed', (x) => [x.textContent, x.title]).catch(() => null);
-    check("② 品質データは「いつも出す」・替えられない理由が題に", !!lotFixed && lotFixed[0] === "いつも出す" && /いつも出ます/.test(lotFixed[1]), lotFixed);
+    const lotFixed = await p.$eval('#masterSettings tr[data-key="lot"] .sr-sw', (x) => [x.textContent.trim(), x.title, x.getAttribute("aria-disabled"), x.classList.contains("is-locked"), !!x.querySelector(".sr-lock")]).catch(() => null);
+    check("② 品質データは押せない錠つきのスイッチ（出す）・外せない理由が題に", !!lotFixed && lotFixed[0] === "出す" && /外せません/.test(lotFixed[1]) && lotFixed[2] === "true" && lotFixed[3] && lotFixed[4], lotFixed);
     // ③
     await p.click("#masterCloseBtn"); await sleep(400);
     await p.click('.screen-tabs [data-screen="grp:台帳"]'); await sleep(2500);
@@ -79,8 +79,8 @@ try {
     await openSources(p);
     const tr = await (await p.$(`#masterSettings tr[data-key="${key("スラブ")}"] .sr-nm`)).boundingBox();
     await p.mouse.click(tr.x + 30, tr.y + tr.height / 2, { button: "right" }); await sleep(300);
-    await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button")].find((b) => b.textContent.includes("「台帳」へ移す")).click()); await sleep(1800);
-    check("⑤ 右クリックの「台帳」へ移す", (await items(p)).find((x) => x.name === "スラブ").group === "台帳", "");
+    await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button")].find((b) => b.querySelector("span")?.textContent.trim() === "台帳").click()); await sleep(1800);
+    check("⑤ 右クリックの「グループ（押すと移す）」の「台帳」", (await items(p)).find((x) => x.name === "スラブ").group === "台帳", "");
     const before = (await items(p)).filter((x) => x.group === "台帳").map((x) => x.name);
     await p.focus(`#masterSettings tr[data-key="${key("組成")}"] [data-sr-grip]`); await p.keyboard.press("Alt+ArrowDown"); await sleep(1500);
     const after = (await items(p)).filter((x) => x.group === "台帳").map((x) => x.name);

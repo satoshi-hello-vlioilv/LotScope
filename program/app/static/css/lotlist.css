@@ -326,6 +326,12 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
   background:var(--on-dark-fill);color:rgba(255,255,255,.82);font-family:inherit;font-size:var(--fs-md);font-weight:700;white-space:nowrap}
 .screen-tab:hover{background:rgba(255,255,255,.18);color:var(--on-fill)}
 .screen-tab[aria-selected="true"]{background:var(--bg);color:var(--ink)}
+/* 品質がグループに入ったら、決まったタブ「品質」は出さない（グループのタブの札に並ぶ）・グループのタブに押すと開く札の名前（狭い帯では省く。版 3.122.0） */
+.screen-tab[data-ingroup]{display:none}
+.screen-tab .tab-cur{font-size:12.5px;font-weight:600;opacity:.85;margin-left:-3px;white-space:nowrap}
+.screen-tabs.no-cur .tab-cur{display:none}
+.eq-grpchips{display:flex;align-items:flex-end;flex:none}
+.eq-grpsep{flex:none;width:1px;height:22px;margin:0 10px;align-self:center;background:var(--line)}
 .screen-tab svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}
 .screen-tab small{font-size:var(--fs-sm);font-weight:800;letter-spacing:.03em;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.18)}
 .screen-tab small:empty{display:none}

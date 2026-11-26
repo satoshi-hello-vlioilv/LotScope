@@ -543,6 +543,31 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-sw span{font-size:12px;color:var(--ro-ink)} .sr-sw.on span{color:#1f5f5b;font-weight:700}
 .sr-sw:disabled{cursor:default;opacity:.6}
 .sr-sw:focus-visible{outline:2px solid var(--edit-focus);outline-offset:2px;border-radius:6px}
+/* 外せないタブ（品質・実績。版 3.122.0）: ほかの行と同じスイッチの形で ON・押せない・錠（錠は「タブを外せない」だけに使う） */
+.sr-sw.is-locked{cursor:default} .sr-sw.is-locked i{background:#8fb5b1} .sr-sw.is-locked span{color:#3f6461}
+.sr-lock{color:#4f5d69;margin-left:-2px;flex:none}
+/* 移した直後の帯（版 3.122.0）: 表の送る箱の外（窓の見出しの下の段）に置き、表を下へ押す（表の行に被らない）。データ元のタブのときだけ出す */
+.sr-moved{grid-column:2/4;grid-row:2;display:none;align-items:center;flex-wrap:wrap;gap:6px 12px;margin:10px 18px 0;padding:8px 10px 8px 14px;border-radius:9px;background:#173a55;color:#fff;font-size:13px}
+.master-panel:has(> #masterSettings:not(.hidden) > .sr-page) > .sr-moved{display:flex}
+.master-panel:has(> .sr-moved):has(> #masterSettings:not(.hidden) > .sr-page) > .master-settings{grid-row:3}
+.sr-moved b{white-space:nowrap} .sr-moved span{flex:1 1 240px;min-width:0;color:#dbe7f0}
+.sr-moved button{flex:none;height:28px;padding:0 12px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.sr-mundo{border:1px solid #fff;background:#fff;color:#173a55;font-weight:700}
+.sr-mx{border:0;background:transparent;color:#fff;width:28px;padding:0!important;font-size:16px!important}
+.sr-mundo:focus-visible,.sr-mx:focus-visible{outline:2px solid #ffd56a;outline-offset:2px}
+/* 欄のグループ（版 3.122.0）: 札で選ぶ（なし・今あるグループ・＋ 新しいグループ…） */
+.sr-gfield{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.sr-glab{font-weight:700;color:var(--ro-ink)}
+.sr-gchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sr-gchip{height:28px;padding:0 12px;border:1px solid #c9d3dc;border-radius:999px;background:var(--surface);font:inherit;font-size:12.5px;color:#3d4b57;cursor:pointer;white-space:nowrap}
+.sr-gchip[aria-checked="true"]{background:#e3edf5;border-color:#2f6f8f;color:#173a55;font-weight:700}
+.sr-gchip.is-new{border-style:dashed}
+.sr-gchip:disabled{cursor:default;opacity:.6}
+.sr-gchip:focus-visible{outline:2px solid var(--edit-focus);outline-offset:2px}
+.sr-gnew{height:28px;width:220px}
+/* 消せない元の、押せない「このデータ元を消す」と理由 */
+.sr-nodel:disabled{opacity:1;color:#8b5a5a;border-color:#dcc8c8;background:#faf6f6;cursor:not-allowed}
+.sr-nodelwhy{font-size:12px;color:#4f5d69}
 /* 結合の列: ベン図（方式）・相手・当たった数（数は切らず、相手の名前を省く）／相手の側の「← … で使う」 */
 .sr-j{display:flex;align-items:center;gap:5px;min-width:0;color:var(--info-ink);font-size:12px}
 .sr-j svg{flex:none} .sr-j span{min-width:0;overflow:hidden;text-overflow:ellipsis} .sr-j em{flex:none;font-style:normal;font-weight:700;color:var(--ok-ink)}

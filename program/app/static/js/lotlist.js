@@ -148,7 +148,7 @@
   function scheduleSource(def, id, name) {
     const st = () => STATES[id] || {};
     return {
-      id, api: def.api, title: name, noun: name, fileStem: name, group: "", isMaster: false, where: def.place || "", cm3: true,
+      id, api: def.api, title: name, noun: name, fileStem: name, group: def.group || "", isMaster: false, where: def.place || "", cm3: true,
       params: () => (st().equip ? { equip: st().equip } : {}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
       colTable: (t) => `${id}:${t || ""}`, place: (t) => `${equipName(st().equip) || ""}・${t || ""}`,
       loadTable: () => "", saveTable: () => {},           // 表は設備で決まる（設備は予定、HOT コイル作業順は HOT）
@@ -2065,7 +2065,7 @@
   }
   function renderEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
-    if (S.src.cm3) { window.LotListSchedule.renderBar(bar, S); fitEquip(); return; }
+    if (S.src.cm3) { window.LotListSchedule.renderBar(bar, S); groupHead(bar); fitEquip(); return; }
     if (S.src.group && GROUPS[S.src.group]) { renderGroupBar(bar); return; }
     bar.hidden = S.src.id !== "work";
     bar.dataset.kind = "work";
@@ -2088,15 +2088,23 @@
   function renderGroupBar(bar) {
     bar.hidden = false; bar.dataset.kind = "grp";
     bar.classList.remove("is-sortable");
-    const chips = GROUPS[S.src.group].map((m) => `<button type="button" role="tab" class="eq-chip" data-equip="${esc(m.screen)}" aria-selected="${m.screen === S.src.id}"`
-      + ` tabindex="${m.screen === S.src.id ? 0 : -1}" title="${esc(`${m.name}（${m.place || "場所が決まっていません"}）`)}">${esc(m.name)}</button>`).join("");
+    const cur = S.src.id === "lot" ? "list" : S.src.id;     // 品質の札の画面は list（版 3.122.0）
+    const chips = GROUPS[S.src.group].map((m) => `<button type="button" role="tab" class="eq-chip" data-equip="${esc(m.screen)}" aria-selected="${m.screen === cur}"`
+      + ` tabindex="${m.screen === cur ? 0 : -1}" title="${esc(`${m.name}（${m.place || "場所が決まっていません"}）`)}">${esc(m.name)}</button>`).join("");
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">${esc(S.src.group)}</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>`
       + '<button type="button" class="eq-manage" data-ll-settings title="データ元を足す・外す・並べる・グループを変える・ほかのデータと結合する（マスタ管理の「データ元」）">データ元を管理…</button>';
     fitEquip();
   }
-  /** 札を押した・← → で移った: 作業実績は設備を替える、マスタはそのマスタの一覧へ */
-  function pickChip(k) {
-    if ($("#llEquipBar").dataset.kind === "grp") document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
+  /* スケジュールがグループに入ったとき（版 3.122.0）: 設備の札の前に、グループの札（ほかのデータ元へ移る）を並べる */
+  function groupHead(bar) {
+    const list = S.src.group && GROUPS[S.src.group];
+    if (!list || bar.querySelector(".eq-grpchips")) return;
+    const chips = list.map((m) => `<button type="button" class="eq-chip" data-equip="${esc(m.screen)}" data-grp="1" aria-pressed="${m.screen === S.src.id}" title="${esc(`${m.name}（${m.place || "場所が決まっていません"}）`)}">${esc(m.name)}</button>`).join("");
+    bar.insertAdjacentHTML("afterbegin", `<span class="eq-lab">${esc(S.src.group)}</span><div class="eq-grpchips">${chips}</div><span class="eq-grpsep" aria-hidden="true"></span>`);
+  }
+  /** 札を押した・← → で移った: 作業実績は設備を替える、マスタはそのマスタの一覧へ（グループの札〈data-grp〉はそのデータ元へ） */
+  function pickChip(k, el = null) {
+    if ($("#llEquipBar").dataset.kind === "grp" || (el && el.dataset.grp)) document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
     else switchEquip(k);
   }
   /* 設備のタブは 1 段（版 3.32.0。決め方: ui-proposals/2026-10-narrow*）。入りきらないときは、後ろの設備から「ほか N 台 ▾」にまとめる
@@ -2195,9 +2203,11 @@
     lotJoined = !!(lotDef && !lotDef.shellLists && ((lotDef.joins || []).length || lotDef.lotSet));
     // 組み込みの元の名前（版 3.58.0。データ元で変えられる。既定は「品質」「実績」）を、一覧の題・Excel の名前に
     if (lotDef) Object.assign(SOURCES.lot, { title: lotDef.name, fileStem: lotDef.name });
+    // 品質もグループに入る（版 3.122.0。見出しのグループのタブの札に「品質」。札の画面は list）
+    SOURCES.lot.group = (lotDef && lotDef.listed && lotDef.group) || "";
     if (workDef) Object.assign(SOURCES.work, { title: workDef.name, noun: workDef.name, fileStem: workDef.name });
     GROUPS = {};
-    (list || []).filter((d) => d.group && d.listed && d.api && d.api.startsWith("/api/src/"))
+    (list || []).filter((d) => d.group && d.listed && d.api && (d.api.startsWith("/api/src/") || d.key === "lot"))
       .forEach((d) => { (GROUPS[d.group] = GROUPS[d.group] || []).push({ screen: d.screen, name: d.name, place: d.place }); });
     // 結合の決まりが変わった元を、開いていれば引き直す（列が増える・減る）
     const moved = (list || []).filter((d) => { const sig = JSON.stringify(d.joins || []), was = joinSigs[d.key]; joinSigs[d.key] = sig; return was != null && was !== sig; })
@@ -2212,7 +2222,7 @@
       if (src.cm3) { STATES[src.id].equip = window.LotListSchedule.savedEquip(); window.LotListSchedule.defaults(src.id); }
     });
     // グループ・名前が変わったら、開いているデータ元の札を描き直す（S.src は上で新しい物に替わっている）
-    if (S && S.src.id.startsWith("src:") && root && !root.classList.contains("hidden")) renderEquipBar();
+    if (S && (S.src.id.startsWith("src:") || S.src.id === "lot") && root && !root.classList.contains("hidden")) renderEquipBar();
   }
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
@@ -2257,7 +2267,7 @@
       const more = e.target.closest(".eq-more");
       if (more) { if ($("#llEquipMenu")) closeEquipMore(); else openEquipMore(more); return; }
       const b = e.target.closest("[data-equip]");
-      if (b && b.getAttribute("aria-disabled") !== "true") { closeEquipMore(); pickChip(b.dataset.equip); }
+      if (b && b.getAttribute("aria-disabled") !== "true") { closeEquipMore(); pickChip(b.dataset.equip, b); }
     });
     let fitTimer = 0;
     addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitEquip, 120); });

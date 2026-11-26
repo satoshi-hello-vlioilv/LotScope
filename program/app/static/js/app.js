@@ -1005,7 +1005,8 @@ function initialScreen() {
 }
 function showScreen(name, opts = {}) {
   // グループに入ったデータ元（役割「マスタ」は「マスタ」のグループ）は、見出しのグループのタブの中: そのデータ元を選んでグループの画面へ（版 3.53.0・3.54.0）
-  const g = !SCREENS[name] ? groupOfScreen(name) : "";
+  // 品質（list）もグループに入っていればそのグループのタブの中で開く（版 3.122.0。Alt＋1・品質の札も同じ）
+  const g = !SCREENS[name] || name === "list" ? groupOfScreen(name) : "";
   if (g) {
     const gs = groupScreen(g);
     if (state.screen === gs) { pickMember(name); return; }
@@ -1055,8 +1056,14 @@ const MST_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy
 const MST_KEY = "tpa.mst.v1", GRP_KEY = "tpa.grp.v1", MST_GROUP = "マスタ";
 const GRP_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V13h13V5.5H7.5L6 4H1.5z"/><path d="M1.5 7h13"/></svg>';
 const groupScreen = (g) => (g === MST_GROUP ? "mst" : `grp:${g}`);
-const groupMembers = (g) => (state.sources || []).filter((d) => d.group === g && d.listed && d.api.startsWith("/api/src/"));
-const groupOfScreen = (screen) => ((state.sources || []).find((d) => d.screen === screen && d.group && d.listed && d.api.startsWith("/api/src/")) || {}).group || "";
+/* グループに入れる元（版 3.122.0）: 1 ファイルの元（/api/src/）と品質（画面 list）。実績は入れない（決まった置き場） */
+const groupable = (d) => d.listed && (d.api.startsWith("/api/src/") || d.key === "lot");
+const groupMembers = (g) => (state.sources || []).filter((d) => d.group === g && groupable(d));
+const groupOfScreen = (screen) => ((state.sources || []).find((d) => d.screen === screen && d.group && groupable(d)) || {}).group || "";
+/** 品質の入ったグループ（入っていなければ空） */
+const lotGroup = () => groupOfScreen("list");
+/** 札の画面 → 一覧の元（品質の札は画面 list・一覧の元 lot） */
+const srcOf = (screen) => (screen === "list" ? "lot" : screen);
 const masterList = () => groupMembers(MST_GROUP);
 function currentOf(g) {
   const list = groupMembers(g), want = (TPA.local.get(GRP_KEY, {}) || {})[g] || (g === MST_GROUP ? TPA.local.get(MST_KEY, "") : "");
@@ -1065,7 +1072,21 @@ function currentOf(g) {
 function setCurrent(g, screen) {
   TPA.local.set(GRP_KEY, { ...(TPA.local.get(GRP_KEY, {}) || {}), [g]: screen });
   if (g === MST_GROUP) TPA.local.set(MST_KEY, screen);
-  const gs = groupScreen(g); if (SCREENS[gs]) SCREENS[gs].source = screen;
+  const gs = groupScreen(g); if (SCREENS[gs]) SCREENS[gs].source = srcOf(screen);
+  paintGroupCur();
+}
+/* グループのタブに、押すと開く札の名前（「工程 › 品質」。版 3.122.0）。狭い帯（is-tight）では省いて、グループのタブを見出しに残す */
+function paintGroupCur() {
+  let changed = false;
+  document.querySelectorAll('.screen-tabs .screen-tab[data-screen^="grp:"], .screen-tabs #tabMst').forEach((b) => {
+    const g = b.id === "tabMst" ? MST_GROUP : b.dataset.screen.slice(4), list = groupMembers(g), cur = currentOf(g);
+    const m = list.length > 1 ? list.find((d) => d.screen === cur) : null;
+    let el = b.querySelector(".tab-cur");
+    if (!m) { if (el) { el.remove(); changed = true; } return; }
+    if (!el) { b.querySelector(".tab-name")?.insertAdjacentHTML("afterend", '<span class="tab-cur"></span>'); el = b.querySelector(".tab-cur"); }
+    if (el && el.textContent !== `› ${m.name}`) { el.textContent = `› ${m.name}`; changed = true; }
+  });
+  if (changed) fitTabs();
 }
 /** グループの画面のまま、同じグループの別のデータ元の一覧へ（札を押した） */
 function pickMember(screen) {
@@ -1073,7 +1094,7 @@ function pickMember(screen) {
   setCurrent(g, screen);
   if (state.screen !== groupScreen(g)) { showScreen(groupScreen(g)); return; }
   window.LotList.deactivate();
-  window.LotList.activate({ source: screen, currentLot: (state.lot && state.lot.lot_no) || "" });
+  window.LotList.activate({ source: srcOf(screen), currentLot: (state.lot && state.lot.lot_no) || "" });
 }
 document.addEventListener("tpa:pick-master", (e) => pickMember(String(e.detail || "")));
 /** 名前 → タブの id に使える字（同じ名前は同じ id） */
@@ -1102,7 +1123,10 @@ async function loadSources() {
     if (tabHidden(key) && state.screen === screen) setTimeout(() => showScreen(firstAllowed(), { focus: false }), 0);
   });
   const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/") && !d.group);
-  const groups = [...new Set(list.filter((d) => d.listed && d.api.startsWith("/api/src/") && d.group && d.group !== MST_GROUP).map((d) => d.group))];
+  const groups = [...new Set(list.filter((d) => groupable(d) && d.group && d.group !== MST_GROUP).map((d) => d.group))];
+  // 品質がグループに入ったら、決まったタブ「品質」は出さない（グループのタブの札に並ぶ。版 3.122.0）
+  const lg = lotGroup(), tl = $("#tabList");
+  if (tl) tl.toggleAttribute("data-ingroup", !!lg);
   // 消した・画面に出さなくした元・空になったグループのタブを外す（開いていたら品質異常へ）
   Object.keys(SCREENS).filter((k) => (k.startsWith("src:") && !want.some((d) => d.screen === k)) || (k.startsWith("grp:") && !groups.includes(k.slice(4)))).forEach((k) => {
     if (state.screen === k) showScreen("list", { focus: false });
@@ -1135,7 +1159,7 @@ async function loadSources() {
   groups.forEach((g) => {
     const id = groupId(g), gs = groupScreen(g), key = altKey(), members = groupMembers(g), before = SCREENS[gs] && SCREENS[gs].source;
     tabOf(id, gs, GRP_ICON, g).title = `${g}（${members.map((d) => d.name).join("・")}）。中の札で切り替えます${key ? `（Alt+${key}）` : ""}`;
-    SCREENS[gs] = { tab: `#${id}`, panel: "#lotListScreen", source: currentOf(g), key };
+    SCREENS[gs] = { tab: `#${id}`, panel: "#lotListScreen", source: srcOf(currentOf(g)), key };
     if (state.screen === gs && before && before !== SCREENS[gs].source) moved.push(gs);
   });
   // 「マスタ」のタブ（データ元・グループのタブの後ろ。Alt はその次の数字）
@@ -1154,11 +1178,15 @@ async function loadSources() {
   mb.title = (masters.length ? `マスタ（${masters.map((d) => d.name).join("・")}）を、品質異常と同じ絞り込み・表示列で見ます` : "マスタ（製造条件・設備など）。マスタ管理の「データ元」で足すと並びます")
     + (mkey ? `（Alt+${mkey}）` : "");
   const wasMst = state.screen === "mst", before = SCREENS.mst && SCREENS.mst.source;
-  SCREENS.mst = masters.length ? { tab: "#tabMst", panel: "#lotListScreen", source: cur, key: mkey }
+  SCREENS.mst = masters.length ? { tab: "#tabMst", panel: "#lotListScreen", source: srcOf(cur), key: mkey }
     : { tab: "#tabMst", panel: "#mstEmpty", key: mkey, show: paintMstEmpty };
   // 開いていたデータ元がグループから消えた・外れた: 残っているデータ元（無ければ案内）へ
   if (wasMst && before !== SCREENS.mst.source) moved.push("mst");
+  // 品質の画面を開いていて、品質がグループに入った（出た）: そのグループのタブ（決まったタブ）へ移す
+  if (state.screen === "list" && lg) moved.push(groupScreen(lg));
+  else if (state.screen && state.screen.startsWith("grp:") && SCREENS[state.screen] && SCREENS[state.screen].source === "lot" && !lg) moved.push("list");
   moved.forEach((gs) => { state.screen = null; window.LotList.deactivate(); moveTo(gs, { focus: false }); });
+  paintGroupCur();
   applyTabs();
   document.dispatchEvent(new CustomEvent("tpa:screens-ready"));
 }
@@ -1174,7 +1202,7 @@ function saveTabPrefs(v) {
   if (Object.keys(v.names).length) out.names = v.names;
   TPA.local.set(TABS_KEY, out); applyTabs();
 }
-const tabEls = () => [...document.querySelectorAll(".screen-tabs [data-screen]:not([data-denied])")];
+const tabEls = () => [...document.querySelectorAll(".screen-tabs [data-screen]:not([data-denied]):not([data-ingroup])")];
 /** 出してよい最初の画面（いまの画面を出さなくしたときに移る所） */
 const firstAllowed = () => (tabEls()[0] || {}).dataset?.screen || "dash";
 const tabDef = (b) => { if (!b.dataset.def) b.dataset.def = b.querySelector(".tab-name")?.textContent || ""; return b.dataset.def; };
@@ -1191,7 +1219,7 @@ function applyTabs() {
   });
   // 覚えに無いタブは元の並び（決まった画面 → データ元の登録の順）
   // データ元の並び（マスタ管理の「データ元」で並べた順）。グループに入った元は、グループのタブの所（グループの最初の元の位置）
-  const base = [...new Set(["dash", "list", "calc", "work", ...(state.sources || []).map((d) => (d.group && d.listed && d.api.startsWith("/api/src/") ? groupScreen(d.group) : d.screen)), "mst"])];
+  const base = [...new Set(["dash", "list", "calc", "work", ...(state.sources || []).map((d) => (d.group && groupable(d) ? groupScreen(d.group) : d.screen)), "mst"])];
   const rank = (b) => { const i = v.order.indexOf(b.dataset.screen), d = base.indexOf(b.dataset.screen); return i >= 0 ? i : 1000 + (d < 0 ? 999 : d); };
   const want = [...els].sort((a, b) => rank(a) - rank(b));
   if (want.some((b, i) => b !== els[i])) want.forEach((b) => nav.appendChild(b));
@@ -1206,12 +1234,15 @@ function fitTabsNow() {
   const nav = $(".screen-tabs"), head = nav && nav.closest("header");
   if (!head) return;
   const over = () => head.scrollWidth > head.clientWidth + 1;
-  nav.classList.remove("is-tight");
+  nav.classList.remove("is-tight", "no-cur");
   $(".tab-more", nav)?.remove();
   const els = tabEls();
   els.forEach((b) => { b.hidden = false; });
   if (!over()) return;
   nav.classList.add("is-tight");
+  if (!over()) return;
+  // グループのタブの「› 札の名前」を省く（版 3.122.0。タブを「ほか」へまとめる前に。グループのタブを見出しに残す）
+  nav.classList.add("no-cur");
   if (!over()) return;
   const more = Object.assign(document.createElement("button"), { type: "button", className: "screen-tab tab-more" });
   more.setAttribute("aria-haspopup", "menu");
@@ -1302,7 +1333,11 @@ function tabMenu(b, x, y) {
   applyTabs();
 }
 loadSources();
-document.addEventListener("tpa:sources-changed", loadSources);
+document.addEventListener("tpa:sources-changed", (e) => {
+  const d = (e && e.detail) || {};
+  if (d.key === "lot" && d.group) TPA.local.set(GRP_KEY, { ...(TPA.local.get(GRP_KEY, {}) || {}), [d.group]: "list" });
+  loadSources();
+});
 document.addEventListener("tpa:show-screen", (e) => showScreen(String(e.detail || "")));
 // タブの並びは ← → でも移れる（WAI-ARIA のタブの作法）。Alt+1・Alt+2・Alt+3 でどこからでも切り替える
 $(".screen-tabs").addEventListener("keydown", (e) => {
