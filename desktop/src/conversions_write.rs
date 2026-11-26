@@ -9,7 +9,14 @@
 //! GET    /api/masters/conversions/export        … 書き出す（?which=defaults は標準）
 //! POST   /api/masters/conversions/import        … 取り込む（同じ名前は中身を置き換え・無い名前は足す。asDefault なら標準にも）
 //! POST   /api/masters/conversions/defaults      … 標準を決める（from: current か bundled）
+//! GET    /api/masters/conversions/history       … 戻せる時点の並び（?name= はその表を含む時点と、その表の違いの数。版 3.125.0）
+//! POST   /api/masters/conversions/history       … 手でバックアップを取る（names: 表の名前の並び。無ければ全体・why）
+//! GET    /api/masters/conversions/history/<id>  … その時点に戻すと表ごと・行ごとにどう変わるか（?name=。id が bundled は同梱のプリセット）
+//! POST   /api/masters/conversions/history/<id>/restore … 戻す（names か all・revision は差を見たときの変換表の版。戻す前の形も残す）
 //! ```
+//!
+//! 版 3.125.0（改良依頼 2026-11-17 の 5）: 書く道はどれも、錠の中で書く直前の全部の表と標準を時点として残す（src/conv_history.rs）。
+//! 履歴の道と、標準の道（標準に戻す・標準を決める）は「編集可」（開発者・メンテナンス者）だけ（access::admin_refusal）。表を直す道の権限は前のまま。
 //!
 //! 決まりは 前の版の conversions と master_repository の conversion_* と同じ（評価関数: tests/conversions_write_parity.rs ←
 //! 焼いた表 desktop/tests/baked（前の版の答え合わせ役 conversions））。本文は送った順の木（src/jsontree.rs）で読み、入力・判定・当て方の字は json.dumps の既定の
@@ -28,7 +35,7 @@
 use crate::access::Place;
 use crate::jsontree::Tree;
 use crate::master_rows::{self, base_rev, Rev, Spec};
-use crate::master_store::{next_id, MasterError, Store};
+use crate::master_store::{self, next_id, MasterError, Store};
 use crate::pyfmt::PyInt;
 use crate::pyfmt::{self, strip};
 use crate::worksum::{py_str, truthy};
@@ -77,6 +84,10 @@ pub enum Route {
     Export,
     Import,
     Defaults,
+    History,
+    Backup,
+    Point(String),
+    Restore(String),
 }
 
 /// 窓が受ける道か（<int:item_id> は \d+ と int()。Unicode の数字・先頭の 0 も。i64 に入らない id は Python）
@@ -88,6 +99,16 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("GET", "/export") => Some(Route::Export),
         ("POST", "/import") => Some(Route::Import),
         ("POST", "/defaults") => Some(Route::Defaults),
+        ("GET", "/history") => Some(Route::History),
+        ("POST", "/history") => Some(Route::Backup),
+        ("GET", r) if r.starts_with("/history/") => {
+            let id = &r["/history/".len()..];
+            crate::conv_history::valid_id(id).then(|| Route::Point(id.to_string()))
+        }
+        ("POST", r) if r.starts_with("/history/") => {
+            let id = r["/history/".len()..].strip_suffix("/restore")?;
+            crate::conv_history::valid_id(id).then(|| Route::Restore(id.to_string()))
+        }
         ("POST", r) => Some(Route::Preset(crate::worklog_write::id_of(r.strip_prefix('/')?.strip_suffix("/preset")?)?)),
         ("PUT", r) => Some(Route::Update(crate::worklog_write::id_of(r.strip_prefix('/')?)?)),
         ("DELETE", r) => Some(Route::Delete(crate::worklog_write::id_of(r.strip_prefix('/')?)?)),
@@ -634,7 +655,7 @@ fn listing(store: &Store, me: &Value, place: &Place, r: &Read) -> Option<Value> 
 }
 
 /// export_items（view から id と order を除いた物を ordered の順に）
-fn export_items(rows: &[Value]) -> Option<Vec<Value>> {
+pub(crate) fn export_items(rows: &[Value]) -> Option<Vec<Value>> {
     let views = crate::bundle::conv_views(rows).ok()?;
     Some(
         views
@@ -782,7 +803,24 @@ fn import_rows(store: &Store, rows: &[Map<String, Value>]) -> Result<(usize, usi
 
 /// 窓が受ける 8 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &str, body: &[u8]) -> Option<Answer> {
+    // 管理の機能（履歴・バックアップ・戻す・標準）は「編集可」だけ（版 3.125.0）
+    // 履歴を見る道（History・Point）は読むだけなので誰でも（画面は canBackup が偽なら履歴の部品を出さない）
+    let can = crate::access::admin_refusal(me, "").is_none();
+    if matches!(route, Route::Backup | Route::Restore(_) | Route::Preset(_) | Route::Defaults) {
+        let what = if matches!(route, Route::Preset(_) | Route::Defaults) {
+            "変換表の標準"
+        } else {
+            "変換表の履歴・バックアップ"
+        };
+        if let Some((status, kind, msg)) = crate::access::admin_refusal(me, what) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+    }
     let r = read(place)?;
+    let by = store.who();
+    // 書く直前の形を残す係（錠の中。src/conv_history.rs）
+    let keep = |name: &'static str, why: String, scope: Value| -> master_store::BeforeWrite { keeper(place, &by, name, why, scope, None) };
+    let name_of = |id: &PyInt| r.rows.iter().find(|x| master_rows::same_id(x, id)).map(|x| s_or(x.get("名前"))).unwrap_or_default();
     // 書いた後の一覧（読み直せなければ、書いたことだけを知らせる。None を返すと Python がもう一度書く）
     let done = |status: u16, extra: Value| -> Option<Answer> {
         let Some(mut v) = read(place).and_then(|now| listing(store, me, place, &now)) else {
@@ -822,7 +860,11 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 seed(store, place, NAME); // conversion_create は表示順を数えるために変換表を読む
                 row.insert("表示順".into(), json!(order));
             }
-            match master_rows::create(store, &SPEC, &row, &check) {
+            let n = s_or(row.get("名前"));
+            let made = master_store::with_before_write(NAME, keep(NAME, format!("「{n}」を足す前"), json!([n])), || {
+                master_rows::create(store, &SPEC, &row, &check)
+            });
+            match made {
                 Ok(made) => done(201, json!({"created": made.get("id").cloned().unwrap_or(Value::Null)})),
                 Err(e) => Some(of_master(e)),
             }
@@ -839,7 +881,11 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Err(Bad::Delegate) => return None,
                 Err(Bad::Conv(m)) => return Some(conv_error(m)),
             };
-            match master_rows::update(store, &SPEC, &id, &row, base, &check) {
+            let n = name_of(&id);
+            let res = master_store::with_before_write(NAME, keep(NAME, format!("「{n}」を保存する前"), json!([n])), || {
+                master_rows::update(store, &SPEC, &id, &row, base, &check)
+            });
+            match res {
                 Ok(_) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
@@ -881,14 +927,22 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 let v = preset.get(k)?; // 列の無い標準は Python が道の外で落ちる（KeyError）
                 data.insert(k.into(), conv_cell(k, Some(v)));
             }
-            match master_rows::update(store, &SPEC, &id, &data, base, &check) {
+            let n = name_of(&id);
+            let res = master_store::with_before_write(NAME, keep(NAME, format!("「{n}」を標準に戻す前"), json!([n])), || {
+                master_rows::update(store, &SPEC, &id, &data, base, &check)
+            });
+            match res {
                 Ok(_) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
         }
         Route::Delete(id) => {
             let base = rev_of(body, query)?;
-            match master_rows::delete(store, &SPEC, &id, base) {
+            let n = name_of(&id);
+            let res = master_store::with_before_write(NAME, keep(NAME, format!("「{n}」を消す前"), json!([n])), || {
+                master_rows::delete(store, &SPEC, &id, base)
+            });
+            match res {
                 Ok(()) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
@@ -904,7 +958,9 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Err(Bad::Conv(m)) => return Some(conv_error(m)),
             };
             master_rows::next_order(&r.all)?; // 書く前に、窓が表示順を Python と同じに数えられるか
-            let (added, replaced) = match import_rows(store, &rows) {
+            let names: Vec<String> = rows.iter().map(|x| s_or(x.get("名前"))).collect();
+            let hook = keep(NAME, format!("取り込む前（{} 表）", names.len()), json!(names));
+            let (added, replaced) = match master_store::with_before_write(NAME, hook, || import_rows(store, &rows)) {
                 Ok(x) => x,
                 Err(e) => return Some(of_master(e)),
             };
@@ -938,12 +994,316 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
             if which == "current" {
                 seed(store, place, NAME); // 今の表を読む（repo.conversions()）
             }
-            match defaults_set(store, &rows) {
+            let why = if which == "current" { "今の表を標準にする前" } else { "同梱のプリセットを標準にする前" };
+            match master_store::with_before_write(DEFAULTS, keep(DEFAULTS, why.into(), json!("all")), || defaults_set(store, &rows)) {
                 Ok(_) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
         }
+        Route::History => {
+            let q = crate::lotlist::parse_query(query);
+            let name = q.iter().find(|(k, _)| k == "name").map(|(_, v)| v.clone()).filter(|v| !v.is_empty());
+            Some((200, history_list(store, place, &r, name.as_deref(), can)?))
+        }
+        Route::Point(id) => {
+            let q = crate::lotlist::parse_query(query);
+            let name = q.iter().find(|(k, _)| k == "name").map(|(_, v)| v.clone()).filter(|v| !v.is_empty());
+            let Some(p) = point_of(place, &r, &id) else { return Some(not_point()) };
+            let now = export_items(&r.rows)?;
+            let then = export_items(p["conversions"].as_array()?)?;
+            let bundled = crate::conv_history::is_virtual(&id);
+            let only = name.map(|n| vec![n]);
+            let tables = crate::conv_history::diff_tables(&now, &then, only.as_deref(), only.is_none() && !bundled);
+            let mut v = json!({"point": point_meta(&p), "tables": tables, "revision": store.revision(NAME)});
+            if only.is_none() && !bundled {
+                let (a, b) = (own_raw(place), p["defaults"].as_array().cloned().unwrap_or_default());
+                v["standard"] = json!({"now": crate::conv_history::standard_label(&a), "then": crate::conv_history::standard_label(&b), "same": a == b});
+            }
+            Some((200, v))
+        }
+        Route::Backup => {
+            let d = match strict(body, false)? {
+                Ok(d) => d,
+                Err(a) => return Some(a),
+            };
+            let names: Option<Vec<String>> = match d.get("names") {
+                None | Some(Tree::Null) => None,
+                Some(Tree::Arr(a)) => Some(a.iter().filter_map(|x| if let Tree::Str(s) = x { Some(s.clone()) } else { None }).collect()),
+                _ => return Some((400, json!({"error": "names は表の名前の並びです。"}))),
+            };
+            let why = match d.get("why") {
+                Some(Tree::Str(s)) if !pyfmt::strip(s).is_empty() => pyfmt::strip(s).chars().take(80).collect(),
+                _ => "手で取ったバックアップ".to_string(),
+            };
+            let scope = names.as_ref().filter(|n| !n.is_empty()).map(|n| json!(n)).unwrap_or(json!("all"));
+            let dir = crate::conv_history::dir(place);
+            match crate::conv_history::write_point(&dir, &by, &why, false, scope, &r.all, &own_raw(place)) {
+                Ok(id) => Some((201, json!({"created": id, "history": history_list(store, place, &r, None, true)?}))),
+                Err(e) => Some((500, json!({"error": format!("バックアップを残せませんでした（{e}）。"), "kind": "error"}))),
+            }
+        }
+        Route::Restore(id) => {
+            let d = match strict(body, false)? {
+                Ok(d) => d,
+                Err(a) => return Some(a),
+            };
+            let Some(p) = point_of(place, &r, &id) else { return Some(not_point()) };
+            let bundled = crate::conv_history::is_virtual(&id);
+            if let Some(Tree::Num(n)) = d.get("revision") {
+                if n.to_string() != store.revision(NAME).to_string() {
+                    return Some((
+                        409,
+                        json!({"error": "違いを見た後に、ほかの PC か画面が変換表を書きました。もう一度違いを見てから戻してください。", "kind": "conflict"}),
+                    ));
+                }
+            }
+            let then_rows = p["conversions"].as_array().cloned().unwrap_or_default();
+            let then_names: Vec<String> = then_rows.iter().map(|x| s_or(x.get("名前"))).collect();
+            let all = t_truthy(d.get("all"));
+            let names: Vec<String> = if all {
+                let mut n = then_names.clone();
+                if !bundled {
+                    n.extend(r.rows.iter().map(|x| s_or(x.get("名前"))).filter(|x| !then_names.contains(x)));
+                }
+                n
+            } else {
+                match d.get("names") {
+                    Some(Tree::Arr(a)) if !a.is_empty() => {
+                        a.iter().filter_map(|x| if let Tree::Str(s) = x { Some(s.clone()) } else { None }).collect()
+                    }
+                    _ => return Some((400, json!({"error": "戻す表（names）か、全体（all）を選んでください。"}))),
+                }
+            };
+            if bundled && names.iter().any(|n| !then_names.contains(n)) {
+                return Some((400, json!({"error": "同梱のプリセットに無い表は、同梱には戻せません。"})));
+            }
+            let made = std::rc::Rc::new(std::cell::RefCell::new(None::<String>));
+            let scope = if all && !bundled { json!("all") } else { json!(names) };
+            let hook = keeper(place, &by, NAME, format!("戻す前（{}）", point_label(&p)), scope, Some(made.clone()));
+            let n = match master_store::with_before_write(NAME, hook, || restore_rows(store, &then_rows, &names)) {
+                Ok(n) => n,
+                Err(e) => return Some(of_master(e)),
+            };
+            if all && !bundled {
+                let defs = p["defaults"].as_array().cloned().unwrap_or_default();
+                if defs != own_raw(place) {
+                    if let Err(e) = store.write(DEFAULTS, |cur, _| {
+                        *cur = defs.clone();
+                        Ok(())
+                    }) {
+                        return Some(of_master(e));
+                    }
+                }
+            }
+            let before = made.borrow().clone();
+            done(200, json!({"restored": n, "before": before}))
+        }
     }
+}
+
+/// 書く直前の形を残す係（錠の中で、書くマスタの今の行を受け、もう 1 つ〈変換表か標準〉は置き場から読んで時点にする。版 3.125.0）。
+/// made があれば、残した（か同じ中身で前からある）時点の印を入れる
+fn keeper(
+    place: &Place,
+    by: &Value,
+    name: &'static str,
+    why: String,
+    scope: Value,
+    made: Option<std::rc::Rc<std::cell::RefCell<Option<String>>>>,
+) -> master_store::BeforeWrite {
+    let (place, by) = (place.clone(), by.clone());
+    Box::new(move |rows: &[Value]| {
+        let other = if name == NAME { DEFAULTS } else { NAME };
+        let peek = place.rows_peek(other).map_err(MasterError::Error)?;
+        let (convs, defs) = if name == NAME { (rows.to_vec(), peek) } else { (peek, rows.to_vec()) };
+        let d = crate::conv_history::dir(&place);
+        let id = crate::conv_history::write_point(&d, &by, &why, true, scope.clone(), &convs, &defs).map_err(|e| {
+            MasterError::Error(format!(
+                "変換表の履歴（{}）に書く前の形を残せなかったので、書いていません（{e}）。",
+                crate::conv_history::DIR
+            ))
+        })?;
+        if let Some(m) = &made {
+            *m.borrow_mut() = Some(id);
+        }
+        Ok(())
+    })
+}
+
+/// 標準の行のそのまま（置き場から。読めなければ空）
+fn own_raw(place: &Place) -> Vec<Value> {
+    place.rows_peek(DEFAULTS).unwrap_or_default()
+}
+
+fn not_point() -> Answer {
+    (404, json!({"error": "その時点はもうありません（古い自動の時点は消えます）。並びを読み直してください。", "kind": "not_found"}))
+}
+
+/// 時点（bundled は同梱のプリセットから組む）
+fn point_of(place: &Place, r: &Read, id: &str) -> Option<Value> {
+    if id == crate::conv_history::STANDARD_ID {
+        if r.own.is_empty() {
+            return None;
+        }
+        return Some(
+            json!({"kind": crate::conv_history::KIND, "id": id, "at": "", "by": {}, "why": "標準（自分で決めた表。各表の「標準に戻す」の戻る先）",
+                           "auto": false, "scope": "all", "bundled": true, "standardPoint": true, "conversions": r.own, "defaults": []}),
+        );
+    }
+    if id == crate::conv_history::BUNDLED_ID {
+        return Some(
+            json!({"kind": crate::conv_history::KIND, "id": id, "at": "", "by": {}, "why": "同梱のプリセット（アプリに入っている元の形）",
+                           "auto": false, "scope": "all", "bundled": true, "conversions": r.bundled, "defaults": []}),
+        );
+    }
+    crate::conv_history::read_point(&crate::conv_history::dir(place), id)
+}
+
+fn point_meta(p: &Value) -> Value {
+    json!({"id": p["id"], "at": p["at"], "by": p["by"], "why": p["why"], "auto": p["auto"], "scope": p["scope"],
+           "bundled": p["bundled"].as_bool().unwrap_or(false), "tables": p["conversions"].as_array().map(Vec::len).unwrap_or(0),
+           "standard": crate::conv_history::standard_label(p["defaults"].as_array().map(Vec::as_slice).unwrap_or(&[]))})
+}
+
+/// 時点の短い言葉（「11/26 10:42 の形」）
+fn point_label(p: &Value) -> String {
+    if p["bundled"].as_bool().unwrap_or(false) {
+        return "同梱のプリセット".into();
+    }
+    let at = p["at"].as_str().unwrap_or("");
+    let num = |s: &str| s.trim_start_matches('0').to_string();
+    match (at.get(5..7), at.get(8..10), at.get(11..16)) {
+        (Some(m), Some(d), Some(t)) => format!("{}/{} {t} の形", num(m), num(d)),
+        _ => at.to_string(),
+    }
+}
+
+/// 戻せる時点の並び（新しい順）と、同梱のプリセット。name があればその表を含む時点だけ・違いはその表だけ
+fn history_list(store: &Store, place: &Place, r: &Read, name: Option<&str>, can: bool) -> Option<Value> {
+    let dir = crate::conv_history::dir(place);
+    let now = export_items(&r.rows)?;
+    let own = own_raw(place);
+    let only = name.map(|n| vec![n.to_string()]);
+    let one = |p: &Value, then: &[Value], full: bool, only: Option<&[String]>| -> Value {
+        let ds = crate::conv_history::diff_tables(&now, then, only, full);
+        let mut m = point_meta(p);
+        m["changed"] = json!(ds.iter().filter(|d| d["st"] != "same").count());
+        if let (Some(n), Some(d)) = (name, ds.first()) {
+            if d["name"] == n {
+                m["diff"] = json!({"st": d["st"], "del": d["del"], "add": d["add"], "chg": d["chg"], "now": d["now"], "then": d["then"], "setup": d["setup"]});
+            }
+        }
+        m
+    };
+    let (mut points, mut unreadable) = (vec![], 0);
+    for id in crate::conv_history::ids(&dir) {
+        let Some(p) = crate::conv_history::read_point(&dir, &id) else {
+            unreadable += 1;
+            continue;
+        };
+        let Some(then) = p["conversions"].as_array().and_then(|a| export_items(a)) else {
+            unreadable += 1;
+            continue;
+        };
+        if let Some(n) = name {
+            // その表を含む時点: 全体の時点か、その表を書く前に残した時点（自動・手で取った物の scope）
+            let has = p["scope"] == "all" || p["scope"].as_array().is_some_and(|a| a.iter().any(|x| x == n));
+            if !has {
+                continue;
+            }
+        }
+        let mut m = one(&p, &then, only.is_none(), only.as_deref());
+        m["standardChanged"] = json!(name.is_none() && p["defaults"].as_array().is_some_and(|a| *a != own));
+        points.push(m);
+    }
+    let b = point_of(place, r, crate::conv_history::BUNDLED_ID)?;
+    let bthen = export_items(b["conversions"].as_array()?)?;
+    let bundled = if name.is_none_or(|n| bthen.iter().any(|t| t["name"] == n)) {
+        let names: Vec<String> = match name {
+            Some(n) => vec![n.to_string()],
+            None => bthen.iter().map(|t| t["name"].as_str().unwrap_or_default().to_string()).collect(),
+        };
+        one(&b, &bthen, false, Some(&names))
+    } else {
+        Value::Null
+    };
+    let standard = match point_of(place, r, crate::conv_history::STANDARD_ID) {
+        Some(s) => {
+            let sthen = export_items(s["conversions"].as_array()?)?;
+            if name.is_none_or(|n| sthen.iter().any(|t| t["name"] == n)) {
+                let names: Vec<String> = match name {
+                    Some(n) => vec![n.to_string()],
+                    None => sthen.iter().map(|t| t["name"].as_str().unwrap_or_default().to_string()).collect(),
+                };
+                let mut m = one(&s, &sthen, false, Some(&names));
+                m["standardPoint"] = json!(true);
+                m
+            } else {
+                Value::Null
+            }
+        }
+        None => Value::Null,
+    };
+    // 表ごとの最後の保存（置き場の行の updated_at）と、同梱のプリセットと違うか（一覧の札「直した · 日時／同梱のまま」）
+    let state: Vec<Value> = now
+        .iter()
+        .map(|t| {
+            let raw = r.rows.iter().find(|x| s_or(x.get("名前")) == t["name"].as_str().unwrap_or_default());
+            let b = bthen.iter().find(|x| x["name"] == t["name"]);
+            json!({"name": t["name"], "at": raw.and_then(|x| x.get("updated_at")).cloned().unwrap_or(Value::Null),
+                   "bundled": b.is_some(), "edited": b.is_none_or(|b| b != t)})
+        })
+        .collect();
+    Some(
+        json!({"points": points, "bundled": bundled, "standardPoint": standard, "state": state, "unreadable": unreadable, "keep": {"auto": crate::conv_history::AUTO_KEEP},
+                "standard": crate::conv_history::standard_label(&own), "customDefaults": !own.is_empty(), "tables": now.len(),
+                "revision": store.revision(NAME), "canBackup": can}),
+    )
+}
+
+/// 時点の表（置き場の行のそのまま）に戻す: names の表は、時点にあれば中身（名前・入力・判定・その他・当て方）を置き換え（無ければ足す・
+/// 表示順は時点の物）、時点に無ければ消す。1 回の書き込みで行う。→ 戻した表の数
+fn restore_rows(store: &Store, then: &[Value], names: &[String]) -> Result<usize, MasterError> {
+    store.write(NAME, |cur, stamp| {
+        let iso = master_rows::prepare(cur, &SPEC)?;
+        let blocked: Vec<(String, usize, String)> = iso.iter().map(|(i, n, why)| (s_or(cur[*i].get("名前")), *n, why.clone())).collect();
+        if let Some((_, n, why)) = blocked.iter().find(|(nm, _, _)| names.contains(nm)) {
+            return Err(crate::row_check::refuse_row(NAME, *n, why));
+        }
+        let bad = |m: &str| MasterError::Error(m.to_string());
+        let mut done = 0;
+        for name in names {
+            let src = then.iter().find(|x| s_or(x.get("名前")) == *name).and_then(Value::as_object);
+            let at = cur.iter().position(|x| s_or(x.get("名前")) == *name);
+            match (src, at) {
+                (Some(src), Some(i)) => {
+                    let old = cur[i].as_object_mut().ok_or_else(|| bad("行の形が違います"))?;
+                    for k in ["名前", "入力", "判定", "その他", "当て方"] {
+                        old.insert(k.into(), src.get(k).cloned().unwrap_or(Value::Null));
+                    }
+                    let rev = old.get("rev").map(|v| master_rows::py_int(v).ok_or_else(|| bad("版が読めません"))).transpose()?.unwrap_or(1);
+                    old.insert("rev".into(), json!(rev + 1));
+                    master_rows::stamped(old, stamp);
+                }
+                (Some(src), None) => {
+                    let mut row = Map::new();
+                    row.insert("id".into(), json!(next_id(cur)));
+                    for k in FIELDS {
+                        row.insert(k.into(), src.get(k).cloned().unwrap_or(Value::Null));
+                    }
+                    row.insert("rev".into(), json!(1));
+                    master_rows::stamped(&mut row, stamp);
+                    cur.push(Value::Object(row));
+                }
+                (None, Some(i)) => {
+                    cur.remove(i);
+                }
+                (None, None) => continue,
+            }
+            done += 1;
+        }
+        Ok(done)
+    })
 }
 
 #[cfg(test)]
@@ -960,6 +1320,17 @@ mod tests {
         assert_eq!(route_of("POST", "/api/masters/conversions/3/preset"), Some(Route::Preset(PyInt::Small(3))));
         assert_eq!(route_of("DELETE", "/api/masters/conversions/12"), Some(Route::Delete(PyInt::Small(12))));
         assert_eq!(route_of("PUT", "/api/masters/conversions/export"), None);
+        // 版 3.125.0: 履歴の道（時点の印は英小文字・数字・「-」だけ。フォルダの外を指させない）
+        assert_eq!(route_of("GET", "/api/masters/conversions/history"), Some(Route::History));
+        assert_eq!(route_of("POST", "/api/masters/conversions/history"), Some(Route::Backup));
+        assert_eq!(route_of("GET", "/api/masters/conversions/history/bundled"), Some(Route::Point("bundled".into())));
+        assert_eq!(
+            route_of("POST", "/api/masters/conversions/history/20261126-104200-000001-abcdef-a/restore"),
+            Some(Route::Restore("20261126-104200-000001-abcdef-a".into()))
+        );
+        assert_eq!(route_of("GET", "/api/masters/conversions/history/../x"), None);
+        assert_eq!(route_of("POST", "/api/masters/conversions/history/A B/restore"), None);
+        assert_eq!(route_of("POST", "/api/masters/conversions/history/x"), None);
         assert_eq!(route_of("POST", "/api/masters/conversions/3"), None);
         assert_eq!(route_of("GET", "/api/masters/conversions/3"), None);
         assert_eq!(

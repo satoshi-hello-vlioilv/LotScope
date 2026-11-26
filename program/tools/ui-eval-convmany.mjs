@@ -11,7 +11,7 @@
 // ④ 当てる列を選ぶ面（5 列の入力）: マスタ管理の窓の中に収まり面ごとは送らない・データ元の欄どうしが重ならない・選んだ列の名前が全部入り順が同じ・
 //    「データに無い名前を足す」の欄と「足す」に届く（その点の一番上の要素が欄そのもの）・押した札が見えている
 // ⑤ ↑ で順を替えて保存 → 保存した表の順と札の順が同じ（開き直しても）
-// ⑥ 表示列の窓の変換表の帯（選ぶ ▾）: 表の名前・理由の字が切れない・列の一覧が 100px 以上残る
+// ⑥ 表示列の窓の変換表の帯（選ぶ ▾）: 表の名前・理由の字が切れない（版 3.125.0 から当てられない表は 1 行のまとめ）・列の一覧が 100px 以上残る
 // ⑦ 6 つの状態（課名・CONV_MANY・セルを直す所・選ぶ面・管理分類・表示列の窓の帯）で、ボタン・札・見出し・小見出し・判定表のセルの字が枠からはみ出さない・
 //    語の途中で段が替わらない・ボタンの字は 1 行・判定表に 40px 以上の空きがあればどのセルも 2 段にならない・左の一覧は 240px 以上
 // 全部合えば終了コード 0。
@@ -205,6 +205,9 @@ try {
       const items = [...document.querySelectorAll("#lcConv .lc-cvi")].map((l) => { const r = l.getBoundingClientRect();
         return { t: l.textContent.trim().slice(0, 30), ok: [...l.querySelectorAll("b, small")].every((x) => x.scrollWidth <= x.clientWidth + 1 && x.getBoundingClientRect().right <= r.right + 1) }; });
       const list = document.querySelector("#lcList").getBoundingClientRect(), foot = document.querySelector("#llColumnPanel").getBoundingClientRect();
+      // 版 3.125.0 から当てられない表は 1 行のまとめ（details の summary）に畳む: まとめの字も枠の中で、名前の途中で折れない
+      const sum = document.querySelector("#lcConv .lc-cvnone summary");
+      if (sum) { const r = sum.getBoundingClientRect(); items.push({ t: sum.textContent.trim(), ok: sum.scrollWidth <= sum.clientWidth + 1 && [...sum.querySelectorAll(".lc-nb")].every((x) => x.getClientRects().length === 1 && x.getBoundingClientRect().right <= r.right + 1) }); }
       return { items, mine: items.some((x) => x.t.includes("当てる列が多い")), list: Math.round(Math.min(list.bottom, foot.bottom) - list.top) };
     });
     check(`${tag}⑥ 表示列の窓の変換表の帯: 表の名前・理由が切れない`, band.mine && band.items.every((x) => x.ok), band.items.filter((x) => !x.ok));

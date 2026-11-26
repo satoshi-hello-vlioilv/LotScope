@@ -398,7 +398,8 @@
     const denied = [gone, back].every((y) => y.by === "shell" && y.r.status === 403 && why(y).kind === "forbidden");
     okw("変換表を書く道も窓が受ける（無い表を直す・標準に戻すを窓の言葉で断る。書けない人は門番が断る）", denied || (
        gone.by === "shell" && gone.r.status === 404 && why(gone).error === "id=987654321 が見つかりません。"
-       && back.by === "shell" && back.r.status === 404 && why(back).kind === "not_found"),
+       // 版 3.125.0 から標準に戻すは「編集可」だけ（部分的編集可の人には門が 403）
+       && back.by === "shell" && (back.r.status === 404 && why(back).kind === "not_found" || back.r.status === 403 && why(back).kind === "forbidden")),
        `[決めた答え] ${denied ? "門番 403" : "窓の言葉 404"}・${gone.by} ${gone.r.status} / ${back.by} ${back.r.status} ${(why(gone).error || "").slice(0, 30)}`);
   });
 
