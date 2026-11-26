@@ -999,6 +999,61 @@ pub struct Ask<'a> {
     pub sets: Option<&'a Value>,
     /// 作った基準の数（版 3.103.0。Python の bases）
     pub bases: Option<&'a Value>,
+    /// 明細（版 3.126.0）: このセルの元の行も返す
+    pub drill: Option<&'a Drill>,
+}
+
+/// 明細（版 3.126.0。利用者の改良依頼 2026-11-17 の 7: ダッシュボードの数から元の行を一時的に見る。Excel のピボットのドリルダウン）。
+/// セルの行・列の鍵（答えの cells の r・c と同じ字）で、数えるときと同じ鍵の決まり（日付のまとめ・区間・作業日・直・設備の読みそろえ・
+/// 設備グループ）を通った行だけを選ぶ。小計・総計は鍵が短いだけで同じ道
+#[derive(Debug, Clone, Default)]
+pub struct Drill {
+    pub r: Vec<String>,
+    pub c: Vec<String>,
+    /// 上位 N に入らなかった行（その他）: 行の葉（全部の段の鍵）がこれに無い行。r は空
+    pub keep: Option<HashSet<Vec<String>>>,
+    /// 値の番号（確かめに数え直す値）
+    pub m: usize,
+    /// 並べ替え（列・大きい順）
+    pub sort: Option<(String, bool)>,
+    pub offset: usize,
+    pub limit: usize,
+}
+
+/// 明細に返す行の上限（1 回の問い合わせ）と、一覧で開くときに渡す行の番号の上限
+pub const DRILL_PAGE_MAX: usize = 5000;
+pub const DRILL_ROWIDS_MAX: usize = 50_000;
+const DRILL_ROWID: &str = "\u{1}rowid";
+
+/// 明細の 1 つの値 → JSON（数は数・字は字・空は null）
+fn own_json(v: &Own) -> Value {
+    match v {
+        Own::None => Value::Null,
+        Own::Int(i) => json!(i),
+        Own::Float(f) => serde_json::Number::from_f64(*f).map(Value::Number).unwrap_or(Value::Null),
+        Own::Text(t) => json!(t),
+        Own::Blob(b) => json!(format!("（{} バイトのデータ）", b.len())),
+    }
+}
+
+/// 明細の並べ替えの比べ方（数どうしは数で・ほかは字で。空は後ろ）
+fn own_cmp(a: &Own, b: &Own) -> std::cmp::Ordering {
+    use std::cmp::Ordering::*;
+    let num = |v: &Own| match v {
+        Own::Int(i) => Some(*i as f64),
+        Own::Float(f) => Some(*f),
+        Own::Text(t) => t.trim().parse::<f64>().ok(),
+        _ => None,
+    };
+    match (a, b) {
+        (Own::None, Own::None) => Equal,
+        (Own::None, _) => Greater,
+        (_, Own::None) => Less,
+        _ => match (num(a), num(b)) {
+            (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(Equal),
+            _ => a.py().py_str().cmp(&b.py().py_str()),
+        },
+    }
 }
 
 struct State {
@@ -1025,6 +1080,9 @@ struct State {
     cpos: (i64, i64),
     upos: i64,
     range: Option<(String, String)>,
+    /// 明細（版 3.126.0）: 返す列と読む位置・行の番号の位置（無ければ -1）
+    show: Vec<(String, i64)>,
+    rid: i64,
 }
 
 /// 計算列の名前 → SQL の式・計算列の並び（読めない物も）・読めない計算列・係
@@ -1097,7 +1155,7 @@ fn open_part(
     }
     let ignored: Vec<String> = filter_items(a.filters)
         .iter()
-        .filter(|f| f.get("op").and_then(Value::as_str) != Some("tuple_in"))
+        .filter(|f| !matches!(f.get("op").and_then(Value::as_str), Some("tuple_in" | "rowid_in")))
         .map(|f| py_s(f.get("column")))
         .filter(|col| !col.is_empty() && !cs.contains(col))
         .collect();
@@ -1189,6 +1247,19 @@ fn open_part(
             }
         }
     }
+    // 明細（版 3.126.0）: 元の列（と使える計算列）を全部読み、行の番号（一覧で開く）も読む
+    let rid_name = lotlist::rowid_name(&c, &t, &raw_cs);
+    let mut show = vec![];
+    let mut rid = -1;
+    if a.drill.is_some() {
+        for col in raw_cs.iter().chain(calcs.iter().filter(|x| exprs.contains_key(*x) && !raw_cs.contains(x))) {
+            let p = use_col(col);
+            show.push((col.clone(), p));
+        }
+        if rid_name.is_some() {
+            rid = use_col(DRILL_ROWID);
+        }
+    }
     let total: i64 = c
         .query_row(&format!("SELECT COUNT(*) FROM {}{wh}", qi(&t)), rusqlite::params_from_iter(params.iter()), |r| r.get(0))
         .map_err(|e| down(sql_err(e)))?;
@@ -1202,7 +1273,13 @@ fn open_part(
     let data = if need.is_empty() {
         vec![vec![]; total as usize]
     } else {
-        let sel = need.iter().map(|x| exprs.get(x).cloned().unwrap_or_else(|| qi(x))).collect::<Vec<_>>().join(", ");
+        let sel = need
+            .iter()
+            .map(
+                |x| if x == DRILL_ROWID { rid_name.unwrap_or("rowid").to_string() } else { exprs.get(x).cloned().unwrap_or_else(|| qi(x)) },
+            )
+            .collect::<Vec<_>>()
+            .join(", ");
         let mut st = c.prepare(&format!("SELECT {sel} FROM {}{wh}", qi(&t))).map_err(|e| down(sql_err(e)))?;
         let mut rows = st.query(rusqlite::params_from_iter(params.iter())).map_err(|e| down(sql_err(e)))?;
         let mut out = vec![];
@@ -1234,6 +1311,96 @@ fn open_part(
         cpos,
         upos,
         range: None,
+        show,
+        rid,
+    })
+}
+
+/// 明細（版 3.126.0）: この行の鍵（段ごとの番号）が、セルの行・列の鍵の頭と同じか（その他は、行の葉が上位に無いか）
+fn drill_hit(dr: &Drill, ks: &[u32], ids: &[Ids], nr: usize) -> bool {
+    let key = |i: usize| ids[i].keys[ks[i] as usize].0.as_str();
+    if dr.r.len() > nr || nr + dr.c.len() > ks.len() {
+        return false;
+    }
+    if dr.r.iter().enumerate().any(|(i, k)| key(i) != k) || dr.c.iter().enumerate().any(|(i, k)| key(nr + i) != k) {
+        return false;
+    }
+    match &dr.keep {
+        Some(keep) => !keep.contains(&(0..nr).map(|i| key(i).to_string()).collect::<Vec<_>>()),
+        None => true,
+    }
+}
+
+/// 明細の答え: 列・その頁の行（列の並びの配列）・行の数・ロット数・数え直した値・セルの数・ファイルごとの行の数と行の番号
+#[allow(clippy::too_many_arguments)]
+fn drill_answer(
+    dr: &Drill,
+    states: &[State],
+    picked: &[(usize, usize)],
+    count: i64,
+    lots: i64,
+    again: Vec<Value>,
+    raw: Option<Vec<aggregate::Cell>>,
+    cell: Option<Vec<aggregate::Cell>>,
+) -> Value {
+    let mut columns: Vec<String> = vec![];
+    for st in states {
+        for (c, _) in &st.show {
+            if !columns.contains(c) {
+                columns.push(c.clone());
+            }
+        }
+    }
+    let val = |pi: usize, ri: usize, col: &str| -> &Own {
+        let st = &states[pi];
+        st.show.iter().find(|(c, _)| c == col).map(|(_, p)| get(&st.data[ri], *p)).unwrap_or(&Own::None)
+    };
+    let mut order: Vec<(usize, usize)> = picked.to_vec();
+    if let Some((col, desc)) = &dr.sort {
+        if columns.contains(col) {
+            order.sort_by(|a, b| {
+                let o = own_cmp(val(a.0, a.1, col), val(b.0, b.1, col));
+                if *desc {
+                    o.reverse()
+                } else {
+                    o
+                }
+            });
+        }
+    }
+    let limit = if dr.limit == 0 { 500 } else { dr.limit.min(DRILL_PAGE_MAX) };
+    let rows: Vec<Value> = order
+        .iter()
+        .skip(dr.offset)
+        .take(limit)
+        .map(|&(pi, ri)| {
+            let mut r: Vec<Value> = columns.iter().map(|c| own_json(val(pi, ri, c))).collect();
+            if states.len() > 1 {
+                r.push(json!(states[pi].name));
+            }
+            Value::Array(r)
+        })
+        .collect();
+    let mut parts: Vec<Value> = vec![];
+    for (pi, st) in states.iter().enumerate() {
+        let mine: Vec<usize> = picked.iter().filter(|x| x.0 == pi).map(|x| x.1).collect();
+        if mine.is_empty() {
+            continue;
+        }
+        let ids: Value = if st.rid >= 0 && mine.len() <= DRILL_ROWIDS_MAX {
+            json!(mine.iter().map(|&ri| own_json(get(&st.data[ri], st.rid))).collect::<Vec<_>>())
+        } else {
+            Value::Null
+        };
+        parts.push(json!({"name": st.name, "table": st.table, "rows": mine.len(), "rowids": ids}));
+    }
+    let cells = |v: Option<Vec<aggregate::Cell>>| {
+        v.map(|x| json!(x.iter().map(|c| c.map(N::json).unwrap_or(Value::Null)).collect::<Vec<_>>())).unwrap_or(Value::Null)
+    };
+    json!({
+        "columns": columns, "multi": states.len() > 1, "rows": rows, "offset": dr.offset, "total": count, "lots": lots,
+        "again": again, "raw": cells(raw), "cell": cells(cell), "m": dr.m, "parts": parts,
+        "equipColumn": states.iter().find_map(|s| s.equip.as_ref().map(|e| e.column().to_string()).filter(|c| !c.is_empty())),
     })
 }
 
@@ -1469,6 +1636,10 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     let mut lot_ids: HashMap<(usize, String), u64> = HashMap::new();
     let mut next_lot = 0u64;
     let mut count = 0usize;
+    // 明細（版 3.126.0）: 選んだ行（ファイルの番目・行の番目）と、選んだ行だけで数え直した数
+    let mut picked: Vec<(usize, usize)> = vec![];
+    let mut again =
+        Acc3 { count: 0, lots: HashSet::new(), accs: ms.iter().map(|m| Acc::new(m["agg"].as_str().unwrap_or("count"))).collect() };
     for (pi, st) in states.iter_mut().enumerate() {
         let mut places = std::mem::take(&mut st.places);
         {
@@ -1480,7 +1651,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
             let none_sets = HashMap::new();
             let ukey = (st.upos >= 0).then(|| Keyer::new(&uk_dim, None, "work", st.equip.as_ref(), 0, false, None, &none_sets));
             let segs: Option<Vec<String>> = st.clock.as_ref().map(|c| c.segments.iter().map(|g| g.name.clone()).collect());
-            for row in &st.data {
+            for (ri, row) in st.data.iter().enumerate() {
                 for (i, kr) in keyers.iter_mut().enumerate() {
                     let (x, y) = st.pos[i];
                     ks[i] = kr.key(get(row, x), get(row, y), &mut ids[i], &mut places) as u32;
@@ -1583,6 +1754,19 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                         }
                     }
                 }
+                // 明細（版 3.126.0）: このセルの鍵の頭と同じ行を選び、選んだ行だけで同じ数え方をし直す（確かめ）
+                if let Some(dr) = a.drill {
+                    if drill_hit(dr, &ks, &ids, nr) {
+                        picked.push((pi, ri));
+                        again.count += 1;
+                        if !st.lots_by.is_empty() && lots_on {
+                            again.lots.insert(lk);
+                        }
+                        for (j, f) in vals.iter().enumerate() {
+                            again.accs[j].add(*f, texts[j].as_deref());
+                        }
+                    }
+                }
             }
         }
         st.places = places;
@@ -1673,6 +1857,9 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     } else {
         None
     };
+    // 明細（版 3.126.0）: 値の計算・見せ方を当てる前のセルの数（選んだ行で数え直した数と比べる）
+    let drill_raw: Option<Vec<aggregate::Cell>> =
+        a.drill.filter(|d| d.keep.is_none()).and_then(|d| out_cells.iter().find(|x| x.r == d.r && x.c == d.c).map(|x| x.v.clone()));
     aggregate::apply_expr_env(&mut out_cells, &ms, &envs, &capacity::names_of(&own));
     aggregate::apply_show(&mut out_cells, &ms, nr, &order_keys);
     for x in out_cells.iter_mut() {
@@ -1721,6 +1908,32 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     }
     if let Some(pre) = pre {
         out["pre"] = json!(pre.iter().map(|v| v.map(N::json).unwrap_or(Value::Null)).collect::<Vec<_>>());
+    }
+    if let Some(dr) = a.drill {
+        let cell = if dr.keep.is_some() { None } else { out_cells.iter().find(|x| x.r == dr.r && x.c == dr.c).map(|x| x.v.clone()) };
+        let again_v: Vec<Value> = ms
+            .iter()
+            .enumerate()
+            .map(|(j, m)| {
+                let v = match m["agg"].as_str().unwrap_or("") {
+                    "base" => None, // 基準の数は勤務体系から数える（行から数え直せない）
+                    "count" => Some(N::I(again.count)),
+                    "lots" => Some(N::I(if lots_by.is_empty() { again.count } else { again.lots.len() as i64 })),
+                    _ => again.accs[j].value(m),
+                };
+                aggregate::clean_cell(v).map(N::json).unwrap_or(Value::Null)
+            })
+            .collect();
+        out["drill"] = drill_answer(
+            dr,
+            &states,
+            &picked,
+            again.count,
+            if lots_by.is_empty() { again.count } else { again.lots.len() as i64 },
+            again_v,
+            drill_raw,
+            cell,
+        );
     }
     if let Some(p) = &period {
         let name = if p.kind != "month" || ranges.is_empty() {

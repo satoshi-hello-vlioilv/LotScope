@@ -1257,24 +1257,34 @@ export const STATES = [
     await STATES.find(([n]) => n === "dash")[1](p);
     await p.evaluate(() => document.querySelector("#dashGrid")?.scrollIntoView({ block: "start" })); await sleep(300);
     if (await p.evaluate(() => typeof window.__drillEntry === "function")) { await p.evaluate(() => window.__drillEntry()); await sleep(700); return; }
-    const bar = await p.$('#dashGrid .db-p[data-id="wipClass"] svg rect:nth-of-type(2)');
+    // 版 3.126.0: 横棒「保留」を右クリック（メニューのいちばん上に「この数の明細を見る」。版 3.125.0 までは明細の項目が無い）
+    const bar = await p.$('#dashGrid .db-p[data-id="wipClass"] svg [data-dr*="保留"]') || await p.$('#dashGrid .db-p[data-id="wipClass"] svg rect:nth-of-type(2)');
     const b = bar && await bar.boundingBox(); if (b) { await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); }
     await sleep(500);
   }, "[data-next], .tpa-menu button"],
+  // 版 3.126.0 の本物: drill … 合わせた表の L-1 の仕掛ロット数を押す（左の 2 枚を覆う）・drill-chart … Esc で閉じて横棒「保留」（合わせた表を覆う）・
+  // drill-kpi … 数字「仕掛ロット数」（上の段の下の全幅。タブが 2 つ）・drill-more … すべて閉じて、合わせた表の 5 つの設備を順に押す
+  // （タブが 5 つ。古いタブを「前の 1 ▾」に畳む形）。明細の面の下になったパネルの数は押せない（押したパネルとほかの見えるパネルの数は押せる）
   ...["drill", "drill-chart", "drill-kpi"].map((name) => [name, async (p) => {
-    await p.keyboard.press("Escape"); await sleep(150);
+    if (await p.$(".tpa-menu")) { await p.keyboard.press("Escape"); await sleep(150); }
     const kind = { drill: "table", "drill-chart": "chart", "drill-kpi": "kpi" }[name];
     if (await p.evaluate(() => typeof window.__drillGo === "function")) { await p.evaluate((k) => window.__drillGo(k), kind); await sleep(900); return; }
-    // 今: 数をダブルクリックしても何も起きない（明細へ行く道が無い）
-    const sel = { table: '#dashGrid .db-p[data-id="board"] tbody tr:first-child td.db-lots b', chart: '#dashGrid .db-p[data-id="wipClass"] svg rect:nth-of-type(2)', kpi: '#dashGrid .db-p[data-id="wipTotal"] .dp-num' }[kind];
-    const el = await p.$(sel); if (el) await el.dblclick().catch(() => {});
-    await sleep(500);
+    if (kind === "chart" && await p.$("#dashDrill")) { await p.keyboard.press("Escape"); await sleep(300); }
+    const sel = { table: '#dashGrid .db-p[data-id="board"] tbody tr:first-child td.db-lots', chart: '#dashGrid .db-p[data-id="wipClass"] svg [data-dr*="保留"]', kpi: '#dashGrid .db-p[data-id="wipTotal"] .dp-num' }[kind];
+    const el = await p.$(sel); if (el) await el.click().catch(() => {});
+    await p.waitForSelector("#dashDrill .dd-t, #dashDrill .dd-msg.is-no", { timeout: 8000 }).catch(() => {}); await sleep(600);
   }, "[data-next], [data-db-editmode]"]),
   ["drill-more", async (p) => {
-    if (await p.evaluate(() => typeof window.__drillMore === "function")) { await p.evaluate(() => window.__drillMore()); await sleep(900); }
+    if (await p.evaluate(() => typeof window.__drillMore === "function")) { await p.evaluate(() => window.__drillMore()); await sleep(900); return; }
+    await p.evaluate(() => window.DashDrill?.closeAll()); await sleep(300);
+    for (let i = 1; i <= 5; i++) {
+      const el = await p.$(`#dashGrid .db-p[data-id="board"] tbody tr:nth-child(${i}) td.db-lots`); if (el) await el.click().catch(() => {});
+      await sleep(500);
+    }
+    await p.waitForSelector("#dashDrill .dd-t", { timeout: 8000 }).catch(() => {}); await sleep(700);
   }, "[data-next], [data-db-editmode]"],
   ["drill-off", async (p) => {
-    await p.evaluate(() => window.__drillClose?.()); await closeAll(p);
+    await p.evaluate(() => { window.__drillClose?.(); window.DashDrill?.closeAll(); }); await closeAll(p);
     await p.goto(p.url().replace(/#.*$/, "") + "#screen=list"); await p.reload(); await sleep(1200);
   }, "[data-next], #llSearch"],
 ];

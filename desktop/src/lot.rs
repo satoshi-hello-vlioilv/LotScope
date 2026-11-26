@@ -642,6 +642,7 @@ impl Lot {
             now: dashboard::now_of(&conf),
             conv: &self.tables(&s),
             cache: &self.dash,
+            drill: None,
         };
         f(&cx)
     }
@@ -1788,6 +1789,14 @@ impl Lot {
         if (method, path) == ("GET", "/api/dashboard/progress") {
             return Some((200, self.progress.answer(query)));
         }
+        // 明細（版 3.126.0）: パネルの数の元の行（数を尋ねたときと同じ組みと、押したセルの鍵）
+        if (method, path) == ("POST", "/api/dashboard/drill") {
+            let need = sections_for_body(body);
+            if let Some(r) = self.refused(&need) {
+                return Some(r);
+            }
+            return self.with_dash(&need, |cx| dashboard::drill(cx, body));
+        }
         if (method, path) != ("POST", "/api/dashboard/query") {
             return self.handle(method, path, query);
         }
@@ -2019,6 +2028,7 @@ impl Lot {
                 egroups: None,
                 sets: None,
                 bases: None,
+                drill: None,
             };
             pivot::query(part, &ask).map(|mut v| {
                 if let Some(p) = &pattern {

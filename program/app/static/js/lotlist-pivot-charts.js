@@ -16,6 +16,10 @@
   const ADDITIVE = new Set(["count", "lots", "sum", "n"]);
   const SEP = "\u001f";
   const ALL = { type: "all", path: [] };        // 列の段の頭が空＝その行の全体（サーバーは段の頭の組をすべて数えるので、いつもある）
+  /* 明細の鍵（版 3.126.0。ダッシュボードの数から元の行へ）: ctx.drill のときだけ、数の印（棒・点・扇形）にセルの行・列の鍵と値の番号を付ける。
+     鍵は答えの cells の r・c と同じ字（窓の POST /api/dashboard/drill がそのまま受け取る） */
+  let DRL = false;
+  const drA = (r, c, j) => (DRL && r ? ` data-dr="${esc(JSON.stringify({ r, c: c || [], m: j || 0 }))}"` : "");
   const TIME_PARTS = new Set(["date", "ym", "year", "hour"]);
 
   /* ---- 字と目盛り ---- */
@@ -333,7 +337,7 @@
       let base = 0;
       stacked.forEach((q) => {
         const v = q.v[i] || 0; if (!v) return; const y1 = y(base + v, q), y0 = y(base, q);
-        g += `<rect x="${x(i) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".88"><title>${esc(lab(k))}: ${esc(q.name)} ${esc(fmt(v))}（計 ${esc(fmt(tops[i]))}）</title></rect>`;
+        g += `<rect x="${x(i) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".88"${L === 0 ? drA([k], q.c.path, q.j) : ""}><title>${esc(lab(k))}: ${esc(q.name)} ${esc(fmt(v))}（計 ${esc(fmt(tops[i]))}）</title></rect>`;
         if (LBL.inside && y0 - y1 >= 13 && bw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${x(i)}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
         base += v;
       });
@@ -353,7 +357,7 @@
     const barQ = series.filter((q) => q.kind === "bar"), nb = barQ.length, sw = nb > 1 ? bw / nb : bw;
     barQ.forEach((q, k) => { const off = -bw / 2 + k * sw; q.v.forEach((v, i) => {
       if (!v) return;
-      g += `<rect x="${x(i) + off}" y="${y(v, q)}" width="${nb > 1 ? Math.max(1, sw - 1) : bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
+      g += `<rect x="${x(i) + off}" y="${y(v, q)}" width="${nb > 1 ? Math.max(1, sw - 1) : bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"${L === 0 ? drA([ax.ticks[i]], q.c.path, q.j) : ""}><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
       if (LBL.inside && base0 - y(v, q) >= 16 && sw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${x(i) + off + sw / 2}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
     }); });
     series.filter((q) => q.kind === "area").forEach((q) => {
@@ -364,7 +368,7 @@
       let path = "", pen = false;
       q.v.forEach((v, i) => { if (v == null) { pen = false; return; } path += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v, q).toFixed(1)}`; pen = true; });
       g += `<path d="${path}" fill="none" stroke="${q.color}" stroke-width="2.2"${serFmt(q.name).dash ? ' stroke-dasharray="6 4"' : ""}/>`;
-      if (n <= 120) q.v.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${y(v, q)}" r="${q.kind === "area" ? 2.2 : 2.8}" fill="#fff" stroke="${q.color}" stroke-width="1.8"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></circle>`; });
+      if (n <= 120) q.v.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${y(v, q)}" r="${q.kind === "area" ? 2.2 : 2.8}" fill="#fff" stroke="${q.color}" stroke-width="1.8"${L === 0 ? drA([ax.ticks[i]], q.c.path, q.j) : ""}><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></circle>`; });
     });
     const every = cat ? cat.every : Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 70)))));
     ax.ticks.forEach((k, i) => { if (i % every === 0) g += cat ? cat.text(i, x(i), H - pb + 16) : xText(x(i), H - pb + 16, fitW(tickOf(k), (iw / n) * every - 4)); });
@@ -504,8 +508,8 @@
         series.forEach((q, k) => {
           const v = vals[i][k], h = ih * frac(v), bx = pl + gw * i + (gw - bw * series.length) / 2 + bw * k, c = fill(r, q);
           const tip = `<title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title>`;
-          if (dir === "lollipop") g += `<line x1="${bx + bw / 2}" x2="${bx + bw / 2}" y1="${pt + ih}" y2="${pt + ih - h}" stroke="${c}" stroke-width="2"/><circle cx="${bx + bw / 2}" cy="${pt + ih - h}" r="${Math.max(3, Math.min(7, bw / 3))}" fill="${c}">${tip}</circle>`;
-          else g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${c}">${tip}</rect>`;
+          if (dir === "lollipop") g += `<line x1="${bx + bw / 2}" x2="${bx + bw / 2}" y1="${pt + ih}" y2="${pt + ih - h}" stroke="${c}" stroke-width="2"/><circle cx="${bx + bw / 2}" cy="${pt + ih - h}" r="${Math.max(3, Math.min(7, bw / 3))}" fill="${c}"${drA(r.path, q.c.path, q.j)}>${tip}</circle>`;
+          else g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${c}"${drA(r.path, q.c.path, q.j)}>${tip}</rect>`;
           if (labelWant(q.name) && serFmt(q.name).label !== "below" && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - (dir === "lollipop" ? 9 : 4)}" text-anchor="middle" class="pv-vl">${esc(lf(v, q.name))}</text>`;
           if (LBL.inside && dir !== "lollipop" && v && h >= 16 && bw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${bx + bw / 2}" y="${pt + ih - h + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
         });
@@ -521,7 +525,7 @@
         g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(fitW(names[i], pl - 10))}</text>`;
         series.forEach((q, k) => {
           const v = vals[i][k], w = iw * frac(v), by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k;
-          g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${fill(r, q)}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
+          g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${fill(r, q)}"${drA(r.path, q.c.path, q.j)}><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
           if (LBL.inside && v && w >= lf(v, q.name).length * 6.2 + 8 && bh >= 11) g += `<text x="${pl + w - 4}" y="${by + bh / 2 + 4}" text-anchor="end" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
           else if (series.length === 1 || LBL.top) g += `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(lf(v, q.name))}</text>`;
         });
@@ -621,11 +625,11 @@
     let series;
     if (m.nc) {
       const cs = m.cols.filter((c) => c.type === "data");
-      series = cs.slice(0, 12).map((c, k) => { const nm = m.colName(c); return { name: nm, get: (r) => m.value(r, c, j) || 0, color: cof(nm, CATF ? CATF(nm) : COLORS[k % COLORS.length]) }; });
+      series = cs.slice(0, 12).map((c, k) => { const nm = m.colName(c); return { name: nm, cp: c.path, mj: j, get: (r) => m.value(r, c, j) || 0, color: cof(nm, CATF ? CATF(nm) : COLORS[k % COLORS.length]) }; });
       if (cs.length > 12) series.push({ name: `その他（${cs.length - 12}）`, get: (r) => cs.slice(12).reduce((a, c) => a + (m.value(r, c, j) || 0), 0), color: "#a9b4be" });
     } else {
       const ms = d.measures.map((x, k) => [x, k]).filter(([x]) => ADDITIVE.has(x.agg));
-      series = (ms.length > 1 ? ms : [[d.measures[j], j]]).map(([x, k], i) => { const nm = ctx.measName(x); return { name: nm, get: (r) => m.value(r, ALL, k) || 0, color: cof(nm, COLORS[i % COLORS.length]) }; });
+      series = (ms.length > 1 ? ms : [[d.measures[j], j]]).map(([x, k], i) => { const nm = ctx.measName(x); return { name: nm, cp: [], mj: k, get: (r) => m.value(r, ALL, k) || 0, color: cof(nm, COLORS[i % COLORS.length]) }; });
     }
     const vals = data.map((r) => series.map((q) => Math.max(0, q.get(r)))), tops = vals.map((v) => v.reduce((a, b) => a + b, 0));
     const names = data.map((r) => catName(m, d, r));
@@ -654,7 +658,7 @@
         series.forEach((q, k) => {
           const raw = vals[i][k], v = share ? raw / sum : raw; if (!raw) return;
           const x0 = xOf(base), x1 = xOf(base + v);
-          g += `<rect x="${x0}" y="${by}" width="${Math.max(0, x1 - x0)}" height="${bh}" fill="${q.color}" opacity=".9"><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
+          g += `<rect x="${x0}" y="${by}" width="${Math.max(0, x1 - x0)}" height="${bh}" fill="${q.color}" opacity=".9"${q.cp ? drA(r.path, q.cp, q.mj) : ""}><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
           const t = share ? pct(raw / sum) : lf(raw);
           if (inside && bh >= 12 && x1 - x0 >= textW(t) + 6) g += `<text x="${(x0 + x1) / 2}" y="${cy + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
           base += v;
@@ -675,7 +679,7 @@
       series.forEach((q, k) => {
         const raw = vals[i][k], v = share ? raw / sum : raw; if (!raw) return;
         const y1 = yOf(base + v), y0 = yOf(base);
-        g += `<rect x="${cx - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".9"><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
+        g += `<rect x="${cx - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".9"${q.cp ? drA(r.path, q.cp, q.mj) : ""}><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
         const t = share ? pct(raw / sum) : lf(raw);
         if (inside && y0 - y1 >= 13 && bw >= t.length * 6.2 + 2) g += `<text x="${cx}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
         base += v;
@@ -690,7 +694,7 @@
   function donutChart(ctx) {
     const { m, d, W, H } = ctx, j = chartAt(ctx);
     if (!ADDITIVE.has(d.measures[j].agg)) return empty("ドーナツ（内訳）は、足し上げる値（件数・ロット数・合計）で描けます。平均・最小・最大は割合にできません。");
-    let items = dataRows(m).map((r) => ({ name: m.rowName(r), v: m.value(r, ALL, j) || 0 })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
+    let items = dataRows(m).map((r) => ({ name: m.rowName(r), v: m.value(r, ALL, j) || 0, path: r.path })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
     if (!items.length) return empty("割合にできる値（0 より大きい値）がありません。");
     const total = items.reduce((a, x) => a + x.v, 0);
     if (items.length > 10) items = items.slice(0, 9).concat([{ name: `その他（${items.length - 9} 件）`, v: items.slice(9).reduce((a, x) => a + x.v, 0), rest: true }]);
@@ -702,7 +706,7 @@
       const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`;
       const path = items.length === 1 ? `M${p(R, 0)}A${R},${R} 0 1 1 ${p(R, Math.PI)}A${R},${R} 0 1 1 ${p(R, 0)}M${p(r0, 0)}A${r0},${r0} 0 1 0 ${p(r0, Math.PI)}A${r0},${r0} 0 1 0 ${p(r0, 0)}Z`
         : `M${p(R, a)}A${R},${R} 0 ${big} 1 ${p(R, b)}L${p(r0, b)}A${r0},${r0} 0 ${big} 0 ${p(r0, a)}Z`;
-      g += `<path d="${path}" fill="${x.color}" stroke="#fff" stroke-width="1.5" fill-rule="evenodd"><title>${esc(x.name)}: ${esc(fmt(x.v))}（${pct(x.v / total)}）</title></path>`;
+      g += `<path d="${path}" fill="${x.color}" stroke="#fff" stroke-width="1.5" fill-rule="evenodd"${x.rest ? "" : drA(x.path, [], j)}><title>${esc(x.name)}: ${esc(fmt(x.v))}（${pct(x.v / total)}）</title></path>`;
       if (da > 0.32) { const mid = (a + b) / 2, rr = (R + r0) / 2; g += `<text x="${cx + rr * Math.cos(mid)}" y="${cy + rr * Math.sin(mid) + 4}" text-anchor="middle" class="pv-dl">${pct(x.v / total)}</text>`; }
       a = b;
     });
@@ -1193,6 +1197,7 @@
     const value = (r, c, j) => { const v = cellMap.get(key(r.path, c.path)); return v ? v[j] : null; };
     return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
   }
+  const rows0 = (m) => m.rows;
   /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
   /* 表の自動の小数の桁（版 3.121.0。利用者の改良依頼 2026-11-17 の 1 の採点: 547.056 と 1,116.7 が同じ値の列で違った）:
      桁を決めていない値は、その値の表のどの数も同じ桁にする（いちばん大きい数が 1,000 以上なら 1 桁・1 以上なら 2 桁・ほかは 3 桁。整数だけなら整数） */
@@ -1204,7 +1209,10 @@
     const top = Math.max(...ns.map(Math.abs));
     return top >= 1000 ? 1 : top >= 1 ? 2 : 3;
   }
-  function tableHtml(m, d, { measName, dimName, num = fmt }) {
+  function tableHtml(m, d, { measName, dimName, num = fmt, drill = false }) {
+    // 明細の鍵（版 3.126.0。ダッシュボードの表のパネル）: セル・小計・総計・その他（上位に入った行の葉を keep に）
+    const keep = drill && rows0(m).some((r) => r.type === "other") ? rows0(m).filter((r) => r.type === "data").map((r) => r.path) : null;
+    const dk = (r, c, j) => (!drill ? "" : ` data-dr="${esc(JSON.stringify(r.type === "other" ? { r: [], c: c.path, m: j, keep } : { r: r.path, c: c.path, m: j }))}"`);
     const { nr, nc, M, rows, cols } = m;
     const auto = d.measures.map((x, j) => (x.dec != null ? null : autoDigits(rows.flatMap((r) => cols.map((c) => m.value(r, c, j))))));
     const num0 = num;
@@ -1243,7 +1251,7 @@
         const cont = prev && prev.type === "data" && prev.path.slice(0, lv + 1).join(SEP) === r.path.slice(0, lv + 1).join(SEP);
         if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
       }
-      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${num(v, j)}</td>`; }).join("")).join("");
+      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}"${v == null ? "" : dk(r, c, j)}>${num(v, j)}</td>`; }).join("")).join("");
       return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : r.type === "other" ? "is-other" : ""}">${th}${tds}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${body}</tbody>`;
@@ -1322,7 +1330,8 @@
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" || kind === "hstack" || kind === "hstack100" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
-    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF];
+    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF, DRL];
+    DRL = !!ctx.drill;
     if (ctx.colors) COLORS = ctx.colors;
     CATF = ctx.catColor || null;
     USED = new Map(); SER = new Map();
@@ -1333,7 +1342,7 @@
     LDEC = (ms[Math.min((ctx.s && ctx.s.chartAt) || 0, Math.max(ms.length - 1, 0))] || {}).dec ?? null;
     const lb = F.labels || (ctx.s && ctx.s.labels ? "top" : "none");
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
-    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF] = keep; }
+    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC, CATF, DRL] = keep; }
   }
   /* ---- 計算列の札（版 3.121.0。利用者の改良依頼 2026-11-17 の 1。採点 2026-11-calcpivot の N）: 一覧の集計表と、ダッシュボードの組む所で
      同じ形・同じ言葉。カラムの欄の頭に「ƒx 計算列 n」のまとまり（畳める。画面ごとに覚える）、札の 2 段目は札の幅いっぱいに式と種類。

@@ -97,6 +97,7 @@ fn pivot_answers_like_python() {
             egroups: a.get("egroups"),
             sets: a.get("sets"),
             bases: a.get("bases"),
+            drill: None,
         };
         let parts: Vec<Part> = c["parts"].as_array().unwrap().iter().map(part_of).collect();
         let name = c["name"].as_str().unwrap();

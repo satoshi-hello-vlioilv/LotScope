@@ -11,6 +11,8 @@
 (function () {
   "use strict";
   const { esc } = TPA;
+  /** 数字のパネルの明細の鍵（版 3.126.0。総計＝行も列も空）。j は値の番号 */
+  const DR = (j) => ` data-dr="${esc(JSON.stringify({ r: [], c: [], m: j }))}"`;
   const C = window.LotListPivotCharts;
   const PART_NAME = { date: "年月日", ym: "年月", year: "年", month: "月", weekday: "曜日", hour: "時", bin: "区間" };
   const CATEGORY = new Set(["column", "bar", "lollipop", "pareto", "donut", "treemap", "stack", "stack100", "hstack", "hstack100", "box", "violin"]);   // 種類の段を並べる形（入る数だけ描く）
@@ -148,7 +150,7 @@
     const size = Math.round(Math.max(14, Math.min(88 * z, room * rate * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
     const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(headName(ms[i + 1]))}</small><b>${C.numHtml(v, C.measFmt(fm, ms[i + 1]))}</b></span>`).join("");
     const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}"${row ? ` style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}"` : ""}>${esc(sub0)}</small>` : "";
-    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}">${top ? metaHtml : ""}<b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
+    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}">${top ? metaHtml : ""}<b class="dp-num" style="font-size:${size}px"${main == null ? "" : DR(0)}>${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
       + (top ? "" : metaHtml) + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
@@ -198,7 +200,7 @@
     const longest = Math.max(...items.map((x) => x.text.length * 0.62 + x.unit.length * 0.36 + 0.4));
     const size = Math.round(Math.max(14, Math.min(72 * z, (side ? room - 18 : room / n - 14) * 0.9 * z, ((side ? Wn / n : Wn * 0.7) - 28) / longest)));
     const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}">${esc(sub0)}</small>` : "";
-    const cells = items.map((x) => `<div class="dp-kv"><small>${esc(x.name)}</small><b class="dp-num" style="font-size:${size}px">${x.html}<small>${x.unit}</small></b></div>`).join("");
+    const cells = items.map((x, i) => `<div class="dp-kv"><small>${esc(x.name)}</small><b class="dp-num" style="font-size:${size}px"${vals[i] == null ? "" : DR(i)}>${x.html}<small>${x.unit}</small></b></div>`).join("");
     box.innerHTML = `<div class="dp-kpi is-pair${row ? " is-row" : ""}">${top ? metaHtml : ""}<div class="dp-kpair ${side ? "is-side" : "is-stack"}">${cells}</div>${top ? "" : metaHtml}</div>`;
     const nums = [...box.querySelectorAll(".dp-num")], pair = box.querySelector(".dp-kpair"), limit = box.clientHeight || H;
     // 数（単位まで）が札の中身の幅に入るか（札の右の余白〈仕切りの線との間〉に入り込まない）。
@@ -279,7 +281,7 @@
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     // 列の段の種類（厚・薄など 8 つまで）の系列は名前で決まる色（集計表と同じ。色の組を選んだ・別のデータと合わせたときは今までの色）
     const catColor = !link && !pal && !p._facetColor ? C.fewColors(d.dims.cols, m0.cols.filter((c) => c.type === "data").map((c) => m0.colName(c))) : null;
-    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, catColor, fmt: fm, oneAxis: link });
+    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, catColor, fmt: fm, oneAxis: link, drill: true });
     if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
     // スタイル（版 3.69.0。角丸・グラデーション・枠だけ・淡い塗り・影・太い線）: 系列・項目の色で塗った印だけに当てる
     if (fm.style) out.svg = ST.apply(out.svg, fm.style, [...cols, ...(out.used || []).map((x) => x[1])]);
@@ -294,7 +296,7 @@
   function table(box, p, d, W, H) {
     const { m: m0 } = modelOf(p, d);
     const t = withOther(trimRows(m0, p, Infinity), m0, d);
-    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName: headName, dimName: (x) => dimName(x, p), num: (v, j) => C.numHtml(v, C.measFmt(p.fmt, d.measures[j])) })}</table></div>`;
+    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName: headName, dimName: (x) => dimName(x, p), num: (v, j) => C.numHtml(v, C.measFmt(p.fmt, d.measures[j])), drill: true })}</table></div>`;
     return moreText(fitRows(box.querySelector(".dp-tbl"), H), "行");
   }
   /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠す → 隠した行の数 */
@@ -353,7 +355,7 @@
     for (const k of orders[0] || []) {
       const label = (labels[0] || {})[k] ?? k;
       if (rowDim === "@equip" && k === "") { out.none = (cellOf(a, [k], []) || [0])[0] || 0; continue; }   // 設備の分からない行は表に出さず、数だけ言う
-      out.rows.set(label, { v: out.cols.map((c) => (cellOf(a, [k], c.path) || [null])[0]), total: (cellOf(a, [k], []) || [null])[0] });
+      out.rows.set(label, { key: k, v: out.cols.map((c) => (cellOf(a, [k], c.path) || [null])[0]), total: (cellOf(a, [k], []) || [null])[0] });
     }
     out.total = (cellOf(a, [], []) || [null])[0];
     (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.kind === "copying" ? "写しています…" : f.error));
@@ -431,6 +433,8 @@
       if (g.look === "signal") { const lv = levelOf(g, n); return lv ? `<span class="db-sig is-${lv}" title="${SIG[lv][1]}">${SIG[lv][0]}</span>${fmtH(n, g)}` : fmtH(n, g); }
       return fmtH(n, g);
     };
+    // 明細の鍵（版 3.126.0）: まとまり g の行の鍵・列の鍵
+    const bd = (gi, r, c) => (r ? ` data-dr="${esc(JSON.stringify({ g: gi, r: [r.key], c, m: 0 }))}"` : "");
     const groupCells = (g, gi, k) => {
       const m = models[gi], r = m.rows.get(k), col = groupColor(g), grp = gi ? " db-grp" : "";
       if (m.err) return `<td class="db-ng${grp}" colspan="${span(gi)}">${gi === 0 || k === order[0] ? esc(m.err.error) : ""}</td>`;
@@ -442,13 +446,13 @@
         const v = r ? r.total : 0;
         if (g.look === "bar" || g.look === "stack") {
           const mx = maxOf(totals);
-          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtH(v, g) : "–"}</b></div></td>`;
+          return `<td class="db-lots${grp}" style="--gc:${col}"${v ? bd(gi, r, []) : ""}><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtH(v, g) : "–"}</b></div></td>`;
         }
         const sum = totals.reduce((a, x) => a + (x || 0), 0);
-        return `<td class="num db-s${grp}${v ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}">${valHtml(g, v, maxOf(totals), sum)}</td>`;
+        return `<td class="num db-s${grp}${v ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}"${v ? bd(gi, r, []) : ""}>${valHtml(g, v, maxOf(totals), sum)}</td>`;
       }
       const t = r ? r.total || 0 : 0;
-      const sumCell = g.total ? `<td class="num db-sum">${fmtH(t, g)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
+      const sumCell = g.total ? `<td class="num db-sum"${t ? bd(gi, r, []) : ""}>${fmtH(t, g)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
       if (folded(gi)) {
         const vs = m.cols.map((c, ci) => (r ? r.v[ci] || 0 : 0));
         if (g.look === "stack") {
@@ -466,7 +470,7 @@
         const own = m.shiftsOf && m.shiftsOf.get(k);
         if (own && own.size && !own.has(c.label) && (d.groups[gi].shifts || []).includes(c.label)) return `<td class="num db-s is-na${gl}" title="この設備の勤務体系に無い直">–</td>`;
         const n = v || 0;
-        return `<td class="num db-s${gl}${n ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}">${valHtml(g, n, mx, t)}</td>`;
+        return `<td class="num db-s${gl}${n ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}"${n && !String(c.path[0]).startsWith("\u0000") ? bd(gi, r, c.path) : ""}>${valHtml(g, n, mx, t)}</td>`;
       }).join("");
       return cells + sumCell;
     };
@@ -478,7 +482,7 @@
     const head1 = gs.map((g, gi) => {
       const m = models[gi], a = (d.groups || [])[gi] || {}, cls = gi ? "db-grp" : "";
       const tip = [a.sourceName, ...(a.mirrors || []).slice(0, 1).map((x) => x && x.at ? `元 ${ago(x.at)}` : ""), m.none ? `${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""].filter(Boolean).join("・");
-      return `<th class="${cls}${m.cols.length ? "" : (g.look === "bar" || g.look === "stack" ? " db-lots" : " num")}" colspan="${span(gi)}"${m.cols.length ? "" : ' rowspan="2"'} title="${esc(tip)}">${esc(groupTitle(g, a))}<small>計 ${m.total == null ? "–" : fmtN(m.total)}${unitOf(g) ? ` ${unitOf(g)}` : ""}</small></th>`;
+      return `<th class="${cls}${m.cols.length ? "" : (g.look === "bar" || g.look === "stack" ? " db-lots" : " num")}" colspan="${span(gi)}"${m.cols.length ? "" : ' rowspan="2"'} title="${esc(tip)}">${esc(groupTitle(g, a))}<small${m.total ? ` data-dr="${esc(JSON.stringify({ g: gi, r: [], c: [], m: 0 }))}"` : ""}>計 ${m.total == null ? "–" : fmtN(m.total)}${unitOf(g) ? ` ${unitOf(g)}` : ""}</small></th>`;
     }).join("");
     const head2 = gs.map((g, gi) => {
       const m = models[gi];

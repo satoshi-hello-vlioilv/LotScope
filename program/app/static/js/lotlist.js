@@ -339,6 +339,8 @@
     if (S.table) q.set("table", S.table);
     if (S.search) q.set("search", S.search);
     const list = baseFilters().concat(window.LotListSlicer.filters(), S.src.cm3 ? window.LotListSchedule.filters(S) : []);
+    // 明細の一時の絞り（版 3.126.0。ダッシュボードの数から「一覧で開く」）: その数の元の行だけ。覚え（絞り込み・並べ替え）には書かない
+    if (S.drill) list.push({ column: "", op: "rowid_in", value: JSON.stringify(S.drill.rowids) });
     if (list.length) q.set("filters", JSON.stringify(list));
     return q;
   }
@@ -1823,7 +1825,20 @@
     window.JsonExpand.probe(base).then((d) => { const n = (d.columns || []).length; if (jsonBase() !== base) return; b.hidden = !n; b.title = n ? `JSON の入った列（${d.columns.map((c) => c.column).join("・")}）を、形に合う分け方で行・列に分けた表にします（集計表・ダッシュボードで合計できます）` : b.title; })
       .catch(() => { b.hidden = true; });
   }
+  /** 明細の一時の絞りの帯（版 3.126.0）: どの数の元の行か・ダッシュボードへ戻る・絞りを外す */
+  function renderDrillBand() {
+    if (!root) return;
+    let band = $("#llDrillBand");
+    if (!S.drill) { if (band) band.remove(); return; }
+    if (!band) { band = document.createElement("div"); band.id = "llDrillBand"; band.className = "ll-drillband"; band.setAttribute("role", "status"); (root.querySelector(".ll-panel") || root).prepend(band); }
+    const d = S.drill;
+    band.innerHTML = `<span class="ll-drlab">明細（一時の絞り）</span><span class="ll-drsay">ダッシュボードの「<b>${TPA.esc(d.panel)}</b>」の <b>${TPA.esc(d.cell)}</b>（${TPA.esc(d.value)}）の元の行 ${d.rowids.length.toLocaleString()} 行だけを出しています。外すと元の一覧に戻り、一覧の覚えは変わりません</span>`
+      + '<button type="button" class="pv-btn" data-ll-drback>‹ ダッシュボードへ戻る</button><button type="button" class="btn-ghost" data-ll-droff>明細の絞りを外す</button>';
+    band.querySelector("[data-ll-drback]").onclick = () => window.showScreen && showScreen("dash");
+    band.querySelector("[data-ll-droff]").onclick = () => { S.drill = null; S.page = 1; renderDrillBand(); load(); };
+  }
   function renderAll() {
+    renderDrillBand();
     renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh();
     window.LotListWork.update(S.src.id === "work" ? S.work : null);
     window.LotListSchedule.paint(S, S.src.cm3 ? S.schedule : null);
@@ -2046,6 +2061,7 @@
     if (S.src.id !== "work" && !S.src.cm3) return;
     if (k !== S.equip) {
       saveActive(); saveAdhocSetup();
+      S.drill = null;           // 明細の一時の絞り（版 3.126.0）は、その設備のファイルの行の番号なので外す
       S.equip = k; S.equipName = (equipOf(k) || {}).name || "";
       if (S.src.cm3) { window.LotListSchedule.saveEquip(k); window.LotListSchedule.reset(); } else store.set(KEY.workEquip, k);
       Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
@@ -2493,7 +2509,21 @@
 
   // 変換表（式の conv が引く表）が変わったら、いま出している行を描き直す（読み直しは要らない。並べ替えは次に読むときから）
   window.Conversions?.onChange(() => { if (root && S.rows && S.rows.length) renderGrid(); });
-  window.LotList = { mount, activate, deactivate, defineSources, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
+  /** 明細を一覧で開く（版 3.126.0。dashboard.js の明細の「一覧で開く ›」）: その元の一覧に、元の行の番号の一時の絞りを付けて開く。
+      source … ダッシュボードのデータの鍵（lot・work・src:<キー>）・equip … 作業実績の設備の鍵・table … 表の名前 */
+  function openDrill({ source, equip = "", table = "", rowids, panel = "", cell = "", value = "" }) {
+    const id = source === "lot" ? "lot" : source;
+    const st = STATES[id]; if (!st || !Array.isArray(rowids)) return false;
+    st.drill = { rowids: rowids.slice(0, 50000), panel, cell, value };
+    st.page = 1;
+    if (table) st.table = table;
+    if (id === "work" && equip && st.equip !== equip) { st.equip = equip; st.equipName = ""; store.set(KEY.workEquip, equip); }
+    const screen = id === "lot" ? "list" : id;
+    if (S === st && root && !root.classList.contains("hidden")) { renderAll(); load(); }
+    if (window.showScreen) showScreen(screen);
+    return true;
+  }
+  window.LotList = { mount, activate, deactivate, defineSources, openDrill, drill: () => (S.drill ? { ...S.drill, rowids: S.drill.rowids.length } : null), focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
     /** いまの問い合わせの page ページ目（size 行ずつ）の URL・読んだ行の数・段でまとめる（評価関数 ui-eval-allrows.mjs が答えと突き合わせる） */
     pageUrl: (page, size) => S.src.api + "?" + queryString({ page, pageSize: size }), loaded: () => S.rows.length,
     groupBy: (c) => { setLevels(c ? [{ column: c, dir: "asc", lot: c === S.lotColumn }] : []); load(); },

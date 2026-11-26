@@ -90,7 +90,11 @@ const ALLOWED_OPS: &[&str] = &[
     "tuple_in",
     // タイムライン: 日付と読める値が、その間（両端を含む）にある行（Python の date_range と同じ）
     "date_range",
+    // 明細（版 3.126.0）: ダッシュボードの数の元の行（行の番号の並び）だけ。一覧で開く一時の絞りで、覚えに書かない
+    "rowid_in",
 ];
+/// 明細の一時の絞りで渡せる行の番号の数
+const MAX_ROWIDS: usize = 50_000;
 /// スライサーで一度に選べる値の数・並べる値の数（Python の MAX_IN_VALUES・MAX_SLICER_VALUES と同じ）
 const MAX_IN_VALUES: usize = 1000;
 const MAX_SLICER_VALUES: usize = 1000;
@@ -387,6 +391,10 @@ fn filters_of(items: &[Value], cs: &[String], calc: &[String]) -> Vec<Filter> {
     for it in items.iter().take(MAX_FILTERS) {
         let Value::Object(it) = it else { continue };
         let (column, op, value) = (field(it, "column", ""), field(it, "op", "contains"), field(it, "value", ""));
+        if op == "rowid_in" {
+            out.push(Filter { column: String::new(), op, value, key: String::new(), columns: vec![] });
+            continue;
+        }
         if op == "tuple_in" {
             let columns = tuple_columns(it.get("columns"), cs);
             if !columns.is_empty() {
@@ -700,6 +708,18 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate, exprs: &Exprs) -> Re
     for f in filters {
         let (col, op, value) = (exprs.get(&f.column).cloned().unwrap_or_else(|| qi(&f.column)), f.op.as_str(), f.value.as_str());
         match op {
+            "rowid_in" => {
+                // 行の番号の並び（JSON の整数の配列）。整数だけを式に書く（字は入らない）
+                let ids: Vec<i64> = serde_json::from_str::<Value>(value)
+                    .ok()
+                    .and_then(|v| v.as_array().map(|a| a.iter().filter_map(Value::as_i64).take(MAX_ROWIDS).collect()))
+                    .unwrap_or_default();
+                parts.push(if ids.is_empty() {
+                    "0=1".into()
+                } else {
+                    format!("rowid IN ({})", ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","))
+                });
+            }
             "contains" | "not_contains" | "starts" | "not_starts" | "ends" | "not_ends" => {
                 // 字を比べる（* ? を使える）。否定は空欄も当たる（Python の LIKE_OPS と同じ）
                 let mode = if op.ends_with("contains") {
@@ -904,7 +924,7 @@ fn lot_key(col: &str) -> String {
     format!("UPPER(TRIM(CStr({})))", qi(col))
 }
 
-fn rowid_name(c: &Connection, t: &str, raw_cs: &[String]) -> Option<&'static str> {
+pub(crate) fn rowid_name(c: &Connection, t: &str, raw_cs: &[String]) -> Option<&'static str> {
     let kind: Option<String> = c.query_row("SELECT type FROM sqlite_master WHERE name = ?", [t], |r| r.get(0)).ok();
     if kind.as_deref() != Some("table") {
         return None;
