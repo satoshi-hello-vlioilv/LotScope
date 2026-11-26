@@ -633,6 +633,51 @@ export const STATES = [
     await p.click("[data-cv-more]"); await sleep(500);
   }, "[data-next], #lcSave"],
   ["convx-off", async (p) => { await closeAll(p); await convMany(p, false); }, "[data-next], #llBody .ll-lot"],
+  // 2026-11-17 の 5（利用者の改良依頼: 変換表を誤って同梱に戻さない・保存の範囲・全体と一部のバックアップ・戻す前に何がどう変わるか）。--from cvb で撮る:
+  // cvb … 管理分類を開いた所（左の一覧の下に 書き出す・取り込む・標準）・cvb-saved … 変えずに「保存」を押した直後の知らせ・
+  // cvb-hist … 案の「履歴・バックアップ」を開いた所（案の部品 [data-cvb-hist] があれば押す。今は何も起きない）・
+  // cvb-diff … 案の「戻す前に比べる」を開いた所（[data-cvb-diff]）・cvb-import … 書き出したファイルの地取区分を 2 行にし、表を 1 つ足して「取り込む…」で読んだ所（取り込む前の確かめ）・
+  // cvb-std … 「今の表を標準に」をした後（道で。標準が「取り込んだ表」・「同梱に戻す」が出る）・cvb-bundled … 「同梱に戻す」を押した所（今は確かめの窓〈ブラウザの confirm〉を閉じる。
+  // 案は頁の中の確かめを出す。案の [data-cvb-pre-bundled] があれば先に押し、[data-cvb-bundled] があればそれを押す）・cvb-plan … 一覧の表示列の窓の変換表の帯（convx-plan と同じ。版 3.124.0 の残り: 1536 で下のリンクが半分隠れる）。cvb-off が標準を同梱へ戻す
+  ["cvb", async (p) => {
+    await closeAll(p); await p.click("#masterBtn"); await sleep(900); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
+    await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "管理分類")?.click()); await sleep(700);
+  }, "[data-next], [data-cv-save]"],
+  ["cvb-saved", async (p) => { await p.click("[data-cv-save]"); await p.waitForSelector("#cvNotice.ok", { timeout: 8000 }); await sleep(500); }, "[data-next], [data-cv-save]"],
+  ["cvb-hist", async (p) => { await p.click("[data-cvb-hist]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
+  ["cvb-diff", async (p) => { await p.click("[data-cvb-diff]", { timeout: 1500 }).catch(() => {}); await sleep(700); }, "[data-next], [data-cv-save]"],
+  ["cvb-import", async (p) => {
+    await p.click("[data-cvb-close]", { timeout: 800 }).catch(() => {}); await sleep(200);
+    const doc = await p.evaluate(async () => ({ kind: "tpa-conversions", version: 1, items: (await (await fetch("/api/masters/conversions/export")).json()).items }));
+    const ji = doc.items.find((x) => x.name === "地取区分"); if (ji) ji.rows = ji.rows.slice(0, 2);
+    doc.items = [ji, { name: "試しの表", inputs: [{ name: "x", type: "text", columns: ["x"] }], rows: [{ when: { x: [{ op: "eq", v: ["1"] }] }, out: "一" }], other: "", apply: { mode: "add", column: "試し", place: "end" } }].filter(Boolean);
+    const file = path.join(os.tmpdir(), `tpa-cvb-${process.pid}.json`); fs.writeFileSync(file, JSON.stringify(doc));   // 名前は英字（日本語はファイルが空で届く）
+    await p.evaluate((items) => { window.__cvbIncoming = items; document.querySelector("[data-cvb-pre-import]")?.click(); }, doc.items); await sleep(300);   // 案が取り込むを面の中へ移したときは、面を開いてから
+    const [chooser] = await Promise.all([p.waitForEvent("filechooser"), p.click("[data-cv-import]")]);
+    await chooser.setFiles(file); await p.waitForSelector(".cv-imp, [data-cvb-imp]", { timeout: 5000 }); await sleep(500);
+    fs.rmSync(file, { force: true });
+  }, "[data-next], [data-cv-impno]"],
+  ["cvb-std", async (p) => {
+    await p.click("[data-cv-impno]", { timeout: 1500 }).catch(() => {}); await sleep(300);
+    // 「今の表を標準に」は道で（案によってはボタンを面の中へ移すので）。変換表のタブを開き直して管理分類を選ぶ
+    await p.evaluate(async () => { await fetch("/api/masters/conversions/defaults", TPA.json("POST", { from: "current" })); });
+    await tab(p, "equipment"); await tab(p, "conv"); await p.waitForSelector("[data-cv-pick]");
+    await p.evaluate(() => [...document.querySelectorAll("[data-cv-pick]")].find((b) => b.querySelector("b")?.textContent === "管理分類")?.click()); await sleep(900);
+  }, "[data-next], [data-cv-save]"],
+  ["cvb-bundled", async (p) => {
+    await p.evaluate(() => document.querySelector("[data-cvb-pre-bundled]")?.click()); await sleep(400);   // 案が「同梱に戻す」を面の中へ移したとき
+    if (await p.$("[data-cvb-bundled]")) { await p.click("[data-cvb-bundled]"); await sleep(700); return; }
+    p.once("dialog", (d) => d.dismiss().catch(() => {}));   // 今は確かめの窓（ブラウザの confirm）を閉じる（標準は変えない）
+    await p.click("[data-cv-stdbundled]"); await sleep(700);
+  }, "[data-next], [data-cv-save]"],
+  ["cvb-plan", async (p) => {
+    await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(700);
+    await p.click("[data-cv-more]"); await sleep(500);
+  }, "[data-next], #lcSave"],
+  ["cvb-off", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async () => { await fetch("/api/masters/conversions/defaults", TPA.json("POST", { from: "bundled" })); document.dispatchEvent(new CustomEvent("tpa:masters-changed")); });
+  }, "[data-next], #llBody .ll-lot"],
   ["master-place", async (p) => { await p.keyboard.press("Escape"); await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
