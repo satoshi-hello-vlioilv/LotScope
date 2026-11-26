@@ -384,14 +384,16 @@ td.cell-warn{background:#fff5e0!important}
 .ll-colpanel .lc-cvgo{height:30px;padding:0 12px;border:1px solid #0f766e;border-radius:8px;background:#0f766e;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .ll-colpanel .lc-cvgo:disabled{opacity:.5;cursor:default}
 .ll-colpanel .lc-cvmore{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-.lc-cvpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:8px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px;max-height:min(30vh,420px);overflow:auto}   /* 理由を折り返すと高くなるので、狭い窓でも列の一覧を残す（版 3.124.0） */
+.lc-cvpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:8px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px;max-height:min(30vh,420px);overflow:auto}   /* 当てられない表は 1 行に畳む（版 3.125.0）。それでも多い表のときは帯の中を送る（版 3.124.0） */
 /* 表の名前の下の段に、何をするか・列が無い理由を全部（版 3.124.0。前は 1 行で … に切れ、長い名前の表は理由が読めなかった: ui-proposals/2026-11-convcols） */
 .lc-cvi{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start;gap:0 6px;padding:4px;border-radius:6px;cursor:pointer;min-width:0}
 .lc-cvi input{grid-row:span 2;margin-top:3px}
 .lc-cvi b{overflow-wrap:anywhere}
 .lc-cvi small{grid-column:2;color:#4b5f72;overflow-wrap:anywhere}
 .lc-cvi.is-none{color:#6b7785;cursor:default}.lc-cvi.is-done small{color:#0f5f58}
-.lc-cvmaster{grid-column:1/-1;justify-self:end;font-size:12px;color:var(--h-input)}
+.lc-cvmaster{font-size:12.5px;font-weight:700;color:var(--h-input);white-space:nowrap}
+.lc-cvnone{grid-column:1/-1;margin-top:2px;padding:4px 6px;border-radius:6px;background:#f5f7f9;color:#4b5f72;font-size:12px}
+.lc-cvnone summary{cursor:pointer;line-height:1.5}.lc-cvnone ul{margin:4px 0 0;padding-left:1.2em}.lc-nb{white-space:nowrap}
 .lc-cvtag{margin-left:6px;padding:0 7px;border-radius:999px;background:#e7eef8;color:#244569;font-size:11px;font-weight:800;white-space:nowrap}
 .lc-cvtag.is-add{background:#fdf1dc;color:#7a4b00}
 

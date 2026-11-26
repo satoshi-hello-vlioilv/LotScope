@@ -1,0 +1,73 @@
+{
+ "note": "変換表の履歴（版 3.125.0）の差の事例の表。人が仕様から書いた: now（今の表）・then（時点の表）・only（この名前の表だけ。null は全部）・full（時点に無い今の表も「消える」として並べる＝全体を戻す）・want（表ごとの答え。st は same＝変わらない・chg＝変わる・back＝時点にしか無い表が戻る・gone＝時点に無い表が消える。rows は行の位置 i〈0 から〉で比べた add＝戻る行・del＝消える行・chg＝変わる行と、今の出す値 now・戻した出す値 then。setup は入力・当て方・どれにも当たらないときが変わるか）。行は並びの位置で比べ、条件（when）が違えば出す値が同じでも chg。表の並びは then の順、その後に gone。窓は cargo test --test conv_backup_cases が src/conv_history.rs の diff_tables と突き合わせる",
+ "cases": [
+  {
+   "name": "同じなら same・行は空",
+   "now": [{"name": "A", "inputs": [{"name": "x", "type": "text", "columns": ["x"]}], "rows": [{"when": {"x": [{"op": "eq", "v": ["1"]}]}, "out": "一"}], "other": "", "apply": {"mode": "add", "column": "A", "place": "end"}}],
+   "then": [{"name": "A", "inputs": [{"name": "x", "type": "text", "columns": ["x"]}], "rows": [{"when": {"x": [{"op": "eq", "v": ["1"]}]}, "out": "一"}], "other": "", "apply": {"mode": "add", "column": "A", "place": "end"}}],
+   "only": null, "full": true,
+   "want": [{"name": "A", "st": "same", "now": 1, "then": 1, "setup": false, "rows": [], "del": 0, "add": 0, "chg": 0}]
+  },
+  {
+   "name": "出す値が 1 つ変わり、後ろの 2 行が消える（時点の方が短い）",
+   "now": [{"name": "管理分類", "inputs": [], "rows": [{"when": {}, "out": "並純箔"}, {"when": {}, "out": "8·10mm"}, {"when": {}, "out": "5XXX系"}, {"when": {}, "out": "その他ｺｲﾙ"}], "other": "その他", "apply": {}}],
+   "then": [{"name": "管理分類", "inputs": [], "rows": [{"when": {}, "out": "並純箔"}, {"when": {}, "out": "8-10mm"}], "other": "その他", "apply": {}}],
+   "only": null, "full": true,
+   "want": [{"name": "管理分類", "st": "chg", "now": 4, "then": 2, "setup": false, "del": 2, "add": 0, "chg": 1,
+             "rows": [{"i": 1, "kind": "chg", "now": "8·10mm", "then": "8-10mm"}, {"i": 2, "kind": "del", "now": "5XXX系", "then": null}, {"i": 3, "kind": "del", "now": "その他ｺｲﾙ", "then": null}]}]
+  },
+  {
+   "name": "時点の方が長ければ add（戻る行）",
+   "now": [{"name": "課名", "inputs": [], "rows": [{"when": {}, "out": "生産管理"}], "other": "", "apply": {}}],
+   "then": [{"name": "課名", "inputs": [], "rows": [{"when": {}, "out": "生産管理"}, {"when": {}, "out": "外注"}], "other": "", "apply": {}}],
+   "only": null, "full": false,
+   "want": [{"name": "課名", "st": "chg", "now": 1, "then": 2, "setup": false, "del": 0, "add": 1, "chg": 0, "rows": [{"i": 1, "kind": "add", "now": null, "then": "外注"}]}]
+  },
+  {
+   "name": "条件だけが違っても chg（出す値は同じ）",
+   "now": [{"name": "A", "inputs": [], "rows": [{"when": {"x": [{"op": "eq", "v": ["1"]}]}, "out": "一"}], "other": "", "apply": {}}],
+   "then": [{"name": "A", "inputs": [], "rows": [{"when": {"x": [{"op": "eq", "v": ["1", "2"]}]}, "out": "一"}], "other": "", "apply": {}}],
+   "only": null, "full": false,
+   "want": [{"name": "A", "st": "chg", "now": 1, "then": 1, "setup": false, "del": 0, "add": 0, "chg": 1, "rows": [{"i": 0, "kind": "chg", "now": "一", "then": "一"}]}]
+  },
+  {
+   "name": "行が同じで当て方だけが違えば chg・setup",
+   "now": [{"name": "A", "inputs": [], "rows": [], "other": "", "apply": {"mode": "add", "column": "A", "place": "end"}}],
+   "then": [{"name": "A", "inputs": [], "rows": [], "other": "", "apply": {"mode": "replace"}}],
+   "only": null, "full": false,
+   "want": [{"name": "A", "st": "chg", "now": 0, "then": 0, "setup": true, "rows": [], "del": 0, "add": 0, "chg": 0}]
+  },
+  {
+   "name": "時点にしか無い表は back・今にしか無い表は全体のとき gone（then の順の後）",
+   "now": [{"name": "B", "inputs": [], "rows": [{"when": {}, "out": "b"}], "other": "", "apply": {}}, {"name": "新しい表", "inputs": [], "rows": [{"when": {}, "out": "1"}, {"when": {}, "out": "2"}], "other": "", "apply": {}}],
+   "then": [{"name": "消した表", "inputs": [], "rows": [{"when": {}, "out": "x"}], "other": "", "apply": {}}, {"name": "B", "inputs": [], "rows": [{"when": {}, "out": "b"}], "other": "", "apply": {}}],
+   "only": null, "full": true,
+   "want": [
+    {"name": "消した表", "st": "back", "now": null, "then": 1, "setup": false, "rows": [], "del": 0, "add": 1, "chg": 0},
+    {"name": "B", "st": "same", "now": 1, "then": 1, "setup": false, "rows": [], "del": 0, "add": 0, "chg": 0},
+    {"name": "新しい表", "st": "gone", "now": 2, "then": null, "setup": false, "rows": [], "del": 2, "add": 0, "chg": 0}
+   ]
+  },
+  {
+   "name": "全体でなければ、今にしか無い表は並べない（選んだ表だけを戻すとき）",
+   "now": [{"name": "B", "inputs": [], "rows": [], "other": "", "apply": {}}, {"name": "新しい表", "inputs": [], "rows": [], "other": "", "apply": {}}],
+   "then": [{"name": "B", "inputs": [], "rows": [], "other": "", "apply": {}}],
+   "only": null, "full": false,
+   "want": [{"name": "B", "st": "same", "now": 0, "then": 0, "setup": false, "rows": [], "del": 0, "add": 0, "chg": 0}]
+  },
+  {
+   "name": "only はその表だけ（時点に無い名前を選べば gone）",
+   "now": [{"name": "A", "inputs": [], "rows": [{"when": {}, "out": "1"}], "other": "", "apply": {}}, {"name": "C", "inputs": [], "rows": [{"when": {}, "out": "c"}], "other": "", "apply": {}}],
+   "then": [{"name": "A", "inputs": [], "rows": [{"when": {}, "out": "2"}], "other": "", "apply": {}}],
+   "only": ["C"], "full": false,
+   "want": [{"name": "C", "st": "gone", "now": 1, "then": null, "setup": false, "rows": [], "del": 1, "add": 0, "chg": 0}]
+  },
+  {
+   "name": "出す値が字でなければ JSON の字（式の出す値も字のまま）",
+   "now": [{"name": "A", "inputs": [], "rows": [{"when": {}, "out": 1}], "other": "", "apply": {}}],
+   "then": [{"name": "A", "inputs": [], "rows": [{"when": {}, "out": "=[x]&\"-\""}], "other": "", "apply": {}}],
+   "only": ["A"], "full": false,
+   "want": [{"name": "A", "st": "chg", "now": 1, "then": 1, "setup": false, "del": 0, "add": 0, "chg": 1, "rows": [{"i": 0, "kind": "chg", "now": "1", "then": "=[x]&\"-\""}]}]
+  }
+ ]
+}

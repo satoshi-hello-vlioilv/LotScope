@@ -13,6 +13,7 @@ pub mod card_forms;
 pub mod cm3;
 pub mod cm3_http;
 pub mod cm3_net;
+pub mod conv_history;
 pub mod conversions_write;
 pub mod dash_sets;
 pub mod dashboard;

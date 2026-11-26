@@ -3,8 +3,8 @@
 // ① メモが無い: 行の「!」の印・行の備考（✎）・表の備考の欄が無い
 // ② 条件を消せる: セルを開くと、条件ごとの × が白い面の上で見える（枠と字のコントラスト 3 以上）・押すとその条件だけが外れ、残りは残る
 // ③ 書き出す → 取り込む: 書き出したファイルは全部の表・形は {kind: tpa-conversions, items}。中身を変えたファイルを取り込むと、
-//    取り込む前に「置き換え・足す」の表の名前が出る・「取り込んで標準にもする」で取り込み、標準が「取り込んだ表」になる・標準に戻すと取り込んだ中身・
-//    「同梱に戻す」で同梱のプリセットへ
+//    取り込む前に「置き換え・足す」の表の名前が出る・「取り込んで標準にもする」で取り込み、標準が「自分で決めた表」になる・標準に戻すと取り込んだ中身・
+//    「同梱に戻す」（版 3.125.0 から履歴と戻すの窓の「同梱のプリセットを標準にする…」→ 確かめ）で同梱のプリセットへ
 // 全部合えば終了コード 0。
 import fs from "node:fs";
 import os from "node:os";
@@ -59,15 +59,17 @@ try {
   const [chooser] = await Promise.all([p.waitForEvent("filechooser"), p.click("[data-cv-import]")]);
   await chooser.setFiles(mine); await p.waitForSelector(".cv-imp", { timeout: 5000 }); await sleep(200);
   const pre = await p.$eval(".cv-imp", (x) => x.textContent);
-  check("③ 取り込む前に、置き換え・足す表の名前が出る", /置き換え 1/.test(pre) && pre.includes("地取区分") && /足す 1/.test(pre) && pre.includes("試しの表"), pre);
+  check("③ 取り込む前に、置き換え・足す表の名前が出る", /置き換え「地取区分」/.test(pre) && /足す「試しの表」/.test(pre), pre);
   await p.click("[data-cv-impstd]"); await sleep(900);
-  const done = await p.evaluate(() => ({ note: document.querySelector("#cvNotice").textContent, std: document.querySelector(".cv-std").textContent, list: [...document.querySelectorAll("[data-cv-pick] b")].map((b) => b.textContent) }));
-  check("③ 取り込み、標準が「取り込んだ表」になる", /置き換え 1・足す 1/.test(done.note) && done.std.includes("取り込んだ表") && done.list.includes("試しの表"), done);
+  const done = await p.evaluate(() => ({ note: document.querySelector("#cvNotice").textContent, std: document.querySelector(".cv-iostate").textContent, list: [...document.querySelectorAll("[data-cv-pick] b")].map((b) => b.textContent) }));
+  check("③ 取り込み、標準が「自分で決めた表」になる", /置き換え 1・足す 1/.test(done.note) && done.std.includes("自分で決めた表") && done.list.includes("試しの表"), done);
   const d1 = await p.evaluate(async () => (await (await fetch("/api/masters/conversions")).json()).items.find((x) => x.name === "地取区分"));
   check("③ 同じ名前の表は置き換え（地取区分が 2 行）", d1.rows.length === 2 && d1.preset, d1);
   // 同梱に戻す
-  await p.click("[data-cv-stdbundled]"); await sleep(800);
-  const std = await p.$eval(".cv-std", (x) => x.textContent);
+  await p.click("[data-cvb-hist]"); await p.waitForSelector(".cvh-dlg [data-cvb-bundled]"); await sleep(500);
+  await p.click(".cvh-dlg [data-cvb-bundled]"); await p.waitForSelector("[data-cvh-std]"); await p.click("[data-cvh-std]"); await sleep(1200);
+  await p.click(".cvh-dlg [data-cvb-close]"); await sleep(300);
+  const std = await p.$eval(".cv-iostate", (x) => x.textContent);
   check("③ 「同梱に戻す」で標準が同梱のプリセット", std.includes("同梱のプリセット"), std);
   check("頁の誤りが無い", !errors.length, errors);
 } finally {
