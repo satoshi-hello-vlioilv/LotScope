@@ -601,28 +601,39 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-detail{gap:10px;min-width:0}
 .cv-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .cv-top .sp,.cv-foot2 .sp,.cv-celledhead .sp{flex:1}
-.cv-name{flex:0 1 280px;height:36px;font-size:17px;font-weight:800}
+.cv-name{flex:0 1 auto;field-sizing:content;min-width:280px;max-width:min(620px,100%);height:36px;font-size:17px;font-weight:800}   /* 名前は中身の幅（版 3.124.0。前は 280px で切れた） */
 .cv-tag{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--input-soft);color:#244569;font-size:12px;font-weight:800}
 .cv-meta{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
 .cv-meta label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted)}
 .cv-meta .ps-input{flex:0 0 auto;width:auto;height:30px}
 .cv-meta #cvCol{width:200px}.cv-meta #cvOther{width:160px}
 .cv-lab{font-size:12.5px;font-weight:800;color:var(--muted)}
-.cv-ins{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.cv-in{display:inline-flex;align-items:center;gap:3px;padding:3px 5px;border:1px solid #d5e0ec;border-radius:8px;background:#f5f8fb}
+.cv-in .cv-cands{width:110px;color:var(--muted)}
+/* 入力は 1 行 1 つの縦の表（版 3.124.0。利用者の依頼 2026-11-17 の 4: 当てる列が 2 つ以上だと札が切れた。決め方: ui-proposals/2026-11-convcols の B）。
+   頭の段に見出し（入力の名前・比べ方・当てる列〈番号の順〉）と「＋ 入力」。名前・比べ方・札・× の縦の線をそろえ、札は中身の幅で、入らなければ札の中で折り返す */
+.cv-ins{display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.cv-inshead{display:flex;align-items:center;gap:6px;min-height:28px;padding-left:6px}
+.cv-ih{flex:none;box-sizing:border-box;font-size:12px;font-weight:800;color:#4b5f72}
+.cv-ih-n{width:var(--cv-nw,184px);padding-left:2px}.cv-ih-t{width:48px}
+.cv-ih-c{flex:0 1 auto;min-width:0}
+.cv-inshead .sp{flex:1}
+.cv-inshead [data-cv-iadd]{height:28px}
+.cv-in{display:flex;align-items:center;gap:6px;padding:2px 5px;border:1px solid #d5e0ec;border-radius:8px;background:#f5f8fb;min-width:0}
 .cv-in .ps-input{flex:0 0 auto;height:26px;font-size:12.5px;padding:0 6px}
-.cv-in [data-cv-iname]{width:88px;font-weight:800}.cv-in select{width:48px}.cv-in .cv-cands{width:110px;color:var(--muted)}
+.cv-in [data-cv-iname]{width:var(--cv-nw,184px);font-weight:800}.cv-in select{width:48px}
+.cv-in [data-cv-idel]{margin-left:auto;flex:none}
 .cv-gridwrap{overflow:auto;border:1px solid var(--line);border-radius:9px;max-height:min(56vh,620px);padding-bottom:28px}   /* 下の余白: いちばん下まで送っても、最後の行が縁に貼り付かない（版 3.44.0） */
 .cv-grid{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
-.cv-grid th{position:sticky;top:0;z-index:1;background:var(--surface-4);color:#4b5f72;font-weight:800;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.cv-grid th{position:sticky;top:0;z-index:1;background:var(--surface-4);color:#4b5f72;font-weight:800;text-align:left;vertical-align:bottom;padding:6px 6px;border-bottom:1px solid var(--line);min-width:4.5em}   /* 見出しは折り返す（版 3.124.0。前は 1 行のままで、狭い窓では右の入力の名前が表の縁で切れた） */
 .cv-grid th small{color:var(--muted);font-weight:700}
+.cv-grid th.cv-no,.cv-grid th.cv-ra{min-width:0}
 .cv-grid td{padding:3px 6px;border-bottom:1px solid #eef1f4;vertical-align:middle}
 .cv-grid tr.is-cell > td{background:#f7fafd}
 .cv-no{width:26px;text-align:right;color:var(--faint)}
 .cv-cbtn{display:block;width:100%;min-height:26px;padding:2px 4px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;text-align:left;cursor:pointer}
 .cv-cbtn:hover:not(:disabled){border-color:#9fb8d6;background:#fff}
 .cv-cond.is-on .cv-cbtn{border-color:var(--h-input);background:#fff;box-shadow:0 0 0 2px rgba(42,82,128,.15)}
-.cv-c{display:table;white-space:nowrap;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569;}
+.cv-c{display:table;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569}
 .cv-or{display:block;color:#5c6b7a;font-size:11px;line-height:1.3}
 .cv-any{color:#6b7785}
 .cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{field-sizing:content;width:auto;min-width:120px;max-width:300px;height:28px;font-weight:800;color:#163a5f}
@@ -638,7 +649,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-hint{color:var(--muted);font-size:12px}
 .cv-foot2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12.5px}
 .cv-other{color:#4b5f72}
-.cv-expr{padding:2px 8px;border-radius:6px;background:#f3f5f8;color:#4b5f72;font-size:12px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-expr{padding:2px 8px;border-radius:6px;background:#f3f5f8;color:#4b5f72;font-size:12px;overflow-wrap:anywhere}   /* 式は折り返して全部（版 3.124.0） */
 .cv-try{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:#eef7f5;border:1px solid #c6e4de}
 .cv-try label{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2f6b64;font-weight:700}
 .cv-try .ps-input{flex:0 0 auto;width:90px;height:28px}
@@ -666,13 +677,17 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-imptag.rep{background:#fff1d6;color:#7a4b00}.cv-imptag.add{background:#dff3e6;color:#1d6a3a}
 .cv-impbtns{display:flex;gap:8px;margin-top:2px}
 /* 当てる列（版 3.44.0。利用者の要望 2026-10-17 の 3）: 入力の欄の右の札（選んだ列と、その列が有るデータの印）と、押して開く選ぶ面 */
-.cv-colsbtn{display:inline-flex;align-items:center;gap:4px;max-width:300px;min-height:26px;padding:1px 6px;border:1px solid #c9d6e2;border-radius:6px;background:var(--surface);cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink);overflow:hidden}
+/* 札は中身の幅で、入らなければ札の中で折り返す。列ごとに当てる順の番号（版 3.124.0。前は max-width:300px で 2 つ目から先が切れ、印が字に重なった） */
+.cv-colsbtn{display:block;flex:0 1 auto;min-width:0;max-width:100%;min-height:26px;padding:1px 4px;border:1px solid #c9d6e2;border-radius:6px;background:var(--surface);cursor:pointer;font:inherit;font-size:12.5px;line-height:22px;color:var(--ink);text-align:left;counter-reset:cva;box-sizing:border-box}
 .cv-colsbtn:hover:not(:disabled){border-color:var(--h-input)}
-.cv-colsbtn .cv-caret{font-style:normal;color:var(--muted);font-size:10px;margin-left:2px}
+.cv-colsbtn .cv-caret{font-style:normal;color:var(--muted);font-size:10px;margin:0 2px;vertical-align:middle}
+.cv-colsbtn .cv-alias{margin:1px 2px;vertical-align:middle;line-height:1.25}
+.cv-colsbtn .cv-colsph{display:inline-block;padding:4px 2px;vertical-align:middle}
 .cv-colsph{color:var(--muted)}
-.cv-alias{display:inline-flex;align-items:center;gap:2px;padding:0 5px 0 6px;height:20px;border-radius:5px;background:#eef3f8;white-space:nowrap;min-width:0}
-.cv-alias b{font-weight:700;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-.cv-src{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--c);color:#fff;font-style:normal;font-size:12.5px;font-weight:800;line-height:1}
+.cv-alias{display:inline-flex;align-items:center;gap:2px;padding:0 5px 0 6px;min-height:20px;border-radius:5px;background:#eef3f8;min-width:0;max-width:100%;box-sizing:border-box}
+.cv-alias b{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.cv-colsbtn .cv-alias b::before,.cv-cpchosen .cv-alias b::before{counter-increment:cva;content:counter(cva);margin-right:4px;color:#4b5f72;font-size:11px;font-weight:800}
+.cv-src{flex:none;display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--c);color:#fff;font-style:normal;font-size:12.5px;font-weight:800;line-height:1}
 .cv-src.is-none{background:#fff;color:#b45309;box-shadow:inset 0 0 0 1.5px #d97706}
 /* 面は窓の下端までに収め（placeBelow が max-height を決める）、送るのはデータ元ごとの列の並びだけ（面ごと送らない＝足す欄が並びに重ならない） */
 .cv-colpop{position:fixed;z-index:80;width:min(820px,calc(100vw - 24px));display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:var(--surface);border:1px solid var(--pop-line);border-radius:12px;box-shadow:0 18px 44px var(--pop-shadow);overflow:auto}
@@ -680,13 +695,14 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-cphead{display:flex;align-items:baseline;gap:10px}.cv-cphead b{font-size:14px}.cv-cphead small{color:var(--muted);font-size:12px;font-weight:400}.cv-cphead .sp{flex:1}
 .cv-cpbar{display:flex;gap:8px;align-items:stretch}.cv-cpbar .cv-cpq{flex:0 0 220px}.cv-cpbar .cv-cpchosen{flex:1;min-width:0;padding:3px 8px}
 .cv-also{display:inline-flex;gap:2px;margin-left:5px;vertical-align:-2px}
-.cv-cpchosen{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#f5f8fb}
-.cv-cpchosen .cv-alias{height:24px}
+.cv-cpchosen{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#f5f8fb;counter-reset:cva}
+.cv-cpchosen .cv-alias{min-height:24px}
 .cv-cpx,.cv-cpup{border:0;background:none;cursor:pointer;color:#5a6f77;font-size:13px;padding:0 2px;border-radius:4px}
 .cv-cpx:hover{color:#b42318;background:#fdecea}.cv-cpup:hover{color:var(--h-input);background:#e6eef7}
 .cv-cpq{height:30px}
-.cv-colpop > .cv-cpsrcs{flex:1 1 auto;min-height:150px}
-.cv-cpsrcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));grid-template-rows:minmax(0,1fr);gap:10px}
+/* データ元の欄は行の高さを決め、面の中で送る（版 3.124.0。前は選んだ列が 3 段になると 2 段目の欄が 1 段目に重なった） */
+.cv-colpop > .cv-cpsrcs{flex:1 1 auto;min-height:170px;overflow:auto}
+.cv-cpsrcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));grid-auto-rows:minmax(170px,1fr);gap:10px}
 .cv-cpsrc{display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:8px}
 .cv-cpsrc h5{display:flex;align-items:center;gap:6px;margin:0;padding:6px 8px;font-size:12.5px;border-bottom:1px solid var(--line-soft)}
 .cv-cpsrc h5 i{width:9px;height:9px;border-radius:50%;background:var(--c)}.cv-cpsrc h5 small{margin-left:auto;color:var(--muted);font-weight:400}

@@ -157,6 +157,27 @@ function tryRes(x) {
 function tryHtml(x) {
   return `<div class="cv-try"><span class="cv-lab">試す</span>${x.inputs.map((inp, i) => `<label>${esc(inp.name)}<input class="ps-input" data-cv-try="${i}" value="${esc(tryVals[i] ?? "")}" aria-label="試す値: ${esc(inp.name)}"></label>`).join("")}<span class="cv-tryres">${tryRes(x)}</span></div>`;
 }
+/** 入力の欄（版 3.124.0。1 行 1 入力の縦の表。決め方: ui-proposals/2026-11-convcols の B）: 頭の段に見出しと「＋ 入力」、行ごとに 名前・比べ方・当てる列の札・×。
+    名前の欄の幅はいちばん長い名前に合わせ（--cv-nw）、見出しと縦の線をそろえる */
+function insHtml(x, di) {
+  return `<div class="cv-ins" style="--cv-nw:${nameWidth(x.inputs.map((i) => i.name))}px"><div class="cv-inshead">`
+    + '<span class="cv-ih cv-ih-n">入力の名前</span><span class="cv-ih cv-ih-t">比べ方</span><span class="cv-ih cv-ih-c">当てる列（番号の順に、一覧に有る列へ当てます）</span><span class="sp"></span>'
+    + (x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : "") + "</div>"
+    + x.inputs.map((inp, i) => '<div class="cv-in">'
+      + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前" title="${esc(inp.name)}"${di}>`
+      + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
+      + colsBtn(inp, i, di)
+      + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</div>").join("")
+    + "</div>";
+}
+/** 名前の欄の幅（px）: いちばん長い名前が入る幅（120〜300px） */
+let measureCtx = null;
+function nameWidth(names) {
+  measureCtx ||= document.createElement("canvas").getContext("2d");
+  measureCtx.font = `800 12.5px ${getComputedStyle(document.body).fontFamily}`;
+  const w = Math.max(0, ...names.map((n) => measureCtx.measureText(String(n)).width));
+  return Math.round(Math.min(300, Math.max(120, w + 20)));
+}
 const otherText = (x) => { const ok = otherKind(x); return ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other); };
 function paint() {
   if (colPop && (colPop.d !== draft || !draft.inputs[colPop.i])) closeCols();
@@ -183,12 +204,7 @@ function paint() {
           <label>どれにも当たらないとき<select class="ps-input" id="cvOtherKind"${di}>${[["keep", "元の値のまま"], ["blank", "空欄"], ["text", "字を出す"], ["formula", "式"]].map(([k, n]) => `<option value="${k}"${ok === k ? " selected" : ""}>${n}</option>`).join("")}</select>
             ${ok === "text" || ok === "formula" ? `<input class="ps-input" id="cvOther" value="${esc(ok === "formula" ? String(x.other).slice(1) : x.other)}" aria-label="どれにも当たらないときの値"${di}>` : ""}</label>
         </div>
-        <div class="cv-ins"><span class="cv-lab">入力</span>${x.inputs.map((inp, i) => `<span class="cv-in">`
-          + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前"${di}>`
-          + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
-          + colsBtn(inp, i, di)
-          + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</span>").join("")}
-          ${x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : ""}</div>
+        ${insHtml(x, di)}
         ${gridHtml(x)}
         <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(otherText(x))}</b></span>
           <span class="sp"></span>${expr ? `<code class="cv-expr" title="一覧の式ではこう書きます（表示列の「この列の作り方」でも）">${esc(expr)}</code>` : ""}</div>
@@ -261,11 +277,20 @@ function colPopHtml(i, q = "") {
     + `<div class="cv-cpsrcs">${dataCols ? srcs || '<p class="cv-hint">データ元がありません</p>' : '<p class="cv-hint">データの列を読んでいます…</p>'}</div>`
     + '<div class="cv-cpfoot"><input class="ps-input" data-cp-own placeholder="データに無い名前を足す（計算列など）" aria-label="手で足す列の名前"><button type="button" class="pv-btn" data-cp-add>足す</button></div>';
 }
-/** 面を札の下に、マスタ管理の窓の中へ収めて置く（窓の右端・下端から出さない。1 回目の採点: 窓の右へ 130px 出ていた） */
+/** 面を札の下に、マスタ管理の窓の中へ収めて置く（窓の右端・下端から出さない。1 回目の採点: 窓の右へ 130px 出ていた）。
+    札の下に面が入らないときは、マスタの面を送って札を上へ寄せてから置く（版 3.124.0。前は 1280×720 で面が窓の下を越え、「データに無い名前を足す」に届かなかった） */
 function place(el, anchor) {
-  const box = (document.querySelector("#masterOverlay .master-panel") || document.body).getBoundingClientRect(), r = anchor.getBoundingClientRect();
-  const w = Math.min(820, box.width - 24), top = Math.round(r.bottom + 6);
+  const panel = document.querySelector("#masterOverlay .master-panel") || document.body, box = panel.getBoundingClientRect();
+  const w = Math.min(820, box.width - 24);
   el.style.width = `${w}px`;
+  el.style.maxHeight = "none";
+  const need = Math.min(560, el.scrollHeight), scroller = $("#masterSettings");
+  let r = anchor.getBoundingClientRect();
+  if (scroller && box.bottom - 12 - (r.bottom + 6) < need) {
+    const by = Math.max(0, Math.round(r.top - (box.top + 70)));
+    if (by) { scroller.scrollTop += by; r = anchor.getBoundingClientRect(); }
+  }
+  const top = Math.round(r.bottom + 6);
   el.style.left = `${Math.round(Math.max(box.left + 12, Math.min(r.left, box.right - w - 12)))}px`;
   el.style.top = `${top}px`;
   el.style.maxHeight = `${Math.max(260, box.bottom - top - 12)}px`;
