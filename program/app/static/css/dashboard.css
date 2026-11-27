@@ -1242,12 +1242,10 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .dd-tw{overflow:auto;border:1px solid #dbe2ea;border-bottom:0;border-radius:8px 8px 0 0;background:#fff}
 /* 横の送りは下の細い送り棒（.dd-hbar）で見せるので、元の横の送り棒は出さない（2 本にしない。縦は元のまま） */
 .dd-tw::-webkit-scrollbar:horizontal{height:0}
-/* 表の端の札（版 3.127.0）: 見出しの行に重ね、切れた列の見出しを覆う。地は見出しと同じで、外側へ淡い影 */
-.dd-side{position:absolute;top:1px;z-index:3;display:inline-flex;align-items:center;padding:0 10px;border:0;background:#e4ebf3;font:inherit;font-size:12px;font-weight:800;color:#23466f;cursor:pointer;white-space:nowrap}
-.dd-side.is-r{right:1px;border-radius:0 7px 0 0;box-shadow:-10px 0 10px -4px rgba(243,246,249,.95)}
-.dd-side.is-l{left:1px;border-radius:7px 0 0 0;box-shadow:10px 0 10px -4px rgba(243,246,249,.95)}
+/* 右・左に続く列の札（版 3.127.0）: 範囲の札の行の右、内訳 ▾ の左（表の右の端の真上）。見出しの行には重ねない。形は内訳 ▾ と同じ・色は藍（範囲と同じ表の事） */
+.dd-side{height:26px;padding:0 9px;border:1px solid #a9bfdc;border-radius:6px;background:#edf3fb;font:inherit;font-size:12px;font-weight:800;color:#23466f;cursor:pointer;white-space:nowrap;flex:none}
 .dd-side:hover{background:#d3e0f1}
-.dd-side:focus-visible{outline:2px solid var(--h-input);outline-offset:-2px}
+.dd-side:focus-visible{outline:2px solid var(--h-input);outline-offset:1px}
 /* 細い送り棒: 表の下の縁に重ねる（高さを取らない。行の数を減らさない） */
 .dd-hbar{position:absolute;left:1px;bottom:30px;z-index:2;height:7px;background:rgba(238,242,246,.92);border-top:1px solid #dbe2ea;cursor:pointer;touch-action:none}
 .dd-hbar i{position:absolute;left:0;top:1px;height:5px;border-radius:3px;background:#8ea3ba}

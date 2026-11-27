@@ -736,6 +736,17 @@
     const dec = f.decimals == null ? "" : String(f.decimals);
     const nChanged = distinctRows.filter((r) => { const o = cell(t, c, r); return o.text !== o.raw; }).length;
     const rule = rc ? ruleView(t, c, rc) : null;
+    // 値のある行（版 3.127.0）: 同じ欄の 3 行の件数と母数をそろえる。ルールで作る列は 3 行の件数と同じ数え方（全部の行か、読み込んだ行）で、
+    // ほかの列は読み込んだ行で数え、一覧の全件より少なければ「読み込んだ行」と言う（前は「500 / 500」で、同じ欄の「全 1,500 行」と食い違った）
+    const haveText = (() => {
+      const num = (n) => n.toLocaleString();
+      if (rule) {
+        const k = rule.base, have = rule.rows.filter((r) => r.text).reduce((a, r) => a + r.n, 0);
+        return `${num(have)} / ${num(k.total)}（${k.all ? "全部の行" : "読み込んだ行"}・空欄 ${num(k.total - have)}）`;
+      }
+      const part = ctx.rows.length < (ctx.count || 0);
+      return `${num(vals.length)} / ${num(ctx.rows.length)}（${part ? "読み込んだ行・" : ""}空欄 ${num(ctx.rows.length - vals.length)}）`;
+    })();
     const stepResult = rule ? { text: rule.values.length ? `${rule.values.length} つの値（${rule.values.slice(0, 3).join("・")}${rule.values.length > 3 ? "…" : ""}）` : "値がありません", set: rule.values.length > 0 }
       : { text: !distinctRows.length ? "値がありません" : nChanged ? `${distinctRows.length} 件中 ${nChanged} 件が変わる` : "変わりません", set: nChanged > 0 };
     const os = rc && openStep === "rule" ? "fx" : openStep;   // ルールで作る列には ③ が無い（ルールは作り方の段で選ぶ）
@@ -745,7 +756,7 @@
       + `<span class="lc-now${sum.set ? " is-set" : ""}">${esc(sum.text)}</span><b class="lc-chev" aria-hidden="true"></b></h4>`;
     box.innerHTML = `
       <div class="lc-card"><div class="lc-cardhead"><b>${esc(label(t, c))}</b>${calc ? `<button type="button" class="lc-danger lc-carddel" data-lc-cdel title="この作った列を削除します（Delete。保存するまでは元に戻せます）">${TRASH}削除</button>` : ""}</div>
-        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${rc ? `ルール「${esc(rc)}」で作る列` : `${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}`}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
+        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${rc ? `ルール「${esc(rc)}」で作る列` : `${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}`}</dd><dt>値のある行</dt><dd>${haveText}</dd>
         <dt>値の種類</dt><dd>${rule ? `ルールで決まる ${rule.values.length} つの値` : guess}</dd>${c === ctx.lotColumn ? "<dt>この列について</dt><dd>押すとそのロットを検索します。隠せません（並びはどこへでも動かせます）。</dd>" : ""}</dl></div>
       ${step("look", "1", "見せ方", stepLook(t, c))}
         <label>表示名<input id="lcName" value="${esc(l.names[c] || "")}" placeholder="${esc(c)}" maxlength="40"></label>

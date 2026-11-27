@@ -109,7 +109,7 @@ try {
     for (const r of d.rows || []) { const hit = LotListRules.match(rows, r, col); if (hit) k[rows.indexOf(hit)]++; }
     return k;
   }, COL);
-  check(`④ 札「${det.kind}」が 1 段・値のある行 ${det.have}・値の種類「${det.sort}」`, det.kind === "ルール「管理区分」で作る列" && det.kindLines === 1 && /^(\d+) \/ \1（/.test(det.have) && det.sort === "ルールで決まる 3 つの値", det);
+  check(`④ 札「${det.kind}」が 1 段・値のある行 ${det.have}（3 行の件数と同じ全部の行）・値の種類「${det.sort}」`, det.kind === "ルール「管理区分」で作る列" && det.kindLines === 1 && det.have === `${ind.n.toLocaleString()} / ${ind.n.toLocaleString()}（全部の行・空欄 0）` && det.sort === "ルールで決まる 3 つの値", det);
   check("④ 作り方の段は「≡ ルール「管理区分」」で、2 択はルール側・ルールを編集が段の中", det.fx === "≡ ルール「管理区分」" && det.seg.length === 2 && det.seg[1][1] === "true" && det.edit, det);
   check(`④ ルールの 3 行（条件 → 値 → 件数）の件数が、一覧の全部の ${ind.n} 行をルールで数えた独立の答え（${indCols}）と同じ`, det.rows.length === 3 && det.rows.map((r) => r[1]).join() === "5052厚板,3000系,その他"
     && /合金 ＝ 「A5052」 かつ 板厚 ≧ 「1」/.test(det.rows[0][0]) && det.rows.every((r, i) => r[2] === indCols[i]) && indCols.reduce((a, b) => a + b, 0) === ind.n, { rows: det.rows, indCols });
@@ -118,6 +118,9 @@ try {
   check("④ ルールで作る列には ③ 読み替えの段が無い", !det.rule, det);
   await p.click('#lcList li[data-col="合金"]'); await sleep(300);
   check("④ 元の列（合金）には ③ 読み替えの段がある", await p.evaluate(() => !!document.querySelector('.lc-step[data-step="rule"]') && !document.querySelector(".lc-fxseg")), "");
+  // 版 3.127.0: 値のある行の母数を言う（ルールで作る列は 3 行の件数と同じ全部の行・ほかの列は読み込んだ行と言う）
+  const haveAlloy = await p.evaluate(() => [...document.querySelectorAll("#lcDetail .lc-card dd")][1]?.textContent || "");
+  check(`④ 元の列（合金）の値のある行「${haveAlloy}」は読み込んだ行で数えたと言う`, /^[\d,]+ \/ [\d,]+（読み込んだ行・空欄 [\d,]+）$/.test(haveAlloy), haveAlloy);
   await p.click(`#lcList li[data-col="${COL}"]`); await sleep(300);
 
   /* ⑤ ルールの窓 */

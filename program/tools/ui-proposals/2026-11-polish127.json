@@ -109,7 +109,25 @@
    "ほかの状態（drill-entry・drill-off・cvb・cvb-saved・cvb-off・readcol-list・readcol-rule・readcol-off・qg-list・qg-tab・qg-off）は、作る前の画像との差が版の札と時計の字だけ（差の画素 0.4% 以下・差の場所が見出しの帯と時刻）。新しい切れ・重なり・語の途中の折れ・1 段のはずの 2 段は見つけなかった"
   ],
   "left": "直していない所（7 件の外）: 明細の表の端の札は、切れた列の見出しの上に重ねるので、その列の見出しの字が札の手前で切れて見える（列の区切りで止める送りは札を押したときだけ）。表示列の窓の「値のある行 500 / 500」は読み込んだ行の数のまま（3 行の件数とは別の札。この依頼の外）。品質の帯の右の端が表の右の端より右へ出る（3.122.0 の採点の (3)。この依頼の 7 件の外）",
-  "evals": "ui-eval-drill・ui-eval-convbackup・ui-eval-readcol・ui-eval-qualitygroup はどれも終了コード 0（作った後の最後の形で）。cargo test --test conv_backup_cases は 3 本 ok"
+  "evals": "ui-eval-drill・ui-eval-convbackup・ui-eval-readcol・ui-eval-qualitygroup はどれも終了コード 0（作った後の最後の形で）。cargo test --test conv_backup_cases は 3 本 ok",
+  "after_score": {
+   "why": "作った後の採点（81.3 点）で、直し 1 の「あと n 列 ›」の札が見出しの行に重なり列の見出しを隠す・切る（重なり −5。1536 drill の 7 列目・1280 drill-more の「製造調質」・1536 drill-chart の「納入先」と「取引先」・1728 drill-more の「BOX設計_設備名」）が残ったので直した。あわせて勧めの「値のある行 500 / 500」も直した",
+   "fixes": [
+    "札「‹ 前 n 列」「あと n 列 ›」を、見出しの行の上から、表の上の範囲の札の行の右（内訳 ▾ の左・表の右の端の真上）へ移した。形は内訳 ▾ と同じ 26px の札で、色は藍（範囲と同じ表の事）。見出しの行には何も重ねない（program/app/static/js/dashboard.js・css/dashboard.css）",
+    "表示列の窓の「値のある行」の母数を、同じ欄の 3 行の件数とそろえた: ルールで作る列は 3 行と同じ数え方で「1,500 / 1,500（全部の行・空欄 0）」、ほかの列は読み込んだ行で数え、一覧の全件より少なければ「500 / 500（読み込んだ行・空欄 0）」と言う（program/app/static/js/lotlist-columns.js）",
+    "評価関数 ui-eval-drill ⑨ に足した: 札の箱とどの見出しのセル・字の箱も重ならない・見えている（全部が見える所の中の）列の見出しの字が切れず、字の両端と真ん中がその見出し（覆われない）・送った後も同じ・札は見出しの行より上。⑧ の切れ・折れの見張りにも札を入れた。ui-eval-readcol ④ に、値のある行がルールで作る列で「1,500 / 1,500（全部の行・空欄 0）」・合金で「読み込んだ行」と言うことを足した"
+   ],
+   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/built-1728・built-1536・built-1280（撮り直し。前の作った後は built1-*）",
+   "seen": [
+    "1728 drill-more: 範囲の札の行の右に「あと 9 列 ›」｜内訳 ▾。見出しの行は「残仕掛設備ｺｰｽ … BOX設計_設備名」まで全部読め、右の端の 1 列だけが表の端で切れる（送れば見える。前の版の形と同じ）",
+    "1536 drill: 「あと 10 列 ›」が範囲の札の行。見出しは「BOX設計_設…」が表の右の端で切れるだけで、札に覆われた列は無い（前の採点で隠れていた 7 列目の見出しが読める）",
+    "1536 drill-chart: 「あと 5 列 ›」が範囲の札の行。「取引先」「納入先」とも見出しが全部読める",
+    "1280 drill-more: 「あと 11 列 ›」が範囲の札の行。「製造調質」が全部読め、行は 10 行のまま。1280 drill-kpi: 「あと 4 列 ›」・見出しは「残仕掛設備ｺｰｽ」まで読める",
+    "readcol-cols（1280・1536）: 右の欄の上「値のある行 1,500 / 1,500（全部の行・空欄 0）」と、3 行の下「一覧の全 1,500 行をこのルールで数えた件数」が同じ母数。1 段で切れない",
+    "ほかの状態（drill-entry・drill-off・cvb・cvb-saved・cvb-hist・cvb-diff・cvb-th・cvb-off・readcol-list・readcol-rule・readcol-new・readcol-off・qg-list・qg-menu・qg-moved・qg-edit・qg-tab・qg-off）は、前の作った後（built1-*）との差が時計・版の字と時点の時刻だけ（差の画素 0.4% 以下）。新しい切れ・重なり・語の途中の折れ・1 段のはずの 2 段は見つけなかった"
+   ],
+   "evals": "ui-eval-drill・ui-eval-readcol・ui-eval-convbackup・ui-eval-qualitygroup は直した後の形で終了コード 0（ui_serve は自分の作業フォルダで組んだ写し scratchpad/fix127/bin/ui_serve_built2）"
+  }
  },
  "built": {
   "name": "作った後（版 3.127.0）",

@@ -1714,11 +1714,13 @@
     const one = a.parts && a.parts.length === 1 && Array.isArray(a.parts[0].rowids);
     const why = !one ? (a.parts && a.parts.length > 1 ? "設備をまたぐ明細は、一覧の 1 つの画面に入りません（Excel に出力で全部の行を出せます）" : "この表は行の番号が無いので、一覧で同じ行を開けません") : "";
     inn.innerHTML = `<div class="dd-ttl"><h2 title="${esc(t.title)} の数から">${esc(cellName(t))}</h2><span class="dd-big">${(a.total || 0).toLocaleString()}<small>行</small></span>${checkHtml(t)}</div>${notes}`
-      + `<div class="dd-chips">${conds}<span class="dd-sp"></span><button type="button" class="dd-inb" data-dd-inner aria-expanded="${!!D.inner}" title="明細の多い値を列ごとに見ます">内訳 ▾</button></div>`
+      + `<div class="dd-chips">${conds}<span class="dd-sp"></span>`
+      // 右・左に続く列の札（版 3.127.0）: 表の上の範囲の札の行の右（表の右の端の真上）。見出しの行には重ねない（見出しの字を隠さない・切らない）
+      + '<button type="button" class="dd-side is-l" data-dd-side="-1" hidden></button><button type="button" class="dd-side is-r" data-dd-side="1" hidden></button>'
+      + `<button type="button" class="dd-inb" data-dd-inner aria-expanded="${!!D.inner}" title="明細の多い値を列ごとに見ます">内訳 ▾</button></div>`
       + (t.pick ? `<div class="dd-picked">内訳で絞っています: <b>${esc(t.pick.col)}＝${esc(t.pick.v || "（空）")}</b>（${rows.length.toLocaleString()} 行）<button type="button" class="dd-pickx" data-dd-unpick>× 外す</button></div>` : "")
       + `<div class="dd-tbox"><div class="dd-tw" tabindex="0"><table class="dd-t"><thead><tr><th class="dd-n">#</th>${cols.map((c) => `<th class="${c.used ? "is-used" : ""}${t.sort === c.name ? " is-sort" : ""}"${c.part ? "" : ` data-dd-sort="${esc(c.name)}"`} title="${c.part ? "設備（作業実績のファイル）" : c.used ? "この数の組みに使った列（押すと並べ替え）" : "押すと並べ替え"}">${c.used ? '<span class="dd-dot" aria-hidden="true"></span>' : ""}${esc(c.name)}${t.sort === c.name ? (t.desc ? " ▼" : " ▲") : ""}</th>`).join("")}</tr></thead><tbody></tbody></table></div>`
-      // 右・左に続く列（版 3.127.0。前は薄い影だけで、送り棒も出ず、右に列があると分からなかった）: 端の札「あと n 列 ›」「‹ 前 n 列」と細い送り棒
-      + '<button type="button" class="dd-side is-l" data-dd-side="-1" hidden></button><button type="button" class="dd-side is-r" data-dd-side="1" hidden></button>'
+      // 右・左に続く列（版 3.127.0。前は薄い影だけで、送り棒も出ず、右に列があると分からなかった）: 札「あと n 列 ›」「‹ 前 n 列」（範囲の札の行）と細い送り棒
       + '<div class="dd-hbar" style="visibility:hidden"><i></i></div>'
       + `<div class="dd-sum"><b>計</b> ${(t.pick ? rows.length : a.total || 0).toLocaleString()} 行${a.lotsBy ? `・${a.source === "work" ? "作業" : "ロット"}数 ${(a.lots || 0).toLocaleString()}` : ""}<span>列 ${cols.length}${empty ? `（値の無い ${empty} 列は畳んでいます）` : ""}</span></div></div>`
       + `<div class="dd-ft"><button type="button" class="btn-primary" data-dd-list${one ? "" : " disabled"} title="${esc(why || "同じ行を、一覧の画面で一時の絞りとして開きます（一覧の覚えは変えません）")}">一覧で開く ›</button>`
@@ -1756,13 +1758,12 @@
     const ths = [...tw.querySelectorAll("thead th")].slice(1), a = tw.scrollLeft, b = a + tw.clientWidth;
     return { left: ths.filter((th) => th.offsetLeft < a - 1), right: ths.filter((th) => th.offsetLeft + th.offsetWidth > b + 1) };
   }
-  /** 表の端の札「‹ 前 n 列」「あと n 列 ›」と細い送り棒（版 3.127.0）。札は見出しの行の高さで、切れた列の見出しの上に重ねる */
+  /** 表の上の札「‹ 前 n 列」「あと n 列 ›」と細い送り棒（版 3.127.0）。札は範囲の札の行の右（見出しの行には重ねない） */
   function sides(inn) {
     const tw = inn.querySelector(".dd-tw"), bar = inn.querySelector(".dd-hbar"); if (!tw || !bar) return;
-    const o = outside(tw), head = tw.querySelector("thead").offsetHeight, wide = tw.scrollWidth > tw.clientWidth + 2;
+    const o = outside(tw), wide = tw.scrollWidth > tw.clientWidth + 2;
     for (const [el, list, text] of [[inn.querySelector(".dd-side.is-l"), o.left, (n) => `‹ 前 ${n} 列`], [inn.querySelector(".dd-side.is-r"), o.right, (n) => `あと ${n} 列 ›`]]) {
       el.hidden = !list.length; el.textContent = list.length ? text(list.length) : "";
-      el.style.height = `${head}px`;
       el.title = list.length ? `${el.classList.contains("is-r") ? "右" : "左"}に続く列: ${list.map((th) => th.textContent.replace(/[▲▼]/g, "").trim()).join("・")}（押すと送ります。表の上で Shift＋ホイールでも）` : "";
     }
     bar.style.visibility = wide ? "" : "hidden";   // 表の下の縁に重ねる（高さを取らない）

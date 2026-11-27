@@ -10,7 +10,8 @@
 // ⑥ 出せない形: 稼働のガントのパネルの数を押すと、理由の 1 行（空の明細を出さない）。差（別のデータと合わせる）はサーバーが理由を返す
 // ⑦ 置き場: 明細の面は押したパネルに重ならず、ほかのパネルの縁にそろう（途中に縁を置かない）。押した数の印（dd-src）と押したパネルの縁が見えている
 // ⑧ 3 つの大きさで、面の頭の帯・題の行・範囲の札・押す手が切れない・はみ出さない・重ならない・語の途中で折れない。表の高さは行の高さの倍数
-// ⑨ 右・左に続く列（版 3.127.0）: 端の札「あと n 列 ›」「‹ 前 n 列」の n が見出しの位置で数えた外の列の数・細い送り棒・押すと列の区切りで送る
+// ⑨ 右・左に続く列（版 3.127.0）: 表の上の札「あと n 列 ›」「‹ 前 n 列」の n が見出しの位置で数えた外の列の数・細い送り棒・押すと列の区切りで送る・
+//    札の箱とどの見出しのセルの字の箱も重ならず、見えている列の見出しの字が切れず覆われない（作った後の採点の重なり −5 を直した）
 // ⑩ 色の意味（版 3.127.0）: 範囲の札と組みに使った列は、押したパネルの橙と別の色（橙は押した所だけ）
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
@@ -49,7 +50,7 @@ const layout = (p) => p.evaluate(() => {
   const B = box.getBoundingClientRect(), bad = [];
   const inside = (el, name) => { const r = el.getBoundingClientRect(); if (r.width && (r.left < B.left - 1 || r.right > B.right + 1 || r.top < B.top - 1 || r.bottom > B.bottom + 1)) bad.push(`${name} が面の外`); };
   for (const [sel, name] of [[".dd-strip", "頭の帯"], [".dd-ttl", "題の行"], [".dd-chips", "範囲の札"], [".dd-ft", "押す手"], [".dd-sum", "計の行"], [".dd-tw", "表"]]) { const el = box.querySelector(sel); if (el) inside(el, name); }
-  for (const el of box.querySelectorAll(".dd-strip > *:not(.dd-sp), .dd-tab, .dd-ft > *, .dd-c, .dd-ttl > *, .dd-sum, .dd-all, .dd-inb")) {
+  for (const el of box.querySelectorAll(".dd-strip > *:not(.dd-sp), .dd-tab, .dd-ft > *, .dd-c, .dd-ttl > *, .dd-sum, .dd-all, .dd-inb, .dd-side:not([hidden])")) {
     if (el.hidden || !el.getClientRects().length) continue;
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== "visible") bad.push(`切れる: ${el.textContent.trim().slice(0, 20)}`);
     const lh = parseFloat(getComputedStyle(el).lineHeight) || 18;
@@ -130,19 +131,32 @@ try {
       const tw = document.querySelector("#dashDrill .dd-tw"), ths = [...tw.querySelectorAll("thead th")].slice(1), a = tw.scrollLeft, b = a + tw.clientWidth;
       const vis = (el) => !!el && !el.hidden && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== "hidden";
       const r = document.querySelector("#dashDrill .dd-side.is-r"), l = document.querySelector("#dashDrill .dd-side.is-l"), bar = document.querySelector("#dashDrill .dd-hbar");
-      const tr = tw.getBoundingClientRect(), rr = r.getBoundingClientRect();
+      const tr = tw.getBoundingClientRect();
+      // 札の箱と見出しの字の箱が重ならない（版 3.127.0 の採点の減点: 札が見出しの行に重なり、列の名前を隠した）
+      const textBox = (th) => { const rg = document.createRange(); rg.selectNodeContents(th); return rg.getBoundingClientRect(); };
+      const hit = (p, q) => Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.5 && Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.5;
+      const pills = [r, l].filter(vis).map((x) => x.getBoundingClientRect());
+      const over = [...tw.querySelectorAll("thead th")].filter((th) => pills.some((pb) => hit(pb, textBox(th)) || hit(pb, th.getBoundingClientRect()))).map((th) => th.textContent.trim());
+      // 見えている列（全部が見える所の中）の見出しの字は切れず、ほかの物に覆われない（字の真ん中と両端がその見出し）
+      const shown = ths.filter((th) => th.offsetLeft >= a - 1 && th.offsetLeft + th.offsetWidth <= b + 1);
+      const covered = shown.filter((th) => { const tb = textBox(th), y = (tb.top + tb.bottom) / 2;
+        return [tb.left + 2, (tb.left + tb.right) / 2, tb.right - 2].some((x) => !th.contains(document.elementFromPoint(x, y))); }).map((th) => th.textContent.trim());
+      const cutHead = shown.filter((th) => th.scrollWidth > th.clientWidth + 1 || textBox(th).right > Math.min(th.getBoundingClientRect().right, tr.right) + 0.5).map((th) => th.textContent.trim());
       return { right: ths.filter((th) => th.offsetLeft + th.offsetWidth > b + 1).length, left: ths.filter((th) => th.offsetLeft < a - 1).length,
         rText: vis(r) ? r.textContent : "", lText: vis(l) ? l.textContent : "", bar: vis(bar) && bar.getBoundingClientRect().height >= 6,
         snap: a === 0 || ths.some((th) => Math.abs(th.offsetLeft - a) <= 1), wide: tw.scrollWidth > tw.clientWidth + 2, end: b >= tw.scrollWidth - 1,
-        rInside: !vis(r) || (rr.right <= tr.right + 1 && rr.top >= tr.top - 1), rFont: parseFloat(getComputedStyle(r).fontSize) };
+        over, covered, cutHead, shown: shown.length, rAbove: !vis(r) || r.getBoundingClientRect().bottom <= tr.top + 0.5, rFont: parseFloat(getComputedStyle(r).fontSize) };
     });
     let e0 = await edge();
-    check(`⑨ 右に続く列: 端の札「${e0.rText}」＝見出しの位置で数えた ${e0.right} 列・細い送り棒が見える・札が表の中`,
-      e0.wide && e0.right > 0 && e0.rText === `あと ${e0.right} 列 ›` && !e0.lText && e0.bar && e0.rInside && e0.rFont >= 11, e0);
+    check(`⑨ 右に続く列: 札「${e0.rText}」＝見出しの位置で数えた ${e0.right} 列・細い送り棒が見える・札は表の上（見出しの行より上）`,
+      e0.wide && e0.right > 0 && e0.rText === `あと ${e0.right} 列 ›` && !e0.lText && e0.bar && e0.rAbove && e0.rFont >= 11, e0);
+    const headOk = (e) => !e.over.length && !e.covered.length && !e.cutHead.length && e.shown >= 3;
+    check(`⑨ 札の箱とどの見出しのセル・字の箱も重ならず、見えている ${e0.shown} 列の見出しの字が切れず覆われない`, headOk(e0), { over: e0.over, covered: e0.covered, cut: e0.cutHead });
     await p.click("#dashDrill .dd-side.is-r"); await sleep(250);
     const e1 = await edge();
     check(`⑨ 札を押すと列の区切りで送る（左の端が列の頭）・「${e1.lText}」＝${e1.left} 列・あと ${e1.right} 列`,
       e1.snap && e1.left > 0 && e1.lText === `‹ 前 ${e1.left} 列` && e1.right < e0.right && (e1.right ? e1.rText === `あと ${e1.right} 列 ›` : !e1.rText), e1);
+    check("⑨ 送った後も、札が見出しに重ならず、見えている見出しの字が切れず覆われない", headOk(e1), { over: e1.over, covered: e1.covered, cut: e1.cutHead });
     for (let i = 0; i < 20 && (await edge()).rText; i++) { await p.click("#dashDrill .dd-side.is-r"); await sleep(120); }
     const e2 = await edge();
     check("⑨ 右の端まで送ると「あと n 列」が消える", e2.end && !e2.rText && e2.right === 0 && !!e2.lText, e2);
