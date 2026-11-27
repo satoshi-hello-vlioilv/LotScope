@@ -2,47 +2,100 @@
  "title": "版 3.127.0 の仕上げ — 前の版の作った後の採点で「直すとよいが減点にしなかった所」7 件をまとめて直す（新しい案出しはしない。CLAUDE.md の手順 7「作った後も…直して撮り直す」）",
  "rule": "2026-10-17",
  "request": "利用者「まとめて直してください」。版 3.122.0〜3.126.0 の作った後の採点（built）に残った、減点にしなかった弱い所 7 件。どれも採点を通って決まった設計の仕上げ",
- "from": ["2026-11-drilldown.json（built。1・2）", "2026-11-convbackup.json（built。3・4）", "2026-11-readcol.json（built。5・6）", "2026-11-qualitygroup.json（built。7）"],
+ "from": [
+  "2026-11-drilldown.json（built。1・2）",
+  "2026-11-convbackup.json（built。3・4）",
+  "2026-11-readcol.json（built。5・6）",
+  "2026-11-qualitygroup.json（built。7）"
+ ],
  "fixes": [
-  {"no": 1, "where": "3.126.0 ダッシュボードの明細（drill・drill-chart・drill-kpi・drill-more）",
+  {
+   "no": 1,
+   "where": "3.126.0 ダッシュボードの明細（drill・drill-chart・drill-kpi・drill-more）",
    "before": "表の右に列が続くことが薄い影でしか分からない。送り棒が出ず、1728 の drill-more では 8 列目「検査番号」が面の右の端で列の途中から切れる（before-1728/drill/drill-more-light-now.png の右端の「検」と「K」）",
    "after": "表の見出しの行の右の端に「あと n 列 ›」（左に送った後は左の端に「‹ 前 n 列」）の札を重ね、表の下の縁に細い送り棒（押す・引くと送る）を重ねた。n は見出しの位置で数えた見える所の外の列（一部でも切れていれば外）。札を押すと列の区切りで送る（左の端が列の頭）。元の横の送り棒は 2 本にしないよう出さない（縦はそのまま）。送り棒は高さを取らない（行の数は前と同じ: 1280 の drill-more は 10 行）",
-   "files": ["program/app/static/js/dashboard.js（outside・sides・sideGo・barDrag）", "program/app/static/css/dashboard.css（.dd-side・.dd-hbar）"],
-   "eval": "ui-eval-drill.mjs ⑨（端の札の n＝見出しの位置で別に数えた外の列の数・送り棒が見える・札が表の中・押すと列の区切りで送り「‹ 前 n 列」・右の端で「あと」が消える・左の端まで戻る。3 つの大きさ）"},
-  {"no": 2, "where": "3.126.0 ダッシュボードの明細の範囲の札",
+   "files": [
+    "program/app/static/js/dashboard.js（outside・sides・sideGo・barDrag）",
+    "program/app/static/css/dashboard.css（.dd-side・.dd-hbar）"
+   ],
+   "eval": "ui-eval-drill.mjs ⑨（端の札の n＝見出しの位置で別に数えた外の列の数・送り棒が見える・札が表の中・押すと列の区切りで送り「‹ 前 n 列」・右の端で「あと」が消える・左の端まで戻る。3 つの大きさ）"
+  },
+  {
+   "no": 2,
+   "where": "3.126.0 ダッシュボードの明細の範囲の札",
    "before": "範囲の札「設備 L-2」の地と縁が橙で、押したパネルの橙の縁・押したセルの橙の枠と同じ色。橙に 2 つの意味があった（before-1728/drill/drill-more-light-now.png）",
    "after": "範囲の札（この数の行・列）と、組みに使った列（見出しの地・点・セルの地）を藍（入力系の --h-input の淡い色）にした。橙は押した数と押したパネルだけ",
-   "files": ["program/app/static/css/dashboard.css（.dd-c.is-cell・.dd-t th.is-used・td.is-used・.dd-dot）"],
-   "eval": "ui-eval-drill.mjs ⑩（範囲の札の地と縁・組みに使った列の地の色相が、押したパネルの縁の橙の色相から 40 度より離れる）"},
-  {"no": 3, "where": "3.125.0 変換表の履歴（cvb-saved → cvb-hist）",
+   "files": [
+    "program/app/static/css/dashboard.css（.dd-c.is-cell・.dd-t th.is-used・td.is-used・.dd-dot）"
+   ],
+   "eval": "ui-eval-drill.mjs ⑩（範囲の札の地と縁・組みに使った列の地の色相が、押したパネルの縁の橙の色相から 40 度より離れる）"
+  },
+  {
+   "no": 3,
+   "where": "3.125.0 変換表の履歴（cvb-saved → cvb-hist）",
    "before": "変えずに「この表を保存」を押しても「今と同じ」時点が 1 つ増え、並びの頭を占めた（before-1728/cvb/cvb-hist-light-now.png の 1 枚目「「管理分類」を保存する前・今と同じ」）。書く直前の係が、行を変える前に時点を残していたため",
    "after": "窓（desktop/src/master_store.rs）の書く直前の係を、直した後・置き場へ書く直前に呼び、書く前と書いた後の行を渡すようにした。conv_history::changes_content（行の数・順・各行の項目。書くたびに変わる rev・updated_at・updated_by は比べない）が「変わらない」と言えば時点を残さない。断られた書き込みでも時点が残らない",
-   "files": ["desktop/src/master_store.rs（BeforeWrite が前と後の行を受ける・has_before_write）", "desktop/src/conv_history.rs（changes_content・STAMP_KEYS）", "desktop/src/conversions_write.rs（keeper）", "program/tests/fixtures/conv_backup_cases.json（keep の 8 事例）", "desktop/tests/conv_backup_cases.rs（saving_without_changes_keeps_no_point）"],
-   "eval": "cargo test --test conv_backup_cases（keep の事例 8: 変えない保存・その他だけ直す・表を足す・消す・順・空・標準の置き直し）と ui-eval-convbackup.mjs ①（変えずにもう一度・3 回目の保存でも時点は増えず、並びの頭はさっきの「保存する前」のまま）"},
-  {"no": 4, "where": "3.125.0 変換表の「履歴と戻す」の窓（全体）",
+   "files": [
+    "desktop/src/master_store.rs（BeforeWrite が前と後の行を受ける・has_before_write）",
+    "desktop/src/conv_history.rs（changes_content・STAMP_KEYS）",
+    "desktop/src/conversions_write.rs（keeper）",
+    "program/tests/fixtures/conv_backup_cases.json（keep の 8 事例）",
+    "desktop/tests/conv_backup_cases.rs（saving_without_changes_keeps_no_point）"
+   ],
+   "eval": "cargo test --test conv_backup_cases（keep の事例 8: 変えない保存・その他だけ直す・表を足す・消す・順・空・標準の置き直し）と ui-eval-convbackup.mjs ①（変えずにもう一度・3 回目の保存でも時点は増えず、並びの頭はさっきの「保存する前」のまま）"
+  },
+  {
+   "no": 4,
+   "where": "3.125.0 変換表の「履歴と戻す」の窓（全体）",
    "before": "「＋ この表だけ」のバックアップが、表の頭の「履歴 ▾」から開いた窓にしか無く、全体の窓には「＋ 全体をバックアップ」だけ（before-*/cvb/cvb-hist-light-now.png）",
    "after": "全体の窓の「＋ 全体をバックアップ」の下に、表を選ぶ欄（既定はいま開いている表）と「＋ この表だけ」を 1 段で置いた。知らせは「「課名」だけをバックアップしました」",
-   "files": ["program/app/static/js/master-conv.js（mkOneHtml・data-cvh-mk=pick）", "program/app/static/css/master.css（.cvh-mkone）"],
-   "eval": "ui-eval-convbackup.mjs ⑤（全体の窓に表を選ぶ欄と「＋ この表だけ」・既定は管理分類・課名を選んで押すと scope が [課名] の手の時点が 1 つ増え、知らせが「「課名」だけ」）"},
-  {"no": 5, "where": "3.123.0 ルールで作る列の新しい列の作り方の窓（readcol-new）",
+   "files": [
+    "program/app/static/js/master-conv.js（mkOneHtml・data-cvh-mk=pick）",
+    "program/app/static/css/master.css（.cvh-mkone）"
+   ],
+   "eval": "ui-eval-convbackup.mjs ⑤（全体の窓に表を選ぶ欄と「＋ この表だけ」・既定は管理分類・課名を選んで押すと scope が [課名] の手の時点が 1 つ増え、知らせが「「課名」だけ」）"
+  },
+  {
+   "no": 5,
+   "where": "3.123.0 ルールで作る列の新しい列の作り方の窓（readcol-new）",
    "before": "窓の高さが 760〜780px のままで、右の下 4〜5 割（1728・1536 で変換表のカードの下〜窓の下）と左の下が空いた（before-1728/readcol/readcol-new-light-now.png）",
    "after": "「≡ 保存したルール」のタブのときだけ、窓の高さを中身に合わせる（上限は今の高さ）。組み立てる・式を書くへ移ると前の高さに戻り、覚えた大きさは変えない（評価関数の測り〈1728×1152・CSS の px〉で窓 780px → 570px・中身の下の空き 10px）",
-   "files": ["program/app/static/js/lotlist-rules.js（fitRule）", "program/app/static/css/lotlist-columns.css（.ll-fxpanel.is-fit）"],
-   "eval": "ui-eval-readcol.mjs ⑥（保存したルールのタブで中身の下の空きが 48px 以下・窓が前の高さ以下で画面に収まる・組み立てるへ移ると前の高さ）"},
-  {"no": 6, "where": "3.123.0 ルールで作る列の 3 行の件数（表示列の窓 readcol-cols と作り方の窓 readcol-new）",
+   "files": [
+    "program/app/static/js/lotlist-rules.js（fitRule）",
+    "program/app/static/css/lotlist-columns.css（.ll-fxpanel.is-fit）"
+   ],
+   "eval": "ui-eval-readcol.mjs ⑥（保存したルールのタブで中身の下の空きが 48px 以下・窓が前の高さ以下で画面に収まる・組み立てるへ移ると前の高さ）"
+  },
+  {
+   "no": 6,
+   "where": "3.123.0 ルールで作る列の 3 行の件数（表示列の窓 readcol-cols と作り方の窓 readcol-new）",
    "before": "3 行の件数（111・171・218）は一覧の読み込んだ 500 行で数えた数で、一覧の「全 1,500件」と母数が違い、考えさせた（添え書き「一覧の 500 行をこのルールで数えた件数」）",
    "after": "全部の行で数える: ルールと同じ意味の式が使う元の列（4 列まで）の値の組と件数を、一覧と同じ絞り込み・検索・スライサーのまま /slicer?columns=… に尋ね、組ごとにルールで判定して足す（357・479・664）。組の件数の和が一覧の件数と同じときだけ「一覧の全 1,500 行をこのルールで数えた件数」と言い、違う・尋ねている途中は「読み込んだ 500 行で数えた件数（一覧は全 1,500 件／全 1,500 行で数えています…）」と母数を言う。表示列の窓と作り方の窓で同じ数・同じ言葉",
-   "files": ["program/app/static/js/lotlist.js（columnContext の combos・count・queryKey）", "program/app/static/js/lotlist-columns.js（usesOf・ruleCounts・countCaption・fxSource.counts）", "program/app/static/js/lotlist-rules.js（renderRulePane）", "program/app/static/css/lotlist-columns.css（.lc-rcap）"],
-   "eval": "ui-eval-readcol.mjs ④⑥（3 行の件数＝一覧の全部の行〈1 ページで全件〉をルールの行ごとに数えた独立の答え・和＝1,500・母数の言葉が一覧の「全 1,500件」と同じ数・作り方の窓も同じ数）"},
-  {"no": 7, "where": "3.122.0 品質データのグループ（qg-moved・qg-edit・qg-menu）",
+   "files": [
+    "program/app/static/js/lotlist.js（columnContext の combos・count・queryKey）",
+    "program/app/static/js/lotlist-columns.js（usesOf・ruleCounts・countCaption・fxSource.counts）",
+    "program/app/static/js/lotlist-rules.js（renderRulePane）",
+    "program/app/static/css/lotlist-columns.css（.lc-rcap）"
+   ],
+   "eval": "ui-eval-readcol.mjs ④⑥（3 行の件数＝一覧の全部の行〈1 ページで全件〉をルールの行ごとに数えた独立の答え・和＝1,500・母数の言葉が一覧の「全 1,500件」と同じ数・作り方の窓も同じ数）"
+  },
+  {
+   "no": 7,
+   "where": "3.122.0 品質データのグループ（qg-moved・qg-edit・qg-menu）",
    "before": "(1) 移した直後の帯が「見出しでは「工程 › 品質」のタブで開きます」と言うが、1536・1280 の見出しのタブは「工程」だけで字が食い違う。(2) 同じ選びを、欄は「なし」、メニューは「グループなし」「新しいグループへ…」と言う",
    "after": "(1) 帯は「見出しの「工程」のタブの中の札で開きます」（どの幅でも見出しの字と食い違わない。欄の説明「そのグループのタブの中に札で並びます」と同じ言葉。1280 でも 1 段）。(2) 欄の札を「グループなし」、メニューを「新しいグループ…」にし、欄の札「＋ 新しいグループ…」とそろえた",
-   "files": ["program/app/static/js/master-sources.js（movedBar・groupField・rowMenu）"],
-   "eval": "ui-eval-qualitygroup.mjs ①②⑤（メニューの項目・帯の言葉と「工程 › 品質」と言わない・帯の字が 3 つの大きさで 1 段・欄の札「グループなし…」・欄とメニューの言葉が同じ）"}
+   "files": [
+    "program/app/static/js/master-sources.js（movedBar・groupField・rowMenu）"
+   ],
+   "eval": "ui-eval-qualitygroup.mjs ①②⑤（メニューの項目・帯の言葉と「工程 › 品質」と言わない・帯の字が 3 つの大きさで 1 段・欄の札「グループなし…」・欄とメニューの言葉が同じ）"
+  }
  ],
  "how_to_shoot": "作った後: TPA_UI_EXE=<版 3.127.0 の ui_serve> TPA_UI_PROGRAM=<作業場所>/program node program/tools/ui-variants.mjs 出力 built.mjs（key built・css も ops も空）を、4 つの組で: --from drill-entry --states drill-entry,drill,drill-chart,drill-kpi,drill-more,drill-off／--from cvb --states cvb,cvb-saved,cvb-hist,cvb-diff,cvb-th,cvb-off／--from readcol-list --states readcol-list,readcol-cols,readcol-rule,readcol-new,readcol-off／--from master --states qg-list,qg-menu,qg-moved,qg-edit,qg-tab,qg-off。既定（1728×1152）・--view 1536x864・--view 1280x720。作る前は版 3.126.0（main 05a7603）の ui_serve と program の写しで now.mjs（key now）を同じ形で",
  "for_evaluator": "採点は直していない別のエージェントが、自分で how_to_shoot のとおり 3 つの大きさで撮り、画像を見て付ける（決まり 2026-10-17・合格点 80）。見る画像: drill-more・drill・drill-chart・drill-kpi（1・2: 表の端の札と送り棒・範囲の札の色）・cvb-saved → cvb-hist・cvb-th（3・4: 並びの頭に「今と同じ」が無い・全体の窓の表を選ぶ欄と「＋ この表だけ」）・readcol-new・readcol-cols（5・6: 窓の高さ・件数と母数）・qg-moved・qg-edit・qg-menu（7: 帯とグループの言葉）。押した後の動き（札で送る・この表だけのバックアップの時点・保存で時点が増えない）は画像に出ないので、評価関数の結果と窓の事例の表で見る",
+ "applies": "2026-11-drilldown.json",
+ "applies_note": "ui_score.py が読めるように置いた（案の比べの無い仕上げなので、案出しの回〈rounds〉は空）。7 件は 2026-11-drilldown.json（1・2）・2026-11-convbackup.json（3・4）・2026-11-readcol.json（5・6）・2026-11-qualitygroup.json（7）で決まった形の仕上げで、4 つとも ui_score.py の判定は「選ぶ」。applies はいちばん新しい 2026-11-drilldown.json を指す",
  "rounds": [],
+ "evaluator": "作っていない採点の係（別のエージェント・採点のみ・2026-11-27）。作った後（built）だけを、自分で 3 つの大きさで撮った画像で採点した。撮り方・評価関数の終了コードは built.evaluator",
  "self_check_built": {
   "version": "3.127.0",
   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/built-1728・built-1536・built-1280（作った後は <組>/*-light-built.png）。作る前は同じ所の before-1728・before-1536・before-1280（<組>/*-light-now.png）。組は drill・cvb・readcol・qg",
@@ -57,5 +110,34 @@
   ],
   "left": "直していない所（7 件の外）: 明細の表の端の札は、切れた列の見出しの上に重ねるので、その列の見出しの字が札の手前で切れて見える（列の区切りで止める送りは札を押したときだけ）。表示列の窓の「値のある行 500 / 500」は読み込んだ行の数のまま（3 行の件数とは別の札。この依頼の外）。品質の帯の右の端が表の右の端より右へ出る（3.122.0 の採点の (3)。この依頼の 7 件の外）",
   "evals": "ui-eval-drill・ui-eval-convbackup・ui-eval-readcol・ui-eval-qualitygroup はどれも終了コード 0（作った後の最後の形で）。cargo test --test conv_backup_cases は 3 本 ok"
+ },
+ "built": {
+  "name": "作った後（版 3.127.0）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/score-built-1728・score-built-1536・score-built-1280（<組>/*-light-built.png。組は drill・cvb・readcol・qg。各 6・6・5・6 状態）。作る前は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/before-1728・before-1536・before-1280（*-light-now.png）。切り出しは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/score-crop",
+  "evaluator": "作っていない採点の係（別のエージェント・採点のみ・2026-11-27。決まり 2026-10-17・合格点 80）。作った者の画像（built-*）は使わず、scratchpad/fix127/built.mjs（key built・css も ops も空）で ui-variants.mjs を shoot.sh の 4 つの組（--from drill-entry／cvb／readcol-list／master）で、既定 1728・--view 1536x864・--view 1280x720 を自分で流した（TPA_UI_EXE=scratchpad/fix127/bin/ui_serve_final・TPA_UI_PROGRAM=作業フォルダの program。cargo で組み直していない）。終了コードは 12 回のうち 11 回 0。1280 の readcol は 5 枚の画像を撮った後、全案を並べる一覧（sheet）の撮りで Page.captureScreenshot が落ちて 1（3 つの大きさを並べて流した負荷）。その組だけ流し直して 0。評価関数も同じ環境変数で自分で流した: ui-eval-drill 終了コード 0（OK の行 101・FAIL 0・「OK すべて」）／ui-eval-convbackup 0（OK の行 33・FAIL 0）／ui-eval-readcol 0（OK の行 32・FAIL 0・「OK all」）／ui-eval-qualitygroup 0（OK の行 50・FAIL 0・「すべて OK」）。metrics.json の字の最小・コントラストの最小・cut・hidden は、作る前（before-1728・before-1280）と全部の状態で同じ（新しく増えた所なし）。表の端の札は dashboard.css の .dd-side（12px・#23466f／#e4ebf3）",
+  "images_scored": "score-built-1728・1536・1280 の 23 状態（69 枚）。特に drill-more（1728・1280）・drill（1536）・drill-chart（1536）・drill-kpi（1280）・cvb-hist（1728・1280）・readcol-new（1728・1280）・readcol-cols（1280）・qg-moved（1280）・qg-edit（1536）・qg-menu（1280）を開き、before の同じ状態と並べた。1536 drill の見出しは PIL で切り出して前後を比べた",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 9,
+    "place": 9,
+    "layout": 8,
+    "tone": 9
+   },
+   "minus": [
+    {
+     "kind": "overlap",
+     "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/score-built-1536/drill/drill-light-built.png の明細の表の見出しの行の右の端（「あと 10 列 ›」の札が 7 列目〈値 SL1・ANF・DL2〉の見出しを全部覆い、列名が無い。前は「BOX設計_設」まで読めた）。同じ札が /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/fix127/score-built-1280/drill/drill-more-light-built.png（「あと 11 列 ›」が「製造調質」〈H24・O・H34 の列〉の見出しを全部覆う。前は全部読めた）・score-built-1536/drill/drill-chart-light-built.png（「あと 5 列 ›」が「納入先」の見出しを覆い「取引先」を切る）・score-built-1728/drill/drill-more-light-built.png（「BOX設計_設備名」が「BOX設」で切れる）でも重なる"
+    }
+   ],
+   "seen": "1（明細の表の右の続き）: 直った。どの大きさでも見出しの行の右の端に藍の「あと n 列 ›」（1728 drill-more 9・1536 drill 10・1536 drill-chart 5・1280 drill-more 11・1280 drill-kpi 4）と、表の下の縁に灰の細い送り棒が出て、右に列が続くことが字と形で分かる（前は薄い影だけ。before-1728/drill/drill-more の右端は「検」「K」が切れていた）。1280 drill-more の行の数は前と同じ 10 行。ただし札は見出しの行の上に不透明に重なり、その下の列の見出しを隠す: 1536 drill の 7 列目（値 SL1・ANF・DL2…）は前は「BOX設計_設」まで読めたが、後は見出しが全部隠れて列名が無い（score-crop/d1536-b.png と d1536-a.png で比べた）。1280 drill-more の 6 列目（H24・O・H34）は前は「製造調質」が全部読めたが、後は札に隠れて見出しが無い。1536 drill-chart では「納入先」の列の見出しが隠れ「取引先」が札で切れる。1728 drill-more は「BOX設計_設備名」が「BOX設」で切れる。→ 減点（重なり） ／ 2（範囲の札の色）: 直った。範囲の札「設備 L-2」「設備 L-1」「仕掛区分 保留」と組みに使った列の見出しとセルの地が藍（淡い青）になり、橙は押したパネルの縁と押したセル（L-2 125・L-1 231・保留の棒・仕掛ロット数）だけ。札には「設備」「仕掛区分」の字があり色だけの区別ではない ／ 3（変えない保存で時点が増える）: 直った（画像と評価関数）。cvb-hist の並びの頭が「「課名」を保存する前・今と違う表 1」で、前の 1 枚目にあった「「管理分類」を保存する前・今と同じ」が無い（1728・1280）。ui-eval-convbackup ①（変えずにもう一度保存しても増えない）も OK ／ 4（「＋ この表だけ」が全体の窓に無い）: 直った。全体の「履歴と戻す」の窓の「＋ 全体をバックアップ」の下に、表を選ぶ欄（管理分類 ▾）と「＋ この表だけ」が 1 段で並ぶ（1728・1280 とも折れず、左の欄の幅に収まる）。押した後の時点と知らせは ui-eval-convbackup ⑤ が OK ／ 5（作り方の窓の空き）: 直った。readcol-new の窓は保存したルールのタブで中身の高さになり（1728 は窓の下が「当てる」の段のすぐ下・前は右の下 4〜5 割が空いていた）、1280 でも変換表のカードの下の空きは小さい。窓が縮んだぶん、後ろに表示列の窓の下の段（板幅・客先…と「保存」）が見えるが、暗い幕の上の別の窓で、操作は重ならない ／ 6（3 行の件数の母数）: 直った。件数は 357・479・664（和 1,500）で、下の言葉は「一覧の全 1,500 行をこのルールで数えた件数」。一覧の「全 1,500件」と同じ母数で、表示列の窓（readcol-cols）と作り方の窓（readcol-new）で同じ数・同じ言葉（1728・1280）。ただし readcol-cols の同じ右の欄の上に「値のある行 500 / 500（空欄 0）」が残り、同じ欄に母数 500 と 1,500 が並ぶ（減点にはしない。下に書く） ／ 7（帯とグループの言葉）: 直った。qg-moved の帯は「✓ 品質を「工程」へ移しました 見出しの「工程」のタブの中の札で開きます・結合した表「品質データ＋製造条件」も一緒に移りました」で 1280 でも 1 段（前は「工程 › 品質」のタブ）。qg-edit の欄は「グループなし｜マスタ｜台帳｜工程｜＋ 新しいグループ…」、qg-menu は「✓ グループなし・マスタ・台帳・工程・＋ 新しいグループ…」で同じ言葉 ／ 作った者の申告の「残る所」: (a) 明細の札が見出しの上に重なる → 画像で確かめた。1536 drill・1280 drill-more では、前は読めた列の見出しが札で全部隠れ、値だけの列ができる。版 3.127.0 の直し 1 で新しく出た崩れなので、残る所ではなく減点（重なり −5）にした。(b) 表示列の窓の「値のある行 500 / 500」→ 画像で確かめた（1280 readcol-cols の右の欄の上）。字の切れ・重なりは無く、意味は「読み込んだ行の空欄」で正しいが、直し 6 で下の件数が 1,500 になったので同じ欄で母数が食い違って見える。崩れではないので減点にせず、考えさせない（effortless）を 8 にとどめた ／ ほかの状態（drill-entry・drill-off・cvb・cvb-saved・cvb-diff・cvb-th・cvb-off・readcol-list・readcol-rule・readcol-off・qg-list・qg-tab・qg-off）: 3 つの大きさで新しい切れ・はみ出し・語の途中の折れ・1 段のはずの 2 段は見つけなかった。metrics.json の字の最小（10.83px は前からある qg-menu の小さな字）・コントラストの最小・cut・hidden は前と同じ"
+  },
+  "verdict": "81.3 点（加点 86.3 − 重なり 5）。80 点には届くが、減点（明細の端の札が列の見出しを覆う）が残るので、この依頼の合格（80 点以上かつ減点なし）ではない。ui_score.py の「作った後も 80 点以上」は点だけの判定。札が見出しを覆わない形（例: 札を見出しの行の外〈表の上の段の右〉に置く・札の幅だけ見出しの右に余白を足す・半透明にせず列の区切りで止める）に直して撮り直し、採点し直す"
  }
 }
