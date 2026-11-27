@@ -1243,10 +1243,13 @@ impl Store {
                 self.pull(name, true, true)?; // 当てる前に共有から取り直す
                 let pulled = stat_sig(&share);
                 let mut doc = self.read(&self.mirror(name))?;
-                before_write(name, &doc.rows)?;
+                let before = has_before_write(name).then(|| doc.rows.clone());
                 let (result, changed) = mutate(&mut doc.rows, &stamp)?;
                 if !changed {
                     return Ok(result);
+                }
+                if let Some(b) = &before {
+                    before_write(name, b, &doc.rows)?;
                 }
                 // 版が端（i64 の最大）なら足せない。Python は大きな整数で続けるが、窓は書かずに断る（黙って負へ回さない）
                 doc.revision = doc.revision.checked_add(1).ok_or_else(|| io_err("マスタの版の番号が大きすぎて、窓では保存できません"))?;
@@ -1271,10 +1274,13 @@ impl Store {
             let first = self.initial(name); // 錠を取ってから決めて読む
             let pulled = stat_sig(&path);
             let mut doc = if first.exists() { self.read(&first)? } else { Doc::empty() };
-            before_write(name, &doc.rows)?;
+            let before = has_before_write(name).then(|| doc.rows.clone());
             let (result, changed) = mutate(&mut doc.rows, stamp)?;
             if !changed {
                 return Ok(result);
+            }
+            if let Some(b) = &before {
+                before_write(name, b, &doc.rows)?;
             }
             let cur = self.read_lock();
             if cur.as_ref().and_then(|c| c.get("token")) != Some(&json!(token)) || stat_sig(&path) != pulled {
@@ -1307,9 +1313,11 @@ impl Store {
     }
 }
 
-/// 書く直前の係（版 3.125.0。変換表の履歴 src/conv_history.rs）: 錠の中で取り直した後・当てる前に、そのマスタの今の行を渡す。
+/// 書く直前の係（版 3.125.0。変換表の履歴 src/conv_history.rs）: 錠の中で取り直した後、直した形を置き場へ書く直前に、
+/// そのマスタの書く前の行と書いた後の行を渡す（版 3.127.0 から後の行も。中身が変わらない保存で時点を残さないため。
+/// 前は直す前に呼んでいたので、行を変えない書き込み・断られた書き込みでも時点が残った）。
 /// Err なら書かない。置いた糸の、名前の合う最初の書き込みで 1 回だけ呼ぶ（2 回目の書き込み〈取り込んで標準にも〉では呼ばない）
-pub type BeforeWrite = Box<dyn FnMut(&[Value]) -> R<()>>;
+pub type BeforeWrite = Box<dyn FnMut(&[Value], &[Value]) -> R<()>>;
 thread_local! {
     static BEFORE: RefCell<Option<(String, BeforeWrite)>> = const { RefCell::new(None) };
 }
@@ -1327,7 +1335,12 @@ pub fn with_before_write<T>(name: &str, hook: BeforeWrite, f: impl FnOnce() -> T
     f()
 }
 
-fn before_write(name: &str, rows: &[Value]) -> R<()> {
+/// 名前の合う書く直前の係が置いてあるか（無ければ書く前の行を写さない）
+fn has_before_write(name: &str) -> bool {
+    BEFORE.with(|b| b.borrow().as_ref().is_some_and(|(n, _)| n == name))
+}
+
+fn before_write(name: &str, rows: &[Value], after: &[Value]) -> R<()> {
     let hook = BEFORE.with(|b| {
         let mut b = b.borrow_mut();
         if b.as_ref().is_some_and(|(n, _)| n == name) {
@@ -1337,7 +1350,7 @@ fn before_write(name: &str, rows: &[Value]) -> R<()> {
         }
     });
     match hook {
-        Some((_, mut h)) => h(rows),
+        Some((_, mut h)) => h(rows, after),
         None => Ok(()),
     }
 }

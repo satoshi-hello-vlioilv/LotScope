@@ -11,6 +11,7 @@
 //     ③ 読み替えの段は無い（ルールを選ぶ所は 1 か所）。元の列（合金）には ③ がある
 //  ⑤ ルールの窓（ルールを編集）: 目「ルール」・題「ルール「管理区分」」（表示ルール・読み替えルールの言葉が無い）、試した結果の左がロット番号
 //  ⑥ 作り方の窓: 「＋ 列を作る」で足した列は「≡ 保存したルール」のタブで開き、カードを押すと ✓ と 3 行・試した結果がルールの答え（左はロット番号）。
+//     版 3.127.0: 3 行の件数は（④ も）一覧の全部の行で数え、母数「一覧の全 n 行」を言う。「保存したルール」のタブの窓は中身の高さ（組み立てるは前の高さ）
 //     「当てる」でその列がルールで作る列になり、一覧のセルがルールの答え。「⇄ 変換表（マスタ）で作る」のカードがある
 //  ⑦ 式で作る に切り替えるとルールで作る列でなくなり（式は残る）、③ が戻る。ルールで作るに戻すと元どおり
 //  ⑧ 1728・1536×864・1280×720 で、作り方の段を開いても ② 値の整え方と結果の段が右の欄の中に見え、札の説明が 1 段
@@ -90,27 +91,36 @@ try {
   /* ④ 表示列の窓 */
   await openCols(p, COL);
   await p.evaluate(() => { const s = document.querySelector('.lc-step[data-step="fx"]'); if (s && !s.classList.contains("is-open")) s.querySelector("h4").click(); }); await sleep(300);
+  // 版 3.127.0: 3 行の件数は一覧の全部の行で数える（サーバーに値の組を尋ねる）。届くまで待つ
+  await p.waitForFunction(() => /一覧の全 [\d,]+ 行/.test(document.querySelector("#lcDetail .lc-rcap")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
   const det = await p.evaluate(() => {
     const dd = [...document.querySelectorAll("#lcDetail .lc-card dd")];
     const lh = parseFloat(getComputedStyle(dd[0]).lineHeight) || 18;
     return { kind: dd[0].textContent, kindLines: Math.round(dd[0].getBoundingClientRect().height / lh), have: dd[1].textContent, sort: dd[2].textContent,
       fx: (document.querySelector('.lc-step[data-step="fx"] .lc-now') || {}).textContent, seg: [...document.querySelectorAll(".lc-fxseg button")].map((b) => [b.textContent, b.getAttribute("aria-checked")]),
       rows: [...document.querySelectorAll("#lcDetail .lc-rrows li")].map((li) => [li.querySelector(".lc-rread").textContent, li.querySelector(".lc-rval").textContent, +li.querySelector(".lc-rn").textContent]),
-      cap: (document.querySelector("#lcDetail .lc-rrows") || {}).getAttribute?.("aria-label") || "", rule: !!document.querySelector('.lc-step[data-step="rule"]'), edit: !!document.querySelector('.lc-step[data-step="fx"] #lcRuleEdit') };
+      cap: (document.querySelector("#lcDetail .lc-rrows") || {}).getAttribute?.("aria-label") || "", vcap: document.querySelector("#lcDetail .lc-rcap")?.textContent || "",
+      count: (document.querySelector("#llCount") || {}).textContent || "", rule: !!document.querySelector('.lc-step[data-step="rule"]'), edit: !!document.querySelector('.lc-step[data-step="fx"] #lcRuleEdit') };
   });
-  const nRead = Number((det.cap.match(/（(\d+) 行）/) || [])[1] || 0);
-  const indCols = await p.evaluate(async ([col, n]) => {
-    const d = await (await fetch("/api/lotlist?table=" + encodeURIComponent("仕掛") + "&page=1&page_size=" + n)).json(), rows = LotListRules.rowsOf(col), k = rows.map(() => 0);
+  const nAll = Number(((det.vcap.match(/全 ([\d,]+) 行/) || [])[1] || "0").replace(/,/g, ""));
+  // 独立の答え: 一覧の全部の行（1 ページで全件）を、ルールの行ごとに数える（値の組を通さない）
+  const indCols = await p.evaluate(async (col) => {
+    const d = await (await fetch("/api/lotlist?table=" + encodeURIComponent("仕掛") + "&page=1&page_size=5000")).json(), rows = LotListRules.rowsOf(col), k = rows.map(() => 0);
     for (const r of d.rows || []) { const hit = LotListRules.match(rows, r, col); if (hit) k[rows.indexOf(hit)]++; }
     return k;
-  }, [COL, nRead]);
-  check(`④ 札「${det.kind}」が 1 段・値のある行 ${det.have}・値の種類「${det.sort}」`, det.kind === "ルール「管理区分」で作る列" && det.kindLines === 1 && new RegExp(`^${nRead} / ${nRead}`).test(det.have) && det.sort === "ルールで決まる 3 つの値", det);
+  }, COL);
+  check(`④ 札「${det.kind}」が 1 段・値のある行 ${det.have}（3 行の件数と同じ全部の行）・値の種類「${det.sort}」`, det.kind === "ルール「管理区分」で作る列" && det.kindLines === 1 && det.have === `${ind.n.toLocaleString()} / ${ind.n.toLocaleString()}（全部の行・空欄 0）` && det.sort === "ルールで決まる 3 つの値", det);
   check("④ 作り方の段は「≡ ルール「管理区分」」で、2 択はルール側・ルールを編集が段の中", det.fx === "≡ ルール「管理区分」" && det.seg.length === 2 && det.seg[1][1] === "true" && det.edit, det);
-  check(`④ ルールの 3 行（条件 → 値 → 件数）の件数が、窓の読んだ ${nRead} 行をルールで数えた独立の答え（${indCols}）と同じ`, nRead >= 100 && det.rows.length === 3 && det.rows.map((r) => r[1]).join() === "5052厚板,3000系,その他"
-    && /合金 ＝ 「A5052」 かつ 板厚 ≧ 「1」/.test(det.rows[0][0]) && det.rows.every((r, i) => r[2] === indCols[i]), { rows: det.rows, indCols });
+  check(`④ ルールの 3 行（条件 → 値 → 件数）の件数が、一覧の全部の ${ind.n} 行をルールで数えた独立の答え（${indCols}）と同じ`, det.rows.length === 3 && det.rows.map((r) => r[1]).join() === "5052厚板,3000系,その他"
+    && /合金 ＝ 「A5052」 かつ 板厚 ≧ 「1」/.test(det.rows[0][0]) && det.rows.every((r, i) => r[2] === indCols[i]) && indCols.reduce((a, b) => a + b, 0) === ind.n, { rows: det.rows, indCols });
+  // 版 3.127.0: 母数を言う（一覧の「全 1,500件」と同じ数）
+  check(`④ 件数の下に母数「${det.vcap}」（一覧の ${det.count} と同じ数）`, nAll === ind.n && new RegExp(`全 ${ind.n.toLocaleString()}件`).test(det.count) && det.cap.includes(det.vcap), { vcap: det.vcap, count: det.count, nAll });
   check("④ ルールで作る列には ③ 読み替えの段が無い", !det.rule, det);
   await p.click('#lcList li[data-col="合金"]'); await sleep(300);
   check("④ 元の列（合金）には ③ 読み替えの段がある", await p.evaluate(() => !!document.querySelector('.lc-step[data-step="rule"]') && !document.querySelector(".lc-fxseg")), "");
+  // 版 3.127.0: 値のある行の母数を言う（ルールで作る列は 3 行の件数と同じ全部の行・ほかの列は読み込んだ行と言う）
+  const haveAlloy = await p.evaluate(() => [...document.querySelectorAll("#lcDetail .lc-card dd")][1]?.textContent || "");
+  check(`④ 元の列（合金）の値のある行「${haveAlloy}」は読み込んだ行で数えたと言う`, /^[\d,]+ \/ [\d,]+（読み込んだ行・空欄 [\d,]+）$/.test(haveAlloy), haveAlloy);
   await p.click(`#lcList li[data-col="${COL}"]`); await sleep(300);
 
   /* ⑤ ルールの窓 */
@@ -132,6 +142,23 @@ try {
   const fx1 = await p.evaluate(() => { const f = document.querySelector("#llFxPanel"); return { on: (f.querySelector(".lr-rcard.is-on") || {}).dataset?.rule, rows: [...f.querySelectorAll(".lr-rrows li")].map((li) => +li.querySelector(".lr-rn").textContent),
     keys: [...f.querySelectorAll(".lr-try-list code")].map((c) => c.textContent), outs: [...f.querySelectorAll(".lr-try-list b")].map((b) => b.textContent) }; });
   check("⑥ カードを押すと ✓（選んだ形）と 3 行の件数", fx1.on === "管理区分" && fx1.rows.length === 3 && fx1.rows.reduce((a, b) => a + b, 0) >= 100, fx1);
+  // 版 3.127.0: 作り方の窓の 3 行の件数も一覧の全部の行で（表示列の窓と同じ数）・母数を言う
+  await p.waitForFunction(() => /一覧の全 [\d,]+ 行/.test(document.querySelector("#llFxPanel .lr-rcap")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
+  const fx2 = await p.evaluate(() => { const f = document.querySelector("#llFxPanel"); return { rows: [...f.querySelectorAll(".lr-rrows li")].map((li) => +li.querySelector(".lr-rn").textContent), cap: f.querySelector(".lr-rcap")?.textContent || "" }; });
+  check(`⑥ 作り方の窓の 3 行の件数（${fx2.rows}）＝一覧の全部の行で数えた独立の答え（${indCols}）・母数「${fx2.cap}」`,
+    fx2.rows.join() === indCols.join() && fx2.cap === `一覧の全 ${ind.n.toLocaleString()} 行をこのルールで数えた件数`, fx2);
+  // 版 3.127.0: 「保存したルール」のタブでは窓の高さが中身まで（右の下が大きく空かない）。組み立てるへ移ると前の高さ
+  const fit = await p.evaluate(() => {
+    const f = document.querySelector("#llFxPanel"), b = f.querySelector(".lr-body").getBoundingClientRect(), pr = f.getBoundingClientRect();
+    const last = (sel) => Math.max(...[...f.querySelectorAll(sel)].map((x) => x.getBoundingClientRect().bottom), 0);
+    const content = Math.max(last(".lr-rcards > *"), last(".lr-try-list li"), last(".lr-try-head"));
+    return { gap: Math.round(b.bottom - content), h: Math.round(pr.height), max: parseFloat(f.style.maxHeight) || 0, fit: f.classList.contains("is-fit"), inView: pr.bottom <= innerHeight + 1 };
+  });
+  check(`⑥ 「保存したルール」のタブの窓は中身の高さ（中身の下の空き ${fit.gap}px ≦ 48px・窓 ${fit.h}px ≦ 前の高さ ${fit.max}px）`, fit.fit && fit.gap <= 48 && fit.gap >= 0 && fit.h <= fit.max + 1 && fit.inView, fit);
+  await p.click('#llFxPanel [data-tab="build"]'); await sleep(400);
+  const fit2 = await p.evaluate(() => { const f = document.querySelector("#llFxPanel"); return { h: Math.round(f.getBoundingClientRect().height), fit: f.classList.contains("is-fit") }; });
+  check(`⑥ 組み立てるへ移ると前の高さ（${fit2.h}px）`, !fit2.fit && Math.abs(fit2.h - fit.max) <= 1, { fit2, fit });
+  await p.click('#llFxPanel [data-tab="rule"]'); await sleep(400);
   check("⑥ 試した結果の左がロット番号で、右がルールの答え", fx1.keys.length >= 10 && fx1.keys.every((k) => /^L\d{4}C\d$/.test(k)) && fx1.outs.every((o) => ["5052厚板", "3000系", "その他"].includes(o)), fx1);
   await p.click('#llFxPanel [data-act="save"]'); await sleep(700);
   const made = await p.evaluate(() => ({ rc: LotListColumns.get("lotlist:仕掛").ruleCols, now: (document.querySelector('.lc-step[data-step="fx"] .lc-now') || {}).textContent }));

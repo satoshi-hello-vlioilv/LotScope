@@ -8,7 +8,9 @@
 //!             conversions: [置き場の行のそのまま], defaults: [標準の行のそのまま（空＝同梱のプリセット）]}
 //! 自動    … 変換表・標準を書く道（足す・直す・標準に戻す・消す・取り込む・標準を決める・戻す）が、錠の中で取り直した後・当てる前に
 //!            書く直前の全部の表と標準を残す（master_store::with_before_write）。残せなければ書かない。
-//!            いちばん新しい自動の時点と中身が同じなら新しく残さない（変えずに保存を押しても増えない）
+//!            書く前と書いた後の行の中身（行の版・書いた時刻・書いた人を除く。changes_content）が同じなら残さない
+//!            （版 3.127.0。変えずに「この表を保存」を押しても「今と同じ」時点が増えない）。
+//!            いちばん新しい自動の時点と中身が同じときも新しく残さない
 //! 世代    … 自動は新しい 50 個まで（残した後に古い物から消す）。手で取った物は数えず消さない
 //! 読む    … 名前の形・JSON・kind・行の形が違うファイルは読み飛ばし、数だけ返す（unreadable）
 //! 2 台    … 時点は 1 つずつ別のファイル（名前に印）なので、2 台が同時に残しても置き換え合わない。追記のファイル（jsonl）は、共有の
@@ -84,6 +86,21 @@ pub fn read_point(d: &Path, id: &str) -> Option<Value> {
         && v["conversions"].as_array().is_some_and(|a| a.iter().all(Value::is_object))
         && v["defaults"].as_array().is_some_and(|a| a.iter().all(Value::is_object));
     ok.then_some(v)
+}
+
+/// 書くたびに変わる印（行の版・書いた時刻・書いた人）。中身の比べには入れない
+const STAMP_KEYS: [&str; 3] = ["rev", "updated_at", "updated_by"];
+
+/// 書く前の行 `before` と書いた後の行 `after` で、中身が変わるか（版 3.127.0）。行の数・順・各行の項目を比べ、
+/// 書くたびに変わる印（STAMP_KEYS）は除く。変わらなければ自動の時点を残さない（事例の表 conv_backup_cases.json の keep）
+pub fn changes_content(before: &[Value], after: &[Value]) -> bool {
+    let strip = |v: &Value| match v {
+        Value::Object(m) => {
+            Value::Object(m.iter().filter(|(k, _)| !STAMP_KEYS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect())
+        }
+        x => x.clone(),
+    };
+    before.len() != after.len() || before.iter().zip(after).any(|(a, b)| strip(a) != strip(b))
 }
 
 /// 時点を残す。自動で、いちばん新しい自動の時点と表・標準が同じなら残さずその印を返す。自動は残した後に古い物を消す

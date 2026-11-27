@@ -229,6 +229,9 @@ td.cell-warn{background:#fff5e0!important}
 
 /* ---------- 読み替えルールの窓（左＝試した結果・右＝決めること） ---------- */
 .lr-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(260px,.42fr) 1fr}
+/* 作り方の窓の「保存したルール」（版 3.127.0。lotlist-rules.js の fitRule）: 高さは中身まで（上限は今の高さ＝max-height。足りなければ中を送る） */
+.ll-fxpanel.is-fit{height:auto !important}
+.ll-fxpanel.is-fit .lr-body{flex:0 1 auto}
 .lr-try{overflow:auto;border-right:1px solid var(--line);background:var(--surface-1);padding:10px 12px}
 .lr-try-head b{display:block;font-size:13.5px}
 .lr-try-head small{display:block;color:var(--muted);font-size:12px;margin:2px 0 6px}
@@ -447,3 +450,5 @@ td.cell-warn{background:#fff5e0!important}
 .lr-rcard-sub .lr-rchk{border-style:dashed}
 .lr-rcard + .lr-rrows{margin:-4px 0 0 34px}
 .lr-rcap{margin:-4px 0 4px 34px;color:var(--muted);font-size:12px}
+/* 表示列の窓の 3 行の件数の母数（版 3.127.0） */
+.lc-rcap{display:block;margin:1px 2px 0;line-height:16px;color:var(--muted);font-size:12px}

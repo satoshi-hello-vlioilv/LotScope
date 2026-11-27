@@ -55,3 +55,21 @@ fn points_keep_generations_and_skip_broken_files() {
     assert!(read_point(&d, &m).is_some());
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// 保存で自動の時点を残すか（版 3.127.0）: 中身（行の版・書いた時刻・書いた人を除く）が変わる保存だけ残す。
+/// 変えずに「この表を保存」を押すと「今と同じ」時点が並びの頭を占めていた（3.125.0 の作った後の採点の指摘）
+#[test]
+fn saving_without_changes_keeps_no_point() {
+    use da_core::conv_history::changes_content;
+    let t: Value = serde_json::from_str(CASES).expect("事例の表を読めません");
+    let cases = t["keep"].as_array().expect("keep");
+    assert!(cases.len() >= 6, "事例が少ない: {}", cases.len());
+    let mut bad = vec![];
+    for c in cases {
+        let got = changes_content(c["before"].as_array().unwrap(), c["after"].as_array().unwrap());
+        if Value::Bool(got) != c["want"] {
+            bad.push(format!("{}: 答え {} 窓 {got}", c["name"], c["want"]));
+        }
+    }
+    assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
+}

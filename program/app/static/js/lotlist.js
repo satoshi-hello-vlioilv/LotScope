@@ -1250,6 +1250,16 @@
       place: S.src.place(S.table), columns: window.LotListColumns.allColumns(layoutTarget(), S.columns),
       sourceColumns: S.columns, rows: S.rows, lotColumn: S.lotColumn, grid: $("#llGrid"),
       rerender: () => renderGrid(), toast: (m) => flash(m), levels: levelsApi(),
+      // 全部の行の値の組と件数（版 3.127.0。ルールで作る列の 3 行の件数を、読み込んだ行でなく一覧の全件で数えるため）。
+      // いまの絞り込み・検索・スライサーのまま、スライサーと同じ /slicer?columns=… に尋ねる。count は一覧の件数（全 n 件）
+      count: S.count, queryKey: filterParams().toString(),
+      combos: async (uses) => {
+        const q = filterParams(); q.set("columns", JSON.stringify(uses));
+        const r = await fetch(`${S.src.api}/slicer?` + q, { cache: "no-store" });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "値の組を読めませんでした");
+        return { combos: d.combos || [], truncated: !!d.truncated };
+      },
       // 列の値で絞る（見出しの右クリックの「値で絞る…」「この列の絞り込みを外す」）
       filter: { open: (c, x, y) => openColumnFilter(c, { x, y }), has: (c) => colFilters(c).length > 0,
         clear: (c) => { S.genericFilters = S.genericFilters.filter((f) => f.locked || f.column !== c); reload(); } } };

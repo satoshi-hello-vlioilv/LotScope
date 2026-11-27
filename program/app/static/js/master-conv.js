@@ -807,6 +807,15 @@ async function loadStdRows() {
   const names = new Set([...b.map((t) => t.name), ...(s || []).map((t) => t.name)]);
   hw.stdRows = [...names].map((n) => ({ name: n, bundled: (b.find((t) => t.name === n) || {}).then ?? null, std: ((s || b).find((t) => t.name === n) || {}).then ?? null }));
 }
+/** 全体の窓の「表を選んで＋ この表だけ」（版 3.127.0。前は一部の表のバックアップが、表の頭の「履歴 ▾」から開いた窓にしか無かった）。
+    選ぶ表の既定は、いま開いている表 */
+function mkOneHtml() {
+  const names = ((mstate.data.conv || {}).items || []).map((x) => x.name).filter(Boolean);
+  if (!names.length) return "";
+  if (!names.includes(hw.mkName)) hw.mkName = draft && names.includes(draft.name) ? draft.name : names[0];
+  return `<span class="cvh-mkone"><select data-cvh-mkname aria-label="この表だけバックアップする表" title="バックアップする表（ほかの表は残しません）">${names.map((n) => `<option${n === hw.mkName ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`
+    + `<button type="button" class="pv-btn" data-cvh-mk="pick"${hw.busy ? " disabled" : ""}>＋ この表だけ</button></span>`;
+}
 function drawHist() {
   if (!hw) return;
   let el = document.querySelector(".cvh-dlg");
@@ -816,7 +825,8 @@ function drawHist() {
     el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
     document.body.append(el);
     el.addEventListener("click", histClick);
-    el.addEventListener("change", (e) => { const c = e.target.closest("[data-cvh-pick]"); if (!c || !hw) return; if (c.checked) hw.picks.add(c.dataset.cvhPick); else hw.picks.delete(c.dataset.cvhPick); drawHist(); });
+    el.addEventListener("change", (e) => { if (e.target.matches("[data-cvh-mkname]") && hw) { hw.mkName = e.target.value; return; }
+      const c = e.target.closest("[data-cvh-pick]"); if (!c || !hw) return; if (c.checked) hw.picks.add(c.dataset.cvhPick); else hw.picks.delete(c.dataset.cvhPick); drawHist(); });
     document.addEventListener("keydown", histKey, true);
   }
   const L = hw.list, keepTop = el.querySelector(".cvh-right")?.scrollTop || 0, keepLeft = el.querySelector(".cvh-list")?.scrollTop || 0;
@@ -829,7 +839,7 @@ function drawHist() {
     + (hw.msg ? `<div class="ps-result ${hw.msg[0]} cvh-msg" aria-live="polite">${hw.msg[1]}</div>` : "")
     + (hw.name ? `<div class="cvh-filter">「${esc(hw.name)}」を含む時点だけを出しています <button type="button" class="cvh-lnk" data-cvh-all>全部の表の時点 ›</button></div>` : "")
     + `<div class="cvh-two"><aside class="cvh-left"><div class="cvh-pins">${pins.map(ptCard).join("")}</div>`
-    + `<div class="cvh-mk"><button type="button" class="pv-btn" data-cvh-mk="all">＋ 全体をバックアップ</button>${hw.name ? `<button type="button" class="pv-btn" data-cvh-mk="one">＋ この表だけ</button>` : ""}</div>`
+    + `<div class="cvh-mk"><button type="button" class="pv-btn" data-cvh-mk="all">＋ 全体をバックアップ</button>${hw.name ? `<button type="button" class="pv-btn" data-cvh-mk="one">＋ この表だけ</button>` : mkOneHtml()}</div>`
     + `<div class="cvh-h">戻せる時点（新しい順）${L && L.unreadable ? `<small>（読めない時点 ${L.unreadable} は飛ばしました）</small>` : ""}</div>`
     + `<div class="cvh-list">${L ? (L.points.length ? L.points.map(ptCard).join("") : '<p class="cvh-hint">まだありません。変換表を書くと、書く前の形がここに残ります</p>') : '<p class="cvh-hint">読んでいます…</p>'}</div></aside>`
     + `<section class="cvh-right">${hw.mode === "diff" ? detHtml() : stdHtml()}</section></div></div>`;
@@ -846,12 +856,12 @@ async function histClick(e) {
   if (ds.cvhStdnow != null || ds.cvbBundled != null) { hw.mode = ds.cvhStdnow != null ? "std-now" : "std-bundled"; hw.msg = null; await loadStdRows(); drawHist(); return; }
   if (ds.cvhStdno != null) { hw.mode = "diff"; drawHist(); return; }
   if (ds.cvhMk) {
-    const names = ds.cvhMk === "one" && hw.name ? [hw.name] : null;
+    const one = ds.cvhMk === "one" && hw.name ? hw.name : ds.cvhMk === "pick" ? hw.mkName : null, names = one ? [one] : null;
     hw.busy = true; drawHist();
-    const r = await fetch("/api/masters/conversions/history", TPA.json("POST", { names, why: names ? `「${hw.name}」を手で残した形` : "手で取った全体のバックアップ" }));
+    const r = await fetch("/api/masters/conversions/history", TPA.json("POST", { names, why: names ? `「${one}」を手で残した形` : "手で取った全体のバックアップ" }));
     const d = await r.json().catch(() => ({}));
     hw.busy = false;
-    hw.msg = r.ok ? ["ok", `✓ ${names ? `「${esc(hw.name)}」` : `全体（${(mstate.data.conv.items || []).length} 表）`}をバックアップしました（時点 ${esc(shortAt((d.history.points || []).find((p) => p.id === d.created)?.at))}）`] : ["ng", `✕ ${esc(d.error || "バックアップを残せませんでした")}`];
+    hw.msg = r.ok ? ["ok", `✓ ${names ? `「${esc(one)}」だけ` : `全体（${(mstate.data.conv.items || []).length} 表）`}をバックアップしました（時点 ${esc(shortAt((d.history.points || []).find((p) => p.id === d.created)?.at))}）`] : ["ng", `✕ ${esc(d.error || "バックアップを残せませんでした")}`];
     loadHist().then(() => keepView(paint));
     await reloadHist(hw.sel); return;
   }
