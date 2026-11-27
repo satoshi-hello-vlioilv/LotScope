@@ -1112,7 +1112,12 @@ fn keeper(
     made: Option<std::rc::Rc<std::cell::RefCell<Option<String>>>>,
 ) -> master_store::BeforeWrite {
     let (place, by) = (place.clone(), by.clone());
-    Box::new(move |rows: &[Value]| {
+    Box::new(move |rows: &[Value], after: &[Value]| {
+        // 中身（行の版・書いた時刻・書いた人を除く）が変わらない保存では時点を残さない（版 3.127.0。変えずに「この表を保存」を
+        // 押すと「今と同じ」時点が並びの頭を占めていた）。決まりは conv_history::changes_content
+        if !crate::conv_history::changes_content(rows, after) {
+            return Ok(());
+        }
         let other = if name == NAME { DEFAULTS } else { NAME };
         let peek = place.rows_peek(other).map_err(MasterError::Error)?;
         let (convs, defs) = if name == NAME { (rows.to_vec(), peek) } else { (peek, rows.to_vec()) };

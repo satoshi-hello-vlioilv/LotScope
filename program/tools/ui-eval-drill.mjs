@@ -10,6 +10,8 @@
 // ⑥ 出せない形: 稼働のガントのパネルの数を押すと、理由の 1 行（空の明細を出さない）。差（別のデータと合わせる）はサーバーが理由を返す
 // ⑦ 置き場: 明細の面は押したパネルに重ならず、ほかのパネルの縁にそろう（途中に縁を置かない）。押した数の印（dd-src）と押したパネルの縁が見えている
 // ⑧ 3 つの大きさで、面の頭の帯・題の行・範囲の札・押す手が切れない・はみ出さない・重ならない・語の途中で折れない。表の高さは行の高さの倍数
+// ⑨ 右・左に続く列（版 3.127.0）: 端の札「あと n 列 ›」「‹ 前 n 列」の n が見出しの位置で数えた外の列の数・細い送り棒・押すと列の区切りで送る
+// ⑩ 色の意味（版 3.127.0）: 範囲の札と組みに使った列は、押したパネルの橙と別の色（橙は押した所だけ）
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
@@ -122,6 +124,42 @@ try {
     s = await drillNow(p);
     check(`③ タブが多いとき、古いタブを「前の n ▾」に畳む（${s.tabs.length} 個・出す ${s.tabsShown}）`, s.tabs.length > 4 && s.tabsShown <= 4 && /前の \d+/.test(s.more), s);
     const lay2 = await layout(p); check("⑧ タブが多いとき: 頭の帯が切れない・重ならない", !lay2.bad.length, lay2.bad);
+    // ⑨ 右・左に続く列（版 3.127.0）: 表の外の列の数を見出しの位置で別に数え、端の札「あと n 列 ›」の n と同じ・細い送り棒が見える・
+    //    札を押すと列の区切りで送られ（左の端が列の頭）「‹ 前 n 列」が出る・右の端まで送ると「あと」が消える
+    const edge = () => p.evaluate(() => {
+      const tw = document.querySelector("#dashDrill .dd-tw"), ths = [...tw.querySelectorAll("thead th")].slice(1), a = tw.scrollLeft, b = a + tw.clientWidth;
+      const vis = (el) => !!el && !el.hidden && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== "hidden";
+      const r = document.querySelector("#dashDrill .dd-side.is-r"), l = document.querySelector("#dashDrill .dd-side.is-l"), bar = document.querySelector("#dashDrill .dd-hbar");
+      const tr = tw.getBoundingClientRect(), rr = r.getBoundingClientRect();
+      return { right: ths.filter((th) => th.offsetLeft + th.offsetWidth > b + 1).length, left: ths.filter((th) => th.offsetLeft < a - 1).length,
+        rText: vis(r) ? r.textContent : "", lText: vis(l) ? l.textContent : "", bar: vis(bar) && bar.getBoundingClientRect().height >= 6,
+        snap: a === 0 || ths.some((th) => Math.abs(th.offsetLeft - a) <= 1), wide: tw.scrollWidth > tw.clientWidth + 2, end: b >= tw.scrollWidth - 1,
+        rInside: !vis(r) || (rr.right <= tr.right + 1 && rr.top >= tr.top - 1), rFont: parseFloat(getComputedStyle(r).fontSize) };
+    });
+    let e0 = await edge();
+    check(`⑨ 右に続く列: 端の札「${e0.rText}」＝見出しの位置で数えた ${e0.right} 列・細い送り棒が見える・札が表の中`,
+      e0.wide && e0.right > 0 && e0.rText === `あと ${e0.right} 列 ›` && !e0.lText && e0.bar && e0.rInside && e0.rFont >= 11, e0);
+    await p.click("#dashDrill .dd-side.is-r"); await sleep(250);
+    const e1 = await edge();
+    check(`⑨ 札を押すと列の区切りで送る（左の端が列の頭）・「${e1.lText}」＝${e1.left} 列・あと ${e1.right} 列`,
+      e1.snap && e1.left > 0 && e1.lText === `‹ 前 ${e1.left} 列` && e1.right < e0.right && (e1.right ? e1.rText === `あと ${e1.right} 列 ›` : !e1.rText), e1);
+    for (let i = 0; i < 20 && (await edge()).rText; i++) { await p.click("#dashDrill .dd-side.is-r"); await sleep(120); }
+    const e2 = await edge();
+    check("⑨ 右の端まで送ると「あと n 列」が消える", e2.end && !e2.rText && e2.right === 0 && !!e2.lText, e2);
+    for (let i = 0; i < 20 && (await edge()).lText; i++) { await p.click("#dashDrill .dd-side.is-l"); await sleep(120); }
+    const e3 = await edge();
+    check("⑨ 「‹ 前 n 列」で左の端まで戻る", e3.left === 0 && !e3.lText && !!e3.rText, e3);
+    // ⑩ 色の意味（版 3.127.0）: 橙は押した所（押したパネルの縁・押したセル）だけ。範囲の札「設備」と組みに使った列は橙でない（色相が 40 度より離れる）
+    const hue = await p.evaluate(() => {
+      const h = (c) => { const m = c.match(/[\d.]+/g).map(Number), [r, g, b] = m.map((x) => x / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+        if (!d) return null; const v = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return (v * 60 + 360) % 360; };
+      const chip = document.querySelector("#dashDrill .dd-c.is-cell"), th = document.querySelector("#dashDrill .dd-t th.is-used");
+      const sh = getComputedStyle(document.querySelector("#dashGrid .db-p.dd-keep")).boxShadow.match(/rgba?\([^)]+\)/)[0];
+      return { chip: chip && h(getComputedStyle(chip).backgroundColor), chipEdge: chip && h(getComputedStyle(chip).borderTopColor), used: th && h(getComputedStyle(th).backgroundColor), keep: h(sh) };
+    });
+    const far = (a) => a != null && Math.min(Math.abs(a - hue.keep), 360 - Math.abs(a - hue.keep)) > 40;
+    check(`⑩ 範囲の札（地 ${Math.round(hue.chip)}°・縁 ${Math.round(hue.chipEdge)}°）と組みに使った列（${Math.round(hue.used)}°）は、押したパネルの橙（${Math.round(hue.keep)}°）と別の色`,
+      far(hue.chip) && far(hue.chipEdge) && far(hue.used), hue);
     // × でそのタブ・Esc でいまのタブ・すべて閉じる
     const before = s.tabs.length;
     await p.click("#dashDrill .dd-tab.is-on .dd-tabx"); await sleep(200); s = await drillNow(p);

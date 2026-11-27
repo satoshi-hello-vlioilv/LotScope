@@ -602,7 +602,16 @@
       const ta = q(".lr-write");
       if (tab === "write") { ta.value = written; paintWrite(); requestAnimationFrame(() => ta.focus()); }
       if (tab === "rule") renderRulePane();
+      fitRule();
       paintWarn(); renderTry(recount());
+    }
+    /* 「保存したルール」のタブでは、窓の高さを中身に合わせる（版 3.127.0。前は窓の右の下 4〜5 割が空いた）。上限は今の高さ
+       （組み立てる・式を書くは前の高さのまま。覚えた大きさは変えない） */
+    function fitRule() {
+      if (!fx || !panel) return;
+      const on = tab === "rule";
+      panel.classList.toggle("is-fit", on);
+      panel.style.maxHeight = on ? panel.style.height : "";
     }
     /* ---- 作り方の「保存したルール」（版 3.123.0。作った列だけ）: カードを押すと選んだこと（✓）。押す物は「当てる」1 つ。
        選んだカードの下に、表示列の窓と同じ 3 行（条件 → 値の札 → 件数の棒）。並びの最後に「＋ 新しいルール」と「⇄ 変換表（マスタ）で作る」 */
@@ -620,13 +629,15 @@
         const used = src && src.usage ? src.usage(name) : [];
         let detail = "";
         if (on) {
-          const n = rows.map(() => 0);
-          all.forEach((r) => { const hit = match(rows, src.formulaRow(r), selfColumn); if (hit) n[rows.indexOf(hit)]++; });
+          // 件数は一覧の全部の行で（版 3.127.0。表示列の窓と同じ src.counts。前は読み込んだ 500 行で数え、一覧の「全 1,500件」と母数が違った）
+          let n = rows.map(() => 0), cap = `一覧の ${all.length} 行をこのルールで数えた件数`;
+          if (src && src.counts) { const k = src.counts(rows, selfColumn, () => { if (chosenRule === name && q(".lr-rcards")) renderRulePane(); }); n = k.n; cap = k.caption; }
+          else all.forEach((r) => { const hit = match(rows, src.formulaRow(r), selfColumn); if (hit) n[rows.indexOf(hit)]++; });
           const max = Math.max(1, ...n);
-          detail = `<ol class="lr-rrows" aria-label="ルール「${esc(name)}」の行と件数（${all.length} 行）">${rows.map((r, i) => `<li><span class="lr-rread" title="${esc(readRow(r, labelOf))}">${esc(readRow(r, labelOf))}</span>`
+          detail = `<ol class="lr-rrows" aria-label="ルール「${esc(name)}」の行と件数（${esc(cap)}）">${rows.map((r, i) => `<li><span class="lr-rread" title="${esc(readRow(r, labelOf))}">${esc(readRow(r, labelOf))}</span>`
             + `<b class="lr-rval${r.color ? " cell-" + esc(r.color) : ""}">${esc(String(r.text || "") || "（空欄）")}</b>`
             + `<span class="lr-rbar" aria-hidden="true"><i class="${r.color ? "cell-" + esc(r.color) : ""}" style="width:${Math.round((n[i] / max) * 100)}%"></i></span><span class="lr-rn">${n[i]}</span></li>`).join("")}</ol>`
-            + `<small class="lr-rcap">一覧の ${all.length} 行をこのルールで数えた件数</small>`;
+            + `<small class="lr-rcap">${esc(cap)}</small>`;
         }
         return `<div class="lr-rcard${on ? " is-on" : ""}" role="radio" tabindex="0" aria-checked="${on}" data-rule="${esc(name)}"><span class="lr-rchk" aria-hidden="true">${on ? "✓" : ""}</span>`
           + `<span class="lr-rname"><b>≡ ${esc(name)}</b><small>${rows.length} 行${used.length ? `・使っている列 ${used.length}` : ""}</small></span>`

@@ -1,11 +1,12 @@
 // 評価関数（開発用）: 変換表の履歴と戻す（版 3.125.0。利用者の改良依頼 2026-11-17 の 5。決め方: ui-proposals/2026-11-convbackup の案 F）。
 //   node program/tools/ui-eval-convbackup.mjs
-// ① 表を保存すると、書く前の形が時点として残る（自動・その表の scope）。変えずにもう一度保存しても、同じ中身の時点は増えない
+// ① 表を保存すると、書く前の形が時点として残る（自動・その表の scope）。変えずにもう一度保存しても、時点は増えない（版 3.127.0 から 1 つも増えない）
 // ② 戻すと何が変わるか: 窓の答え（GET /history/<id>）の行の数・消える／戻る／変わる行が、保存の前後の表を node で並びの位置で比べた
 //    独立の答えと同じ。窓（画面）の表の「今・戻すと」の行の数と行の差の行の数も同じ
 // ③ この表だけ戻す（表の頭の「履歴 ▾」→ 時点 → 「「管理分類」をこの時点に戻す」）: その表は時点の形・ほかの表は変わらない
 // ④ 戻したことを取り消せる（「元に戻す」）: 戻す前の形に戻る
-// ⑤ 全体を戻す（窓の「全体（n 表と標準）をこの時点に戻す」）: 全部の表が時点の形・後で足した表は消える
+// ⑤ 全体を戻す（窓の「全体（n 表と標準）をこの時点に戻す」）: 全部の表が時点の形・後で足した表は消える。
+//    版 3.127.0: 全体の窓でも表を選んで「＋ この表だけ」のバックアップ（選んだ表だけの手の時点）
 // ⑥ 標準を同梱のプリセットにする前の確かめ: 表ごとに 今の表・今の標準・決めた後 の行の数が出る。押すと標準が同梱・表の中身は変わらない
 // ⑦ 取り込む前の確かめに表ごとの行の数（5 行 → 2 行（3 行が消える））
 // ⑧ 1728・1536×864・1280×720 で: 窓が画面に収まる・同梱のプリセットの札が送らずに見える・表の頭が 1 段（保存した印が出た形）・
@@ -60,7 +61,12 @@ try {
   check("① 保存すると時点が 1 つ増える（自動・「管理分類」を保存する前・scope は管理分類）", h1.points.length === h0.points.length + 1 && auto.auto && /「管理分類」を保存する前/.test(auto.why) && JSON.stringify(auto.scope) === '["管理分類"]', { n0: h0.points.length, n1: h1.points.length, auto });
   await p.click("[data-cv-save]"); await sleep(1200);
   const h1b = (await api("/api/masters/conversions/history")).body;
-  check("① 変えずにもう一度保存すると、同じ中身の時点は 1 つまで（増えても 1 つ）", h1b.points.length <= h1.points.length + 1, { n1: h1.points.length, n1b: h1b.points.length });
+  // 版 3.127.0: 中身の変わらない保存では時点を増やさない（前は「今と同じ」時点が 1 つ増え、並びの頭を占めた。決まりは窓の conv_history::changes_content）
+  check("① 変えずにもう一度保存しても、時点は増えない（並びの頭はさっきの「保存する前」のまま）", h1b.points.length === h1.points.length && h1b.points[0].id === auto.id, { n1: h1.points.length, n1b: h1b.points.length, top: h1b.points[0] });
+  // 開いて閉じただけ（直していない）の保存も 2 回目以降と同じ: もう 1 回押しても増えない・知らせは保存した
+  await p.click("[data-cv-save]"); await sleep(1200);
+  const h1c = (await api("/api/masters/conversions/history")).body;
+  check("① 3 回目の変えない保存でも時点は増えない", h1c.points.length === h1.points.length, { n1: h1.points.length, n1c: h1c.points.length });
   const mid = await items();
 
   // ② 差: 窓の答え ＝ 独立の答え ＝ 画面
@@ -97,6 +103,16 @@ try {
   await p.click('.cvh-dlg [data-cvh-mk="all"]'); await sleep(1500);
   const hb = (await api("/api/masters/conversions/history")).body, man = hb.points.find((x) => !x.auto);
   check("⑤ 「＋ 全体をバックアップ」で手の時点（全体）が残る", man && man.scope === "all" && man.tables === after4.length, man);
+  // 版 3.127.0: 全体の窓にも一部の表のバックアップの入口（表を選んで「＋ この表だけ」）。既定はいま開いている表
+  const mk = await p.evaluate(() => ({ sel: document.querySelector(".cvh-dlg [data-cvh-mkname]")?.value || "", btn: document.querySelector('.cvh-dlg [data-cvh-mk="pick"]')?.textContent || "",
+    all: !!document.querySelector('.cvh-dlg [data-cvh-mk="all"]'), filtered: !!document.querySelector(".cvh-dlg .cvh-filter") }));
+  check("⑤ 全体の窓に「表を選んで ＋ この表だけ」（既定はいま開いている表「管理分類」）", !mk.filtered && mk.all && mk.sel === "管理分類" && /＋ この表だけ/.test(mk.btn), mk);
+  await p.selectOption(".cvh-dlg [data-cvh-mkname]", "課名"); await sleep(150);
+  await p.click('.cvh-dlg [data-cvh-mk="pick"]'); await sleep(1500);
+  const hk = (await api("/api/masters/conversions/history")).body, one = hk.points[0];
+  const okMsg = await p.$eval(".cvh-dlg .cvh-msg", (x) => x.textContent).catch(() => "");
+  check("⑤ 選んだ表「課名」だけの手の時点が残る（scope は課名・知らせ「「課名」だけをバックアップしました」）",
+    hk.points.length === hb.points.length + 1 && !one.auto && JSON.stringify(one.scope) === '["課名"]' && /「課名」だけをバックアップしました/.test(okMsg), { one, okMsg });
   const base = await items();
   await api("/api/masters/conversions", J("POST", { name: "試しの表", inputs: [{ name: "x", type: "text", columns: ["x"] }], rows: [{ when: { x: [{ op: "eq", v: ["1"] }] }, out: "一" }], other: "", apply: { mode: "add", column: "試し", place: "end" } }));
   const ka = base.find((x) => x.name === "課名");

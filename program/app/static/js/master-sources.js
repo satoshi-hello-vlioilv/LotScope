@@ -119,7 +119,9 @@ function placeMovedBar(d) {
 function movedBar(d) {
   const m = lastMove, s = m && d.items.find((x) => x.key === m.key);
   if (!s) return "";
-  const where = !s.listed ? "見出しのタブには出していません" : m.to ? `見出しでは「${escapeHtml(m.to)} › ${escapeHtml(s.name)}」のタブで開きます` : "見出しに 1 つのタブで出ます";
+  const where = !s.listed ? "見出しのタブには出していません" : m.to ? `見出しの「${escapeHtml(m.to)}」のタブの中の札で開きます` : "見出しに 1 つのタブで出ます";
+  // 版 3.127.0: 見出しのタブは狭いと「工程」だけになる（「工程 › 品質」は広いときの字）ので、どの幅でも食い違わない言い方にする
+  // （欄の説明「そのグループのタブの中に札で並びます」と同じ言葉）
   return `<div class="sr-moved" id="srMoved" role="status"><b>✓ ${escapeHtml(s.name)}を${m.to ? `「${escapeHtml(m.to)}」` : "グループなし"}へ移しました</b>`
     + `<span>${where}${m.views.length ? `・結合した表「${escapeHtml(m.views.join("・"))}」も一緒に移りました` : ""}</span>`
     + `<button type="button" class="sr-mundo" data-sr-undo>元に戻す</button><button type="button" class="sr-mx" data-sr-mx aria-label="帯を閉じる" title="帯を閉じる">×</button></div>`;
@@ -334,7 +336,7 @@ function rowMenu(key, x, y) {
     { group: "グループ（押すと移す）" },
     { label: "グループなし", icon: "", on: !cur, disabled: !!viewWhy, why: viewWhy, run: to("") },
     ...groups.map((g) => ({ label: g, icon: "", on: g === cur, disabled: !!viewWhy, run: to(g) })),
-    { label: "新しいグループへ…", icon: "＋", disabled: !!viewWhy, run: () => askName("", (name) => moveTo(key, { group: name })) },
+    { label: "新しいグループ…", icon: "＋", disabled: !!viewWhy, run: () => askName("", (name) => moveTo(key, { group: name })) },
   ];
   TPA.menu({ x, y, head: `データ元「${s.name}」`, items: [
     { label: "変える…", icon: "✎", run: () => { if (key !== openKey) openSec = "conn"; openKey = key; openOther = null; lastMove = null; paintSources(); } },
@@ -609,13 +611,14 @@ function formOf(s, can, isView = false) {
     </div>
     <div class="ps-result hidden sr-w" data-sr-result aria-live="polite"></div></div>`;
 }
-/* 欄のグループ（版 3.122.0。決め方: ui-proposals/2026-11-qualitygroup の J）: 札で選ぶ（なし・今あるグループ・＋ 新しいグループ…）。
+/* 欄のグループ（版 3.122.0。決め方: ui-proposals/2026-11-qualitygroup の J）: 札で選ぶ（グループなし・今あるグループ・＋ 新しいグループ…）。
+   言葉は行のメニュー（rowMenu）と同じ（版 3.127.0。前は欄が「なし」、メニューが「グループなし」・「新しいグループへ…」で食い違っていた）。
    値は隠した欄（data-sr="group"。保存していない変更の見張りも同じ）。役割「マスタ」の元の「なし」は「-」（グループを消した印） */
 function groupField(v, groups, dis) {
   const cur = v.group || "", raw = v.groupSet || "", none = v.role === "マスタ" ? "-" : "";
   const chip = (g, label) => `<button type="button" role="radio" class="sr-gchip" data-sr-gpick="${escapeHtml(g)}" aria-checked="${g === cur}"${dis}>${escapeHtml(label)}</button>`;
   return `<div class="sr-gfield"><span class="sr-glab" id="srGLab">グループ</span><div class="sr-gchips" role="radiogroup" aria-labelledby="srGLab" data-none="${none}">`
-    + chip("", "なし") + groups.map((g) => chip(g, g)).join("")
+    + chip("", "グループなし") + groups.map((g) => chip(g, g)).join("")
     + `<button type="button" class="sr-gchip is-new" data-sr-gnew${dis}>＋ 新しいグループ…</button><input class="ps-input sr-gnew" data-sr-gname maxlength="24" placeholder="グループの名前（例: 台帳）" aria-label="新しいグループの名前" hidden></div>`
     + `<input type="hidden" data-sr="group" value="${escapeHtml(raw)}"></div>`;
 }

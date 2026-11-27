@@ -66,8 +66,8 @@ try {
     const m1 = await menuItems(p);
     const grpAt = m1.findIndex((x) => x.kind === "tm-group" && x.text === "グループ（押すと移す）");
     const after = m1.slice(grpAt + 1).filter((x) => x.kind === "item").map((x) => x.text);
-    check(`① ${tag} メニューに「グループ（押すと移す）」のまとまり（グループなし ✓・今あるグループ 3 つ〈並びはデータ元の順〉・新しいグループへ…）`,
-      grpAt >= 0 && after[0] === "グループなし" && [...after.slice(1, 4)].sort().join() === ["マスタ", "台帳", "工程"].sort().join() && after[4] === "新しいグループへ…" && m1.find((x) => x.text === "グループなし").on && m1.filter((x) => x.on).length === 1, m1);
+    check(`① ${tag} メニューに「グループ（押すと移す）」のまとまり（グループなし ✓・今あるグループ 3 つ〈並びはデータ元の順〉・新しいグループ…）`,
+      grpAt >= 0 && after[0] === "グループなし" && [...after.slice(1, 4)].sort().join() === ["マスタ", "台帳", "工程"].sort().join() && after[4] === "新しいグループ…" && m1.find((x) => x.text === "グループなし").on && m1.filter((x) => x.on).length === 1, m1);
     const foot = m1.filter((x) => x.kind === "tm-foot").map((x) => x.text);
     check(`① ${tag} 薄い「見出しのタブに出さない」は無く、最後の 1 行で「消す・タブを外すはできません」`,
       !m1.some((x) => /見出しのタブに出/.test(x.text)) && foot.length === 1 && /消す・タブを外すはできません/.test(foot[0]), m1);
@@ -83,9 +83,12 @@ try {
     check(`② ${tag} 表の工程の中に品質と、その下に └ 結合した表`, li >= 0 && tbl[li + 1] && tbl[li + 1][0] === vw.key && tbl[li + 1][1], tbl);
     const bar = await p.$eval("#srMoved", (b) => { const r = b.getBoundingClientRect(), w = document.querySelector(".master-panel").getBoundingClientRect(), s = document.querySelector("#masterSettings").getBoundingClientRect();
       return { text: b.textContent, undo: !!b.querySelector("[data-sr-undo]"), shown: r.height > 0, inside: r.top >= w.top - 1 && r.bottom <= w.bottom + 1 && r.left >= w.left - 1 && r.right <= w.right + 1,
-        above: r.bottom <= s.top + 1, cut: [...b.querySelectorAll("b,button")].some((x) => x.scrollWidth > x.clientWidth + 1) }; }).catch(() => null);
-    check(`② ${tag} 移した直後の帯（移した先・「工程 › 品質」・結合した表も一緒・元に戻す）が窓の中で切れず、表の上で表に被らない`,
-      !!bar && bar.shown && /「工程」へ移しました/.test(bar.text) && /工程 › 品質/.test(bar.text) && /結合した表/.test(bar.text) && bar.undo && bar.inside && bar.above && !bar.cut, bar);
+        above: r.bottom <= s.top + 1, cut: [...b.querySelectorAll("b,button")].some((x) => x.scrollWidth > x.clientWidth + 1),
+        lines: [...b.querySelectorAll(":scope > b, :scope > span")].map((x) => new Set([...x.getClientRects()].map((q) => Math.round(q.top))).size) }; }).catch(() => null);
+    // 版 3.127.0: 帯は「見出しの「工程」のタブの中の札で開きます」（狭いと見出しのタブは「工程」だけになるので、「工程 › 品質」と言わない。欄の説明と同じ言葉）
+    check(`② ${tag} 移した直後の帯（移した先・「工程」のタブの中の札・結合した表も一緒・元に戻す）が窓の中で切れず、表の上で表に被らない`,
+      !!bar && bar.shown && /「工程」へ移しました/.test(bar.text) && /「工程」のタブの中の札で開きます/.test(bar.text) && !/工程 › 品質/.test(bar.text) && /結合した表/.test(bar.text) && bar.undo && bar.inside && bar.above && !bar.cut, bar);
+    check(`② ${tag} 移した直後の帯の字が 1 段（移した先と開く所が折れない）`, !!bar && bar.lines.length === 2 && bar.lines.every((n) => n === 1), bar && bar.lines);
     const over = await p.evaluate(() => { const b = document.querySelector("#masterSettings"); return b.scrollWidth > b.clientWidth + 1; });
     check(`⑧ ${tag} データ元の表が横にはみ出さない`, !over, over);
     // ③
@@ -125,7 +128,11 @@ try {
       await p.click('#masterSettings [data-sr-edit="lot"]'); await sleep(700);
       await p.click('#masterSettings .sr-card.is-open [data-sr-sec="name"]').catch(() => {}); await sleep(300);
       const gf = await p.$$eval("#masterSettings .sr-card.is-open [data-sr-gpick], #masterSettings .sr-card.is-open [data-sr-gnew]", (bs) => bs.map((b) => [b.textContent.trim(), b.getAttribute("aria-checked")]));
-      check("⑤ 欄のグループは札（なし・マスタ・台帳・工程 ✓・＋ 新しいグループ…）", gf.map((x) => x[0]).join() === "なし,マスタ,台帳,工程,＋ 新しいグループ…" && gf[3][1] === "true", gf);
+      check("⑤ 欄のグループは札（グループなし・マスタ・台帳・工程 ✓・＋ 新しいグループ…）", gf.map((x) => x[0]).join() === "グループなし,マスタ,台帳,工程,＋ 新しいグループ…" && gf[3][1] === "true", gf);
+      // 版 3.127.0: 同じ選びは欄の札とメニューで同じ言葉（前は欄が「なし」、メニューが「グループなし」「新しいグループへ…」）
+      const words = (x) => x.replace(/^＋\s*/, "");
+      check("⑤ 欄の札の言葉が行のメニューのグループの項目と同じ（グループなし・新しいグループ…）",
+        [gf[0][0], words(gf[gf.length - 1][0])].join() === [after[0], after[4]].join(), { field: gf.map((x) => x[0]), menu: after });
       const nd = await p.$eval("#masterSettings .sr-card.is-open .sr-nodel", (b) => [b.disabled, b.textContent, b.nextElementSibling?.textContent]).catch(() => null);
       check("⑤ 押せない「このデータ元を消す」と「決まったデータ元なので消せません」", !!nd && nd[0] && /このデータ元を消す/.test(nd[1]) && /消せません/.test(nd[2] || ""), nd);
       await p.click('#masterSettings .sr-card.is-open [data-sr-gpick="台帳"]'); await sleep(200);

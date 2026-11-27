@@ -180,11 +180,13 @@
   const cell = (t, c, row) => cellWith(t, c, row, get(t).rules[c] || "");
   /** 計算列 c の式が使う元の列（表示名は元の名前へ・計算列はその式の列へ 1 段たどる。baseRow と同じ深さ）。
       読めない式・表に無い列を使う式は null（スライサーが計算列の値の組を尋ねるため: lotlist-slicer.js） */
-  function sourcesOf(t, c) {
+  function sourcesOf(t, c) { return usesOf(t, c, get(t).formulas[c]); }
+  /** 式 formula（列 c の式として）が使う元の列（sourcesOf と同じたどり方。ルールの件数を全部の行で数えるときはルールと同じ意味の式で尋ねる） */
+  function usesOf(t, c, formula) {
     const l = get(t), src = srcCols[t] || [], byName = {};
     Object.entries(l.names).forEach(([k, n]) => { byName[n] = k; });
     const used = (f) => { const chk = String(f || "").trim() ? window.WL.formula.check(f) : null; return chk && chk.ok ? chk.columns : null; };
-    const top = used(l.formulas[c]);
+    const top = used(formula);
     if (!top) return null;
     const out = new Set();
     for (const name of top) {
@@ -759,8 +761,8 @@
           + `<button type="button" role="radio" data-lc-fxmode="rule" aria-checked="${!!rc}" class="${rc ? "is-on" : ""}" title="保存したルール（条件 → 値・色）の答えをこの列の値にします。式は書きません">≡ ルールで作る</button></div>`
           + (rule ? `<span class="lc-rulepick"><select id="lcRuleCol" aria-label="この列の値を決めるルール">${ruleNames.map((n) => `<option value="${esc(n)}"${rc === n ? " selected" : ""}>${esc(n)}</option>`).join("")}${ruleNames.includes(rc) ? "" : `<option value="${esc(rc)}" selected>${esc(rc)}（見つかりません）</option>`}<option value="__new">＋ 新しいルールを作る…</option></select>`
           + `<button type="button" id="lcRuleEdit"${ruleNames.includes(rc) ? "" : " disabled"}>ルールを編集</button></span>` : "") + "</div>" : ""}
-        ${rule ? `<ol class="lc-rrows" aria-label="ルール「${esc(rc)}」の行と件数（${ctx.rows.length} 行）" title="上から順に見て、最初に当てはまった行の値がこの列の値です（色も）。並べ替え・絞り込み・集計表でも同じ値">${rule.rows.map((r) => `<li><span class="lc-rread" title="${esc(r.read)}">${esc(r.read)}</span>`
-          + `<b class="lc-rval${r.color ? " cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</b><span class="lc-rbar" aria-hidden="true"><i class="${r.color ? "cell-" + r.color : ""}" style="width:${r.pct}%"></i></span><span class="lc-rn">${r.n}</span></li>`).join("") || '<li class="lc-empty">このルールには行がありません（列は空欄）</li>'}</ol>` : ""}
+        ${rule ? `<ol class="lc-rrows" aria-label="ルール「${esc(rc)}」の行と件数（${esc(countCaption(rule.base))}）" title="上から順に見て、最初に当てはまった行の値がこの列の値です（色も）。並べ替え・絞り込み・集計表でも同じ値">${rule.rows.map((r) => `<li><span class="lc-rread" title="${esc(r.read)}">${esc(r.read)}</span>`
+          + `<b class="lc-rval${r.color ? " cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</b><span class="lc-rbar" aria-hidden="true"><i class="${r.color ? "cell-" + r.color : ""}" style="width:${r.pct}%"></i></span><span class="lc-rn">${r.n}</span></li>`).join("") || '<li class="lc-empty">このルールには行がありません（列は空欄）</li>'}</ol><small class="lc-rcap${rule.base.all ? "" : " is-part"}">${esc(countCaption(rule.base))}</small>` : ""}
         <div class="lc-fxsum"${rule ? " hidden" : ""}>
           <code class="lc-fxcode${fchk && !fchk.ok ? " is-ng" : ""}${String(fsrc).trim() ? "" : " is-none"}">${String(fsrc).trim() ? esc(fsrc) : calc ? "（式がまだありません）" : "式なし（元の値のまま）"}</code>
           <small class="lc-fxhow">${fromBuild ? `組み立て ${l.builds[c].length}行から作った式` : String(fsrc).trim() ? "書いた式" : "組み立てる（表示ルールと同じ組み立て）か、式を書いて作れます"}</small>
@@ -787,7 +789,7 @@
         <small class="lc-hint">読み替えが当たった行はその言葉で確定し、当たらなければ書式で整形します。どちらもできない値は元のまま表示します。</small>
       </section>`}
       ${step("result", "", "結果", stepResult)}
-        ${rule ? (rule.values.length ? `<table><tr><th>この列の値</th><th>件数（${ctx.rows.length} 行）</th></tr>${rule.rows.filter((r) => r.n).map((r) => `<tr><td class="${r.color ? "cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</td><td>${r.n} 件</td></tr>`).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>')
+        ${rule ? (rule.values.length ? `<table><tr><th>この列の値</th><th>件数（${rule.base.all ? `全 ${rule.base.total.toLocaleString()} 行` : `読み込んだ ${rule.base.total.toLocaleString()} 行`}）</th></tr>${rule.rows.filter((r) => r.n).map((r) => `<tr><td class="${r.color ? "cell-" + r.color : ""}">${esc(r.text || "（空欄）")}</td><td>${r.n} 件</td></tr>`).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>')
           : distinctRows.length ? `<table><tr><th>元の値</th><th></th><th>一覧に出る値</th></tr>${distinctRows.map((r) => { const o = cell(t, c, r); return `<tr><td>${esc(o.raw)}</td><td>→</td><td class="${o.color ? "cell-" + o.color : ""}">${o.text === o.raw ? `${esc(o.text)} <small>変わりません</small>` : esc(o.text)}</td></tr>`; }).join("")}</table>` : '<p class="lc-empty">値のある行がありません</p>'}
       </section>`;
     const setL = (p) => { stage(t, p); ctx.rerender(); renderPanel(); };
@@ -963,13 +965,52 @@
     window.LotListRules.open({ name, column: c, source: ruleSource(), toFormula: null,
       onDone: (saved) => { if (saved) setRuleCol(c, saved); else { ctx.rerender(); renderPanel(); } if (done) done(saved); } });
   }
-  /** 表示列の窓の「ルールで作る」の 3 行と結果: ルールの行ごとに読み方・値・色と、いまの一覧の行のうちその行に当たった数 */
+  /** 表示列の窓の「ルールで作る」の 3 行と結果: ルールの行ごとに読み方・値・色と、一覧の全部の行のうちその行に当たった数（ruleCounts） */
   function ruleView(t, c, name) {
-    const R = window.LotListRules, rows = R.rowsOf(name), n = rows.map(() => 0);
-    ctx.rows.forEach((r) => { const hit = R.match(rows, ruleRow(t, r, c, "raw"), c); if (hit) n[rows.indexOf(hit)]++; });
+    const R = window.LotListRules, rows = R.rowsOf(name), k = ruleCounts(t, c, rows, () => { if (panel && !panel.hidden) renderPanel(); }), n = k.n;
     const max = Math.max(1, ...n);
-    const out = rows.map((r, i) => ({ read: R.readRow(r, (k) => label(t, k)), text: String(r.text || ""), color: CELL_COLORS.has(r.color) ? r.color : "", n: n[i], pct: Math.round((n[i] / max) * 100) }));
-    return { rows: out, values: [...new Set(out.filter((r) => r.n).map((r) => r.text || "（空欄）"))] };
+    const out = rows.map((r, i) => ({ read: R.readRow(r, (x) => label(t, x)), text: String(r.text || ""), color: CELL_COLORS.has(r.color) ? r.color : "", n: n[i], pct: Math.round((n[i] / max) * 100) }));
+    return { rows: out, values: [...new Set(out.filter((r) => r.n).map((r) => r.text || "（空欄）"))], base: k };
+  }
+  /* ルールの行ごとの件数（版 3.127.0。前は一覧の読み込んだ行〈500 行〉で数え、一覧の「全 1,500件」と母数が違って考えさせた）。
+     全部の行で数える: ルールと同じ意味の式が使う元の列（4 列まで）の値の組と件数を、一覧と同じ絞り込みでサーバーに尋ね（/slicer?columns=…）、
+     組ごとにルールで判定して件数を足す。組の数の和が一覧の件数と同じときだけ「全 n 行」と言う（違えば読み込んだ行で数え、母数を言う）。
+     答えは一覧の問い合わせ・ルールの行ごとに覚え、まだ無いときは読み込んだ行で数えた数を出して、届いたら onReady で描き直す。
+     返す: { n: [行ごとの件数], all: 全部の行で数えたか, total: 母数, wait: 尋ねている途中か } */
+  const countMemo = new Map();
+  function ruleCounts(t, c, rows, onReady) {
+    const R = window.LotListRules, local = () => {
+      const n = rows.map(() => 0);
+      ctx.rows.forEach((r) => { const hit = R.match(rows, ruleRow(t, r, c, "raw"), c); if (hit) n[rows.indexOf(hit)]++; });
+      return n;
+    };
+    const read = { n: local(), all: false, total: ctx.rows.length, wait: false };
+    if (!ctx.combos || !rows.length || ctx.rows.length >= (ctx.count || 0)) return { ...read, all: ctx.rows.length >= (ctx.count || 0) && ctx.rows.length > 0 };
+    const uses = usesOf(t, c, R.formulaOf(rows, { column: c, computed: isComputed(t, c) }).expr);
+    if (!uses || !uses.length || uses.length > 4) return read;
+    const key = JSON.stringify([t, c, ctx.queryKey, rows, uses]), got = countMemo.get(key);
+    if (got && got !== "wait") return got.ok ? { n: got.n, all: true, total: got.total, wait: false } : read;
+    if (!got) {
+      const want = ctx.count;
+      countMemo.set(key, "wait");
+      if (countMemo.size > 40) countMemo.delete(countMemo.keys().next().value);
+      ctx.combos(uses).then((d) => {
+        const n = rows.map(() => 0); let sum = 0;
+        for (const x of d.combos) {
+          const row = Object.fromEntries(uses.map((k, i) => [k, x.values[i]]));
+          const hit = R.match(rows, ruleRow(t, row, c, "raw"), c);
+          if (hit) n[rows.indexOf(hit)] += x.count;
+          sum += x.count;
+        }
+        countMemo.set(key, { ok: !d.truncated && sum === want, n, total: sum });
+      }).catch(() => countMemo.set(key, { ok: false })).finally(() => { if (onReady) onReady(); });
+    }
+    return { ...read, wait: true };
+  }
+  /** 件数の母数の言葉（版 3.127.0）: 「一覧の全 1,500 行で数えた件数」／「読み込んだ 500 行で数えた件数（全 1,500 行で数えています…）」 */
+  function countCaption(k) {
+    if (k.all) return `一覧の全 ${k.total.toLocaleString()} 行をこのルールで数えた件数`;
+    return `読み込んだ ${k.total.toLocaleString()} 行をこのルールで数えた件数${k.wait ? `（全 ${(ctx.count || 0).toLocaleString()} 行で数えています…）` : `（一覧は全 ${(ctx.count || 0).toLocaleString()} 件）`}`;
   }
   /** 列 c の式が、保存してある組み立てから作った物か（そうなら作り方の窓を組み立てるで開く） */
   function isBuilt(t, c) {
@@ -1007,6 +1048,8 @@
       newRule: (done) => window.LotListRules.open({ name: "", column: c, source: ruleSource(), onDone: (saved) => done(saved) }),
       openConv: () => { convOpen = true; renderConv(); requestAnimationFrame(() => $("#lcConv")?.scrollIntoView({ block: "nearest" })); },
       toast: (m) => ctx.toast && ctx.toast(m),
+      // 「保存したルール」のカードの 3 行の件数を一覧の全部の行で（版 3.127.0。表示列の窓と同じ ruleCounts）。{ n, all, total, wait, caption }
+      counts: (rows, col, onReady) => { const k = ruleCounts(t, col, rows, onReady); return { ...k, caption: countCaption(k) }; },
     };
   }
   /** 列 c の表示名を v にする（空・元の名前と同じなら外す）。右の詳細と左の一覧の欄の両方から */
